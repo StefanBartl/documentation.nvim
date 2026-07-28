@@ -1128,7 +1128,15 @@ committed artifact for exactly the reason the History tab is not a tab:
 embedding history produces a commit that invalidates its own artifact the
 moment it lands. There is no fixed point. The roadmap listed the two
 candidates side by side as if they were the same kind of work; only one of
-them was ever buildable here.
+them was ever buildable here. It ships as **`:DocMap churn`** instead —
+live-computed into the quickfix list, nothing written, the shape `:DocMap
+impact` already had. See [`churn.lua`](../lua/documentation/churn.lua) for the
+scoring and for the one property worth knowing: `commits × complexity` is a
+scalarization, so a large enough value on one axis outranks a moderate value
+on both. Tornhill's own presentation is a scatter plot whose answer is the
+top-right quadrant and which has no such failure mode — but that is not a
+ranking, and a quickfix list is. Both columns ship on every row, so when the
+order looks wrong the numbers beside it say why.
 
 ## Drift checks
 

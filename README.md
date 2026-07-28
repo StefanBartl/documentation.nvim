@@ -110,6 +110,8 @@ Full reference: [docs/COMMANDS.md](docs/COMMANDS.md).
 :DocMap dot deps                 " the require graph as Graphviz DOT, in a buffer
 :DocMap diff HEAD~5              " what changed about the tree's shape
 :DocMap impact                   " …and where the changed lines radiate to
+:DocMap churn                    " churn x complexity, hottest first -> quickfix
+:DocMap churn HEAD~200..         " …over one range instead of all history
 :DocMap serve                    " local map server (enables the History tab)
 
 :DocBrowse                       " navigate the map inside the editor

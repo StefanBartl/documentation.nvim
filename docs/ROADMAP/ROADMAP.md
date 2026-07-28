@@ -120,10 +120,9 @@ cost until the tab itself was proven useful with cheaper tools first:
   FEATURES.md. Found two groups on this repository's own tree on the first
   run, one a real triplicated `read(path)` and one a legitimate shape
   coincidence — which is why it is a panel and not a check.
-- **Churn-hotspots** (Adam Tornhill's *Your Code as a Crime Scene*: git
-  history × complexity) — modules that are both *frequently changed* and
-  *complex*, the actual refactor-risk signal that neither metric alone
-  gives.
+- ~~**Churn-hotspots**~~ — shipped, but as `:DocMap churn` rather than as a
+  panel; see FEATURES.md and the paragraph below for why it could never have
+  been one.
 
 The deferral above was overtaken by a direct request to build them, and one
 thing it got wrong is worth recording: it listed the two side by side as if

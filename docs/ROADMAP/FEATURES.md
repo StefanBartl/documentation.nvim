@@ -189,7 +189,8 @@ failing on them), `:LibMap impact [ref]` (→ quickfix: what a diff touches,
 transitively, live-computed, no artifact needed — default `ref` is `HEAD`,
 so a clean tree's blank `:LibMap impact` answers "what does my uncommitted
 work affect"), `:LibMap serve [stop]` (local-only HTTP server, see below),
-`:LibMap graph --dot` (Graphviz export).
+`:LibMap graph --dot` (Graphviz export), `:DocMap churn [range]`
+(churn x complexity ranking -> quickfix; see its own entry below).
 
 ## Commit history with blast radius (`history.lua`, `:LibMap serve`)
 
@@ -525,3 +526,58 @@ argument for the window — not an assumption made up front.
 panel which aggregates data already in the JSON: this grouping needs
 `fn.shape`, and a page reading the artifact has no parse tree to redo it with.
 Measured cost — `module_map.json` grew from 256 KB to 273 KB.
+
+## Churn hotspots — `:DocMap churn` (2026-07-28)
+
+The roadmap's second expensive Analysis-tab candidate, and the one that
+turned out not to be an Analysis-tab candidate at all.
+
+**It cannot be a panel.** It needs `git log`, and git data cannot enter the
+committed artifact: `--check` byte-compares committed output against
+freshly-generated output, so a map carrying history invalidates itself on the
+commit that embeds it. There is no fixed point. That is precisely the wall the
+History tab hit and the reason `serve.lua` exists. The roadmap listing it
+beside code duplication as the same kind of work was simply wrong — one is a
+pure `ir -> result` function like every other Analysis tool, the other cannot
+be computed without a repository.
+
+So it ships where `:DocMap impact` already lives: live-computed into the
+quickfix list, nothing written, no artifact involved. The alternative was a
+third `serve.lua` route, which buys a browser panel at the price of requiring
+a running server for a question best asked from the editor anyway.
+
+- **The product, because neither factor alone is actionable.** A module edited
+  fifty times that is five lines of constants is a config file; a
+  three-hundred-point parser untouched in two years is finished. The
+  intersection is complicated code that keeps having to change — expensive
+  now and expensive again next week.
+- **Summed complexity per module, not averaged.** An average asks "how bad is
+  the typical function here", which is the wrong question: a module carrying
+  one 200-point monster and nine trivial helpers has a real problem an average
+  divides away. `hottest` rides along because the sum names a module and never
+  a place to start reading.
+- **Merges excluded**, since a merge lists everything either side changed —
+  counting one edit twice and rewarding long-lived branches. **`out_dir`
+  excluded**, since in a repository that commits its own map it is regenerated
+  by nearly every commit and would outrank everything real.
+- **Unmatched paths counted, not dropped.** READMEs, CI config and deleted
+  files change too; a number with no idea how much it ignored is worse than no
+  number.
+- **Modules with no documented functions are dropped, not scored zero.** A
+  risk ranking ending in a run of zeroes reads as if the tail were low-risk,
+  when it is really unmeasured.
+
+The limitation is documented rather than engineered around, and the spec is
+what surfaced it: `commits × complexity` is a scalarization, so a large enough
+value on one axis outranks a moderate value on both. The first fixture written
+for this asserted that churned-but-trivial ranks below complex-but-finished,
+and it does not — that depends entirely on the numbers. Tornhill's own
+presentation is a scatter plot whose answer is the top-right quadrant, which
+has no such failure mode but is also not a ranking, and a quickfix list is a
+ranking. Kept because both columns are on every row: when the order looks
+wrong, the two numbers beside it say why immediately. Normalising the axes
+would fix the ordering and cost exactly that.
+
+Verified against this repository, which is a weak test of the signal and a
+fine test of the plumbing — nine commits since extraction, ranking
+`documentation.browse` first at 5 commits × complexity 223.
