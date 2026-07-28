@@ -262,7 +262,7 @@ nvim --headless -l scripts/gen_map.lua --check --lenient  # fail on staleness on
 nvim --headless -l scripts/gen_map.lua --full        # + LuaLS enrichment
 ```
 
-The `:DocMap` command is opt-in — call `require("documentation.command").setup()`
+The `:DocMap` command is opt-in — call `require("documentation.editor.command").setup()`
 to register it. Requiring `documentation` alone never creates a command.
 
 ## Live objects: `install()` / `uninstall()`
@@ -872,7 +872,7 @@ precise than that. `@internal` functions are excluded, same as all three
 findings this builds on.
 
 ```lua
-local documented, total = require("documentation.doccoverage").summary(ir)
+local documented, total = require("documentation.core.doccoverage").summary(ir)
 ```
 
 `opts.badge = true` additionally writes `coverage.svg` — a hand-rolled,

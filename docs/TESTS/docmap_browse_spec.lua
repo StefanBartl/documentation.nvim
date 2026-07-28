@@ -1,4 +1,4 @@
--- docs/TESTS/docmap_browse_spec.lua — documentation.browse
+-- docs/TESTS/docmap_browse_spec.lua — documentation.editor.browse
 --
 -- Two halves, deliberately separated: `view`/`source` are pure and get a
 -- synthetic IR (deterministic, no dependency on whether docs/map is present
@@ -8,9 +8,9 @@
 return function(H)
   local eq, ok = H.eq, H.ok
 
-  local source = require("documentation.browse.source")
-  local view = require("documentation.browse.view")
-  local browse = require("documentation.browse")
+  local source = require("documentation.editor.browse.source")
+  local view = require("documentation.editor.browse.view")
+  local browse = require("documentation.editor.browse")
 
   -- A three-node tree: root -> {alpha, beta}. alpha requires beta, and
   -- alpha's `M.run` calls beta's `M.helper`.
@@ -379,7 +379,7 @@ return function(H)
   -- `trail.lua` is pure by design — a table of records, no window, no buffer,
   -- no `vim` API — so the whole model is driven here without mounting
   -- anything. Only the keys that reach it need the UI half below.
-  local trail = require("documentation.browse.trail")
+  local trail = require("documentation.editor.browse.trail")
   trail.reset()
   local troot = "/tmp/x"
 
@@ -485,7 +485,7 @@ return function(H)
   -- The query language, driven straight — it is pure, so none of this needs a
   -- window. `describe` rather than the raw string is what the status line
   -- shows, so asserting on it also pins what a reader is told is in effect.
-  local flt = require("documentation.browse.filter")
+  local flt = require("documentation.editor.browse.filter")
 
   eq(flt.parse(""), nil, "filter: an empty query is no filter")
   eq(flt.parse("   "), nil, "filter: and so is whitespace")
@@ -571,7 +571,7 @@ return function(H)
   -- Persistence, pointed at a temp file rather than the user's real state
   -- directory — the reason `M.path` is a function every caller goes through
   -- instead of a constant.
-  local store = require("documentation.browse.trail_store")
+  local store = require("documentation.editor.browse.trail_store")
   local store_file = H.tmpfile(".json")
   store.path = function()
     return store_file
@@ -725,17 +725,30 @@ return function(H)
     vim.api.nvim_set_current_win(list_win)
     local before = vim.api.nvim_buf_get_lines(status_buf, 0, 1, false)[1]
 
-    -- Selecting a different row and descending must act on THAT row. This
-    -- is the regression that live-cursor `selected()` exists for: with a
-    -- cached index, <CR> descended into row 1 regardless of the cursor.
-    local rows = vim.api.nvim_buf_line_count(list_buf)
-    if rows >= 3 then
-      vim.api.nvim_win_set_cursor(list_win, { 3, 0 })
-      local third = vim.api.nvim_buf_get_lines(list_buf, 2, 3, false)[1]
+    -- Selecting a different row and descending must act on THAT row. This is
+    -- the regression that live-cursor `selected()` exists for: with a cached
+    -- index, <CR> descended into row 1 regardless of the cursor.
+    --
+    -- The row is found by SHAPE, not by number. This asserted "row 3" and
+    -- passed for as long as row 3 of this tree's root happened to be a
+    -- module; splitting the tree into core/ and editor/ made it a function,
+    -- whose status line names it without its parameter list, and the
+    -- assertion failed on a claim about the fixture rather than about the
+    -- code. The same mistake the extraction commit already had to fix three
+    -- times. The last node row is used so it cannot be row 1, which is the
+    -- one a cached index would wrongly descend into.
+    local node_row, node_label
+    for i, line in ipairs(vim.api.nvim_buf_get_lines(list_buf, 0, -1, false)) do
+      if line:match("^%s*[▸·]%s") then
+        node_row, node_label = i, line
+      end
+    end
+    if node_row and node_row > 1 then
+      vim.api.nvim_win_set_cursor(list_win, { node_row, 0 })
       vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<CR>", true, false, true), "x", false)
       local after = vim.api.nvim_buf_get_lines(status_buf, 0, 1, false)[1]
       ok(after ~= before, "browse: <CR> navigated somewhere new")
-      local leaf = (third or ""):gsub("^%s*[▸·ƒ○≡◆]?%s*", "")
+      local leaf = (node_label or ""):gsub("^%s*[▸·ƒ○≡◆]?%s*", "")
       ok(
         after:find(leaf, 1, true) ~= nil,
         "browse: <CR> descended into the row under the cursor, not a cached one"
@@ -1013,11 +1026,11 @@ return function(H)
     trail.clear(root)
 
     -- Centering on a NAMESPACE: `lua/documentation/render` has no init.lua and
-    -- so declares no @module, but `documentation.render` is what a user types.
+    -- so declares no @module, but `documentation.core.render` is what a user types.
     -- Resolving only on a declared module silently lands on the root instead.
     browse.close()
     eq(
-      browse.open({ root = root, center = "documentation.render" }),
+      browse.open({ root = root, center = "documentation.core.render" }),
       true,
       "browse: opens centered on a namespace"
     )
@@ -1111,7 +1124,13 @@ return function(H)
     package.loaded["lib.nvim.fs.open.url.system_opener"] = nil
 
     -- `gd` on a function entry lands in its file at its declaration line.
-    browse.open({ root = root, center = "documentation.deps" })
+    --
+    -- The expected path is derived from the module name rather than written
+    -- out, so moving a module does not fail an assertion about `gd`. Splitting
+    -- the tree into core/ and editor/ broke the literal form once already.
+    local gd_center = "documentation.core.deps"
+    local gd_expect = "lua/" .. gd_center:gsub("%.", "/") .. ".lua"
+    browse.open({ root = root, center = gd_center })
     local gd_list_win, gd_list_buf = slot("documentation-browse-list")
     vim.api.nvim_set_current_win(gd_list_win)
     local target_row
@@ -1127,8 +1146,8 @@ return function(H)
       eq(browse.is_open(), false, "browse: gd closes the browser — the floats covered the file")
       local opened = vim.api.nvim_buf_get_name(0):gsub("\\", "/")
       ok(
-        opened:find("documentation/deps.lua", 1, true) ~= nil,
-        "browse: gd opened the file the entry pointed at"
+        opened:find(gd_expect, 1, true) ~= nil,
+        "browse: gd opened the file the entry pointed at (" .. gd_expect .. ")"
       )
       ok(vim.api.nvim_win_get_cursor(0)[1] > 1, "browse: at the declaration line, not line 1")
     end

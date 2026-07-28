@@ -143,6 +143,12 @@ committed against freshly-generated output, so a map carrying history
 invalidates itself on the commit that embeds it. The same wall the History tab
 hit. Live-computed here instead, exactly like `:DocMap impact`.
 
+A **rename resets a module's history**: counting is per path, so a file moved
+yesterday looks untouched since the beginning of time. `git log --follow`
+takes a single pathspec and is therefore no use for a whole-tree ranking. The
+commit column is what makes that visible rather than silent, and it corrects
+itself as history accumulates.
+
 The score is `commits × complexity`, and that is a scalarization with the
 weakness every scalarization has — a large enough value on one axis outranks a
 moderate value on both. Both columns are on every row, so when the order looks

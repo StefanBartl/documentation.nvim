@@ -54,7 +54,7 @@ Requires Neovim 0.10+ (`vim.uv`, `vim.treesitter`) and
 ```
 
 `opts = {}` is enough: with no `root`, the commands map the current working
-directory and `documentation.config` derives `source` from it (`lua/<name>`
+directory and `documentation.core.config` derives `source` from it (`lua/<name>`
 when `lua/` holds exactly one candidate directory, `lua` otherwise).
 
 Nothing registers a command until `setup()` runs — `require("documentation")`

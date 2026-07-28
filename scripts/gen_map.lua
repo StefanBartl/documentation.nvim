@@ -7,7 +7,7 @@
 ---   nvim --headless -l scripts/gen_map.lua --full             # + LuaLS enrichment
 ---
 --- Thin on purpose: everything that is not this repository's own layout lives
---- in `documentation.cli`, so another plugin copies this file verbatim and
+--- in `documentation.core.cli`, so another plugin copies this file verbatim and
 --- changes only the options table at the bottom. See docs/REUSE.md.
 
 local root = vim.uv.cwd():gsub("\\", "/"):gsub("/+$", "")
@@ -53,15 +53,32 @@ local function ensure(modname, dirname)
 end
 
 ensure("lib.nvim.fs.read", "lib.nvim")
-ensure("documentation.cli", "documentation.nvim")
+ensure("documentation.core.cli", "documentation.nvim")
 
-local opts = require("documentation.config").build(root, {
+local opts = require("documentation.core.config").build(root, {
   source = "lua/documentation",
   title = "documentation.nvim",
   out_dir = "docs/map",
   repo_url = "https://github.com/StefanBartl/documentation.nvim",
   branch = "main",
+
+  -- The one rule this repository declares about itself, and the reason
+  -- `core/` and `editor/` are directories rather than a convention: the
+  -- pipeline has to stay runnable with no editor around it, and nothing but
+  -- a check keeps a boundary like that from quietly rotting. `--check` now
+  -- fails when a core module requires an editor one.
+  --
+  -- Deliberately one-directional. The editor half reaching into the core is
+  -- the point of the core existing; it is the other direction that costs
+  -- something. See docs/PORTABILITY.md.
+  layers = {
+    {
+      from = "documentation.core",
+      to = "documentation.editor",
+      why = "the pipeline has to stay runnable without an editor — see docs/PORTABILITY.md",
+    },
+  },
 })
 
-local code = require("documentation.cli").run(opts, _G.arg or {})
+local code = require("documentation.core.cli").run(opts, _G.arg or {})
 vim.cmd("cq " .. code)

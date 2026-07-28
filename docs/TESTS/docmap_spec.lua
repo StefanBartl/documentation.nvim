@@ -1,10 +1,10 @@
--- docs/TESTS/docmap_spec.lua — documentation.functions, documentation.check
+-- docs/TESTS/docmap_spec.lua — documentation.core.functions, documentation.core.check
 
 return function(H)
   local eq, ok = H.eq, H.ok
 
   -- --------------------------------------------------------- docmap.functions
-  local functions = require("documentation.functions")
+  local functions = require("documentation.core.functions")
 
   local fixture = H.tmpfile(".lua")
   local fw = assert(io.open(fixture, "w"), "docmap spec: fixture must be writable")
@@ -212,7 +212,7 @@ return function(H)
   eq(#fns2[1].params, 0, "docmap.functions: undocumented function has an empty params list")
 
   -- ------------------------------------------------------------- docmap.check
-  local check = require("documentation.check")
+  local check = require("documentation.core.check")
 
   local function make_ir(functions_by_node, edges)
     local nodes, order = {}, {}
@@ -513,7 +513,7 @@ return function(H)
   -- `{ type = "doc.extends.name", view = "<ParentName>" }`. An alias never
   -- carries `extends`, even when it aliases a class; that was checked too,
   -- because the opposite would manufacture inheritance that does not exist.
-  local luals = require("documentation.luals")
+  local luals = require("documentation.core.luals")
 
   local function ext(view)
     return { type = "doc.extends.name", view = view }
@@ -620,7 +620,7 @@ return function(H)
   )
 
   -- ------------------------------------------------------------- docmap.deps
-  local deps = require("documentation.deps")
+  local deps = require("documentation.core.deps")
 
   local extracted = deps.extract_source(table.concat({
     'local fs = require("demo.fs")',
@@ -665,7 +665,7 @@ return function(H)
   -- A real scan, not a hand-built IR: resolution is the whole point of these
   -- two stages, and it only exists once a module index and require aliases
   -- are in play. Two modules, one requiring and calling into the other.
-  local scan = require("documentation.scan")
+  local scan = require("documentation.core.scan")
   local root = H.tmpfile("_tree")
   local function write(rel, lines)
     local abs = root .. "/" .. rel
@@ -856,7 +856,7 @@ return function(H)
   -- `:DocMap graph <name>` has to resolve the names people actually type.
   -- A namespace declares no @module at all, so matching on that alone missed
   -- exactly the directories a dependency graph is most interesting at.
-  local command = require("documentation.command")
+  local command = require("documentation.editor.command")
 
   eq(
     command.find_node(cyc, "demo.app", "lua"),
@@ -884,7 +884,7 @@ return function(H)
   -- nothing *in this tree* — exactly the requires_external case tag_files
   -- exists to resolve against another project's own committed artifact,
   -- instead of leaving the Deps view an inert dead end.
-  local tagfiles = require("documentation.tagfiles")
+  local tagfiles = require("documentation.core.tagfiles")
   local docmap = require("documentation")
 
   local ext_root = H.tmpfile("_plenary")
@@ -949,7 +949,7 @@ return function(H)
   --
   -- Two halves: the grouping is pure and gets a synthetic IR, and the
   -- fingerprint itself needs a real parse, so it gets real files.
-  local duplicates = require("documentation.duplicates")
+  local duplicates = require("documentation.core.duplicates")
 
   local function dup_ir(by_node)
     local synth = { root = "lua/d", order = {}, nodes = {} }
@@ -1085,7 +1085,7 @@ return function(H)
   -- follows. The fixture is built so the ranking has to get the *argument*
   -- right, not just sort a column — each of the three losing modules loses
   -- for a different reason.
-  local churn = require("documentation.churn")
+  local churn = require("documentation.core.churn")
 
   local churn_ir = {
     root = "lua/c",
@@ -1160,7 +1160,7 @@ return function(H)
   -- Real spec-file text, not a hand-built name list: the whole point is
   -- that a bare name mentioned in a test file — the way a spec actually
   -- calls a function — is what lights `tested` up.
-  local coverage = require("documentation.coverage")
+  local coverage = require("documentation.core.coverage")
   write("docs/TESTS/demo_spec.lua", {
     "local util = require('demo.util')",
     "assert(util.trim('x') ~= nil)",
@@ -1200,7 +1200,7 @@ return function(H)
   )
 
   -- --------------------------------------------------- doccoverage (R4)
-  local doccoverage = require("documentation.doccoverage")
+  local doccoverage = require("documentation.core.doccoverage")
   local doc_ir = make_ir({
     ["a"] = {
       { -- fully documented: summary + matching params
@@ -1315,7 +1315,7 @@ return function(H)
   )
 
   -- ------------------------------------------------------- history (R11 P1)
-  local history = require("documentation.history")
+  local history = require("documentation.core.history")
 
   ---@param name string
   ---@param line integer
@@ -1496,7 +1496,7 @@ return function(H)
   -- tested here is the part that must never be wrong: the whitelist standing
   -- between a URL path and a git subprocess, and the lifecycle, since a
   -- listening socket left behind is the cost of having a runtime at all.
-  local serve = require("documentation.serve")
+  local serve = require("documentation.editor.serve")
 
   for _, good in ipairs({
     "1ce752e",
@@ -1696,7 +1696,7 @@ return function(H)
   eq(#(deps.impact(gir, "nope")), 0, "deps.impact: an unknown node has no dependents")
 
   -- ---------------------------------------------------------- render.dot
-  local dot = require("documentation.render.dot")
+  local dot = require("documentation.core.render.dot")
   local whole = dot.render(gir, { kind = "require" })
   ok(whole:match("^// require graph"), "render.dot: leads with a comment naming the graph")
   ok(whole:find("digraph docmap {", 1, true), "render.dot: emits a digraph")
@@ -1724,7 +1724,7 @@ return function(H)
   -- --------------------------------------------------------------- diff
   -- The same tree with one module gone, one function gone and one dependency
   -- made load-time instead of lazy — every section exercised at once.
-  local diff = require("documentation.diff")
+  local diff = require("documentation.core.diff")
   local nothing = diff.compare(gir, gir)
   eq(diff.is_empty(nothing), true, "diff: a map against itself is empty")
 
@@ -1848,7 +1848,8 @@ return function(H)
     "return M",
   })
 
-  local dir_ = require("documentation.scan").scan({ root = dr, source = "lua/d", lua_root = "lua" })
+  local dir_ =
+    require("documentation.core.scan").scan({ root = dr, source = "lua/d", lua_root = "lua" })
   local function dead_messages(dead_code)
     local dopts = { root = dr, source = "lua/d", lua_root = "lua", dead_code = dead_code }
     local out = {}
@@ -2049,11 +2050,11 @@ return function(H)
   -- that `:DocBrowse live` then reused — a "live" view that never re-scanned.
   -- Upgrading rather than re-installing is what keeps the subscribers, since
   -- `install()` treats a collision as replace and drops them.
-  local registry = require("documentation.registry")
+  local registry = require("documentation.editor.registry")
   -- The group name is keyed on the *normalized* root, the same way the
   -- registry keys its entries — a raw tempname carries backslashes on Windows.
   local watch_group = "LibDocmapWatch:"
-    .. require("documentation.browse.source").norm_root(heur_root)
+    .. require("documentation.editor.browse.source").norm_root(heur_root)
   local function watching()
     local got, aus = pcall(vim.api.nvim_get_autocmds, { group = watch_group })
     return got and #aus > 0

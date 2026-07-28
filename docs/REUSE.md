@@ -50,7 +50,7 @@ Copy [`scripts/gen_map.lua`](../scripts/gen_map.lua) verbatim, then change only
 the options table at the bottom:
 
 ```lua
-local opts = require("documentation.config").build(root, {
+local opts = require("documentation.core.config").build(root, {
   source = "lua/myplugin",
   title = "myplugin.nvim",
   out_dir = "docs/map",
@@ -58,12 +58,12 @@ local opts = require("documentation.config").build(root, {
   branch = "main",
 })
 
-local code = require("documentation.cli").run(opts, _G.arg or {})
+local code = require("documentation.core.cli").run(opts, _G.arg or {})
 vim.cmd("cq " .. code)
 ```
 
 Everything above it is generic: it resolves `cwd`, puts the repository and
-`lib.nvim` on the runtimepath, and hands off to `documentation.cli` — the same
+`lib.nvim` on the runtimepath, and hands off to `documentation.core.cli` — the same
 `--check`/`--full` CLI this repository uses on itself, extracted into
 [`cli.lua`](../lua/documentation/cli.lua) for exactly this reason. It returns
 an exit code rather than calling `cq` itself, so it stays a plain function a
