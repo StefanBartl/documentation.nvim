@@ -1,0 +1,144 @@
+# Development
+
+## Getting the dependency
+
+`documentation.nvim` depends on
+[`lib.nvim`](https://github.com/StefanBartl/lib.nvim) at runtime — `notify`,
+`fs.*`, `ui.kit`, `usercmd`, `map`, `debounce`, `autocmd`,
+`cross.uv.spawn_capture`. Inside Neovim your plugin manager supplies it. The
+headless runners cannot assume that, so they look in three places, in
+descending order of explicitness:
+
+1. `$LIB_NVIM_DIR`
+2. `<repo>/.deps/lib.nvim`
+3. a sibling checkout, `../lib.nvim`
+
+Pick whichever suits your tree. CI clones into `.deps/`.
+
+```bash
+export LIB_NVIM_DIR=/path/to/lib.nvim
+```
+
+## The four things CI runs
+
+```bash
+stylua --check lua docs/TESTS scripts
+luacheck lua docs/TESTS scripts
+nvim --headless -u NONE -l docs/TESTS/run.lua
+nvim --headless -l scripts/gen_map.lua --check
+```
+
+Run them in that order locally too — a formatting failure is the cheapest one
+to find, and a stale map is the one most likely to be a real finding rather
+than a slip.
+
+## Tests
+
+```bash
+nvim --headless -u NONE -l docs/TESTS/run.lua
+```
+
+Two specs, both driven by the tiny shared harness in
+[`docs/TESTS/harness.lua`](TESTS/harness.lua) (`eq`, `ok`, `tmpfile`,
+`read_lines` — no framework):
+
+| Spec | Covers |
+|---|---|
+| [`docmap_spec.lua`](TESTS/docmap_spec.lua) | `functions`, `check`, `scan`, the graph stages, `diff`/`history`, and the `install()` watch end to end. |
+| [`docmap_browse_spec.lua`](TESTS/docmap_browse_spec.lua) | `browse` — real floats, real buffers. |
+
+The runner prints one line per spec and exits non-zero on the first failure. It
+writes to stdout directly rather than through `print`: `print` in a headless
+Neovim goes through the message area, and a spec that opens a window forces a
+redraw that swallows the pending newline, running two results together on one
+line. `docmap_browse_spec` mounts real floats, so that is not hypothetical.
+
+Adding a spec means adding its filename to the `specs` list in
+[`docs/TESTS/run.lua`](TESTS/run.lua) — explicit, not globbed, so the order is
+stable and a half-written file in the directory does not join the run by
+accident.
+
+**The watch test is worth reading before touching `registry.lua`.** It writes
+through a real buffer with `vim.wait` pumping the event loop until the debounced
+rescan lands, and it asserts *both* directions: a write under `source` rescans,
+and a write outside it does not. The second matters more than it looks —
+scoping this with an autocmd glob pattern is the obvious approach and silently
+never fires on Windows, because Vim matches the raw OS-native buffer path
+against a forward-slash pattern. The explicit `is_subpath` check replaced it,
+and the test guards the opposite failure of over-matching.
+
+## Regenerating this repository's own map
+
+```bash
+nvim --headless -l scripts/gen_map.lua           # regenerate
+nvim --headless -l scripts/gen_map.lua --check   # verify
+```
+
+or `:DocMap` from inside a Neovim session with the plugin loaded — the same
+code path, the same artifacts.
+
+The artifacts under `docs/map/` are **committed**. That is what makes
+`--check` a byte comparison and what makes `:DocMap diff <ref>` work without a
+generation step: every commit carries its own map, so `git show
+<ref>:docs/map/module_map.json` is the whole retrieval.
+
+It also means a source change and its map regeneration belong in the same
+commit. The pre-commit hook enforces exactly that:
+
+```bash
+git config core.hooksPath scripts/hooks   # once per clone
+```
+
+The committed map is generated **without** `--full`: `--check` compares it byte
+for byte and would otherwise need `lua-language-server` installed to reproduce
+it. Both class-based Hierarchy views say so explicitly when opened against such
+an artifact instead of rendering blank.
+
+## Determinism
+
+Two rules, and breaking either one makes `--check` useless:
+
+- **No timestamp in the IR.** A `generated_at` field would make every
+  regeneration a diff even when nothing changed.
+- **Sorted-key JSON** via [`json.lua`](../lua/documentation/json.lua), never
+  `vim.json.encode`, whose object key order is unspecified. Without this, two
+  runs over an unchanged tree produced byte-different files and `--check`
+  reported the map as stale immediately after generating it.
+
+If you add a field to the IR, add it to `M.to_json`'s explicit field list in
+[`init.lua`](../lua/documentation/init.lua) — the ordering there is the
+serialization contract, not an accident of table iteration.
+
+## Layout
+
+```
+lua/documentation/
+  init.lua          generate() / scan_full() / install() / to_json()
+  config.lua        Documentation.Opts defaults + merge
+  scan.lua          filesystem walk + header parse   -> IR
+  functions.lua     per-function docs via treesitter -> node.functions
+  symbols.lua       module-scope tables/constants    -> node.symbols
+  deps.lua          require edges
+  calls.lua         call edges
+  luals.lua         opt-in LuaLS enrichment
+  check.lua         drift findings
+  coverage.lua      fn.tested       doccoverage.lua  fn.documented
+  tagfiles.lua      cross-project link resolution
+  json.lua          deterministic encoder
+  diff.lua          structural diff between two IRs   (pure)
+  history.lua       changed lines -> functions -> callers (pure)
+  registry.lua      install()/uninstall(), the watch
+  serve.lua         the local map server
+  cli.lua           --check/--full entry point
+  command.lua       :DocMap
+  browse/           :DocBrowse
+  render/           html · markdown · mermaid · dot · badge
+  @types/           Documentation.* LuaCATS definitions
+```
+
+`diff.lua` and `history.lua` are pure — text and IRs in, a structure out; no
+git, no filesystem. Everything that shells out lives in `command.lua` and
+`browse/init.lua`. That split is what keeps the shape of the answers testable
+without a repository, and it is worth preserving.
+
+Design reasoning for every stage: [PIPELINE.md](PIPELINE.md).

@@ -1,0 +1,435 @@
+*documentation.txt*  Doxygen for annotated Lua trees        *documentation.nvim*
+
+                                                                       ~
+              documentation.nvim — generated module maps               ~
+                                                                       ~
+
+==============================================================================
+CONTENTS                                                *documentation-contents*
+
+    1. Introduction .................... |documentation-introduction|
+    2. Requirements .................... |documentation-requirements|
+    3. Installation .................... |documentation-installation|
+    4. Configuration ................... |documentation-configuration|
+    5. Commands ........................ |documentation-commands|
+       5.1 :DocMap ..................... |:DocMap|
+       5.2 :DocBrowse .................. |:DocBrowse|
+    6. Drift checks .................... |documentation-checks|
+    7. Lua API ......................... |documentation-api|
+    8. Headless / CI ................... |documentation-headless|
+    9. Reuse in your own plugin ........ |documentation-reuse|
+   10. Annotations .................... |documentation-annotations|
+   11. Credits ........................ |documentation-credits|
+
+==============================================================================
+1. INTRODUCTION                                     *documentation-introduction*
+
+documentation.nvim generates a module map from an annotated Lua tree. Point it
+at a repository whose files carry `---@module` and it produces:
+
+    docs/map/index.html        interactive: Tree, Hierarchy, Notes, Index,
+                               History and Analysis tabs. Self-contained —
+                               no CDN, no build step.
+    docs/map/overview.md       the same tree as Markdown, renders on GitHub
+    docs/map/module_map.json   the IR, byte-deterministic
+    docs/map/coverage.svg      optional documentation-coverage badge
+
+The rendered map is the visible half. The other half is a set of drift checks
+that fail CI when the documentation and the code stop agreeing — see
+|documentation-checks|.
+
+The pipeline is:
+
+    scan   -> Documentation.IR         filesystem walk + header parse
+    luals  -> merged into the IR       opt-in: @class/@alias detail, type edges
+    check  -> Documentation.Finding[]  drift between docs and reality
+    render -> html / markdown / mermaid / dot / json
+
+The IR is the contract between the halves: renderers never touch the
+filesystem, and the scanner never knows what will be drawn.
+
+==============================================================================
+2. REQUIREMENTS                                     *documentation-requirements*
+
+    - Neovim 0.10+  (vim.uv, vim.treesitter)
+    - lib.nvim      https://github.com/StefanBartl/lib.nvim
+    - lua-language-server, optional — only for `:DocMap full`
+
+==============================================================================
+3. INSTALLATION                                     *documentation-installation*
+
+With lazy.nvim: >lua
+
+    {
+      "StefanBartl/documentation.nvim",
+      dependencies = { "StefanBartl/lib.nvim" },
+      cmd = { "DocMap", "DocBrowse" },
+      opts = {},
+    }
+<
+`opts = {}` is enough. With no `root`, the commands map the current working
+directory, and `source` is derived from it: `lua/<name>` when `lua/` holds
+exactly one candidate directory, `lua` otherwise.
+
+Nothing registers a command until `setup()` runs. `require("documentation")`
+on its own never touches your editor, so a plugin can embed the pipeline
+without also taking the commands.
+
+==============================================================================
+4. CONFIGURATION                                   *documentation-configuration*
+
+                                                        *Documentation.Opts*
+All options, with their defaults: >lua
+
+    require("documentation").setup({
+      root = vim.fn.getcwd(),   -- absolute repository root
+      source = nil,             -- scanned dir, relative to root; auto-detected
+      lua_root = "lua",         -- what the Lua module path is relative to
+      title = nil,              -- default: the root directory's name
+      types_dir = "@types",     -- treated as a module attribute, not a sibling
+      out_dir = "docs/map",
+      repo_url = nil,           -- base URL for source links
+      branch = "main",
+
+      luals = false,            -- LuaLS enrichment; costs several seconds
+      luals_timeout_ms = 60000,
+      badge = false,            -- also write coverage.svg
+      tests_dir = "docs/TESTS", -- scanned to derive fn.tested
+      dead_code = false,        -- widen `dead-function` to published functions
+      calls_heuristic = false,  -- guessed call edges, drawn dashed
+      layers = {},              -- module-prefix layering rules
+      tag_files = {},           -- cross-project links, Doxygen TAGFILES-style
+      extra_checks = {},        -- your own drift checks
+
+      watch = false,            -- install() only: rescan on BufWritePost
+      watch_ms = 500,
+
+      command_name = "DocMap",
+      browse_command_name = "DocBrowse",
+    })
+<
+Per-field documentation lives on the LuaCATS class itself, in
+`lua/documentation/@types/init.lua` — so a `lua_ls` setup completes and
+documents these inline.
+
+Two options that need a word of warning:
+
+`luals`         Off by default. A full-tree `lua-language-server --doc` run
+                costs several real seconds. Without it the Hierarchy tab still
+                works off plain parent/child structure; the Types and
+                Inheritance views say so explicitly rather than rendering
+                blank. If the tool is missing this degrades to an info-severity
+                `luals-unavailable` finding, not a failed scan.
+
+`calls_heuristic`
+                Adds one guessed shape back to the call graph: an unresolved
+                bare name matching exactly one function in the whole tree,
+                marked `confidence = "heuristic"` and drawn dashed. Off by
+                default, because a call graph that confidently draws a wrong
+                edge is worse than one that draws fewer.
+
+                                                       *documentation-command-name*
+`command_name` and `browse_command_name` exist so two independent `setup()`
+calls — this plugin's and a consuming plugin's own map — do not register the
+same name. `usercmd.create` defaults to `force = true`, so that collision is
+not an error; it silently overwrites one of them.
+
+==============================================================================
+5. COMMANDS                                             *documentation-commands*
+
+Two commands, split along one line: `:DocMap` writes or verifies artifacts,
+`:DocBrowse` only ever reads. The viewer is deliberately not a `:DocMap`
+subcommand — folding a read-only viewer into a command whose bare form
+rewrites files on disk is the kind of surprise that gets a command bound to a
+key and then regretted.
+
+------------------------------------------------------------------------------
+5.1 :DocMap                                                            *:DocMap*
+
+:DocMap                 Regenerate the artifacts into `out_dir`. Prints what
+                        it wrote, the node counts, test coverage and
+                        documentation coverage, then the drift findings.
+
+:DocMap check           Regenerate in memory and compare byte for byte against
+                        what is committed. Writes nothing. Findings go to the
+                        |quickfix| list — each names a real file. Fails on
+                        staleness and on error-severity drift.
+
+:DocMap full            `:DocMap` plus LuaLS enrichment: parsed @class/@alias
+                        detail, type-reference edges and inheritance edges
+                        merged into the IR. Opt-in per invocation.
+
+:DocMap open            Open the generated HTML in the system browser. Prefers
+                        the local server when one is running.
+
+:DocMap graph {kind} [name]
+                        The same page, opened at a state instead of at the
+                        root. {kind} is `deps`, `calls` or `types`. [name]
+                        resolves against a declared @module, a raw node id, or
+                        the module path a namespace's location implies.
+
+:DocMap why {a} {b}     Shortest require path between two modules, into the
+                        |quickfix| list. Every hop is a real location: the edge
+                        carries the line its `require` is written on. The
+                        summary says whether the path is load-time throughout
+                        or goes through a lazy require somewhere.
+
+:DocMap dot {kind} [name]
+                        The require or call graph as Graphviz DOT, in a
+                        scratch buffer. Deliberately not wired to a `dot`
+                        binary — yank it, `:w` it, or `:%!dot -Tsvg`.
+
+:DocMap diff [ref]      What a revision changed about the shape of the tree:
+                        modules and functions added or removed, dependencies
+                        gained or lost, load-time cycles introduced, blast
+                        radii that moved. `HEAD` by default. Needs no
+                        generation step — every commit carries its own
+                        artifact.
+
+:DocMap impact [ref]    Where those changed lines radiate to, into the
+                        |quickfix| list: each touched function at its
+                        declaration, interleaved with its call sites at the
+                        call, indented. A bare `:DocMap impact` answers "what
+                        does my uncommitted work affect".
+
+:DocMap serve           Start the local map server, which is what enables the
+                        History tab in the browser. A `file://` page gets an
+                        opaque origin and `fetch()` refuses the `file:` scheme
+                        outright, so computing a commit on click needs an
+                        origin. Binds 127.0.0.1 on an OS-assigned port, never
+                        0.0.0.0.
+
+:DocMap serve stop      Shut it down. `VimLeavePre` does this too, so quitting
+                        cannot leave a socket listening.
+
+------------------------------------------------------------------------------
+5.2 :DocBrowse                                                      *:DocBrowse*
+
+:DocBrowse              The map inside the editor, read from
+                        `module_map.json` (~10ms).
+
+:DocBrowse live         Install a watching handle instead — rescans on every
+                        write, so the view never goes stale. Costs one full
+                        scan up front.
+
+:DocBrowse {module}     Open centered on one module.
+
+:DocBrowse history      Open on the commit list.
+
+Explicitly not the HTML diagram in a terminal: boxes with connecting curves
+need pixels, and a fixed cell grid produces a worse version of a page that
+already exists. This is a navigator over the same edges — the hierarchy is a
+drill-down list, Deps and Calls are lists. What justifies it next to the page
+is the three things the page cannot do at all: jump to the source, fill the
+quickfix list, and be live.
+
+Keys, once open:
+
+    1 .. 5        structure / deps / calls / types / history
+    j k           move; the detail pane follows
+    <CR>          descend a level, or follow the edge
+    - <BS>        up a level
+    <C-o> <C-i>   back / forward through the visit history
+    h l           direction: incoming / outgoing
+    + _           depth -/+ 1
+    gd            open the source at the line
+    gq            send the current list to the |quickfix| list
+    gI            impact: the transitive required_by closure
+    gO            open the HTML page at this position
+    gD            the opened commit's diff
+    /             search
+    q             close
+
+==============================================================================
+6. DRIFT CHECKS                                           *documentation-checks*
+
+Generic checks, run against any annotated Lua tree:
+
+    missing-module-tag    error  A source file with no ---@module.
+    module-path-mismatch  error  Declared @module differs from where the file
+                                 lives — copy-pasted or stale headers.
+    missing-summary       warn   @module present but no description line.
+    dead-readme-link      warn   A relative link in a README pointing at
+                                 nothing.
+    dead-see-target       warn   An @see target resolving to no known module
+                                 or function.
+    require-cycle         warn   A cycle among load-time requires. Deferred
+                                 requires — `require(...)` inside a function
+                                 body — are excluded: they are the standard
+                                 way to break initialisation order on purpose.
+    layer-violation       warn   Opt-in via `opts.layers`: a module reaching
+                                 into a layer it must not.
+    missing-readme        info   Module without a README.
+    unreferenced-module   info   Required by no other file in the tree.
+    undocumented-param    info   More parameters than @param lines. A
+                                 text-based heuristic; never fails --check.
+    param-name-mismatch   info   At a shared position, a @param name and the
+                                 signature's declared name differ.
+    dead-function         info   Nothing in the tree appears to call this.
+
+`dead-function` is built around a trap worth stating plainly: a library
+consists of functions with no internal caller by design. A naive "no callers
+implies dead" would flag most of the public API of any tree worth mapping, so
+it fires in two tiers — always on for file-local and @internal functions,
+where the statement genuinely holds, and only with `opts.dead_code` for any
+public function. It is never above `info` and can never fail `--check`,
+because dynamic dispatch is invisible to a static scanner and no confident
+verdict is available at any severity.
+
+Only `error` severity fails `--check`, and `--lenient` turns even that into a
+staleness-only check.
+
+Repository-specific checks go in `opts.extra_checks`, each a
+`fun(ir, opts): Documentation.Finding[]`.
+
+==============================================================================
+7. LUA API                                                   *documentation-api*
+
+                                                      *documentation.generate()*
+generate({opts})        Scan, check, render and write into `opts.out_dir`.
+                        Returns `ir, findings, written`.
+
+                                                     *documentation.scan_full()*
+scan_full({opts})       `scan` + optional LuaLS merge + `check`, in one call —
+                        the step `generate()` and `install()` both build on, so
+                        the enrichment wiring exists in exactly one place.
+                        Returns `ir, findings`.
+
+                                                       *documentation.install()*
+install({opts})         A live |Documentation.Handle|: a scanned IR kept in
+                        memory, optionally rescanned on save, with
+                        subscribers. What another plugin's code reaches for
+                        instead of parsing `module_map.json` off disk.
+
+                                                     *documentation.uninstall()*
+uninstall({handle})     Tear down a handle. Accepts the handle or its root
+                        path. Idempotent: uninstalling twice is a no-op, not
+                        an error.
+
+                                                        *documentation.to_json()*
+to_json({ir})           Serialize the IR deterministically: nodes in
+                        `ir.order`, object keys in a fixed sequence. Never
+                        `vim.json.encode`, whose key order is unspecified.
+
+                                                          *Documentation.Handle*
+>lua
+    local handle = require("documentation").install({
+      root = vim.fn.getcwd(),
+      source = "lua/myplugin",
+      watch = true,
+    })
+
+    handle.ir()                                -- current IR
+    handle.node("lua/myplugin/init.lua")
+    handle.requires("lua/myplugin/fs")         -- require edges out
+    handle.required_by("lua/myplugin/fs")
+    handle.callees("lua/myplugin/fs#M.read")   -- "<node id>#<declared name>"
+    handle.callers("lua/myplugin/fs#M.read")
+    handle.rescan({ luals = false })
+
+    local unsub = handle.on_change(function(ir, findings) end)
+
+    handle.uninstall()
+<
+The graph queries live on the handle rather than as free functions over an IR
+captured earlier, precisely so they answer against whatever the handle
+currently holds — including after a watch-triggered rescan.
+
+==============================================================================
+8. HEADLESS / CI                                         *documentation-headless*
+>bash
+    nvim --headless -l scripts/gen_map.lua
+    nvim --headless -l scripts/gen_map.lua --check
+    nvim --headless -l scripts/gen_map.lua --check --lenient
+    nvim --headless -l scripts/gen_map.lua --full
+<
+`--check` regenerates in memory and compares byte for byte; it writes nothing,
+and it exits 1 on staleness or error-severity drift.
+
+That byte comparison is only possible because output is deterministic across
+runs on unchanged input. Two decisions make it so: no timestamp anywhere in
+the IR, and sorted-key JSON.
+
+`--check` deliberately does not regenerate. A hook that regenerates and stages
+output produces diffs the author never intended and interacts badly with
+|:amend| and rebase, so regeneration stays explicit.
+
+==============================================================================
+9. REUSE IN YOUR OWN PLUGIN                                *documentation-reuse*
+
+Nothing here knows about any particular repository's layout. Two files to copy
+and five lines to edit — see `docs/REUSE.md` in the repository for the full
+walkthrough.
+
+    1. `scripts/gen_map.lua`     copy verbatim; change only the options table
+                                 at the bottom.
+    2. `scripts/hooks/pre-commit`
+                                 copy verbatim; edit only SOURCE_DIR, OUT_DIR
+                                 and GEN_SCRIPT at the top. Install with
+                                 `git config core.hooksPath scripts/hooks`.
+
+Then wire CI to `nvim --headless -l scripts/gen_map.lua --check`. That is the
+whole check. Worth having even with the hook installed: the hook is opt-in per
+clone, so without a CI job the committed map goes stale on `main` with nothing
+noticing.
+
+                                                    *documentation-tag-files*
+`opts.tag_files` is Doxygen's TAGFILES equivalent: >lua
+
+    tag_files = { ["lib.nvim"] = "/path/to/lib.nvim/docs/map" },
+<
+Every `requires_external` module matching the prefix — whole-segment matching,
+so `lib.nvim.fs` but never `lib.nvimx` — is looked up in that directory's
+`module_map.json`. What resolves gets a solid box that opens the other
+project's page at that node; what does not is left silently inert, never an
+error. Local paths only: a network fetch during `scan_full()` would make
+`--check` depend on availability and timing.
+
+==============================================================================
+10. ANNOTATIONS                                      *documentation-annotations*
+
+The scanner reads each file's leading comment block — everything before the
+first non-comment line — and stops. It does not parse Lua. The only hard
+requirement on a tree is that files carry `---@module`.
+
+Function-level data comes from |vim.treesitter| instead, and needs no
+annotation beyond the doc comments you already write. Per function, the parser
+reads: `@param`, `@return`, `@generic`, `@deprecated`, `@see`, `@async`,
+`@nodiscard`, `@overload`, `@internal`, plus the repeatable note tags `@todo`,
+`@bug` and `@test`.
+
+Two tags outside the LuaCATS spec:
+
+    @example    a fenced code block, multi-line
+    @since      deliberately not @version, which LuaLS defines as a
+                required-Lua-runtime declaration — a different question from
+                "since when has this existed in this project"
+
+`@internal` earns its place by sharpening every question of the form "is this
+used": `undocumented-param` skips it, the structural diff counts it as a
+helper rather than an API change, and the map badges it.
+
+Structure is derived, not declared:
+
+    module      a directory containing init.lua
+    namespace   a directory without init.lua, grouping others
+    file        a non-init.lua Lua file
+
+A `@types/` directory is an attribute of its module, not a sibling node: types
+belong to the thing they type, and promoting them doubles the tree for no
+navigational gain.
+
+Full survey: `docs/ANNOTATIONS.md` in the repository.
+
+==============================================================================
+11. CREDITS                                              *documentation-credits*
+
+Author:   Stefan Bartl
+License:  MIT
+Repo:     https://github.com/StefanBartl/documentation.nvim
+
+Grew inside lib.nvim as `lib.nvim.docmap` and was extracted once it had
+nothing left to do with lib.nvim. Shaped after Doxygen, scoped to the part
+that is actually useful for a Lua tree.
+
+vim:tw=78:ts=8:noet:ft=help:norl:

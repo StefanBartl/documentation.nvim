@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  stylua:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: JohnnyMorganz/stylua-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          version: latest
+          args: --check .
+
+  luacheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # PUC Lua, not "luajit-2.1": that value fails with a 404 (LuaJIT stopped
+      # publishing the 2.1 tarball this action downloads). Which interpreter
+      # runs luacheck is independent of what it checks against — `std = "luajit"`
+      # in .luacheckrc is what pins that.
+      - uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: "5.4"
+      - uses: leafo/gh-actions-luarocks@v4
+      - run: luarocks install luacheck
+      - run: luacheck lua docs/TESTS scripts
+
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # lib.nvim is a runtime dependency: notify, fs, ui.kit, usercmd, map,
+      # debounce, autocmd. A headless `-l` run has no plugin manager, so CI
+      # provides it the same way a local checkout does — see
+      # docs/TESTS/run.lua's `add_lib_nvim`.
+      - uses: actions/checkout@v4
+        with:
+          repository: StefanBartl/lib.nvim
+          path: .deps/lib.nvim
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+      - run: nvim --headless -u NONE -l docs/TESTS/run.lua
+
+  # The drift check this plugin exists to provide, run against its own tree.
+  # The pre-commit hook is opt-in per clone (`git config core.hooksPath`), so
+  # without this job the committed map goes stale on main with nothing
+  # noticing. `--check` regenerates in memory and compares; it writes nothing.
+  map:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: StefanBartl/lib.nvim
+          path: .deps/lib.nvim
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+      - run: nvim --headless -l scripts/gen_map.lua --check

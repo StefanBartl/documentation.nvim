@@ -1,0 +1,60 @@
+# documentation.nvim — module map
+
+> **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
+> (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
+
+**2 modules** · 1 namespaces · 25 helper files
+
+The [interactive map](index.html) has filtering, full descriptions and
+source links; this page is the version the code host renders directly.
+
+
+## Namespaces
+
+```mermaid
+flowchart LR
+  nlua_documentation["documentation.nvim"]
+  nlua_documentation_browse["browsebr/small`:DocBrowse` — the module map inside the…/small"]
+  nlua_documentation_render["render"]
+  nlua_documentation --> nlua_documentation_browse
+  nlua_documentation --> nlua_documentation_render
+```
+
+
+## Dependencies
+
+Which parts of the tree require which, rolled up to the second level.
+The [interactive map](index.html)'s **Deps** view has this per module,
+in both directions, with load-time and lazy requires told apart.
+
+```mermaid
+flowchart LR
+  nlua_documentation_render_markdown_lua["documentation.render.markdown"]
+  nlua_documentation_render_mermaid_lua["documentation.render.mermaid"]
+  nlua_documentation_render_markdown_lua --> nlua_documentation_render_mermaid_lua
+```
+
+
+## Modules
+
+| Module | Description | Fns | Docs |
+|---|---|---|---|
+| `documentation.browse` | `:DocBrowse` — the module map inside the editor. | 24 | [README](../../lua/documentation/browse/README.md) · [src](../../lua/documentation/browse/init.lua) |
+| `render` |  |  |  |
+
+## Drift
+
+0 errors · 0 warnings · 1 info
+
+No errors or warnings.
+
+
+<details>
+<summary>1 informational findings</summary>
+
+
+| Check | Message |
+|---|---|
+| `missing-readme` | lua/documentation has no README.md |
+
+</details>
