@@ -17,11 +17,43 @@
 ---
 --- Keyed by **repository root**, not by browser instance, so pins survive
 --- `browse.close()` and reopening — a pin that vanished when the window shut
---- would be a bookmark with the lifetime of a scrollbar. They do not yet
---- survive Neovim itself; persisting them is the roadmap's next item and this
---- module is where it will land.
+--- would be a bookmark with the lifetime of a scrollbar. They survive Neovim
+--- itself too, but not because anything here writes a file: this module
+--- announces changes through `on_change` and
+--- [`trail_store.lua`](trail_store.lua) listens. That indirection is what
+--- keeps this file free of I/O — and it is also more robust than saving at
+--- each call site, because a mutation added later cannot forget to persist.
 
 local M = {}
+
+---@type fun(root: string)[]
+local listeners = {}
+
+---Subscribe to every mutation. The callback gets the root that changed.
+---
+---The one seam through which this module reaches the outside world, and
+---deliberately the only one: persistence, and anything else that needs to
+---react, lives on the other side of it.
+---@param fn fun(root: string)
+---@return fun() unsubscribe
+function M.on_change(fn)
+  listeners[#listeners + 1] = fn
+  return function()
+    for i, f in ipairs(listeners) do
+      if f == fn then
+        table.remove(listeners, i)
+        return
+      end
+    end
+  end
+end
+
+---@param root string
+local function changed(root)
+  for _, fn in ipairs(listeners) do
+    pcall(fn, root)
+  end
+end
 
 ---@class Documentation.Browse.Pin
 ---@field mode string The mode the pin was taken in; restored on jump.
@@ -103,9 +135,11 @@ function M.toggle(root, pin)
   local at = M.index_of(root, M.key(pin))
   if at then
     table.remove(list, at)
+    changed(root)
     return "unpinned", #list
   end
   list[#list + 1] = pin
+  changed(root)
   return "pinned", #list
 end
 
@@ -118,7 +152,9 @@ function M.remove_at(root, index)
   if index < 1 or index > #list then
     return nil
   end
-  return table.remove(list, index)
+  local removed = table.remove(list, index)
+  changed(root)
+  return removed
 end
 
 ---Drop every pin for `root`.
@@ -127,13 +163,76 @@ end
 function M.clear(root)
   local n = M.count(root)
   pins[root] = {}
+  changed(root)
   return n
 end
 
----Drop every pin for every root. Test-support, and the one function here a
----consumer should not need.
+---Replace `root`'s trail wholesale, without announcing it.
+---
+---For the loader, and the one mutation that is deliberately silent: it runs
+---while reading the very file `on_change` writes, and announcing it would
+---schedule a save of what was just read. Harmless but circular, and the kind
+---of loop that becomes a real bug the first time someone makes the save path
+---do more than it does today.
+---@param root string
+---@param list Documentation.Browse.Pin[]
+function M.hydrate(root, list)
+  pins[root] = list or {}
+end
+
+---Add every pin in `list` that is not already there.
+---
+---Loading a saved trail **adds** rather than replaces, and that is the whole
+---semantic decision in this feature. Replacing would silently destroy the
+---trail the reader built this session — a bookmark tool that can lose
+---bookmarks stops being trusted, and the alternative is a confirmation
+---dialog nobody wants on a navigation key. Additive also composes: two saved
+---trails can be loaded one after the other, which "replace" makes impossible.
+---@param root string
+---@param list Documentation.Browse.Pin[]
+---@return integer added
+---@return integer skipped Already present.
+function M.merge(root, list)
+  local into = M.list(root)
+  local added, skipped = 0, 0
+  for _, p in ipairs(list or {}) do
+    if M.index_of(root, M.key(p)) then
+      skipped = skipped + 1
+    else
+      into[#into + 1] = p
+      added = added + 1
+    end
+  end
+  if added > 0 then
+    changed(root)
+  end
+  return added, skipped
+end
+
+---A deep-enough copy of `root`'s trail to hand to a serializer.
+---
+---Shallow per pin, which is enough: every field on a pin is a string or a
+---number by construction. A saved trail must not alias the live one, or
+---unpinning something afterwards would edit the snapshot too.
+---@param root string
+---@return Documentation.Browse.Pin[]
+function M.snapshot(root)
+  local out = {}
+  for i, p in ipairs(M.list(root)) do
+    local copy = {}
+    for k, v in pairs(p) do
+      copy[k] = v
+    end
+    out[i] = copy
+  end
+  return out
+end
+
+---Drop every pin for every root, and every listener. Test-support, and the
+---one function here a consumer should not need.
 function M.reset()
   pins = {}
+  listeners = {}
 end
 
 return M

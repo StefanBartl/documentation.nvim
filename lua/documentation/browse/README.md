@@ -90,6 +90,9 @@ place, keeping its subscribers.
 | `gD` | The opened commit's diff in a scratch buffer (History) |
 | `p` | Pin / unpin the entry under the cursor |
 | `d` | Unpin (Trail) |
+| `S` | Save this trail under a name (Trail) |
+| `L` | Load a saved trail, adding to this one (Trail) |
+| `X` | Forget a saved trail (Trail) |
 | `/` | Fuzzy jump across every module and function |
 | `?` | This table, in a float, for the current mode |
 | `q` `<Esc>` | Close |
@@ -175,9 +178,9 @@ Three decisions worth knowing:
   pinning a module in Deps at depth 2 and again at depth 3 toggles the one
   bookmark rather than growing a near-duplicate nobody meant to create.
 - **Pins are keyed by repository root**, not by browser instance, so they
-  survive closing and reopening the window. A bookmark with the lifetime of a
-  scrollbar is not a bookmark. They do not yet survive Neovim itself — that is
-  the roadmap's next item, and [`trail.lua`](trail.lua) is where it lands.
+  survive closing and reopening the window — and, through
+  [`trail_store.lua`](trail_store.lua), Neovim itself. A bookmark with the
+  lifetime of a scrollbar is not a bookmark.
 
 A pin whose node has since vanished from the map (renamed, deleted) renders as
 a non-navigable row saying so, rather than as a label for something that is no
@@ -189,6 +192,46 @@ the scanned tree, so there is no position to return to.
 API — which is what lets the whole model be driven from a headless spec
 without mounting a single float. Same split `diff.lua` and `history.lua`
 already follow.
+
+### Saved trails
+
+The working trail persists on its own; `S` names a copy of it, `L` loads one
+back and `X` forgets one. All three are Trail-mode keys: the verbs are about
+the list, and the list is what mode `6` shows.
+
+```
+stdpath("state")/documentation.nvim/trails.json
+```
+
+`state`, not `data` and emphatically not the repository — a trail is
+navigation state, with no more claim on the project than a jumplist has.
+Committing it would put one reader's path into everyone else's checkout, and
+`--check` would then have an opinion about it. Roots are absolute paths used
+verbatim as keys: two checkouts of the same project are two places to have
+looked around in.
+
+Three decisions here too:
+
+- **Loading adds; it never replaces.** Replacing would silently destroy the
+  trail built this session, and a bookmark tool that can lose bookmarks stops
+  being trusted. The alternative is a confirmation dialog nobody wants on a
+  navigation key. Additive also composes — two saved trails can be loaded one
+  after the other, which "replace" makes impossible.
+- **`X` deletes a *saved* trail, never the pins on screen.** Those are what
+  the reader is looking at; a key that could clear them from behind a picker
+  would be the one destructive surprise in the feature.
+- **[`trail_store.lua`](trail_store.lua) listens rather than being called.**
+  It subscribes to `trail.on_change`, which is what keeps `trail.lua` free of
+  I/O — and is more robust than saving at each call site, because a mutation
+  added later cannot forget to persist. Writes are debounced (pinning six
+  things is one write) with a synchronous flush on `VimLeavePre`, since the
+  debounce timer is exactly what quitting does not wait for.
+
+Hydration happens once per root, at `browse.open()`. Re-reading on every open
+would discard whatever was pinned since — the newest pins, which is the worst
+half to lose. A malformed or truncated file costs that root its pins and never
+raises: this lives in the user's state directory, where a full disk or an
+older version of this plugin can leave anything behind.
 
 ## History mode
 

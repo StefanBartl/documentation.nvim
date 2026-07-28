@@ -37,6 +37,7 @@ local map = require("lib.nvim.map")
 local notify = require("lib.nvim.notify").create("[documentation.browse]")
 local source = require("documentation.browse.source")
 local trail = require("documentation.browse.trail")
+local trail_store = require("documentation.browse.trail_store")
 local view = require("documentation.browse.view")
 
 local M = {}
@@ -491,6 +492,96 @@ local function unpin_current(st)
   end
 end
 
+---`S` — save the current trail under a name.
+---
+---Trail mode only, like `L` and `X`. The verbs are about the list, and the
+---list is what mode 6 shows; binding them everywhere would spend three of the
+---remaining single keys on something reachable with one keystroke more.
+---@param st table
+local function save_trail(st)
+  if st.mode ~= "trail" then
+    return
+  end
+  if trail.count(st.root) == 0 then
+    notify.warn("nothing pinned to save")
+    return
+  end
+
+  kit.input({
+    title = " save trail as ",
+    theme = st.opts.theme,
+    on_submit = function(line)
+      local ok, err = trail_store.save_named(st.root, line)
+      if ok then
+        notify.info(("saved %q — %d pins"):format(vim.trim(line), trail.count(st.root)))
+      else
+        notify.warn(tostring(err))
+      end
+    end,
+  })
+end
+
+---`L` — load a saved trail into the current one.
+---@param st table
+local function load_trail(st)
+  if st.mode ~= "trail" then
+    return
+  end
+  local names = trail_store.names(st.root)
+  if #names == 0 then
+    notify.info("no saved trails for this repository")
+    return
+  end
+
+  kit.select({
+    title = " load trail ",
+    items = names,
+    theme = st.opts.theme,
+    on_select = function(name)
+      local _, added, skipped = trail_store.load_named(st.root, name)
+      render(st)
+      if added == 0 then
+        notify.info(("%q — every pin was already in the trail"):format(name))
+      else
+        notify.info(
+          ("loaded %q — %d added%s"):format(
+            name,
+            added,
+            skipped > 0 and (", %d already there"):format(skipped) or ""
+          )
+        )
+      end
+    end,
+  })
+end
+
+---`X` — forget a saved trail.
+---@param st table
+local function delete_trail(st)
+  if st.mode ~= "trail" then
+    return
+  end
+  local names = trail_store.names(st.root)
+  if #names == 0 then
+    notify.info("no saved trails for this repository")
+    return
+  end
+
+  kit.select({
+    title = " delete saved trail ",
+    items = names,
+    theme = st.opts.theme,
+    on_select = function(name)
+      -- Deletes a *saved* trail, never the pins on screen. Those are what the
+      -- reader is looking at, and a key that could clear them from behind a
+      -- picker would be the one destructive surprise in this whole feature.
+      if trail_store.delete_named(st.root, name) then
+        notify.info(("deleted saved trail %q"):format(name))
+      end
+    end,
+  })
+end
+
 ---`gd` — open the source and close the browser.
 ---
 ---Closing is deliberate: the floats sit over the whole editor, and leaving
@@ -823,6 +914,14 @@ local KEYS = {
   { keys = { "gD" }, desc = "the opened commit's diff", only = "history", run = show_diff },
   { keys = { "p" }, desc = "pin / unpin the entry under the cursor", run = pin_current },
   { keys = { "d" }, desc = "unpin", only = "trail", run = unpin_current },
+  { keys = { "S" }, desc = "save this trail under a name", only = "trail", run = save_trail },
+  {
+    keys = { "L" },
+    desc = "load a saved trail (adds to this one)",
+    only = "trail",
+    run = load_trail,
+  },
+  { keys = { "X" }, desc = "forget a saved trail", only = "trail", run = delete_trail },
   { keys = { "/" }, desc = "fuzzy jump across modules and functions", run = search },
   { keys = { "?" }, desc = "this list" },
   {
@@ -946,6 +1045,13 @@ function M.open(opts)
   )
 
   M.close()
+
+  -- Here rather than at require time, so merely requiring `documentation`
+  -- installs no autocmd — the same rule `command.setup()` follows for its
+  -- user commands. Both calls are idempotent and hydration happens once per
+  -- root, so re-opening never re-reads over pins made since.
+  trail_store.attach()
+  trail_store.hydrate(source.norm_root(opts.root))
 
   local ir, handle, hint = source.acquire(opts)
   if not ir then

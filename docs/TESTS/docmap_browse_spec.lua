@@ -480,7 +480,132 @@ return function(H)
     "trail status: and stays out of the way when nothing is pinned"
   )
 
+  -- ---------------------------------------------------------- trail_store
+  --
+  -- Persistence, pointed at a temp file rather than the user's real state
+  -- directory — the reason `M.path` is a function every caller goes through
+  -- instead of a constant.
+  local store = require("documentation.browse.trail_store")
+  local store_file = H.tmpfile(".json")
+  store.path = function()
+    return store_file
+  end
+
   trail.reset()
+  store.reset()
+  store.attach()
+
+  local sroot = "/repo/one"
+  trail.toggle(sroot, { mode = "deps", id = "lua/x/beta", dir = "in", depth = 3, label = "beta" })
+  trail.toggle(sroot, { mode = "structure", id = "lua/x/alpha", label = "alpha" })
+  eq(store.flush(), true, "store: flush writes the dirty roots")
+
+  -- The round trip is the claim: drop everything in memory, read it back, and
+  -- the trail is what it was — including the axes, which are what make a pin
+  -- restore a view rather than a subject.
+  trail.reset()
+  store.reset()
+  store.path = function()
+    return store_file
+  end
+  eq(store.hydrate(sroot), 2, "store: hydrate restores the trail from disk")
+  eq(trail.count(sroot), 2, "store: and the pins are back")
+  eq(trail.list(sroot)[1].depth, 3, "store: with their axes intact")
+  eq(trail.list(sroot)[1].mode, "deps", "store: and the mode they were taken in")
+
+  -- Once per root. Re-reading on every open would silently discard whatever
+  -- was pinned since — the newest pins, which is the worst half to lose.
+  trail.toggle(sroot, { mode = "structure", id = "lua/x", label = "x" })
+  eq(store.hydrate(sroot), 0, "store: hydrate is a no-op the second time")
+  eq(trail.count(sroot), 3, "store: so a pin made after it survives")
+
+  -- Named trails.
+  store.attach()
+  eq(#store.names(sroot), 0, "store: no saved trails yet")
+  eq(store.save_named(sroot, "  "), false, "store: a trail needs a name")
+  eq(store.save_named(sroot, "review"), true, "store: save under a name")
+  eq(#store.names(sroot), 1, "store: which then shows up in the list")
+  eq(store.names(sroot)[1], "review", "store: under the name given")
+
+  -- Loading ADDS. Replacing would silently destroy the trail built this
+  -- session, and a bookmark tool that can lose bookmarks stops being trusted.
+  local _, added, skipped = store.load_named(sroot, "review")
+  eq(added, 0, "store: loading a trail already in place adds nothing")
+  eq(skipped, 3, "store: and says how many were already there")
+  eq(trail.count(sroot), 3, "store: so nothing was duplicated")
+
+  trail.clear(sroot)
+  local _, added2 = store.load_named(sroot, "review")
+  eq(added2, 3, "store: loading into an empty trail restores all of it")
+
+  -- A saved trail must not alias the live one, or unpinning would edit the
+  -- snapshot too.
+  trail.clear(sroot)
+  eq(#store.names(sroot), 1, "store: clearing the trail does not delete what was saved")
+
+  eq(store.delete_named(sroot, "nope"), false, "store: deleting an unknown name is not an error")
+  eq(store.delete_named(sroot, "review"), true, "store: delete_named forgets it")
+  eq(#store.names(sroot), 0, "store: and the list is empty again")
+
+  -- Roots stay separate on disk, same as in memory.
+  trail.toggle(sroot, { mode = "structure", id = "lua/x/alpha", label = "alpha" })
+  trail.toggle("/repo/two", { mode = "structure", id = "lua/y", label = "y" })
+  store.flush()
+  trail.reset()
+  store.reset()
+  store.path = function()
+    return store_file
+  end
+  eq(store.hydrate("/repo/two"), 1, "store: the second root round-trips its own trail")
+  eq(store.hydrate(sroot), 1, "store: and the first keeps its own")
+
+  -- A corrupt or truncated file costs the pins, never an error on the way in:
+  -- this lives in the user's state directory, where a full disk or an older
+  -- version of this plugin can leave anything behind.
+  local bad = H.tmpfile(".json")
+  local fd = assert(io.open(bad, "w"))
+  fd:write("{ this is not json")
+  fd:close()
+  trail.reset()
+  store.reset()
+  store.path = function()
+    return bad
+  end
+  eq(store.hydrate(sroot), 0, "store: a malformed file yields no pins rather than an error")
+  eq(store.save_named(sroot, "x"), false, "store: and saving from an empty trail still refuses")
+
+  -- The debounced write, driven the way a pin drives it and with NO explicit
+  -- flush — which is the only way to observe it. `trail.on_change` fans out
+  -- under `pcall` so a broken listener cannot break pinning, and that pcall
+  -- swallowed a real "attempt to call a table value" here: `debounce.new`
+  -- returns a `{ call, cancel }` table, not a callable. Every assertion above
+  -- passed throughout, because they all flush by hand.
+  local timed = H.tmpfile(".json")
+  os.remove(timed)
+  trail.reset()
+  store.reset()
+  store.path = function()
+    return timed
+  end
+  store.attach()
+  trail.toggle(sroot, { mode = "structure", id = "lua/x/alpha", label = "alpha" })
+  vim.wait(2000, function()
+    return (vim.uv or vim.loop).fs_stat(timed) ~= nil
+  end)
+  ok((vim.uv or vim.loop).fs_stat(timed) ~= nil, "store: a pin alone reaches disk, on the debounce")
+  os.remove(timed)
+
+  trail.reset()
+  store.reset()
+  os.remove(bad)
+
+  -- Left pointed at the temp file for the rest of the run, deliberately. The
+  -- UI section below pins things, every pin schedules a write, and an
+  -- unpatched `M.path` would put the suite's scratch pins into the real
+  -- `stdpath("state")`. Removed at the very end instead of here.
+  store.path = function()
+    return store_file
+  end
 
   -- --------------------------------------------------------------- the UI
   --
@@ -754,6 +879,42 @@ return function(H)
     press("d")
     eq(trail.count(root), 0, "browse: d unpins the entry under the cursor")
     ok(status_now():find("0 pinned", 1, true) ~= nil, "browse: and the trail says it is empty")
+
+    -- `S`/`L`/`X` — their guards, which is the half of them that is not
+    -- already covered by the `trail_store` block above. What each one *does*
+    -- once it opens is a `save_named`/`load_named`/`delete_named` call and
+    -- those round-trip through a real file up there; what is untested is
+    -- whether the key refuses in the states where it should, and refusing
+    -- means "no float appears".
+    --
+    -- Asserted by counting windows rather than by looking for a filetype:
+    -- `kit.input` and `kit.select` are lib.nvim's surfaces, and pinning this
+    -- to their internal buffer names would make a rename over there fail a
+    -- test over here about something else entirely.
+    local function wins()
+      return #vim.api.nvim_list_wins()
+    end
+
+    -- Bound in every mode, gated in the handler — the same rule the other
+    -- mode-specific keys follow. Unbound, `S` and `X` would fall through to
+    -- Vim's own meaning on a nomodifiable buffer and `L` would move the
+    -- cursor, which in this browser moves the selection.
+    press("1") -- structure
+    local outside = wins()
+    press("S")
+    press("L")
+    press("X")
+    eq(wins(), outside, "browse: S/L/X open nothing outside the trail")
+    ok(browse.is_open(), "browse: and leave the browser alone")
+
+    press("6") -- trail, empty
+    local in_empty_trail = wins()
+    press("S")
+    eq(wins(), in_empty_trail, "browse: S with nothing pinned asks for no name")
+    press("L")
+    press("X")
+    eq(wins(), in_empty_trail, "browse: L/X with nothing saved open no picker")
+
     trail.clear(root)
 
     -- Centering on a NAMESPACE: `lua/documentation/render` has no init.lua and
@@ -882,4 +1043,9 @@ return function(H)
     browse.close() -- idempotent
     eq(browse.is_open(), false, "browse: close() is idempotent")
   end
+
+  -- Whatever the UI section's pins scheduled, landed here and nowhere else.
+  trail.reset()
+  store.reset()
+  os.remove(store_file)
 end

@@ -335,3 +335,54 @@ renders a tree of modules with no functions, which looks like a scanner bug),
 then the section it exists for: the resolved configuration. Staleness there is
 an mtime comparison and says so; `:DocMap check` is the authoritative answer
 and costs a full scan, which is not what a health check should spend.
+
+## Trail and Saved Trails (2026-07-28)
+
+Wayfinder survey items 2 and 3. `p` pins the entry under the cursor in any
+mode, `6` lists them, `d` unpins, and the count rides along in every other
+mode's status line — a trail invisible from where you pin is a feature with no
+feedback. One `p` rather than wayfinder's `p`/`a`/`A`: pressing it on something
+already pinned has exactly one sensible meaning.
+
+Deliberately **not** `<C-o>`/`<C-i>`. The history stack answers "where was I a
+moment ago" — automatic, time-ordered, truncated by the next move. A trail
+answers "where do I want to get back to" — deliberate, and only an explicit
+unpin removes an entry. Reading a dependency graph produces dozens of history
+stops and about four places worth returning to.
+
+- **A pin is a view, not a subject** — mode and axes (`dir`/`depth`/`sha`)
+  travel with it and `<CR>` restores all of them. Half-restoring is what makes
+  bookmarks feel unreliable.
+- **Identity is narrower than the record.** `dir`/`depth` are on the pin but
+  not in its key, so the same node at two depths toggles one bookmark instead
+  of growing a near-duplicate nobody meant to create.
+- **Keyed by repository root**, not by browser instance.
+
+Persistence (item 3) did **not** land in `trail.lua` as the roadmap predicted,
+because that would have cost the purity that lets the whole model be driven
+from a headless spec. `trail_store.lua` subscribes to a new `trail.on_change`
+instead — the indirection is also the more robust arrangement, since a mutation
+added later cannot forget to persist. It reaches disk only through `M.path()`,
+a function rather than a constant, which is what lets the spec point it at a
+temp file instead of the user's real state directory.
+
+- **`stdpath("state")`, never the repository.** A trail is navigation state
+  with no more claim on the project than a jumplist has; committing it would
+  put one reader's path into every checkout and give `--check` an opinion
+  about it.
+- **`L` adds, never replaces.** Replacing would silently destroy the trail
+  built this session, and the alternative is a confirmation dialog nobody
+  wants on a navigation key. Additive also composes — two saved trails load
+  one after the other. `X` forgets a *saved* trail and never touches the pins
+  on screen.
+- **Hydration is once per root**, at `browse.open()`. Re-reading on every open
+  would discard whatever was pinned since: the newest pins, the worst half to
+  lose. A malformed file costs that root its pins and never raises — this
+  lives where a full disk or an older version of the plugin can leave
+  anything behind.
+
+Two bugs the specs caught rather than the code asserting: `-` in the trail
+silently moved the node axis under an unchanged screen (now a guarded no-op),
+and `flush()` guarded on its in-memory mirror being loaded as well as on there
+being dirty roots — so a pin made before anything had hydrated was reported as
+written and dropped.

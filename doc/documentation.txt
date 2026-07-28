@@ -249,8 +249,21 @@ key and then regretted.
                         A pin records a *view*, not just a subject: the mode
                         and the axes it was taken in, all restored by <CR>.
                         Pins are keyed by repository root, so they survive
-                        closing and reopening the browser (but not Neovim
-                        itself, yet).
+                        closing and reopening the browser, and Neovim itself.
+
+                        `S` saves the current trail under a name, `L` loads
+                        one back and `X` forgets one -- all three in Trail
+                        mode only. Loading ADDS rather than replaces: a
+                        bookmark tool that can silently lose bookmarks stops
+                        being trusted, and two saved trails can then be
+                        loaded one after the other. `X` deletes a saved
+                        trail, never the pins on screen.
+
+                        Everything lives in one file under
+                        `stdpath("state")/documentation.nvim/trails.json` --
+                        state, not the repository: a trail has no more claim
+                        on the project than a jumplist has, and committing it
+                        would put one reader's path into every checkout.
 
 Explicitly not the HTML diagram in a terminal: boxes with connecting curves
 need pixels, and a fixed cell grid produces a worse version of a page that
@@ -275,6 +288,9 @@ Keys, once open:
     gD            the opened commit's diff
     p             pin / unpin the entry under the cursor
     d             unpin (Trail)
+    S             save this trail under a name (Trail)
+    L             load a saved trail, adding to this one (Trail)
+    X             forget a saved trail (Trail)
     /             search
     ?             this table, in a float, for the current mode
     q             close

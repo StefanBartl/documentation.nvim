@@ -171,6 +171,9 @@ do at all: jump to the source at the line (`gd`), fill the quickfix list
 | `gD` | The opened commit's diff |
 | `p` | Pin / unpin the entry under the cursor |
 | `d` | Unpin (Trail) |
+| `S` | Save this trail under a name (Trail) |
+| `L` | Load a saved trail, adding to this one (Trail) |
+| `X` | Forget a saved trail (Trail) |
 | `/` | Search |
 | `?` | This table, in a float, for the current mode |
 | `q` | Close |
@@ -181,6 +184,12 @@ truncated by the next move. A trail answers "where do I want to get back to" —
 deliberate, and nothing but an unpin removes an entry. Reading a dependency
 graph produces dozens of history stops and about four places worth returning
 to.
+
+The working trail persists across Neovim restarts on its own, in
+`stdpath("state")/documentation.nvim/trails.json` — state, not the repository.
+`S` names a copy of it, `L` loads one back **additively** (replacing would
+silently destroy the trail built this session) and `X` forgets a saved one
+without touching the pins on screen.
 
 A pin records a **view**, not just a subject: the mode and the axes it was
 taken in, all restored by `<CR>`. Pins are keyed by repository root, so they

@@ -132,7 +132,8 @@ lua/documentation/
   cli.lua           --check/--full entry point
   command.lua       :DocMap
   health.lua        :checkhealth documentation
-  browse/           :DocBrowse (browse/trail.lua: pinned positions, pure)
+  browse/           :DocBrowse (trail.lua: pinned positions, pure —
+                    trail_store.lua is the only file under it touching disk)
   render/           html · markdown · mermaid · dot · badge
   @types/           Documentation.* LuaCATS definitions
 ```
@@ -143,5 +144,13 @@ at all. Everything that shells out lives in `command.lua` and
 `browse/init.lua`. That split is what keeps the shape of the answers testable
 without a repository — the whole trail model is driven from the spec without
 mounting a float — and it is worth preserving.
+
+`browse/trail_store.lua` is what that costs: persistence could have been three
+`save()` calls inside `trail.lua`, and instead it is a separate module that
+*subscribes* to `trail.on_change`. Keeping `trail.lua` pure is half the reason;
+the other half is that a mutation added later cannot forget to persist. It
+reaches disk only through `M.path()`, which is a function on the module rather
+than a constant precisely so the spec can point the whole thing at a temp file
+instead of writing into the real `stdpath("state")` while the suite runs.
 
 Design reasoning for every stage: [PIPELINE.md](PIPELINE.md).
