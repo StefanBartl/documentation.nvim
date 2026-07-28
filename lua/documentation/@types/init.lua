@@ -118,6 +118,8 @@
 ---@field nodiscard boolean
 ---@field local_refs integer How often this function's bare name is mentioned elsewhere in its own file. Answers the one question call edges cannot: a function passed as a *value* (`vim.system(cmd, on_exit)`) is used but never appears at a call site. Deliberately coarse — an unrelated `x.read` counts toward a local `read` — because over-counting errs toward "used", which is the safe direction.
 ---@field complexity integer Cyclomatic complexity (McCabe): 1 + one per `if`/`elseif`/`while`/`for`/`repeat`/`and`/`or`, counted over the function's own subtree including nested anonymous closures. Always computed, unconditionally — unlike `tested`/`documented`, there is no later resolve step that could derive it from the IR alone.
+---@field shape string Structural fingerprint: a hash of the treesitter node *types* over this function's whole subtree, never their text — so two functions differing only in identifier and literal names share one. What `duplicates.lua` groups by. Computed during the scan for the same reason as `complexity`: only there does the parse tree exist.
+---@field shape_size integer Node count behind `shape`. The duplicate detector's size floor applies to this: below it a shared shape means nothing, because every tree has a dozen one-line accessors that match each other.
 ---@field internal boolean Declared `---@internal`: part of the implementation, not of the module's published surface. Sharpens every question of the form "is this used" — `undocumented-param` skips it, the diff counts it as a helper, and a dead-function report can trust it.
 ---@field tested boolean Set by `coverage.resolve` (R2): this function's bare name is mentioned somewhere under `opts.tests_dir`. `false` until `coverage.resolve` has run, and even then means "not found by name in a spec" rather than "definitely untested" — see that module's header for the blind spot.
 ---@field documented boolean Set by `doccoverage.resolve` (R4): a non-empty summary plus fully, correctly documented parameters. `false` for `@internal` functions regardless — an internal function's documentation bar is the author's own, and folding it into a "published API" number would answer a question nobody asked.
@@ -297,6 +299,7 @@
 ---@field order string[] All node ids in deterministic walk order.
 ---@field nodes table<string, Documentation.Node>
 ---@field edges Documentation.Edge[] Type-reference edges from LuaLS enrichment. Always an array, empty when `opts.luals` did not run.
+---@field duplicates Documentation.Duplicates.Result Functions grouped by structural shape — see `duplicates.lua`. Set by `scan_full`, so a bare `scan()` leaves it nil; serialised into the artifact because the grouping needs `fn.shape`, and a page reading the artifact has no parse tree to redo it with.
 ---@field tag_links table<string, Documentation.TagLink> `requires_external` modules resolved through `opts.tag_files`. Always a table, empty when `opts.tag_files` is unset or nothing resolved — unlike `types_detail`, resolving is local and cheap, so there is no "did this run" question worth a nil.
 
 ---A live handle returned by `docmap.install()`. Keeps a scanned IR in memory

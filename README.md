@@ -27,6 +27,12 @@ plugin](docs/PIPELINE.md#why-this-is-its-own-plugin).
 | `docs/map/module_map.json` | The IR, byte-deterministic. What `--check` compares and what `:DocMap diff` reads out of old commits. |
 | `docs/map/coverage.svg` | Optional (`opts.badge`): a doc-coverage badge, hand-rolled, no network call. |
 
+The Analysis tab ranks the tree five ways over the same IR — test coverage,
+documentation coverage, fan-in/fan-out, cyclomatic complexity, and structural
+**duplicates**: functions whose parse-tree shape is identical, which is the one
+kind of drift the require graph is blind to by construction (two modules that
+each grew their own `read(path)` do not require each other).
+
 The Hierarchy tab draws five graphs over the same IR — **Modules** (directory
 hierarchy), **Types** (`@class`/`@alias` collaboration), **Inheritance**,
 **Deps** (the require graph) and **Calls** (function-level caller/callee) —

@@ -2088,11 +2088,62 @@ local JS = [[
     return parts.join("");
   }
 
+  // Structural duplicates, straight off `ir.duplicates` — computed in Lua by
+  // duplicates.lua rather than here, unlike the fan-in/fan-out panel. That one
+  // is an aggregation over data already serialised; this one needs the parse
+  // tree, which does not survive into the artifact, so the grouping has to
+  // happen where the tree existed.
+  function renderAnalysisDuplicates(){
+    var dup = IR.duplicates;
+    if(!dup){
+      return '<p class="ntext none">This map was generated before duplicate ' +
+        'detection existed. Regenerate it to see this panel.</p>';
+    }
+
+    var parts = [];
+    if(!dup.groups || dup.groups.length === 0){
+      parts.push('<p class="nsub">No two functions in this tree share a structure. ' +
+        dup.considered + ' functions were large enough to compare (at least ' +
+        dup.min_size + ' syntax nodes); anything smaller is excluded, because ' +
+        'every tree has a dozen one-line accessors that match each other and ' +
+        'mean nothing.</p>');
+      parts.push('<p class="ntext none">Nothing to report.</p>');
+      return parts.join("");
+    }
+
+    parts.push('<p class="nsub">' + dup.groups.length + ' group' +
+      (dup.groups.length === 1 ? '' : 's') + ' of structurally identical functions, ' +
+      'covering ' + dup.functions + ' of the ' + dup.considered + ' functions large ' +
+      'enough to compare (at least ' + dup.min_size + ' syntax nodes). Identifier and ' +
+      'literal names are ignored, so a renamed copy still matches — but a single ' +
+      'edited line does not. Largest group first.</p>');
+    parts.push('<p class="nsub">Sharing a shape is not by itself a defect: two ' +
+      'adapters around different APIs can be the same five lines of plumbing. ' +
+      'This is a ranking to read, never a check that fails.</p>');
+
+    dup.groups.forEach(function(g){
+      parts.push('<h3 class="nhead">' + g.members.length + ' identical, ' +
+        g.size + ' nodes</h3>');
+      parts.push('<table class="antable"><thead><tr><th>Function</th><th>Module</th>' +
+        '<th>Line</th></tr></thead><tbody>');
+      g.members.forEach(function(m){
+        parts.push('<tr class="anrow" data-node="' + esc(m.node) + '">' +
+          '<td>' + esc(m.signature || m.name) + '</td>' +
+          '<td>' + esc(m.module || m.node) + '</td>' +
+          '<td>' + m.line + '</td>' +
+          '</tr>');
+      });
+      parts.push("</tbody></table>");
+    });
+    return parts.join("");
+  }
+
   var analysisTestHTML = null, analysisDocHTML = null, analysisDepsHTML = null,
-    analysisComplexityHTML = null;
+    analysisComplexityHTML = null, analysisDuplicatesHTML = null;
   function drawAnalysis(){
     var host = document.getElementById("anbody");
-    var atool = (state.atool === "doc" || state.atool === "deps" || state.atool === "complexity")
+    var atool = (state.atool === "doc" || state.atool === "deps" ||
+      state.atool === "complexity" || state.atool === "duplicates")
       ? state.atool : "test";
 
     if(atool === "test"){
@@ -2122,9 +2173,12 @@ local JS = [[
     } else if(atool === "deps"){
       if(analysisDepsHTML === null) analysisDepsHTML = renderAnalysisDeps();
       host.innerHTML = analysisDepsHTML;
-    } else {
+    } else if(atool === "complexity"){
       if(analysisComplexityHTML === null) analysisComplexityHTML = renderAnalysisComplexity();
       host.innerHTML = analysisComplexityHTML;
+    } else {
+      if(analysisDuplicatesHTML === null) analysisDuplicatesHTML = renderAnalysisDuplicates();
+      host.innerHTML = analysisDuplicatesHTML;
     }
 
     host.querySelectorAll(".anrow").forEach(function(tr){
@@ -3314,6 +3368,7 @@ function M.render(ir, findings, opts)
     '<button class="anview-btn" data-atool="doc">Documentation</button>',
     '<button class="anview-btn" data-atool="deps">Dependencies</button>',
     '<button class="anview-btn" data-atool="complexity">Complexity</button>',
+    '<button class="anview-btn" data-atool="duplicates">Duplicates</button>',
     "</div>",
     '<div id="anbody"></div>',
     "</div>",

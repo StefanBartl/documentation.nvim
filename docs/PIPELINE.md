@@ -1015,12 +1015,13 @@ the default), the same "only the axes a view actually uses" rule
 A tool palette, not a diagram — a fifth tab (`atool` state axis, same
 `iview=`-shaped URL rule as the Index tab) whose toolbar switches between
 panels the way Hierarchy's view buttons switch between graphs, applied to
-aggregate numbers instead of boxes. Four tools today:
+aggregate numbers instead of boxes. Five tools today:
 
 - **Test coverage** — `fn.tested` (R2, [`coverage.lua`](../lua/documentation/coverage.lua))
 - **Documentation** — `fn.documented` (R4, [`doccoverage.lua`](../lua/documentation/doccoverage.lua))
 - **Dependencies** — `n.requires`/`n.required_by` (R6, fan-in/fan-out)
 - **Complexity** — `fn.complexity` (cyclomatic/McCabe, [`functions.lua`](../lua/documentation/functions.lua))
+- **Duplicates** — `ir.duplicates` (structural copy-paste detection, [`duplicates.lua`](../lua/documentation/duplicates.lua))
 
 The first two are per-module breakdowns over data `scan_full()` already
 stamped into the IR: a table, one row per module/namespace/file that owns
@@ -1075,11 +1076,59 @@ this repo's own tree: the highest-ranked function is `docmap.command`'s
 `M.setup` (complexity 104) — the `:DocMap` subcommand dispatcher, exactly
 the shape of function this ranking exists to surface.
 
-Four tools for now, deliberately: further candidates from the roadmap
-(code duplication, churn hotspots) have no data stamped into the IR
-yet — a button that opened an empty panel would be exactly what the
-context menu's "disabled with a count shown" rule exists to avoid
-elsewhere in this page.
+**Duplicates** is the copy-paste detector, and it exists because this is the
+one shape of drift the rest of the plugin is structurally blind to. Two
+modules that each grew their own `read(path)` fail no check, fail no test,
+and produce nothing in any graph — the require graph is silent precisely
+because neither one requires the other.
+
+The comparison is on `fn.shape`, a hash of the treesitter node *types* over
+a function's whole subtree, never their text, computed in
+[`functions.lua`](../lua/documentation/functions.lua) during the scan for the
+same reason `complexity` is: only there does the parse tree exist. Ignoring
+identifier and literal names is the entire point — a copy-paste gets renamed
+on the way in, so a detector that only found byte-identical bodies would find
+the one case nobody ships. This is the "type-2 clone" of the copy-paste
+literature, and what PMD's CPD reports by default.
+
+Two limits, both stated rather than worked around:
+
+- **A single edited line breaks the match.** This finds copies, not
+  near-copies. Real clone detectors slide a window over a token stream to
+  find the longest common run — a genuinely more expensive algorithm, and
+  exact-shape matching is what earns its cost first. If this panel is
+  consistently empty on a tree that obviously has duplication, *that* is the
+  argument for the window.
+- **Sharing a shape is not by itself a defect.** Verified on this repo's own
+  tree, which reports exactly two groups: `read(path)` implemented
+  identically in three modules — a real duplicate, and one the plugin had no
+  way to see before — and `scan.lua`'s `is_dir`/`is_file`, which share a
+  shape and share nothing else. That second one is why this is a panel and
+  never a check: `--check` must not fail on it.
+
+A **size floor** (40 syntax nodes) keeps it readable. Below it a shared shape
+means nothing — every tree has a dozen one-line accessors that match each
+other — and measured here, no floor reports five groups where 40 reports the
+two that are worth reading. It is a constant rather than an option, because a
+knob nobody knows how to set is worse than a documented default. The result
+carries `considered` alongside `groups`, so "nothing found" stays
+distinguishable from "nothing was large enough to look at".
+
+`ir.duplicates` is serialised into the artifact even though it is derived,
+which the fan-in/fan-out panel is not: that one aggregates data already in
+the JSON, while this grouping needs `fn.shape`, and a page reading the
+artifact has no parse tree to redo it with. Cost is measured: the two new
+per-function fields plus the result grew this repo's `module_map.json` from
+256 KB to 273 KB.
+
+The remaining roadmap candidate, **churn hotspots**, is not a panel here and
+cannot become one. It needs `git log`, and git data cannot go into the
+committed artifact for exactly the reason the History tab is not a tab:
+`--check` byte-compares committed output against freshly-generated output, so
+embedding history produces a commit that invalidates its own artifact the
+moment it lands. There is no fixed point. The roadmap listed the two
+candidates side by side as if they were the same kind of work; only one of
+them was ever buildable here.
 
 ## Drift checks
 

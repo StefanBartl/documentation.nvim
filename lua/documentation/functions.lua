@@ -88,6 +88,60 @@ local function cyclomatic_complexity(def_node, src)
   return n
 end
 
+--- Structural fingerprint of a function body, for the copy-paste detector in
+--- [`duplicates.lua`](duplicates.lua).
+---
+--- The sequence of treesitter node *types* over the definition's whole
+--- subtree, in tree order — never their text. Two functions differing only in
+--- identifier and literal names produce the same fingerprint, which is the
+--- entire point: a copy-paste is normally renamed on the way in, so a detector
+--- that only found byte-identical bodies would find the one case nobody
+--- ships. This is the "type-2 clone" of the copy-paste-detection literature,
+--- which is also what PMD's CPD reports by default.
+---
+--- Anonymous nodes are included, deliberately: an operator *is* an anonymous
+--- child (`(binary_expression "and")`), so skipping them would make `a + b`
+--- and `a - b` one shape. Their type is the operator text itself, which
+--- carries no identifier name, so including them costs nothing and keeps
+--- arithmetic apart.
+---
+--- Hashed rather than stored: the raw sequence runs to thousands of characters
+--- per function and the artifact is committed and reviewed. Two independent
+--- hashes rather than one, because a collision here does not degrade the
+--- answer, it *fabricates* one — "these two functions are identical" is a
+--- claim, and the rule in this plugin is that a wrong answer is worse than a
+--- missing one. Two 31-bit hashes put the birthday probability over a few
+--- thousand functions far below the chance of any other bug in this file.
+--- Multiply-and-add rather than FNV's xor, so the arithmetic stays inside a
+--- double's exact-integer range with no bitwise library.
+---@param def_node TSNode
+---@return string shape
+---@return integer size Node count — the knob the detector thresholds on.
+local function shape_of(def_node)
+  local h1, h2 = 0, 0
+  local size = 0
+
+  local stack = { def_node }
+  while #stack > 0 do
+    local node = table.remove(stack)
+    local t = node:type()
+    size = size + 1
+    for i = 1, #t do
+      local c = t:byte(i)
+      h1 = (h1 * 131 + c) % 2147483647
+      h2 = (h2 * 8191 + c) % 2147483629
+    end
+    -- Pushed in reverse so they pop left to right: sibling order is part of
+    -- the structure, and a fingerprint blind to it would call `a() b()` and
+    -- `b() a()` the same function.
+    for i = node:child_count() - 1, 0, -1 do
+      stack[#stack + 1] = node:child(i)
+    end
+  end
+
+  return ("%x-%x"):format(h1, h2), size
+end
+
 ---True when `node` is not nested inside another function's body — a query
 ---match alone can't tell `local function put(s) ... end` declared at module
 ---scope from an identically-shaped helper closure nested inside `M.to_json`;
@@ -392,6 +446,7 @@ function M.scan_file(path)
       -- skipping them would make `dead-see-target` and friends blind to
       -- exactly the functions most likely to need a @see fix-up.
       local parsed = parse_doc_block(raw_lines)
+      local shape, shape_size = shape_of(def.def_node)
 
       out[#out + 1] = {
         name = name,
@@ -424,6 +479,10 @@ function M.scan_file(path)
         -- from the IR alone the way coverage.resolve/doccoverage.resolve
         -- do, so it is done here or not at all.
         complexity = cyclomatic_complexity(def.def_node, src),
+        -- Same reason, same pass: `duplicates.lua` groups by this, but only
+        -- the tree can produce it.
+        shape = shape,
+        shape_size = shape_size,
         -- Set for real by `coverage.resolve`/`doccoverage.resolve` (opt-in,
         -- like tag_links); false here so a caller that never runs either
         -- still gets a real boolean rather than a nil that would need

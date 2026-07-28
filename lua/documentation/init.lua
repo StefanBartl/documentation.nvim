@@ -83,6 +83,12 @@ function M.scan_full(opts)
   -- reimplementing `doccoverage.is_documented` in JS.
   require("documentation.doccoverage").resolve(ir)
 
+  -- Grouped here rather than in JS, unlike the fan-in/fan-out panel: that one
+  -- aggregates data already serialised, this one groups by `fn.shape`, which
+  -- only `functions.lua` can produce because only the scan holds the parse
+  -- tree. Cheap — one pass and a sort over what is already in memory.
+  ir.duplicates = require("documentation.duplicates").resolve(ir)
+
   local luals_err
   if opts.luals then
     local luals = require("documentation.luals")
@@ -222,6 +228,11 @@ function M.to_json(ir)
   put(json.encode(ir.edges or {}))
   put(',\n  "tag_links": ')
   put(json.encode(ir.tag_links or {}))
+  -- Derived, and carried anyway: the grouping needs `fn.shape`, which exists
+  -- only while the parse tree does, so a page reading the artifact could not
+  -- redo it. Same reason `stats` is serialised rather than recomputed in JS.
+  put(',\n  "duplicates": ')
+  put(json.encode(ir.duplicates or { groups = {}, functions = 0, considered = 0, min_size = 0 }))
   put("\n}\n")
   return table.concat(out)
 end
