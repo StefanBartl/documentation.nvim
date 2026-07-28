@@ -51,16 +51,17 @@ porting at all:
 | **Treesitter** | 25 | The blocker. See below. |
 
 The 83 editor-only sites are the number worth reading twice: they are not a
-porting cost, they are a deletion. `browse/`, `command.lua`, `registry.lua`,
-`serve.lua` and `health.lua` come to **4 873 of 14 059 lines (35 %)** and
+porting cost, they are a deletion. `editor/` — `browse/`, `command.lua`,
+`registry.lua`, `serve.lua`, `health.lua` — comes to **4 873 of 14 059 lines (35 %)** and
 simply do not come along.
 
 ### How much is already portable
 
-**Ten files have zero `vim.*` today**: `browse/filter.lua`,
-`browse/trail.lua`, `churn.lua`, `doccoverage.lua`, `duplicates.lua`,
-`history.lua`, and four of the five renderers. `render/html.lua` — 3 347
-lines, the largest file in the tree — has exactly one.
+**Ten files have zero `vim.*` today**: `editor/browse/filter.lua`,
+`editor/browse/trail.lua`, `core/churn.lua`, `core/doccoverage.lua`,
+`core/duplicates.lua`, `core/history.lua`, and four of the five renderers.
+`core/render/html.lua` — 3 347 lines, the largest file in the tree — has
+exactly one.
 
 That is not luck. It is the same purity rule the specs are built on: data in,
 a structure out, no window and no filesystem. It was adopted so the model
@@ -115,30 +116,37 @@ tree-sitter". Each step is real, but they are not equally cheap and the third
 one is not what it first looks like. Measured with `tree-sitter` CLI 0.26.9 and
 this repository's own queries.
 
-### Step 1 — the split, and enforcing it
+### Step 1 — the split, and enforcing it — **done**
 
-Already 35% done by accident of the purity rule. What is missing is anything
-that *stops* it re-merging: nothing today prevents `scan.lua` from requiring
-`browse/`.
+It was already 35% done by accident of the purity rule. What was missing was
+anything that *stopped* it re-merging: nothing prevented `scan.lua` from
+requiring `browse/`.
 
-The plugin already ships the mechanism — `opts.layers` and the
-`layer-violation` check. But it cannot express this boundary against the
-current tree: the editor half is `documentation.browse.*`, `documentation.
-command`, `documentation.registry`, `documentation.serve` and
-`documentation.health`, which is not one prefix, and a rule from
-`documentation` to `documentation.browse` would flag `browse/init.lua`
+The plugin already shipped the mechanism — `opts.layers` and the
+`layer-violation` check — but it could not express this boundary against the
+flat tree. The editor half was five separate module paths (`browse.*`,
+`command`, `registry`, `serve`, `health`), not one prefix, and a rule from
+`documentation` down to the browser would have flagged `browse/init.lua`
 requiring `browse/view.lua`.
 
-Move to `documentation.core.*` / `documentation.editor.*` and it becomes one
-line:
+`documentation.core.*` / `documentation.editor.*` makes it one line, now
+declared in `scripts/gen_map.lua`:
 
 ```lua
 layers = { { from = "documentation.core", to = "documentation.editor",
-             why = "the core has to stay runnable without an editor" } }
+             why = "the pipeline has to stay runnable without an editor" } }
 ```
 
-Then the tool checks its own split, in its own CI, and the boundary cannot
-rot. That is the whole argument for the rename — not tidiness, enforceability.
+The tool now checks its own split in its own CI, and the boundary cannot rot.
+That was the whole argument for the rename — not tidiness, enforceability.
+Declaring the rule found one real violation immediately: `tagfiles.lua`
+reached into `command.lua` for `find_node`, a lookup that touches nothing but
+the IR. It is `core/find.lua` now.
+
+One-directional on purpose. The editor half reaching into the core is the
+point of the core existing; only the other direction costs anything.
+`init.lua` sits outside the rule and reaches both, which is what a facade is
+for.
 
 ### Step 2 — a binary
 

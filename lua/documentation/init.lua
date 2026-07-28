@@ -43,10 +43,10 @@
 
 require("documentation.@types")
 
-local scan = require("documentation.scan")
-local check = require("documentation.check")
+local scan = require("documentation.core.scan")
+local check = require("documentation.core.check")
 local mkdirp = require("lib.nvim.fs.mkdirp")
-local json = require("documentation.json")
+local json = require("documentation.core.json")
 
 local M = {}
 
@@ -71,27 +71,27 @@ function M.scan_full(opts)
   -- LuaLS-enrichment fields, which stay nil when never run) is not itself a
   -- signal — checking `next(opts.tag_files or {})` is what a caller wanting
   -- to know "was this configured" should do.
-  require("documentation.tagfiles").resolve(ir, opts)
+  require("documentation.core.tagfiles").resolve(ir, opts)
 
   -- Same reasoning: cheap, local, no reason to gate behind a flag. A
   -- missing opts.tests_dir just leaves every fn.tested false, same as a
   -- tree with no tag_files leaves every requires_external unresolved.
-  require("documentation.coverage").resolve(ir, opts)
+  require("documentation.core.coverage").resolve(ir, opts)
 
   -- Same reasoning again: `fn.documented` is what the Analysis tab's
   -- Documentation panel reads to build a per-module breakdown without
   -- reimplementing `doccoverage.is_documented` in JS.
-  require("documentation.doccoverage").resolve(ir)
+  require("documentation.core.doccoverage").resolve(ir)
 
   -- Grouped here rather than in JS, unlike the fan-in/fan-out panel: that one
   -- aggregates data already serialised, this one groups by `fn.shape`, which
   -- only `functions.lua` can produce because only the scan holds the parse
   -- tree. Cheap — one pass and a sort over what is already in memory.
-  ir.duplicates = require("documentation.duplicates").resolve(ir)
+  ir.duplicates = require("documentation.core.duplicates").resolve(ir)
 
   local luals_err
   if opts.luals then
-    local luals = require("documentation.luals")
+    local luals = require("documentation.core.luals")
     local doc_json, err =
       luals.run(opts.root, opts.source or "lua", { timeout_ms = opts.luals_timeout_ms })
     if doc_json then
@@ -120,7 +120,7 @@ end
 --- `lib.nvim.ui.kit`, which nothing on the generate/check path needs.
 M.browse = setmetatable({}, {
   __index = function(_, k)
-    return require("documentation.browse")[k]
+    return require("documentation.editor.browse")[k]
   end,
 })
 
@@ -128,7 +128,7 @@ M.browse = setmetatable({}, {
 --- the generate/check path needs it.
 M.diff = setmetatable({}, {
   __index = function(_, k)
-    return require("documentation.diff")[k]
+    return require("documentation.core.diff")[k]
   end,
 })
 
@@ -137,7 +137,7 @@ M.diff = setmetatable({}, {
 --- it, not `:DocMap` or `install()`.
 M.cli = setmetatable({}, {
   __index = function(_, k)
-    return require("documentation.cli")[k]
+    return require("documentation.core.cli")[k]
   end,
 })
 
@@ -146,28 +146,28 @@ M.cli = setmetatable({}, {
 --- generate/check path needs it.
 M.history = setmetatable({}, {
   __index = function(_, k)
-    return require("documentation.history")[k]
+    return require("documentation.core.history")[k]
   end,
 })
 
 M.render = {
   html = function(...)
-    return require("documentation.render.html")(...)
+    return require("documentation.core.render.html")(...)
   end,
   mermaid = function(...)
-    return require("documentation.render.mermaid")(...)
+    return require("documentation.core.render.mermaid")(...)
   end,
   mermaid_deps = function(...)
-    return require("documentation.render.mermaid").render_deps(...)
+    return require("documentation.core.render.mermaid").render_deps(...)
   end,
   markdown = function(...)
-    return require("documentation.render.markdown")(...)
+    return require("documentation.core.render.markdown")(...)
   end,
   dot = function(...)
-    return require("documentation.render.dot")(...)
+    return require("documentation.core.render.dot")(...)
   end,
   badge = function(...)
-    return require("documentation.render.badge").render(...)
+    return require("documentation.core.render.badge").render(...)
   end,
 }
 
@@ -276,7 +276,7 @@ function M.write_artifacts(ir, findings, opts)
     ["overview.md"] = M.render.markdown(ir, findings, opts),
   }
   if opts.badge then
-    artifacts["coverage.svg"] = require("documentation.doccoverage").badge_svg(ir)
+    artifacts["coverage.svg"] = require("documentation.core.doccoverage").badge_svg(ir)
   end
 
   for name, content in pairs(artifacts) do
@@ -310,7 +310,7 @@ end
 ---@param opts Documentation.Opts
 ---@return Documentation.Handle
 function M.install(opts)
-  return require("documentation.registry").install(opts)
+  return require("documentation.editor.registry").install(opts)
 end
 
 ---Tear down a handle from `install()`. Accepts the handle itself or its root
@@ -318,20 +318,20 @@ end
 ---@param handle_or_root Documentation.Handle|string
 ---@return boolean uninstalled
 function M.uninstall(handle_or_root)
-  return require("documentation.registry").uninstall(handle_or_root)
+  return require("documentation.editor.registry").uninstall(handle_or_root)
 end
 
 ---Plugin entry point: register `:DocMap`/`:DocBrowse` for `opts` (defaults
----filled in by `documentation.config`, which resolves the tree from the
+---filled in by `documentation.core.config`, which resolves the tree from the
 ---current working directory).
 ---
----A thin alias for `documentation.command.setup` rather than a second wiring
+---A thin alias for `documentation.editor.command.setup` rather than a second wiring
 ---path — `require("documentation")` on its own still creates no command, so a
 ---plugin embedding the pipeline is never forced to also take the commands.
 ---@param opts Documentation.Opts?
 ---@return Documentation.Handle
 function M.setup(opts)
-  return require("documentation.command").setup(opts)
+  return require("documentation.editor.command").setup(opts)
 end
 
 return M

@@ -131,42 +131,67 @@ serialization contract, not an accident of table iteration.
 
 ```
 lua/documentation/
-  init.lua          generate() / scan_full() / install() / to_json()
-  config.lua        Documentation.Opts defaults + merge
-  scan.lua          filesystem walk + header parse   -> IR
-  functions.lua     per-function docs via treesitter -> node.functions
-  symbols.lua       module-scope tables/constants    -> node.symbols
-  deps.lua          require edges
-  calls.lua         call edges
-  luals.lua         opt-in LuaLS enrichment
-  check.lua         drift findings
-  coverage.lua      fn.tested       doccoverage.lua  fn.documented
-  duplicates.lua    functions grouped by structural shape (pure)
-  churn.lua         churn x complexity ranking            (pure)
-  tagfiles.lua      cross-project link resolution
-  json.lua          deterministic encoder
-  diff.lua          structural diff between two IRs   (pure)
-  history.lua       changed lines -> functions -> callers (pure)
-  registry.lua      install()/uninstall(), the watch
-  serve.lua         the local map server
-  cli.lua           --check/--full entry point
-  command.lua       :DocMap
-  health.lua        :checkhealth documentation
-  browse/           :DocBrowse (trail.lua pinned positions and filter.lua the
+  init.lua          the public facade: generate/scan_full/install/setup
+  @types/           Documentation.* LuaCATS definitions
+
+  core/             the pipeline. No editor, and a layer rule says so.
+    scan.lua        filesystem walk + header parse   -> IR
+    functions.lua   per-function docs via treesitter -> node.functions
+    symbols.lua     module-scope tables/constants    -> node.symbols
+    deps.lua        require edges
+    calls.lua       call edges
+    find.lua        name -> node id
+    luals.lua       opt-in LuaLS enrichment
+    check.lua       drift findings
+    coverage.lua    fn.tested       doccoverage.lua  fn.documented
+    duplicates.lua  functions grouped by structural shape  (pure)
+    churn.lua       churn x complexity ranking             (pure)
+    tagfiles.lua    cross-project link resolution
+    json.lua        deterministic encoder
+    diff.lua        structural diff between two IRs        (pure)
+    history.lua     changed lines -> functions -> callers  (pure)
+    config.lua      Documentation.Opts defaults + merge
+    cli.lua         --check/--full entry point
+    render/         html · markdown · mermaid · dot · badge
+
+  editor/           everything that needs a running Neovim
+    command.lua     :DocMap
+    browse/         :DocBrowse (trail.lua pinned positions and filter.lua the
                     list filter, both pure — trail_store.lua is the only file
                     under it touching disk)
-  render/           html · markdown · mermaid · dot · badge
-  @types/           Documentation.* LuaCATS definitions
+    registry.lua    install()/uninstall(), the watch
+    serve.lua       the local map server
+    health.lua      :checkhealth documentation
 ```
 
-`diff.lua`, `history.lua`, `browse/trail.lua` and `browse/filter.lua` are
+**The `core`/`editor` split is enforced, not conventional.** `scripts/gen_map.lua`
+declares one layering rule against this repository's own map:
+
+```lua
+layers = { { from = "documentation.core", to = "documentation.editor" } }
+```
+
+so `:DocMap check` — and therefore CI — fails if a core module ever requires
+an editor one. That is the whole reason the directories exist: the pipeline
+has to stay runnable with no editor around it (see
+[PORTABILITY.md](PORTABILITY.md)), and nothing but a check keeps a boundary
+like that from quietly rotting. Declaring the rule immediately found one real
+violation — `tagfiles.lua` reached into `command.lua` for `find_node`, a
+lookup that touches nothing but the IR, now `core/find.lua`.
+
+Deliberately one-directional: the editor half reaching into the core is the
+point of the core existing. `init.lua` sits outside the rule and reaches both,
+which is what a facade is for.
+
+`core/diff.lua`, `core/history.lua`, `editor/browse/trail.lua` and
+`editor/browse/filter.lua` are
 pure — data in, a structure out; no git, no filesystem, and in the last two
 cases no `vim` API at all. Everything that shells out lives in `command.lua` and
-`browse/init.lua`. That split is what keeps the shape of the answers testable
+`editor/browse/init.lua`. That split is what keeps the shape of the answers testable
 without a repository — the whole trail model is driven from the spec without
 mounting a float — and it is worth preserving.
 
-`browse/trail_store.lua` is what that costs: persistence could have been three
+`editor/browse/trail_store.lua` is what that costs: persistence could have been three
 `save()` calls inside `trail.lua`, and instead it is a separate module that
 *subscribes* to `trail.on_change`. Keeping `trail.lua` pure is half the reason;
 the other half is that a mutation added later cannot forget to persist. It

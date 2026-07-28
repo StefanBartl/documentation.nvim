@@ -1,6 +1,6 @@
 -- docs/EXAMPLES/browse.lua
 --
--- Module:   documentation.browse
+-- Module:   documentation.editor.browse
 -- Scenario: navigate the generated module map from inside the editor
 --           (`:DocBrowse`) instead of opening the HTML page — a drill-down
 --           list over the same edges, with the three things the page cannot
@@ -12,13 +12,13 @@
 -- 1. REGISTER — the commands are opt-in. Requiring documentation alone
 --    never creates one, so two plugins each generating their own map never
 --    fight over the same command name.
-require("documentation.command").setup()
+require("documentation.editor.command").setup()
 -- :DocMap     regenerates / checks the artifacts (the generator)
 -- :DocBrowse  reads them (the viewer) -- separate commands on purpose, so a
 --             read-only viewer is never one typo away from rewriting files.
 
 -- 2. OPEN — directly, without going through the command.
-local browse = require("documentation.browse")
+local browse = require("documentation.editor.browse")
 
 browse.open({ root = vim.fn.getcwd() })
 

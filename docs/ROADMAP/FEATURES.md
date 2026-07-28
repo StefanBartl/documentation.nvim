@@ -591,4 +591,54 @@ would fix the ordering and cost exactly that.
 
 Verified against this repository, which is a weak test of the signal and a
 fine test of the plumbing — nine commits since extraction, ranking
-`documentation.browse` first at 5 commits × complexity 223.
+`documentation.editor.browse` first at 5 commits × complexity 223.
+
+## `core/` and `editor/` — an enforced split (2026-07-28)
+
+`documentation.scan` → `documentation.core.scan`,
+`documentation.browse` → `documentation.editor.browse`, and so on for every
+module. A breaking rename, taken while the plugin is unpublished because that
+is the cheapest this ever gets.
+
+**Not tidiness — enforceability.** The pipeline was already 35% editor-free by
+accident of the purity rule, and nothing whatsoever stopped it re-merging:
+`scan.lua` could have required `browse/` and no check would have said a word.
+
+The plugin already shipped the mechanism (`opts.layers`, `layer-violation`),
+but it could not express this boundary against a flat tree. The editor half
+was five unrelated module paths, and a rule from `documentation` down to the
+browser would have flagged `browse/init.lua` requiring `browse/view.lua`. Two
+prefixes make it one line, now declared in `scripts/gen_map.lua`:
+
+```lua
+layers = { { from = "documentation.core", to = "documentation.editor" } }
+```
+
+so `--check`, and therefore CI, fails when the core reaches into the editor.
+The tool checks its own split.
+
+- **It found a real violation on the first run.** `tagfiles.lua` — core —
+  required `command.lua` for `find_node`, a lookup that touches nothing but
+  the IR. Now `core/find.lua`; `command.find_node` stays as an alias, since
+  it is part of that module's published surface.
+- **One-directional on purpose.** The editor reaching into the core is the
+  point of the core existing. Only the other direction costs anything.
+- **`init.lua` sits outside the rule** and reaches both halves. That is what
+  a facade is for, and giving it a special case would have meant a rule with
+  an exception, which is not a rule.
+- **Notification prefixes now name the command, not the module.** The
+  mechanical rename turned `[documentation.browse]` into
+  `[documentation.editor.browse]`, which is a user-visible string tracking an
+  implementation detail. `[DocBrowse]` is what the reader typed.
+
+Two spec assertions turned out to be about the *tree* rather than the code and
+failed the moment it moved — the same class of bug the extraction commit had
+to fix three times. `<CR> descends into the row under the cursor` asserted
+"row 3", which had happened to be a module and became a function; it now finds
+the last node-shaped row. And `gd` hardcoded `documentation/deps.lua`; it now
+derives the path from the module name it centred on. Both were fixed as
+portability bugs in the spec, not by restoring the old layout.
+
+Cost, for the record: 45 files rewritten, 19 `dead-readme-link` findings from
+the module READMEs pointing at moved files — every one of them raised by this
+plugin's own check against its own tree, which is the argument for the check.

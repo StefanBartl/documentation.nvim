@@ -100,7 +100,7 @@
 ---@field name string?
 ---@field desc string
 
----A single documented function, extracted via `documentation.functions`
+---A single documented function, extracted via `documentation.core.functions`
 ---(a `vim.treesitter` query, not `lua-language-server --doc` — see that
 ---module's header for why). Attached to whichever node owns the file it's
 ---defined in.
@@ -148,7 +148,7 @@
 ---| "constant" # Bound to a literal number, string or boolean.
 ---| "binding"  # Anything else evaluated at load time.
 
----One module-scope table, constant or binding, from `documentation.symbols`.
+---One module-scope table, constant or binding, from `documentation.core.symbols`.
 ---Functions and `require` bindings are excluded — `docmap.functions` and
 ---`docmap.deps` own those.
 ---@class Documentation.SymbolInfo
@@ -220,7 +220,7 @@
 ---@field changed boolean? The edge existed before but stopped being lazy — a load-time dependency that did not exist previously, which is how initialisation cycles get introduced.
 
 ---What one revision changed about the *shape* of the tree, from
----`documentation.diff`.
+---`documentation.core.diff`.
 ---@class Documentation.Diff
 ---@field nodes_added string[] Node ids, sorted.
 ---@field nodes_removed string[]
