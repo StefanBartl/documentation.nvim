@@ -23,7 +23,7 @@ lib.nvim's git history.
   exists exactly once per concern instead of once per edge type.
 - **Require-graph** (`deps.lua`) — extracted per-file (not into a throwaway
   global set like the old `check_orphans` did), with line numbers. Enables
-  `require-cycle` (Tarjan SCC), `require-not-declared`, and opt-in
+  `require-cycle` (Tarjan SCC), `require-not-declared` and opt-in
   `layer-violation` checks nearly for free.
 - **Call-graph** (`calls.lua`) — treesitter-based (LuaLS's own `--doc` misses
   most of this repo's functions). Alias-resolves `local fs = require(...)`
@@ -45,7 +45,8 @@ lib.nvim's git history.
 ## Checks (`check.lua`)
 
 All info/warn severity, never error, unless noted:
-`require-cycle`, `require-not-declared`, `layer-violation` (opt-in),
+`require-cycle`, `require-not-declared` (see its own entry below — this file
+claimed it for a long time before it existed), `layer-violation` (opt-in),
 `dead-function` (a function with zero resolvable callers — scoped carefully:
 always flags unreferenced `local function`s and `@internal`-tagged ones,
 only flags ordinary exported functions under `opts.dead_code = true`, to
@@ -438,3 +439,40 @@ unterminated quote runs to the end of the input, and a lone `-` is dropped
 rather than negating a term not yet typed. The one UI-level assertion is that
 `f` *opens* something — which is what keeps the `S`/`L`/`X` "opens nothing"
 assertions honest, since those pass equally well on a key that was never bound.
+
+## `require-not-declared` (2026-07-28)
+
+Listed in this file as shipped since before the extraction, and never
+implemented — confirmed by grep against `lib.nvim` at `eaab532^`, where it
+appears in `docmap_features.md` and nowhere in the code. `check.lua` had
+twelve checks; README and PIPELINE listed exactly those twelve. Only the
+ledger claimed a thirteenth.
+
+Built rather than struck out, because the gap it names is real: an
+unresolvable `require()` lands in `requires_external`, which is also where a
+genuine third-party dependency lands. Right for `plenary.async`, silently
+wrong for `documentation.brwose.trail` — a typo, a rename, or a module deleted
+while a caller kept asking for it. All three break at runtime and none of them
+look different in the map.
+
+- **Separated on the first path segment.** A require whose leading segment is
+  one the tree declares as its own is a claim about this tree, and this tree
+  is what the scan can be authoritative about. Whole segment, never a raw
+  string prefix — `documentation` must not match `documentationx.util`.
+- **`warn`, not `error`.** Same family as `require-cycle` and
+  `dead-see-target`: a reference pointing at nothing. Error is reserved for
+  the two checks about the tree's own contract (`missing-module-tag`,
+  `module-path-mismatch`), and this one rests on a heuristic about namespaces.
+- **The escape hatch already existed.** A project split across repositories
+  under one namespace is the remaining false positive, and `opts.tag_files`
+  is precisely the declaration that a prefix lives in another project's map.
+  Matched with `tagfiles.lua`'s own rule rather than a second one.
+- **Line numbers from `requires_raw`**, which is internal to the scan and
+  never serialized. Checks run against the in-memory IR straight after the
+  walk, so it is there — and a message without a line is useless, since one
+  file can require the same missing module twice.
+
+Zero findings on this repository, which is the correct answer and also why
+the spec asserts both directions in one fixture: a file requiring both a
+missing in-namespace module *and* a real external one. Asserting only the
+positive would pass on a check that flagged every external require there is.

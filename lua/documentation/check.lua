@@ -318,6 +318,95 @@ local function check_require_cycles(ir, findings)
   end
 end
 
+--- A `require()` of a module inside this tree's **own** namespace that no file
+--- in the tree declares.
+---
+--- The gap this closes: an unresolvable require lands in `requires_external`,
+--- which is the same place a genuine third-party dependency lands. That is
+--- correct for `plenary.async` and silently wrong for
+--- `documentation.brwose.trail` — a typo, a module that was renamed, or one
+--- deleted while a caller kept requiring it. All three break at runtime, and
+--- none of them look any different in the map from a dependency the scan was
+--- never meant to cover.
+---
+--- Telling them apart on the **first path segment**: a require whose leading
+--- segment matches one this tree declares as its own is a claim about this
+--- tree, and this tree is exactly what the scan can be authoritative about.
+--- `lib.nvim.fs` from a `documentation`-rooted tree is somebody else's
+--- module and unknowable from here; `documentation.anything` is not.
+---
+--- Whole first segment, never a raw string prefix — `documentation` must not
+--- match a `documentationx.util` that happens to start with the same letters.
+---
+--- The one false positive left is a project deliberately split across repos
+--- under one namespace, and it already has an answer: `opts.tag_files` is the
+--- declaration that a prefix lives in another project's map, so anything it
+--- covers is skipped. Matched the same way `tagfiles.lua` matches it, because
+--- two different notions of "covered by a tag file" would be a bug waiting to
+--- be found by whoever configures one.
+---@param ir Documentation.IR
+---@param findings Documentation.Finding[]
+---@param opts Documentation.Opts
+local function check_require_not_declared(ir, findings, opts)
+  local own = {}
+  for _, id in ipairs(ir.order) do
+    local mod = ir.nodes[id].module
+    if mod then
+      own[mod:match("^[^.]+") or mod] = true
+    end
+  end
+  if not next(own) then
+    return
+  end
+
+  local tag_files = opts.tag_files or {}
+  ---@param mod string
+  ---@return boolean
+  local function tagged(mod)
+    for prefix in pairs(tag_files) do
+      if mod == prefix or mod:sub(1, #prefix + 1) == prefix .. "." then
+        return true
+      end
+    end
+    return false
+  end
+
+  -- The same index `deps.build` resolved against, not a second walk deciding
+  -- the same question — "does this module exist in the tree" must have one
+  -- answer, or a require can be an edge and a finding at once.
+  local by_module = require("documentation.deps").module_index(ir)
+
+  for _, id in ipairs(ir.order) do
+    local node = ir.nodes[id]
+
+    -- `requires_raw` rather than `requires_external`, purely for the line
+    -- numbers: a file can require the same missing module twice, and
+    -- "somewhere in this file" is not an answer. It is available because
+    -- checks run against the in-memory IR straight after the scan — it is
+    -- deliberately not serialized into the artifact.
+    local reported = {}
+    for _, req in ipairs(node.requires_raw or {}) do
+      local mod = req.module
+      if
+        own[mod:match("^[^.]+")]
+        and mod ~= node.module
+        and not by_module[mod]
+        and not reported[mod]
+        and not tagged(mod)
+      then
+        reported[mod] = true
+        add(
+          findings,
+          "warn",
+          "require-not-declared",
+          id,
+          ("requires %q (line %d), which no file in this tree declares"):format(mod, req.line)
+        )
+      end
+    end
+  end
+end
+
 --- Architectural layering, expressed as module-path prefixes: modules under
 --- `rule.from` may not require modules under `rule.to`. Opt-in via
 --- `opts.layers`, because a layering that is not declared cannot be violated —
@@ -659,6 +748,7 @@ function M.run(ir, opts)
   check_readme_links(ir, findings, opts)
   check_orphans(ir, findings)
   check_require_cycles(ir, findings)
+  check_require_not_declared(ir, findings, opts)
   check_layers(ir, findings, opts)
   check_see_targets(ir, findings)
   check_undocumented_params(ir, findings)
