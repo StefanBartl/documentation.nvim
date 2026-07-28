@@ -151,12 +151,13 @@ do at all: jump to the source at the line (`gd`), fill the quickfix list
 | `:DocBrowse live` | Install a watching handle instead — rescans on every write (~0.65s once). |
 | `:DocBrowse <module>` | Open centered on one module. |
 | `:DocBrowse history` | Open on the commit list. |
+| `:DocBrowse trail` | Open on the pinned positions. |
 
 ### Keys
 
 | Key | Does |
 |---|---|
-| `1`…`5` | Switch mode: structure · deps · calls · types · history |
+| `1`…`6` | Switch mode: structure · deps · calls · types · history · trail |
 | `j` / `k` | Move |
 | `<CR>` | Descend |
 | `-` / `<BS>` | Up |
@@ -168,9 +169,22 @@ do at all: jump to the source at the line (`gd`), fill the quickfix list
 | `gI` | Impact — the transitive `required_by` closure |
 | `gO` | Open the HTML page at this position |
 | `gD` | The opened commit's diff |
+| `p` | Pin / unpin the entry under the cursor |
+| `d` | Unpin (Trail) |
 | `/` | Search |
 | `?` | This table, in a float, for the current mode |
 | `q` | Close |
+
+**Trail** (`6`) is deliberately not the same thing as `<C-o>`/`<C-i>`. The
+history stack answers "where was I a moment ago" — automatic, ordered by time,
+truncated by the next move. A trail answers "where do I want to get back to" —
+deliberate, and nothing but an unpin removes an entry. Reading a dependency
+graph produces dozens of history stops and about four places worth returning
+to.
+
+A pin records a **view**, not just a subject: the mode and the axes it was
+taken in, all restored by `<CR>`. Pins are keyed by repository root, so they
+survive closing and reopening the browser.
 
 `?` renders from the same table `bind()` installs from, so it cannot describe
 a key the browser does not have or omit one it does — the spec asserts exactly

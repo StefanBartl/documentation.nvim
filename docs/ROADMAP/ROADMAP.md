@@ -33,6 +33,15 @@ lib.nvim's git history if it is ever needed.
   survey list below — the repo name states the domain, and the module path
   `documentation` follows the repo-basename convention every sibling plugin
   uses). See `docs/PIPELINE.md` § "Why this is its own plugin".
+- **Trail** (wayfinder item 2). Done. A pin records a *view* — the mode and
+  the axes it was taken in — not just a subject, because half-restoring is
+  what makes bookmarks feel unreliable. Identity is deliberately narrower
+  than the record: `dir`/`depth` travel on the pin but are not part of its
+  key, so the same node at two depths is one bookmark rather than two
+  near-duplicates. Keyed by repository root, so pins outlive the window;
+  `browse/trail.lua` is pure, which is what lets the whole model be driven
+  from a headless spec. Persisting across Neovim sessions is item 3 and
+  lands in that same file.
 - **`?` key-hint overlay** (wayfinder item 1a). Done. Rendered from the same
   `KEYS` table `bind()` installs from, so it cannot drift from the actual
   bindings; keys the current mode ignores are marked rather than hidden. The
@@ -168,9 +177,10 @@ relative of `:LibBrowse`, genuine candidates if `:LibBrowse` gets revisited
 1. ~~**`?` key-hint overlay** and **`:checkhealth docmap`**~~ — both
    shipped, see "Shipped since this file was last written" above. They were
    correctly ranked cheapest-first: together they cost one afternoon.
-2. **Trail** — pin interesting nodes while exploring (wayfinder's `p`/`a`/
-   `A`), separate from plain back/forward history, which is all
-   `:LibBrowse` has today (`<C-o>`/`<C-i>`).
+2. ~~**Trail**~~ — shipped. `p` pins the entry under the cursor in any
+   mode, `6` lists them, `d` unpins. One `p` rather than wayfinder's
+   `p`/`a`/`A`: pressing it on something already pinned has exactly one
+   sensible meaning, and a second key would only make the first worse.
 3. **Saved Trails** — name and persist an exploration path across sessions
    (Neovim state, not the repo) — fits docmap's own scope (navigation
    state, not runtime execution, so it doesn't cross into B1's territory).

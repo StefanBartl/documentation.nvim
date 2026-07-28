@@ -110,11 +110,17 @@ Full reference: [docs/COMMANDS.md](docs/COMMANDS.md).
 :DocBrowse live                  " …re-scanning on every write
 :DocBrowse my.module             " …opened on one module
 :DocBrowse history               " …opened on the commit list
+:DocBrowse trail                 " …opened on the pinned positions
 ```
 
 Inside `:DocBrowse`, `?` shows the keys for the current mode. It renders from
 the same table the browser installs its keys from, so it cannot drift from
 them; keys the current mode ignores are marked rather than hidden.
+
+`p` pins the entry under the cursor and `6` lists what has been pinned — a
+**trail**, deliberately separate from `<C-o>`/`<C-i>`. The history stack
+answers "where was I a moment ago"; a trail answers "where do I want to get
+back to". A pin restores the whole view it was taken in, not just its subject.
 
 ## Health
 

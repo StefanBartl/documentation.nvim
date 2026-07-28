@@ -600,11 +600,11 @@ function M.setup(opts)
       target = tail
       head, tail = target:match("^(%S+)%s*(.-)$")
     end
-    -- `history` opens straight into the commit list. It takes no module, so
-    -- anything after it would be meaningless — unlike `live`, which is a
-    -- prefix the module name follows.
-    if head == "history" then
-      mode = "history"
+    -- `history` and `trail` open straight into their own list. Neither takes
+    -- a module, so anything after them would be meaningless — unlike `live`,
+    -- which is a prefix the module name follows.
+    if head == "history" or head == "trail" then
+      mode = head
       target = tail or ""
     end
 
@@ -619,15 +619,15 @@ function M.setup(opts)
     })
   end, {
     nargs = "*",
-    desc = ("Browse the module map in the editor (:%s [live] [history|module])"):format(
+    desc = ("Browse the module map in the editor (:%s [live] [history|trail|module])"):format(
       browse_command_name
     ),
     complete = function(lead, line)
       -- `live` only makes sense as the first token; after it (or after any
       -- module name) the only useful completion is a module path.
-      -- `history` stands where a module name would, so it stays on offer for
-      -- as long as module names do.
-      local candidates = { "history" }
+      -- `history` and `trail` stand where a module name would, so they stay
+      -- on offer for as long as module names do.
+      local candidates = { "history", "trail" }
       if not line:match("%s%S+%s") then
         candidates[#candidates + 1] = "live"
       end

@@ -361,6 +361,52 @@ local function history_entries(ir, st)
   return out
 end
 
+---The pinned positions, in the order they were pinned.
+---
+---Each entry keeps its `pin` so `<CR>` can restore the mode and axes it was
+---taken in, and re-exposes `kind`/`id`/`fn`/`source`/`line` at the top level
+---so every action that already reads those — the detail pane, `gd`, `gq` —
+---works here with no trail-specific branch. A pin is a position, and this
+---mode is a list of positions like any other.
+---@param ir Documentation.IR
+---@param st table
+---@return Documentation.Browse.Entry[]
+local function trail_entries(ir, st)
+  local list = st.pins or {}
+  if #list == 0 then
+    return {
+      { kind = "message", label = "(nothing pinned)" },
+      { kind = "message", label = "" },
+      { kind = "message", label = "  p   pin the entry under the cursor, in any mode" },
+      { kind = "message", label = "  d   unpin, here" },
+    }
+  end
+
+  local out = {}
+  for i, p in ipairs(list) do
+    -- The node is looked up in the *current* IR rather than trusted from the
+    -- pin, so a pin whose node was renamed or deleted since says so instead of
+    -- rendering a label for something that is no longer there. Same rule the
+    -- HTML map's History tab follows for module chips.
+    local node = p.id and ir.nodes[p.id]
+    local gone = p.id ~= nil and node == nil
+    out[#out + 1] = {
+      kind = gone and "message" or (p.fn and "function" or "node"),
+      id = p.id,
+      fn = p.fn,
+      sha = p.sha,
+      pin = p,
+      pin_index = i,
+      source = not gone and p.source or nil,
+      line = p.line,
+      label = gone and ("  %s   (no longer in the map)"):format(p.label)
+        or ("%d. %s"):format(i, p.label),
+      detail = p.detail,
+    }
+  end
+  return out
+end
+
 ---Build the list entries for the current state.
 ---@param ir Documentation.IR
 ---@param st table
@@ -374,6 +420,8 @@ function M.entries(ir, st)
     return types_entries(ir, st)
   elseif st.mode == "history" then
     return history_entries(ir, st)
+  elseif st.mode == "trail" then
+    return trail_entries(ir, st)
   end
   return structure_entries(ir, st)
 end
@@ -791,6 +839,19 @@ function M.status(ir, st)
     return line
   end
 
+  local npins = #(st.pins or {})
+
+  -- Trail, like History, is not about the centered node: the list spans
+  -- whatever was pinned, so a breadcrumb would point at something unrelated
+  -- to everything on screen.
+  if st.mode == "trail" then
+    local line = ("%d pinned   [trail]"):format(npins)
+    if st.hint then
+      line = line .. "   ⚠ " .. st.hint
+    end
+    return line
+  end
+
   local bits = { M.breadcrumb(ir, st.id) }
   if st.fn then
     bits[#bits + 1] = "ƒ " .. st.fn
@@ -802,6 +863,13 @@ function M.status(ir, st)
   end
   if st.mode == "deps" then
     axes[#axes + 1] = "depth " .. tostring(st.depth)
+  end
+  -- Shown everywhere, but only once there is something to show: a trail is
+  -- worth nothing if it is invisible from the mode you pinned things in, and
+  -- a permanent "0 pinned" would be noise on every other line of every
+  -- session that never uses the feature.
+  if npins > 0 then
+    axes[#axes + 1] = ("📌%d"):format(npins)
   end
 
   local line = ("%s   [%s]"):format(table.concat(bits, "  "), table.concat(axes, " "))

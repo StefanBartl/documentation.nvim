@@ -232,6 +232,26 @@ key and then regretted.
 
 :DocBrowse history      Open on the commit list.
 
+:DocBrowse trail        Open on the pinned positions. `p` pins the entry
+                        under the cursor in any mode, `6` lists them, `d`
+                        unpins there, and the count rides along in every
+                        other mode's status line.
+
+                        Deliberately not the same thing as <C-o>/<C-i>. The
+                        history stack answers "where was I a moment ago" --
+                        automatic, ordered by time, truncated by the next
+                        move. A trail answers "where do I want to get back
+                        to" -- deliberate, and nothing but an unpin removes
+                        an entry. Reading a dependency graph produces dozens
+                        of history stops and about four places worth
+                        returning to.
+
+                        A pin records a *view*, not just a subject: the mode
+                        and the axes it was taken in, all restored by <CR>.
+                        Pins are keyed by repository root, so they survive
+                        closing and reopening the browser (but not Neovim
+                        itself, yet).
+
 Explicitly not the HTML diagram in a terminal: boxes with connecting curves
 need pixels, and a fixed cell grid produces a worse version of a page that
 already exists. This is a navigator over the same edges — the hierarchy is a
@@ -241,7 +261,7 @@ quickfix list, and be live.
 
 Keys, once open:
 
-    1 .. 5        structure / deps / calls / types / history
+    1 .. 6        structure / deps / calls / types / history / trail
     j k           move; the detail pane follows
     <CR>          descend a level, or follow the edge
     - <BS>        up a level
@@ -253,6 +273,8 @@ Keys, once open:
     gI            impact: the transitive required_by closure
     gO            open the HTML page at this position
     gD            the opened commit's diff
+    p             pin / unpin the entry under the cursor
+    d             unpin (Trail)
     /             search
     ?             this table, in a float, for the current mode
     q             close

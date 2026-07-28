@@ -17,12 +17,18 @@
 ---
 ---   :DocBrowse            read docs/map/module_map.json (~10ms)
 ---   :DocBrowse live       install a watching handle instead (~0.65s once)
----   :DocBrowse lib.nvim.fs   open centered on a module
+---   :DocBrowse my.module  open centered on a module
 ---   :DocBrowse history    open on the commit list
+---   :DocBrowse trail      open on the pinned positions
 ---
---- Keys: 1..5 modes · j/k move · <CR> descend · -/<BS> up · <C-o>/<C-i>
---- history · h/l direction · +/_ depth · gd source · gq quickfix · gI impact
---- · gO open the page here · gD the opened commit's diff · / search · q close.
+--- Keys: 1..6 modes · j/k move · <CR> descend · -/<BS> up · <C-o>/<C-i>
+--- history · h/l direction · +/_ depth · p pin · d unpin (Trail) · gd source
+--- · gq quickfix · gI impact · gO open the page here · gD the opened commit's
+--- diff · / search · ? this list · q close.
+---
+--- The authoritative key list is the `KEYS` table below: `bind()` installs
+--- from it and `?` renders from it, so neither this header nor any document
+--- is what the browser actually reads.
 
 require("documentation.browse.@types")
 
@@ -30,6 +36,7 @@ local kit = require("lib.nvim.ui.kit")
 local map = require("lib.nvim.map")
 local notify = require("lib.nvim.notify").create("[documentation.browse]")
 local source = require("documentation.browse.source")
+local trail = require("documentation.browse.trail")
 local view = require("documentation.browse.view")
 
 local M = {}
@@ -40,7 +47,7 @@ local M = {}
 ---@type table|nil
 local state = nil
 
-local MODES = { "structure", "deps", "calls", "types", "history" }
+local MODES = { "structure", "deps", "calls", "types", "history", "trail" }
 
 -- ── History mode: the git half ──────────────────────────────────────────────
 --
@@ -182,6 +189,12 @@ local function render(st)
       st.impact, st.impact_sha, st.impact_has_map, st.diff_text = nil, nil, nil, nil
     end
   end
+
+  -- Re-read every frame rather than caching on the state: the trail is keyed
+  -- by root, not by browser instance, so a pin taken in a previous session of
+  -- this window is already in it and a cached copy would be one close/reopen
+  -- behind. `view` stays pure and reads it off `st`, same as `st.commits`.
+  st.pins = trail.list(st.root)
 
   st.entries = view.entries(st.ir, st)
 
@@ -334,6 +347,24 @@ local function enter(st)
     return
   end
 
+  -- A pin restores the mode and axes it was taken in, not just its node.
+  -- Half-restoring — landing on the right module in whatever mode happened to
+  -- be current — is the failure that makes bookmarks feel unreliable: the pin
+  -- was "this module's incoming requires at depth 3", and arriving at its
+  -- child list is not that place.
+  if e.pin then
+    local p = e.pin
+    go(st, {
+      mode = p.mode,
+      id = p.id or st.id,
+      fn = p.fn or CLEAR,
+      sha = p.sha or CLEAR,
+      dir = p.dir or st.dir,
+      depth = p.depth or st.depth,
+    })
+    return
+  end
+
   -- History descends within its own mode first: commit → the functions it
   -- touched. Only from there does `<CR>` leave for the call graph.
   if e.kind == "commit" and e.sha then
@@ -359,6 +390,14 @@ end
 
 ---@param st table
 local function up(st)
+  -- Trail is a flat list with no hierarchy to climb. Without this guard `-`
+  -- silently re-centered the node axis underneath an unchanged screen, so the
+  -- key looked broken and then, on switching back to Structure, the browser
+  -- had moved somewhere nobody asked it to go.
+  if st.mode == "trail" then
+    return
+  end
+
   -- In History, "out" is the commit list, not the parent node — the node
   -- hierarchy has nothing to do with what this mode is showing.
   if st.mode == "history" and st.sha then
@@ -383,6 +422,73 @@ end
 ---@return string
 local function abs(st, rel)
   return source.norm_root(st.opts.root) .. "/" .. rel
+end
+
+---`p` — pin or unpin the entry under the cursor.
+---
+---The **entry**, not the centered node. "Pin this" means the thing being
+---looked at, and in every mode that is the row under the cursor — centering
+---on it first just to pin it would be two moves for one intention, and would
+---also leave the browser somewhere the user did not ask to be.
+---
+---The axes travel with the pin (`dir`, `depth`, `sha`) so a jump restores the
+---view, not merely the subject. See `enter`.
+---@param st table
+local function pin_current(st)
+  local e = selected(st)
+  if not e then
+    return
+  end
+
+  -- A commit is a real place; a message row and an external require are not.
+  -- The external case is the same call the HTML map's Deps view makes about
+  -- its grey boxes: the module resolves to nothing in the scanned tree, so
+  -- there is no position to return to, and a pin that navigates nowhere is
+  -- worse than a refusal that says why.
+  if e.kind == "message" then
+    return
+  end
+  if e.kind == "external" then
+    notify.warn("external requires have no node to return to")
+    return
+  end
+  if not (e.id or e.sha) then
+    return
+  end
+
+  local label = vim.trim((e.label or ""):gsub("^%s*%d+%.%s*", ""))
+  local verb, count = trail.toggle(st.root, {
+    mode = e.pin and e.pin.mode or st.mode,
+    id = e.id,
+    fn = e.fn,
+    sha = e.sha or st.sha,
+    dir = st.dir,
+    depth = st.depth,
+    source = e.source,
+    line = e.line,
+    label = label ~= "" and label or (e.id or e.sha),
+    detail = e.detail,
+  })
+
+  render(st)
+  notify.info(("%s — %d pinned"):format(verb, count))
+end
+
+---`d` — unpin the entry under the cursor, in Trail mode.
+---@param st table
+local function unpin_current(st)
+  if st.mode ~= "trail" then
+    return
+  end
+  local e = selected(st)
+  if not e or not e.pin_index then
+    return
+  end
+  local removed = trail.remove_at(st.root, e.pin_index)
+  if removed then
+    render(st)
+    notify.info(("unpinned — %d left"):format(trail.count(st.root)))
+  end
 end
 
 ---`gd` — open the source and close the browser.
@@ -715,6 +821,8 @@ local KEYS = {
   },
   { keys = { "gO" }, desc = "open the generated page here", run = open_in_browser },
   { keys = { "gD" }, desc = "the opened commit's diff", only = "history", run = show_diff },
+  { keys = { "p" }, desc = "pin / unpin the entry under the cursor", run = pin_current },
+  { keys = { "d" }, desc = "unpin", only = "trail", run = unpin_current },
   { keys = { "/" }, desc = "fuzzy jump across modules and functions", run = search },
   { keys = { "?" }, desc = "this list" },
   {
@@ -900,6 +1008,7 @@ function M.open(opts)
 
   state = {
     opts = opts,
+    root = source.norm_root(opts.root),
     ir = ir,
     handle = handle,
     group = group,

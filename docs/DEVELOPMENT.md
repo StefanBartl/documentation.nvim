@@ -132,14 +132,16 @@ lua/documentation/
   cli.lua           --check/--full entry point
   command.lua       :DocMap
   health.lua        :checkhealth documentation
-  browse/           :DocBrowse
+  browse/           :DocBrowse (browse/trail.lua: pinned positions, pure)
   render/           html · markdown · mermaid · dot · badge
   @types/           Documentation.* LuaCATS definitions
 ```
 
-`diff.lua` and `history.lua` are pure — text and IRs in, a structure out; no
-git, no filesystem. Everything that shells out lives in `command.lua` and
+`diff.lua`, `history.lua` and `browse/trail.lua` are pure — data in, a
+structure out; no git, no filesystem, and in `trail.lua`'s case no `vim` API
+at all. Everything that shells out lives in `command.lua` and
 `browse/init.lua`. That split is what keeps the shape of the answers testable
-without a repository, and it is worth preserving.
+without a repository — the whole trail model is driven from the spec without
+mounting a float — and it is worth preserving.
 
 Design reasoning for every stage: [PIPELINE.md](PIPELINE.md).

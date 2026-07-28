@@ -374,6 +374,114 @@ return function(H)
   status = view.status(ir, { mode = "history", sha = st.sha, impact = st.impact })
   ok(status:find("a1b2c3d4", 1, true) ~= nil, "history status: an open commit becomes the subject")
 
+  -- ------------------------------------------------------------ trail mode
+  --
+  -- `trail.lua` is pure by design — a table of records, no window, no buffer,
+  -- no `vim` API — so the whole model is driven here without mounting
+  -- anything. Only the keys that reach it need the UI half below.
+  local trail = require("documentation.browse.trail")
+  trail.reset()
+  local troot = "/tmp/x"
+
+  eq(trail.count(troot), 0, "trail: a fresh root has no pins")
+
+  local pin_a = { mode = "structure", id = "lua/x/alpha", label = "alpha" }
+  local verb, n = trail.toggle(troot, pin_a)
+  eq(verb, "pinned", "trail: the first toggle pins")
+  eq(n, 1, "trail: and reports the new length")
+
+  -- Identity is what the pin is *about*, not how it was being looked at: the
+  -- same node in the same mode at a different depth is the same bookmark, and
+  -- a trail that grew a near-duplicate for it would fill up with entries
+  -- nobody meant to create.
+  verb, n = trail.toggle(troot, { mode = "structure", id = "lua/x/alpha", label = "alpha (again)" })
+  eq(verb, "unpinned", "trail: re-pinning the same subject toggles it off")
+  eq(n, 0, "trail: and the trail is empty again")
+
+  trail.toggle(troot, pin_a)
+  trail.toggle(troot, { mode = "deps", id = "lua/x/alpha", dir = "in", depth = 3, label = "alpha" })
+  eq(trail.count(troot), 2, "trail: the same node in a different mode is a different pin")
+  trail.toggle(troot, { mode = "structure", id = "lua/x/alpha", fn = "M.run", label = "M.run" })
+  eq(trail.count(troot), 3, "trail: and so is a function inside it")
+
+  -- Ordering is insertion order, not sorted: a trail is a record of where the
+  -- reader went, and re-sorting it would destroy the only information the
+  -- order carries.
+  local list = trail.list(troot)
+  eq(list[1].label, "alpha", "trail: pins keep the order they were added in")
+  eq(list[3].fn, "M.run", "trail: including the newest")
+
+  -- Roots do not see each other's pins. They are keyed by repository, which
+  -- is what lets a pin outlive the window it was taken in.
+  eq(trail.count("/tmp/y"), 0, "trail: a second root starts empty")
+
+  eq(trail.remove_at(troot, 2).mode, "deps", "trail: remove_at returns what it removed")
+  eq(trail.count(troot), 2, "trail: and shortens the list")
+  eq(trail.remove_at(troot, 99), nil, "trail: an out-of-range index removes nothing")
+  eq(trail.clear(troot), 2, "trail: clear reports how many it dropped")
+  eq(trail.count(troot), 0, "trail: and leaves nothing")
+
+  -- Rendering. The empty state explains the keys rather than showing a blank
+  -- pane — a mode whose whole content is "nothing yet" has to say how to put
+  -- something in it.
+  local tst = { mode = "trail", pins = {} }
+  entries = view.entries(ir, tst)
+  ok(#entries > 0, "trail view: the empty state is not an empty list")
+  ok(
+    table.concat(view.list_lines(entries, 60), "\n"):find("p ", 1, true) ~= nil,
+    "trail view: and it names the key that pins"
+  )
+
+  tst.pins = {
+    {
+      mode = "deps",
+      id = "lua/x/beta",
+      dir = "in",
+      depth = 2,
+      label = "beta",
+      source = "beta.lua",
+    },
+    { mode = "structure", id = "lua/x/gone", label = "gone" },
+  }
+  entries = view.entries(ir, tst)
+  eq(#entries, 2, "trail view: one row per pin")
+  eq(
+    entries[1].pin.mode,
+    "deps",
+    "trail view: the row carries its pin, so <CR> can restore the view"
+  )
+  eq(entries[1].pin_index, 1, "trail view: and its index, so d can remove it")
+  eq(
+    entries[1].source,
+    "beta.lua",
+    "trail view: source is re-exposed, so gd/gq need no special case"
+  )
+
+  -- A pin whose node has since vanished says so instead of rendering a label
+  -- for something that is no longer there, and stops being navigable.
+  eq(entries[2].kind, "message", "trail view: a pin whose node is gone is not navigable")
+  ok(
+    entries[2].label:find("no longer", 1, true) ~= nil,
+    "trail view: and says why rather than just disappearing"
+  )
+
+  status = view.status(ir, tst)
+  ok(status:find("2 pinned", 1, true) ~= nil, "trail status: counts the pins")
+  ok(status:find("trail", 1, true) ~= nil, "trail status: names the mode")
+
+  -- The count is visible from every other mode too — a trail nobody can see
+  -- from where they are pinning is a feature with no feedback — but only once
+  -- there is something to count.
+  status = view.status(ir, { mode = "structure", id = "lua/x", pins = tst.pins })
+  ok(status:find("2", 1, true) ~= nil, "trail status: the count shows in other modes")
+  status = view.status(ir, { mode = "structure", id = "lua/x", pins = {} })
+  ok(
+    status:find("📌", 1, true) == nil,
+    "trail status: and stays out of the way when nothing is pinned"
+  )
+
+  trail.reset()
+
   -- --------------------------------------------------------------- the UI
   --
   -- Mounts the real layout against this repo's own map when one exists. The
@@ -588,6 +696,65 @@ return function(H)
       "browse: keys the current mode ignores say so instead of disappearing"
     )
     vim.api.nvim_buf_delete(help_buf, { force = true })
+
+    -- Trail, through the real keys. The model itself is covered above; what
+    -- is left to prove is the wiring — that `p` reaches it, that mode 6 shows
+    -- what it holds, and that `<CR>` there restores a *view* rather than only
+    -- a subject.
+    trail.clear(root)
+    browse.close()
+    browse.open({ root = root })
+    vim.api.nvim_set_current_win((slot("documentation-browse-list")))
+
+    -- Pinned from Deps, so the axes have something to restore that Structure
+    -- would not reproduce on its own.
+    press("2") -- deps
+    press("h") -- incoming
+    press("p")
+    eq(trail.count(root), 1, "browse: p pins the entry under the cursor")
+    ok(
+      status_now():find("📌", 1, true) ~= nil,
+      "browse: and the count shows in the mode you pinned from"
+    )
+
+    press("p")
+    eq(trail.count(root), 0, "browse: p on the same entry unpins it")
+    press("p")
+    eq(trail.count(root), 1, "browse: and again re-pins")
+
+    press("6")
+    ok(status_now():find("1 pinned", 1, true) ~= nil, "browse: mode 6 opens the trail")
+    local _, t_buf = slot("documentation-browse-list")
+    ok(vim.api.nvim_buf_line_count(t_buf) >= 1, "browse: the trail lists the pin")
+
+    -- The axes, not the whole status line: a pin records the *entry under the
+    -- cursor*, which is a different node from the one that was centered when
+    -- it was taken, so the two lines legitimately differ on the breadcrumb.
+    -- What must survive is the view — had `<CR>` restored only the subject,
+    -- this would read `[trail]` or `[structure]`.
+    press("<CR>")
+    local restored = status_now()
+    ok(
+      restored:find("deps", 1, true) ~= nil and restored:find("←in", 1, true) ~= nil,
+      "browse: <CR> on a pin restores the view it was taken in — mode and direction, not just the node"
+    )
+
+    -- `-` in the trail is a no-op: a flat list has nothing to climb, and
+    -- without the guard it silently moved the node axis under an unchanged
+    -- screen, so the key looked broken *and* left the browser somewhere else.
+    press("6")
+    local in_trail = status_now()
+    press("-")
+    eq(
+      status_now(),
+      in_trail,
+      "browse: - in the trail does nothing rather than something invisible"
+    )
+
+    press("d")
+    eq(trail.count(root), 0, "browse: d unpins the entry under the cursor")
+    ok(status_now():find("0 pinned", 1, true) ~= nil, "browse: and the trail says it is empty")
+    trail.clear(root)
 
     -- Centering on a NAMESPACE: `lua/documentation/render` has no init.lua and
     -- so declares no @module, but `documentation.render` is what a user types.

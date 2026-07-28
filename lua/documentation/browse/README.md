@@ -76,7 +76,7 @@ place, keeping its subscribers.
 
 | Key | Effect |
 | --- | --- |
-| `1` … `5` | Structure / Deps / Calls / Types / History |
+| `1` … `6` | Structure / Deps / Calls / Types / History / Trail |
 | `j` `k` | Move; the detail pane follows |
 | `<CR>` | Descend a level (Structure) or follow the edge (Deps/Calls) |
 | `-` / `<BS>` | Up a level |
@@ -88,6 +88,8 @@ place, keeping its subscribers.
 | `gI` | Blast radius of the selected node into the quickfix list |
 | `gO` | Open the generated page at this exact position |
 | `gD` | The opened commit's diff in a scratch buffer (History) |
+| `p` | Pin / unpin the entry under the cursor |
+| `d` | Unpin (Trail) |
 | `/` | Fuzzy jump across every module and function |
 | `?` | This table, in a float, for the current mode |
 | `q` `<Esc>` | Close |
@@ -140,6 +142,53 @@ mode, center, direction, depth and function; the page's whole state lives in
 its URL fragment. So it is a `format()` and the existing opener, and it
 answers "actually, I want to see that as a picture" without having to find the
 place again.
+
+## Trail mode
+
+```vim
+:DocBrowse trail            " open straight on the pinned positions
+```
+
+`p` pins the entry under the cursor, in any mode; `6` lists what has been
+pinned; `d` unpins there. The count rides along in every other mode's status
+line (`📌3`) — a trail invisible from where you are pinning is a feature with
+no feedback — but only once there is something to count.
+
+**Not the same thing as `<C-o>`/`<C-i>`**, and conflating them helps neither.
+The history stack answers "where was I a moment ago": automatic, ordered by
+time, truncated the moment a new move happens. A trail answers "where do I
+want to be able to get back to": deliberate, ordered by when it was pinned,
+and nothing but an explicit unpin removes an entry. Reading a dependency graph
+produces dozens of history stops and about four places actually worth
+returning to.
+
+Three decisions worth knowing:
+
+- **A pin is a view, not a subject.** It carries the mode and the axes
+  (`dir`, `depth`, `sha`) it was taken in, and `<CR>` restores all of them.
+  Half-restoring — landing on the right module in whatever mode happens to be
+  current — is what makes bookmarks feel unreliable: the pin was "this
+  module's incoming requires at depth 3", and arriving at its child list is
+  not that place.
+- **Identity is what the pin is about, not how it was being looked at.**
+  `dir` and `depth` travel *on* the pin but are not part of its key, so
+  pinning a module in Deps at depth 2 and again at depth 3 toggles the one
+  bookmark rather than growing a near-duplicate nobody meant to create.
+- **Pins are keyed by repository root**, not by browser instance, so they
+  survive closing and reopening the window. A bookmark with the lifetime of a
+  scrollbar is not a bookmark. They do not yet survive Neovim itself — that is
+  the roadmap's next item, and [`trail.lua`](trail.lua) is where it lands.
+
+A pin whose node has since vanished from the map (renamed, deleted) renders as
+a non-navigable row saying so, rather than as a label for something that is no
+longer there — the same rule the HTML map's History tab applies to its module
+chips. External requires refuse to be pinned at all: they resolve to nothing in
+the scanned tree, so there is no position to return to.
+
+`trail.lua` is **pure** — a table of records, no window, no buffer, no `vim`
+API — which is what lets the whole model be driven from a headless spec
+without mounting a single float. Same split `diff.lua` and `history.lua`
+already follow.
 
 ## History mode
 

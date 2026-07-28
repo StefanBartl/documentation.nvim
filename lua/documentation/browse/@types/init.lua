@@ -25,6 +25,7 @@
 ---| "calls"     # Call edges touching the centered node/function.
 ---| "types"     # `@class`/`@alias` declared by the centered node.
 ---| "history"   # Commits, and the functions each one's diff touches.
+---| "trail"     # Pinned positions, in the order they were pinned.
 
 ---One row of the list. Everything the row can *do* — navigate, open source,
 ---go into the quickfix list — is a field here rather than something re-derived
@@ -42,6 +43,8 @@
 ---@field source string? Repo-relative source path.
 ---@field site_line integer? `kind="function"` in Calls: line of the call site, which lives in `site_source`, not `source`.
 ---@field site_source string? Repo-relative path of the file the call site is in.
+---@field pin Documentation.Browse.Pin? The pin behind a Trail row. Its presence is what makes `<CR>` restore a whole view (mode and axes) rather than just re-center — see `browse.enter`.
+---@field pin_index integer? 1-based position in the trail, for `d`.
 ---@field detail string? One-line hint shown when the row has no richer detail.
 
 ---@class Documentation.Browse
