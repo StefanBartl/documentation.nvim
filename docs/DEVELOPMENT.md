@@ -22,15 +22,33 @@ export LIB_NVIM_DIR=/path/to/lib.nvim
 ## The four things CI runs
 
 ```bash
-stylua --check lua docs/TESTS scripts
-luacheck lua docs/TESTS scripts
-nvim --headless -u NONE -l docs/TESTS/run.lua
-nvim --headless -l scripts/gen_map.lua --check
+scripts/ci.sh
 ```
 
-Run them in that order locally too — a formatting failure is the cheapest one
-to find, and a stale map is the one most likely to be a real finding rather
-than a slip.
+That is all of them, in order, stopping at the first failure. One gate at a
+time with `scripts/ci.sh stylua|luacheck|tests|map`, which is also how
+`.github/workflows/ci.yml` calls it — one stage per job, so the four keep
+their independent red/green marks and their parallelism while *what* each
+gate is stays defined in one place. A workflow spelling the commands out
+again would be a second copy of them, which is the drift this repository
+exists to detect.
+
+The order is not cosmetic. A formatting failure is the cheapest one to find
+and the least interesting; a stale map is the most likely to be a real finding
+rather than a slip. Failing fast on the cheap one means the expensive checks
+only run on code that is already tidy.
+
+`stylua --check .` covers the **whole tree**, not a list of directories. The
+list form is what let a file sit unformatted in `docs/EXAMPLES/` for as long
+as it existed while every local run reported clean — CI used `.` and caught
+it; nobody was reading CI, because it was green on Linux.
+
+Which brings up the trap that only bites on Windows: `.stylua.toml` sets
+`line_endings = "Unix"`, and with `core.autocrlf=true` a checked-out `.lua`
+file arrives CRLF, so `stylua --check` rejects every line of it while the same
+command passes on Linux CI. `.gitattributes` now pins `*.lua text eol=lf`, the
+same rule `*.sh` already had. If you cloned before that landed, one
+`git add --renormalize .` fixes your working tree.
 
 ## Tests
 
@@ -123,6 +141,8 @@ lua/documentation/
   luals.lua         opt-in LuaLS enrichment
   check.lua         drift findings
   coverage.lua      fn.tested       doccoverage.lua  fn.documented
+  duplicates.lua    functions grouped by structural shape (pure)
+  churn.lua         churn x complexity ranking            (pure)
   tagfiles.lua      cross-project link resolution
   json.lua          deterministic encoder
   diff.lua          structural diff between two IRs   (pure)

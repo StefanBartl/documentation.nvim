@@ -170,6 +170,12 @@ Output is deterministic across runs on unchanged input — no timestamp in the
 IR, sorted-key JSON — which is the whole reason a byte comparison is a usable
 staleness test.
 
+Every gate CI runs, in one command:
+
+```bash
+scripts/ci.sh
+```
+
 To use it in your own plugin, copy two files and edit five lines:
 [docs/REUSE.md](docs/REUSE.md).
 

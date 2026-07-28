@@ -1,3 +1,10 @@
+# Four jobs rather than one `scripts/ci.sh`, deliberately: they run in
+# parallel and each keeps its own red/green mark, which is what a CI matrix is
+# for. But WHAT each gate is lives in `scripts/ci.sh` and nowhere else — a
+# workflow spelling the commands out again would be a second copy of them, and
+# a second copy that drifts is what this repository exists to detect. Run all
+# four locally with `scripts/ci.sh`.
+
 name: CI
 
 on:
@@ -10,6 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # The one gate that does not go through `scripts/ci.sh`: this action is
+      # the installer AND the runner, so there is no binary on PATH to hand
+      # the script. `args` must therefore stay identical to what
+      # `run_stylua` does — the whole tree, not a list of directories.
       - uses: JohnnyMorganz/stylua-action@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -29,7 +40,7 @@ jobs:
           luaVersion: "5.4"
       - uses: leafo/gh-actions-luarocks@v4
       - run: luarocks install luacheck
-      - run: luacheck lua docs/TESTS scripts
+      - run: scripts/ci.sh luacheck
 
   tests:
     runs-on: ubuntu-latest
@@ -47,7 +58,7 @@ jobs:
         with:
           neovim: true
           version: stable
-      - run: nvim --headless -u NONE -l docs/TESTS/run.lua
+      - run: scripts/ci.sh tests
 
   # The drift check this plugin exists to provide, run against its own tree.
   # The pre-commit hook is opt-in per clone (`git config core.hooksPath`), so
@@ -65,4 +76,4 @@ jobs:
         with:
           neovim: true
           version: stable
-      - run: nvim --headless -l scripts/gen_map.lua --check
+      - run: scripts/ci.sh map
