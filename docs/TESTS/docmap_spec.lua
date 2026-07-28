@@ -804,6 +804,54 @@ return function(H)
   end
   ok(not reported_cycle, "docmap.check: a cycle closed by a deferred require is not reported")
 
+  -- ------------------------------------------------- require-not-declared
+  --
+  -- A require that resolves to nothing lands in `requires_external`, which is
+  -- also where a genuine third-party dependency lands. That is right for
+  -- `plenary.async` and silently wrong for a typo inside the tree's own
+  -- namespace: both break at runtime, neither looks different in the map. The
+  -- check separates them on the first path segment, so this fixture needs one
+  -- of each in the same file — asserting only the positive would pass on a
+  -- check that flagged every external require there is.
+  write("lua/demo/broken/init.lua", {
+    "---@module 'demo.broken'",
+    "--- Requires one module that does not exist and one that is not ours.",
+    'local gone = require("demo.nowhere")',
+    'local async = require("plenary.async")',
+    "local M = {}",
+    "---Do it.",
+    "function M.go()",
+    "  return gone, async",
+    "end",
+    "return M",
+  })
+  local broken_opts = { root = root, source = "lua/demo", lua_root = "lua" }
+  local broken = scan.scan(broken_opts)
+  local rnd = {}
+  for _, f in ipairs(check.run(broken, broken_opts)) do
+    if f.check == "require-not-declared" then
+      rnd[#rnd + 1] = f
+    end
+  end
+  eq(#rnd, 1, "docmap.check: require-not-declared fires once, for the in-namespace miss")
+  ok(rnd[1].message:match("demo%.nowhere"), "docmap.check: ... naming the module that is missing")
+  ok(rnd[1].message:match("line 3"), "docmap.check: ... and the line, since a file can miss twice")
+  eq(rnd[1].severity, "warn", "docmap.check: require-not-declared is a warning")
+
+  -- The escape hatch that already existed: `tag_files` declares that a prefix
+  -- lives in another project's map, so a namespace split across repositories
+  -- is not a finding here.
+  local tagged_opts = vim.tbl_extend("force", broken_opts, {
+    tag_files = { ["demo.nowhere"] = "../other/docs/map" },
+  })
+  local still = false
+  for _, f in ipairs(check.run(broken, tagged_opts)) do
+    if f.check == "require-not-declared" then
+      still = true
+    end
+  end
+  ok(not still, "docmap.check: a prefix covered by tag_files is somebody else's to declare")
+
   -- ---------------------------------------------------- command.find_node
   -- `:DocMap graph <name>` has to resolve the names people actually type.
   -- A namespace declares no @module at all, so matching on that alone missed

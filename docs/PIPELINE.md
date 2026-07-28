@@ -1098,6 +1098,7 @@ bugs. Generic checks (any annotated Lua tree):
 | `undocumented-param` | info | A function has more parameters than `@param` lines (text-based heuristic, can be wrong on complex signatures — never fails `--check`). |
 | `param-name-mismatch` | info | R5: at a shared position, a `@param` name and the signature's declared name differ — usually a renamed parameter whose doc line was never updated. Same heuristic caveats as `undocumented-param`. |
 | `require-cycle` | warn | A cycle among **load-time** requires. |
+| `require-not-declared` | warn | A `require()` of a module inside this tree's own namespace that no file in the tree declares. |
 | `layer-violation` | warn | Opt-in via `opts.layers`: a module reaching into a layer it must not. |
 | `dead-function` | info | Nothing in the tree appears to call this function. |
 
@@ -1146,6 +1147,29 @@ before comparing. Caught two real bugs on first run against this tree
 had gained a `bufnr` parameter with no `@param` line for it, silently
 misaligning every doc line after it — `undocumented-param` already flagged
 the count, this named exactly which parameter needed a line).
+
+`require-not-declared` exists because an unresolvable `require()` lands in
+`requires_external` — the same field a genuine third-party dependency lands
+in. That is the right home for `plenary.async`, which this scan cannot be
+authoritative about, and silently the wrong one for
+`documentation.brwose.trail`: a typo, a renamed module, or one deleted while a
+caller kept asking for it. All three break at runtime, and none of them look
+any different in the map from a dependency the scan was never meant to cover.
+
+The separation is on the **first path segment**. A require whose leading
+segment is one the tree declares as its own is a claim about this tree, and
+this tree is exactly what the scan *can* be authoritative about. Whole
+segment, never a raw string prefix, so `documentation` cannot match a
+`documentationx.util`. Line numbers come from `requires_raw`, which is
+internal to the scan pipeline and never serialized — checks run against the
+in-memory IR right after the walk, so they are still there.
+
+The one false positive left over is a project deliberately split across
+repositories under one namespace, and it already had an answer before this
+check existed: `opts.tag_files` is the declaration that a prefix lives in
+another project's map. Anything it covers is skipped, matched the same way
+`tagfiles.lua` matches it — two different notions of "covered by a tag file"
+would be a bug waiting for whoever first configures one.
 
 `require-cycle` excludes deferred requires — `require(...)` inside a function
 body, the standard way this tree breaks initialisation order on purpose. Run

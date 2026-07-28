@@ -341,6 +341,13 @@ Generic checks, run against any annotated Lua tree:
                                  requires — `require(...)` inside a function
                                  body — are excluded: they are the standard
                                  way to break initialisation order on purpose.
+    require-not-declared  warn   A require() of a module inside this tree's
+                                 own namespace that no file in the tree
+                                 declares -- a typo, a rename, or a deleted
+                                 module a caller still asks for. Requires
+                                 outside the namespace are somebody else's
+                                 and are never flagged. Escape hatch:
+                                 `opts.tag_files`.
     layer-violation       warn   Opt-in via `opts.layers`: a module reaching
                                  into a layer it must not.
     missing-readme        info   Module without a README.
