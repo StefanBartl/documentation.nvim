@@ -116,17 +116,24 @@ as the next-most-valuable but deliberately not built yet, because they're
 the most expensive of the candidates considered and hadn't earned their
 cost until the tab itself was proven useful with cheaper tools first:
 
-- **Code duplicates** (PMD/CPD-style "copy-paste detector") — structural
-  similarity of function bodies across ~250 files. The pattern most likely
-  to go unnoticed in a utility library specifically.
+- ~~**Code duplicates**~~ — shipped as the Analysis tab's fifth panel; see
+  FEATURES.md. Found two groups on this repository's own tree on the first
+  run, one a real triplicated `read(path)` and one a legitimate shape
+  coincidence — which is why it is a panel and not a check.
 - **Churn-hotspots** (Adam Tornhill's *Your Code as a Crime Scene*: git
   history × complexity) — modules that are both *frequently changed* and
   *complex*, the actual refactor-risk signal that neither metric alone
   gives.
 
-Revisit once the Analysis tab (now with four tools) is actually being used
-day to day — building the expensive tools before that is optimizing for a
-usage pattern that isn't confirmed yet.
+The deferral above was overtaken by a direct request to build them, and one
+thing it got wrong is worth recording: it listed the two side by side as if
+they were the same kind of work. They are not. Code duplicates is a pure
+`ir -> result` function like every other Analysis tool. **Churn-hotspots
+cannot be a panel at all** — it needs `git log`, and git data cannot enter the
+committed artifact, because `--check` byte-compares committed against
+freshly-generated output and embedding history produces a commit that
+invalidates its own artifact the moment it lands. Exactly why the History tab
+is not a tab. It has to be a command or go behind `:DocMap serve`.
 
 ### Reference tab — Lua syntax and LuaCATS tags
 

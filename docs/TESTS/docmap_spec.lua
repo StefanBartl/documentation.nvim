@@ -945,6 +945,139 @@ return function(H)
     "docmap.tagfiles: a prefix that matches nothing resolves nothing, not an error"
   )
 
+  -- ------------------------------------------------------------ duplicates
+  --
+  -- Two halves: the grouping is pure and gets a synthetic IR, and the
+  -- fingerprint itself needs a real parse, so it gets real files.
+  local duplicates = require("documentation.duplicates")
+
+  local function dup_ir(by_node)
+    local synth = { root = "lua/d", order = {}, nodes = {} }
+    for node_id, list in pairs(by_node) do
+      synth.order[#synth.order + 1] = node_id
+      synth.nodes[node_id] = { id = node_id, module = node_id:gsub("/", "."), functions = list }
+    end
+    table.sort(synth.order)
+    return synth
+  end
+
+  local dres = duplicates.resolve(
+    dup_ir({
+      ["lua/d/a"] = {
+        { name = "M.x", signature = "x()", line = 1, shape = "aa-bb", shape_size = 90 },
+      },
+      ["lua/d/b"] = {
+        { name = "M.y", signature = "y()", line = 2, shape = "aa-bb", shape_size = 90 },
+      },
+      ["lua/d/c"] = {
+        { name = "M.z", signature = "z()", line = 3, shape = "cc-dd", shape_size = 90 },
+      },
+    }),
+    40
+  )
+  eq(#dres.groups, 1, "duplicates: only shapes shared by two or more are a group")
+  eq(#dres.groups[1].members, 2, "duplicates: with both members in it")
+  eq(dres.groups[1].members[1].node, "lua/d/a", "duplicates: members sorted by node id")
+  eq(dres.functions, 2, "duplicates: the covered-function count")
+  eq(dres.considered, 3, "duplicates: everything above the floor was compared")
+
+  -- The floor is the whole reason this is readable: every tree has a dozen
+  -- one-line accessors that match each other and mean nothing.
+  local small = duplicates.resolve(
+    dup_ir({
+      ["lua/d/a"] = {
+        { name = "M.x", signature = "x()", line = 1, shape = "ee-ff", shape_size = 9 },
+      },
+      ["lua/d/b"] = {
+        { name = "M.y", signature = "y()", line = 2, shape = "ee-ff", shape_size = 9 },
+      },
+    }),
+    40
+  )
+  eq(#small.groups, 0, "duplicates: shapes below the size floor are not compared")
+  eq(small.considered, 0, "duplicates: and the count says so, so 'none found' stays honest")
+
+  -- An artifact written before `shape` existed has none. Skipped, not an
+  -- error: this tool is the wrong place to discover a map is a few versions
+  -- old, the same tolerance `diff.lua` extends to older schemas.
+  local old = duplicates.resolve(
+    dup_ir({ ["lua/d/a"] = { { name = "M.x", signature = "x()", line = 1 } } }),
+    40
+  )
+  eq(#old.groups, 0, "duplicates: a function with no shape is skipped, not fatal")
+
+  -- The claim the fingerprint actually rests on: a copy-paste gets RENAMED on
+  -- the way in. Byte-identical bodies are the one case nobody ships, so if
+  -- different identifier and literal names broke the match the tool would
+  -- find nothing that matters. Real files, because only a real parse produces
+  -- a shape at all.
+  write("lua/demo/clone_a/init.lua", {
+    "---@module 'demo.clone_a'",
+    "--- One.",
+    "local M = {}",
+    "---Sum the odd ones.",
+    "---@param items integer[]",
+    "---@return integer",
+    "function M.total(items)",
+    "  local acc = 0",
+    "  for _, item in ipairs(items) do",
+    "    if item % 2 == 1 then",
+    "      acc = acc + item",
+    "    end",
+    "  end",
+    "  return acc",
+    "end",
+    "return M",
+  })
+  write("lua/demo/clone_b/init.lua", {
+    "---@module 'demo.clone_b'",
+    "--- Two.",
+    "local M = {}",
+    "---Sum the odd ones, with every name changed.",
+    "---@param values integer[]",
+    "---@return integer",
+    "function M.tally(values)",
+    "  local running = 999",
+    "  for _, value in ipairs(values) do",
+    "    if value % 7 == 3 then",
+    "      running = running + value",
+    "    end",
+    "  end",
+    "  return running",
+    "end",
+    "return M",
+  })
+  local clone_ir = scan.scan({ root = root, source = "lua/demo", lua_root = "lua" })
+  local shape_a, shape_b, size_a
+  for _, id in ipairs(clone_ir.order) do
+    for _, fn in ipairs(clone_ir.nodes[id].functions or {}) do
+      if fn.name == "M.total" then
+        shape_a, size_a = fn.shape, fn.shape_size
+      elseif fn.name == "M.tally" then
+        shape_b = fn.shape
+      end
+    end
+  end
+  ok(shape_a ~= nil, "duplicates: the scan produces a shape for every function")
+  eq(shape_b, shape_a, "duplicates: renaming every identifier and literal keeps the shape")
+  ok(size_a > 40, "duplicates: and a body this size clears the floor")
+
+  -- The other direction, which is what keeps the assertion above from passing
+  -- on a fingerprint that returns a constant: a different structure must not
+  -- collide.
+  local other_shape
+  for _, id in ipairs(clone_ir.order) do
+    for _, fn in ipairs(clone_ir.nodes[id].functions or {}) do
+      if fn.name == "M.go" then
+        other_shape = fn.shape
+      end
+    end
+  end
+  ok(
+    other_shape ~= nil and other_shape ~= shape_a,
+    "duplicates: a differently-shaped function gets a different fingerprint"
+  )
+
   -- ------------------------------------------------------ coverage.resolve
   -- Real spec-file text, not a hand-built name list: the whole point is
   -- that a bare name mentioned in a test file — the way a spec actually

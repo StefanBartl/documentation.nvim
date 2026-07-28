@@ -115,7 +115,7 @@ isn't a jump), `gq` current list → quickfix, `/` fuzzy-jumps via
 
 Tool-selector toolbar (not a diagram) — panels are tables/rankings over the
 IR, not graph boxes; closer to the Notes tab than the Hierarchy tab
-architecturally. Four tools shipped, each a pure `ir -> result` function
+architecturally. Five tools shipped, each a pure `ir -> result` function
 (same shape as a `Check`, result is a table instead of a findings list):
 
 - **Test coverage** (`coverage.lua`) — `fn.tested` via the same
@@ -138,6 +138,7 @@ architecturally. Four tools shipped, each a pure `ir -> result` function
   over already-serialized `n.requires`/`n.required_by`, no new Lua
   extraction. Sorted by fan-in descending (the module with the most
   dependents first — "what breaks most if I touch this").
+- **Code duplicates** (`duplicates.lua`) — see its own entry below.
 - **Cyclomatic complexity** (McCabe: 1 base + one point per
   `if`/`elseif`/`while`/`for`/`repeat` + one per `and`/`or`) — node types
   verified empirically against a real parsed tree before writing the
@@ -476,3 +477,51 @@ Zero findings on this repository, which is the correct answer and also why
 the spec asserts both directions in one fixture: a file requiring both a
 missing in-namespace module *and* a real external one. Asserting only the
 positive would pass on a check that flagged every external require there is.
+
+## Code duplicates (2026-07-28)
+
+The first of the roadmap's two "expensive" Analysis-tab candidates, and the
+only one of them that was ever buildable as a panel — see the churn entry.
+
+It exists because this is the one shape of drift the rest of the plugin is
+structurally blind to. Two modules that each grew their own `read(path)` fail
+no check, fail no test, and produce nothing in any graph: the require graph is
+silent precisely because neither one requires the other.
+
+- **Compared on structure, never text.** `fn.shape` is a hash of the
+  treesitter node types over a function's whole subtree, computed in
+  `functions.lua` during the scan for the same reason `complexity` is —
+  only there does the parse tree exist. Ignoring identifier and literal names
+  is the whole point: a copy-paste gets renamed on the way in, so a detector
+  finding only byte-identical bodies would find the one case nobody ships.
+  Type-2 clones, what PMD's CPD reports by default.
+- **Anonymous nodes included.** An operator is an anonymous child, so
+  skipping them — the obvious reading of "node types" — would make `a + b`
+  and `a - b` one shape.
+- **Two independent hashes, not one.** A collision here does not degrade the
+  answer, it fabricates one: "these two functions are identical" is a claim.
+  Multiply-and-add rather than FNV's xor, so the arithmetic stays inside a
+  double's exact-integer range without a bitwise library.
+- **A size floor of 40 nodes**, a constant rather than an option. Below it a
+  shared shape means nothing — every tree has a dozen one-line accessors that
+  match each other — and measured here, no floor reports five groups where 40
+  reports the two worth reading. A knob nobody knows how to set is worse than
+  a documented default. `considered` ships alongside `groups` so "nothing
+  found" stays distinguishable from "nothing was large enough to look at".
+- **A panel, never a check.** Verified against this repo's own tree, which
+  reports exactly two groups: `read(path)`, implemented identically in three
+  modules — a real duplicate the plugin previously had no way to see — and
+  `scan.lua`'s `is_dir`/`is_file`, which share a shape and share nothing
+  else. That second one is the argument: `--check` must not fail on this.
+
+The other limit is stated rather than worked around: a single edited line
+breaks the match, so this finds copies and not near-copies. Sliding a window
+over a token stream to find the longest common run is a genuinely more
+expensive algorithm, and exact-shape matching is what earns its cost first. A
+panel that stays empty on a tree that obviously has duplication is the
+argument for the window — not an assumption made up front.
+
+`ir.duplicates` is serialised despite being derived, unlike the fan-in/fan-out
+panel which aggregates data already in the JSON: this grouping needs
+`fn.shape`, and a page reading the artifact has no parse tree to redo it with.
+Measured cost — `module_map.json` grew from 256 KB to 273 KB.
