@@ -22,9 +22,10 @@
 ---   :DocBrowse trail      open on the pinned positions
 ---
 --- Keys: 1..6 modes · j/k move · <CR> descend · -/<BS> up · <C-o>/<C-i>
---- history · h/l direction · +/_ depth · p pin · d unpin (Trail) · gd source
---- · gq quickfix · gI impact · gO open the page here · gD the opened commit's
---- diff · / search · ? this list · q close.
+--- history · h/l direction · +/_ depth · p pin · d unpin, S/L/X save, load
+--- and forget a trail (all Trail) · gd source · gq quickfix · gI impact · gO
+--- open the page here · gD the opened commit's diff · f filter this list · /
+--- search across everything · ? this list · q close.
 ---
 --- The authoritative key list is the `KEYS` table below: `bind()` installs
 --- from it and `?` renders from it, so neither this header nor any document
@@ -32,6 +33,7 @@
 
 require("documentation.browse.@types")
 
+local filter = require("documentation.browse.filter")
 local kit = require("lib.nvim.ui.kit")
 local map = require("lib.nvim.map")
 local notify = require("lib.nvim.notify").create("[documentation.browse]")
@@ -197,7 +199,17 @@ local function render(st)
   -- behind. `view` stays pure and reads it off `st`, same as `st.commits`.
   st.pins = trail.list(st.root)
 
-  st.entries = view.entries(st.ir, st)
+  -- Narrowed after the mode has built its list, never inside it: every mode
+  -- gets the filter for free and none of them has to know it exists.
+  local kept, hidden = filter.apply(st.filter, view.entries(st.ir, st))
+  st.filter_hidden = hidden
+
+  -- An empty result says so. A blank list column is the one outcome a reader
+  -- cannot tell apart from a broken render, and one typo reaches it.
+  if #kept == 0 and st.filter then
+    kept = { { kind = "message", label = ("(no row matches — %d hidden)"):format(hidden) } }
+  end
+  st.entries = kept
 
   if st.cursor > #st.entries then
     st.cursor = #st.entries
@@ -258,6 +270,8 @@ local function snapshot(st)
     depth = st.depth,
     cursor = st.cursor,
     sha = st.sha,
+    filter = st.filter,
+    filter_raw = st.filter_raw,
   }
 end
 
@@ -265,7 +279,14 @@ end
 -- list rather than on the same commit with a different cursor. The analysis
 -- itself is not snapshotted — it is derived, and re-deriving on the way back
 -- is cheaper than carrying a copy of it per history entry.
-local SNAP_KEYS = { "mode", "id", "fn", "dir", "depth", "cursor", "sha" }
+--
+-- The filter travels with a position rather than sitting outside the history,
+-- which removes every special case rather than adding one: `<C-o>` back onto
+-- a narrowed list finds it narrowed the same way, and stepping off it drops
+-- the filter without anything having to remember to. The parsed table is
+-- never mutated after `filter.parse`, so sharing the reference across
+-- snapshots is safe.
+local SNAP_KEYS = { "mode", "id", "fn", "dir", "depth", "cursor", "sha", "filter", "filter_raw" }
 
 --- A patch cannot say "clear this field" with `nil`: `pairs` never yields a
 --- key whose value is nil, so `{ sha = nil }` *is* the empty table and the
@@ -308,6 +329,8 @@ local function go(st, changes)
     st.history[i] = nil
   end
 
+  local was = { mode = st.mode, id = st.id, fn = st.fn }
+
   for k, v in pairs(changes) do
     if v == CLEAR then
       st[k] = nil
@@ -317,6 +340,18 @@ local function go(st, changes)
   end
   if changes.cursor == nil then
     st.cursor = 1
+  end
+
+  -- A filter belongs to the list it was typed against. Changing the *subject*
+  -- drops it; changing an axis keeps it, and that asymmetry is the feature:
+  -- narrowing a Deps list and then flipping direction or depth to see the
+  -- same narrowing is the reason to narrow it at all, while carrying the
+  -- query into a different module's list would present a short list as a
+  -- complete one. `changes` is not consulted for this — `enter` can hand over
+  -- an `id` equal to the current one, and it is what actually changed that
+  -- decides.
+  if st.mode ~= was.mode or st.id ~= was.id or st.fn ~= was.fn then
+    st.filter, st.filter_raw = nil, nil
   end
 
   st.history[#st.history + 1] = snapshot(st)
@@ -801,6 +836,49 @@ local function search(st)
   end
 end
 
+---`f` — narrow the current list in place.
+---
+---One key, not two. It opens prefilled with the query already in effect, so
+---editing a filter and clearing it are the same gesture — submit an empty
+---line and it is gone. A separate "clear" key would only exist because this
+---one refused to show what it had, the same reasoning that gave `p` a single
+---toggle instead of wayfinder's `p`/`a`/`A`.
+---
+---Not routed through `go`: a filter is not a position. Making it a history
+---stop would mean `<C-o>` sometimes undoes a move and sometimes undoes a
+---keystroke of typing, and the two are not the same kind of "back". It still
+---travels *with* positions — see `SNAP_KEYS`.
+---@param st table
+local function set_filter(st)
+  kit.input({
+    title = " filter this list ",
+    default = st.filter_raw or "",
+    theme = st.opts.theme,
+    on_submit = function(query)
+      if not M.is_open() then
+        return
+      end
+      st.filter = filter.parse(query)
+      st.filter_raw = st.filter and query or nil
+      -- Back to the top: the row the cursor sat on very likely no longer
+      -- exists, and carrying a row index into a shorter list lands somewhere
+      -- arbitrary rather than somewhere related.
+      st.cursor = 1
+      render(st)
+
+      -- The current position's snapshot, patched in place rather than through
+      -- `sync_snapshot` — that reads the cursor back out of the window, which
+      -- would undo the line above. Written so `<C-o>` away and `<C-i>` back
+      -- returns to the list as narrowed, not as it was before the filter.
+      local snap = st.history[st.hindex]
+      if snap then
+        snap.cursor, snap.filter, snap.filter_raw = st.cursor, st.filter, st.filter_raw
+      end
+      st.slots.list:focus()
+    end,
+  })
+end
+
 -- ── Keymaps ─────────────────────────────────────────────────────────────────
 
 ---Change the direction axis, but only where it means something and only when
@@ -922,6 +1000,11 @@ local KEYS = {
     run = load_trail,
   },
   { keys = { "X" }, desc = "forget a saved trail", only = "trail", run = delete_trail },
+  {
+    keys = { "f" },
+    desc = 'filter this list in place (-negate, "phrase"; empty clears)',
+    run = set_filter,
+  },
   { keys = { "/" }, desc = "fuzzy jump across modules and functions", run = search },
   { keys = { "?" }, desc = "this list" },
   {

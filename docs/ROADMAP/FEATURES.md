@@ -386,3 +386,55 @@ silently moved the node axis under an unchanged screen (now a guarded no-op),
 and `flush()` guarded on its in-memory mirror being loaded as well as on there
 being dirty roots — so a pin made before anything had hydrated was reported as
 written and dropped.
+
+## Local list filter (2026-07-28)
+
+Wayfinder survey item 4. `f` narrows the list on screen in place, with ANDed
+terms, `-negation` and `"quoted phrases"`.
+
+The decision that shapes it is what it is **not**. `/` is a fuzzy jump across
+every module and function — "take me to the thing I can name". `f` answers
+"show me less of what I am already looking at", and that wants plain
+case-insensitive substrings: fuzzy matching is forgiving, and forgiveness is
+wrong here, because the whole point of typing `-spec` is that nothing
+containing "spec" survives it. No `OR` either — the reason to narrow a list is
+to make it shorter, and every `OR` makes it longer.
+
+- **Applied after the mode has built its list**, in `render`, never inside a
+  mode. Every mode gets it for free and none of them has to know it exists —
+  which is also why it ended up bound in all six rather than in Deps/Calls as
+  the roadmap scoped it. Restricting it would have been extra code to do less.
+- **Matches the row's label**, what is on screen, and nothing else. Filtering
+  on data the row does not display would make rows vanish for reasons the
+  reader cannot see, which is the failure this feature exists to avoid rather
+  than to cause.
+- **The status line always carries an active filter and its hidden count**,
+  in all three of its shapes. This is the only view state that *removes rows*,
+  so without it a narrowed list and a genuinely short one are the same
+  picture. An empty result renders an explicit row, never a blank column —
+  the same rule the HTML page's empty Notes sections follow.
+- **It belongs to the list it was typed against.** Changing the subject
+  (mode, node, function) drops it; changing an axis (direction, depth) keeps
+  it. That asymmetry is the feature — re-seeing the same narrowing from the
+  other direction is the reason to narrow — while carrying a query into a
+  different module's list would present a short list as a complete one. The
+  decision is made on what actually changed rather than on the patch, since
+  `enter` can hand `go` an `id` equal to the current one.
+- **It travels with positions in the visit history but is not a history
+  stop.** Adding it to `SNAP_KEYS` removed special cases rather than adding
+  them: `<C-o>` back onto a narrowed list finds it narrowed the same way, and
+  stepping off drops it without anything having to remember to. Making the
+  key itself a stop would mean `<C-o>` sometimes undoes a move and sometimes
+  undoes typing.
+
+One key rather than two: `f` opens prefilled with the query in effect, so
+editing and clearing are one gesture. A separate clear key would only exist
+because this one refused to show what it had — the reasoning that gave `p` a
+single toggle.
+
+`filter.lua` is pure, so the whole query language is driven headlessly,
+including the lenient cases that only exist because it is typed live: an
+unterminated quote runs to the end of the input, and a lone `-` is dropped
+rather than negating a term not yet typed. The one UI-level assertion is that
+`f` *opens* something — which is what keeps the `S`/`L`/`X` "opens nothing"
+assertions honest, since those pass equally well on a key that was never bound.

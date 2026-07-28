@@ -480,6 +480,92 @@ return function(H)
     "trail status: and stays out of the way when nothing is pinned"
   )
 
+  -- ---------------------------------------------------------------- filter
+  --
+  -- The query language, driven straight — it is pure, so none of this needs a
+  -- window. `describe` rather than the raw string is what the status line
+  -- shows, so asserting on it also pins what a reader is told is in effect.
+  local flt = require("documentation.browse.filter")
+
+  eq(flt.parse(""), nil, "filter: an empty query is no filter")
+  eq(flt.parse("   "), nil, "filter: and so is whitespace")
+  eq(flt.parse(nil), nil, "filter: and so is nothing at all")
+
+  eq(flt.describe(flt.parse("fs")), "fs", "filter: one term")
+  eq(flt.describe(flt.parse("  fs   bar ")), "fs bar", "filter: terms split on any run of spaces")
+  eq(flt.describe(flt.parse("FS")), "fs", "filter: folded to lower case")
+
+  -- AND, not OR. Narrowing that can lengthen the list is not narrowing.
+  ok(flt.matches(flt.parse("fs bar"), "lib.fs.bar"), "filter: every term must match")
+  ok(not flt.matches(flt.parse("fs bar"), "lib.fs.baz"), "filter: one miss is a miss")
+
+  -- Substrings, not fuzzy. `/` is the forgiving one; the reason to type
+  -- `-test` is that nothing containing "test" survives it.
+  ok(not flt.matches(flt.parse("fsb"), "lib.fs.bar"), "filter: matching is literal, not fuzzy")
+
+  ok(not flt.matches(flt.parse("-spec"), "alpha_spec"), "filter: - excludes")
+  ok(flt.matches(flt.parse("-spec"), "alpha"), "filter: and passes everything else")
+  ok(
+    flt.matches(flt.parse("fs -spec"), "lib.fs.read"),
+    "filter: positive and negative terms combine"
+  )
+  ok(not flt.matches(flt.parse("fs -spec"), "lib.fs.read_spec"), "filter: … and both apply")
+
+  eq(flt.describe(flt.parse('"open url"')), '"open url"', "filter: a quoted phrase is one term")
+  ok(flt.matches(flt.parse('"open url"'), "fs.open url.system"), "filter: spaces and all")
+  ok(not flt.matches(flt.parse('"open url"'), "fs.open.url"), "filter: as a literal run")
+  ok(not flt.matches(flt.parse('-"open url"'), "fs.open url"), "filter: phrases negate too")
+
+  -- Typed live, so half a query is a normal intermediate state rather than
+  -- something to reject.
+  eq(
+    flt.describe(flt.parse('"open ur')),
+    '"open ur"',
+    "filter: an unterminated quote runs to the end"
+  )
+  eq(flt.parse("-"), nil, "filter: a lone - negates nothing and is dropped")
+  eq(flt.describe(flt.parse("- fs")), "fs", "filter: … even mid-query")
+
+  -- apply() narrows on the LABEL, which is what is on screen. Filtering on
+  -- data the row does not display would make rows vanish for reasons the
+  -- reader cannot see.
+  local fixture_rows = {
+    { kind = "node", label = "▸ alpha", id = "lua/x/alpha" },
+    { kind = "node", label = "▸ beta", id = "lua/x/beta" },
+    { kind = "function", label = "ƒ run(opts)", id = "lua/x/alpha" },
+  }
+  local kept, hidden = flt.apply(flt.parse("beta"), fixture_rows)
+  eq(#kept, 1, "filter: apply narrows the list")
+  eq(hidden, 2, "filter: and reports how many it removed")
+  eq(kept[1].id, "lua/x/beta", "filter: keeping the whole entry, not just its text")
+
+  local all_kept, none_hidden = flt.apply(nil, fixture_rows)
+  eq(#all_kept, 3, "filter: no filter keeps everything")
+  eq(none_hidden, 0, "filter: with nothing hidden")
+
+  local empty = flt.apply(flt.parse("nothingmatchesthis"), fixture_rows)
+  eq(#empty, 0, "filter: a query matching nothing keeps nothing")
+
+  -- The status line has to carry it, in every one of its three shapes. A
+  -- filter is the only view state that *removes rows*, so without this a
+  -- narrowed list and a genuinely short one look identical.
+  for _, shape in ipairs({
+    { mode = "deps", id = "lua/x/alpha", dir = "in", depth = 3 },
+    { mode = "history", commits = {} },
+    { mode = "trail", pins = {} },
+  }) do
+    shape.filter = flt.parse("fs -spec")
+    shape.filter_hidden = 4
+    local line = view.status(ir, shape)
+    ok(line:find("fs -spec", 1, true) ~= nil, "filter: " .. shape.mode .. " status shows the query")
+    ok(line:find("4 hidden", 1, true) ~= nil, "filter: … and how many rows it is holding back")
+  end
+
+  ok(
+    view.status(ir, { mode = "trail", pins = {} }):find("hidden", 1, true) == nil,
+    "filter: and says nothing at all when no filter is on"
+  )
+
   -- ---------------------------------------------------------- trail_store
   --
   -- Persistence, pointed at a temp file rather than the user's real state
@@ -914,6 +1000,15 @@ return function(H)
     press("L")
     press("X")
     eq(wins(), in_empty_trail, "browse: L/X with nothing saved open no picker")
+
+    -- `f` is the counter-example that keeps the three assertions above honest:
+    -- they pass just as well on a key that is not bound at all. This one has
+    -- to open something, in a mode where the trail keys refuse to.
+    press("f")
+    ok(wins() > in_empty_trail, "browse: f opens the filter prompt")
+    press("<Esc>")
+    eq(wins(), in_empty_trail, "browse: and <Esc> dismisses it")
+    ok(browse.is_open(), "browse: leaving the browser open behind it")
 
     trail.clear(root)
 

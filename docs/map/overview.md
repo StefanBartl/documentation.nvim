@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**2 modules** · 1 namespaces · 28 helper files
+**2 modules** · 1 namespaces · 29 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -29,11 +29,14 @@ in both directions, with load-time and lazy requires told apart.
 
 ```mermaid
 flowchart LR
+  nlua_documentation_browse_filter_lua["documentation.browse.filter"]
   nlua_documentation_browse_trail_lua["documentation.browse.trail"]
   nlua_documentation_browse_trail_store_lua["documentation.browse.trail_store"]
+  nlua_documentation_browse_view_lua["documentation.browse.view"]
   nlua_documentation_render_markdown_lua["documentation.render.markdown"]
   nlua_documentation_render_mermaid_lua["documentation.render.mermaid"]
   nlua_documentation_browse_trail_store_lua --> nlua_documentation_browse_trail_lua
+  nlua_documentation_browse_view_lua --> nlua_documentation_browse_filter_lua
   nlua_documentation_render_markdown_lua --> nlua_documentation_render_mermaid_lua
 ```
 
@@ -42,7 +45,7 @@ flowchart LR
 
 | Module | Description | Fns | Docs |
 |---|---|---|---|
-| `documentation.browse` | `:DocBrowse` — the module map inside the editor. | 33 | [README](../../lua/documentation/browse/README.md) · [src](../../lua/documentation/browse/init.lua) |
+| `documentation.browse` | `:DocBrowse` — the module map inside the editor. | 34 | [README](../../lua/documentation/browse/README.md) · [src](../../lua/documentation/browse/init.lua) |
 | `render` |  |  |  |
 
 ## Drift

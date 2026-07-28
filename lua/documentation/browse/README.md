@@ -93,6 +93,7 @@ place, keeping its subscribers.
 | `S` | Save this trail under a name (Trail) |
 | `L` | Load a saved trail, adding to this one (Trail) |
 | `X` | Forget a saved trail (Trail) |
+| `f` | Filter this list in place (`-negate`, `"phrase"`; empty clears) |
 | `/` | Fuzzy jump across every module and function |
 | `?` | This table, in a float, for the current mode |
 | `q` `<Esc>` | Close |
@@ -145,6 +146,63 @@ mode, center, direction, depth and function; the page's whole state lives in
 its URL fragment. So it is a `format()` and the existing opener, and it
 answers "actually, I want to see that as a picture" without having to find the
 place again.
+
+## Filtering a list
+
+`f` narrows whatever list is on screen, in place.
+
+```
+fs bar        rows containing "fs" AND "bar"
+"open url"    a phrase, spaces and all
+-spec         no row containing "spec"
+-"unit test"  a negated phrase
+```
+
+**Not what `/` does**, and the two are worth keeping apart. `/` is a fuzzy
+jump across every module and function in the tree: "take me to the thing I can
+name". `f` answers "show me less of what I am already looking at", and that
+wants a different matcher — plain case-insensitive substrings, so a query
+means exactly what it says. Fuzzy matching is forgiving, and forgiveness is
+wrong here: the entire point of typing `-spec` is that nothing containing
+"spec" survives it.
+
+Terms are ANDed, and there is no `OR`. That is not an omission — the reason to
+narrow a list is to make it shorter, and every `OR` makes it longer. Someone
+who wants a union already has `/`.
+
+One key, not two: `f` opens prefilled with the query in effect, so editing a
+filter and clearing it are the same gesture (submit an empty line). Same
+reasoning that gave `p` a single toggle.
+
+Three things worth knowing:
+
+- **It matches the row's label** — what is on screen — and nothing else.
+  Filtering on data the row does not display would make rows vanish for
+  reasons the reader cannot see, which is the failure this feature exists to
+  avoid rather than cause.
+- **The status line always shows an active filter and its hidden count**
+  (`⌕ fs -spec (4 hidden)`). A filter is the only view state that *removes
+  rows*, so without that a narrowed list and a genuinely short one are
+  indistinguishable. An empty result renders an explicit row saying so, never
+  a blank column.
+- **It belongs to the list it was typed against.** Changing the subject
+  (mode, node, function) drops it; changing an *axis* — direction, depth —
+  keeps it. That asymmetry is the feature: narrowing a Deps list and then
+  flipping direction to see the same narrowing is the reason to narrow it.
+  Carrying the query into a different module's list would instead present a
+  short list as a complete one.
+
+It travels with positions in the visit history, so `<C-o>` back onto a
+narrowed list finds it narrowed the same way. It is not itself a history stop
+— `<C-o>` undoes moves, and making it sometimes undo a keystroke of typing
+would be two different meanings on one key.
+
+`gq` exports what is on screen, so filtering and then `gq` is how a subset of
+a call graph reaches the quickfix list.
+
+[`filter.lua`](filter.lua) is **pure**, like `trail.lua`: the whole query
+language is driven from a headless spec, and only the one key that reaches it
+needs the UI.
 
 ## Trail mode
 
