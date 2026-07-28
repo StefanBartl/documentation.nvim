@@ -122,6 +122,11 @@ them; keys the current mode ignores are marked rather than hidden.
 answers "where was I a moment ago"; a trail answers "where do I want to get
 back to". A pin restores the whole view it was taken in, not just its subject.
 
+Trails persist across Neovim restarts, in
+`stdpath("state")/documentation.nvim/trails.json` — navigation state, never the
+repository. `S` saves the current trail under a name, `L` loads one back
+(adding to what is already pinned, never replacing it) and `X` forgets one.
+
 ## Health
 
 ```vim

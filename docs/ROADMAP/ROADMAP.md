@@ -40,8 +40,18 @@ lib.nvim's git history if it is ever needed.
   key, so the same node at two depths is one bookmark rather than two
   near-duplicates. Keyed by repository root, so pins outlive the window;
   `browse/trail.lua` is pure, which is what lets the whole model be driven
-  from a headless spec. Persisting across Neovim sessions is item 3 and
-  lands in that same file.
+  from a headless spec. Persisting across Neovim sessions is item 3, below.
+- **Saved Trails** (wayfinder item 3). Done. Both halves, because they are
+  the same file: the working trail persists on its own, and `S`/`L`/`X`
+  name, reload and forget copies of it. It did *not* land in `trail.lua` as
+  predicted above — that would have cost the purity the entry before it
+  argues for. `trail_store.lua` subscribes to a new `trail.on_change`
+  instead, which is also the more robust arrangement: a mutation added later
+  cannot forget to persist. Loading **adds** rather than replaces (a
+  bookmark tool that can silently lose bookmarks stops being trusted), and
+  the store lives in `stdpath("state")`, never the repository — a trail has
+  no more claim on the project than a jumplist has, and committing it would
+  give `--check` an opinion about where one person happened to look.
 - **`?` key-hint overlay** (wayfinder item 1a). Done. Rendered from the same
   `KEYS` table `bind()` installs from, so it cannot drift from the actual
   bindings; keys the current mode ignores are marked rather than hidden. The
@@ -181,9 +191,10 @@ relative of `:LibBrowse`, genuine candidates if `:LibBrowse` gets revisited
    mode, `6` lists them, `d` unpins. One `p` rather than wayfinder's
    `p`/`a`/`A`: pressing it on something already pinned has exactly one
    sensible meaning, and a second key would only make the first worse.
-3. **Saved Trails** — name and persist an exploration path across sessions
-   (Neovim state, not the repo) — fits docmap's own scope (navigation
-   state, not runtime execution, so it doesn't cross into B1's territory).
+3. ~~**Saved Trails**~~ — shipped. Read as one feature or two; it was built
+   as both, since auto-persisting the working trail and naming copies of it
+   are the same serialization of the same table. `S` saves, `L` loads
+   additively, `X` forgets.
 4. **Local list filter** with negation/quoted phrases, narrowing the
    *current* Deps/Calls list in place — different from `:LibBrowse`'s
    existing `/`, which fuzzy-jumps across everything.
