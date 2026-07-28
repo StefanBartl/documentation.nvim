@@ -1078,6 +1078,84 @@ return function(H)
     "duplicates: a differently-shaped function gets a different fingerprint"
   )
 
+  -- ----------------------------------------------------------------- churn
+  --
+  -- The scoring only, which is all of it that is pure: counting commits is
+  -- git's job and lives in `command.lua`, the same split `history.lua`
+  -- follows. The fixture is built so the ranking has to get the *argument*
+  -- right, not just sort a column — each of the three losing modules loses
+  -- for a different reason.
+  local churn = require("documentation.churn")
+
+  local churn_ir = {
+    root = "lua/c",
+    order = { "lua/c/hot", "lua/c/stable", "lua/c/simple", "lua/c/notes" },
+    nodes = {
+      -- Changed often AND complex: the intersection, and the whole point.
+      ["lua/c/hot"] = {
+        id = "lua/c/hot",
+        module = "c.hot",
+        source = "lua/c/hot/init.lua",
+        functions = { { name = "M.a", signature = "a()", complexity = 10 } },
+      },
+      -- Complex but finished. Not a problem — it is done.
+      ["lua/c/stable"] = {
+        id = "lua/c/stable",
+        module = "c.stable",
+        source = "lua/c/stable/init.lua",
+        functions = { { name = "M.b", signature = "b()", complexity = 20 } },
+      },
+      -- Churned constantly but trivial. Not a problem either — that is what a
+      -- config file looks like. Scored to TIE with `c.stable`, so the pair
+      -- also pins the tie-break rather than only the ordering.
+      ["lua/c/simple"] = {
+        id = "lua/c/simple",
+        module = "c.simple",
+        source = "lua/c/simple/init.lua",
+        functions = { { name = "M.c", signature = "c()", complexity = 2 } },
+      },
+      -- No documented functions, so no complexity to multiply.
+      ["lua/c/notes"] = {
+        id = "lua/c/notes",
+        module = "c.notes",
+        source = "lua/c/notes/init.lua",
+        functions = {},
+      },
+    },
+  }
+
+  local cres = churn.rank({
+    ["lua/c/hot/init.lua"] = 8,
+    ["lua/c/stable/init.lua"] = 2,
+    ["lua/c/simple/init.lua"] = 20,
+    ["lua/c/notes/init.lua"] = 12,
+    ["README.md"] = 4,
+    [".github/workflows/ci.yml"] = 2,
+  }, churn_ir, 40)
+
+  -- 8x10 = 80 beats 20x2 = 40 and 2x20 = 40. `c.hot` is highest on NEITHER
+  -- axis on its own — fewer commits than `c.simple`, less complexity than
+  -- `c.stable` — which is exactly the claim: the intersection is the signal,
+  -- and sorting by either column alone would put the wrong module first.
+  eq(cres.entries[1].module, "c.hot", "churn: the intersection outranks either factor alone")
+  eq(cres.entries[1].score, 80, "churn: score is commits x complexity")
+  eq(cres.entries[2].score, 40, "churn: the two single-factor modules tie below it")
+  eq(cres.entries[3].score, 40, "churn: ...both of them")
+  eq(cres.entries[2].module, "c.simple", "churn: a tie breaks toward the more-churned module")
+  eq(#cres.entries, 3, "churn: a module with no documented functions is dropped, not scored 0")
+  eq(cres.entries[1].hottest, "a()", "churn: every row names where to start reading")
+
+  -- Paths that changed but back no scanned module — READMEs, CI config,
+  -- anything deleted since. Counted rather than silently dropped: a number
+  -- with no idea how much it ignored is worse than no number.
+  eq(cres.unmatched, 2, "churn: unmatched paths are reported, not swallowed")
+  eq(cres.commits, 40, "churn: and the range's commit count travels with the result")
+
+  local churn_qf = churn.quickfix_items(cres, "/repo")
+  eq(#churn_qf, 3, "churn: one quickfix row per ranked module")
+  ok(churn_qf[1].filename:find("hot", 1, true) ~= nil, "churn: pointing at the module's source")
+  eq(churn_qf[1].lnum, 1, "churn: at line 1 — the finding is about the file, not a line in it")
+
   -- ------------------------------------------------------ coverage.resolve
   -- Real spec-file text, not a hand-built name list: the whole point is
   -- that a bare name mentioned in a test file — the way a spec actually
