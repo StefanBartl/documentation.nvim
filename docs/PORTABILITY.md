@@ -108,6 +108,97 @@ scanner.
 
 ---
 
+## The three-step version: split, bundle, link
+
+The obvious plan is "separate the editor half, make a binary, bundle
+tree-sitter". Each step is real, but they are not equally cheap and the third
+one is not what it first looks like. Measured with `tree-sitter` CLI 0.26.9 and
+this repository's own queries.
+
+### Step 1 — the split, and enforcing it
+
+Already 35% done by accident of the purity rule. What is missing is anything
+that *stops* it re-merging: nothing today prevents `scan.lua` from requiring
+`browse/`.
+
+The plugin already ships the mechanism — `opts.layers` and the
+`layer-violation` check. But it cannot express this boundary against the
+current tree: the editor half is `documentation.browse.*`, `documentation.
+command`, `documentation.registry`, `documentation.serve` and
+`documentation.health`, which is not one prefix, and a rule from
+`documentation` to `documentation.browse` would flag `browse/init.lua`
+requiring `browse/view.lua`.
+
+Move to `documentation.core.*` / `documentation.editor.*` and it becomes one
+line:
+
+```lua
+layers = { { from = "documentation.core", to = "documentation.editor",
+             why = "the core has to stay runnable without an editor" } }
+```
+
+Then the tool checks its own split, in its own CI, and the boundary cannot
+rot. That is the whole argument for the rename — not tidiness, enforceability.
+
+### Step 2 — a binary
+
+`luastatic` links a Lua interpreter, your `.lua` sources and any C libraries
+into one executable. Nothing here makes that hard; it is the least
+interesting step.
+
+### Step 3 — tree-sitter, and why the CLI is the wrong unit to bundle
+
+The CLI does work, and `tree-sitter query` returns exactly the shape this code
+reads from `iter_captures`: capture name, start and end `(row, col)`, and the
+matched text. Verified against this repository's real complexity query.
+
+It has two problems, one of degree and one of kind.
+
+**Degree — process startup dominates, so batching is mandatory.** Measured:
+
+| | Time |
+|---|---:|
+| First run (grammar compiled on demand) | 0.698 s |
+| Warm, one file | 0.081 s |
+| One invocation over 35 files | **0.229 s** |
+| Per-file loop over the same 35 files | 2.482 s |
+| One invocation over lib.nvim's 367 files | **0.592 s** |
+
+Per-file is 10× worse than batched, so any design that parses a file at a time
+— which is what `scan()` does today — is off the table. Even batched, this
+repository issues **8 distinct queries**, so a full scan is ~8 invocations:
+roughly 4.7 s over lib.nvim against 0.65 s for the entire in-process scan
+today. Around 7×, for the query half alone.
+
+Note also that the CLI compiles a grammar from source on first use, which
+means a C toolchain on the *user's* machine — a heavier dependency than the
+thing it was supposed to remove.
+
+**Kind — queries are only half of what this code does.** There are 12 query
+call sites, and **27 tree-navigation call sites** across `functions.lua`,
+`calls.lua`, `symbols.lua` and `deps.lua`: `:child()`, `:child_count()`,
+`:parent()`, `:type()`, `:range()`. `tree-sitter query` cannot serve any of
+them. `shape_of` — the fingerprint duplicate detection is built on — walks
+every node in a subtree, and `is_top_level` walks the parent chain. Recovering
+those from `tree-sitter parse`'s S-expression output means writing a tree API
+over parsed text, which is a component, not a shim.
+
+**So: bundle the library, not the CLI.** The CLI is a Rust wrapper around
+`libtree-sitter`, which is C — and `tree-sitter-lua`'s `src/parser.c` is
+generated C. Both link into a `luastatic` binary natively, and you cannot link
+a Rust executable into a C one anyway; bundling the CLI would mean embedding it
+as a resource and exec'ing it at runtime. Linking the library gives one
+artifact, no subprocess, no per-invocation cost, no C toolchain on the user's
+machine, and — the part that decides it — **the full node API, so the 27
+navigation sites survive**.
+
+What that leaves is a Lua binding whose surface matches what this code calls.
+That is the one genuinely unresolved question, and it is sharper than
+"does a binding exist": does one exist shaped like `query.parse` /
+`iter_captures` / `get_node_text` / `:child` / `:parent`, or does a shim have
+to be written over it? Answer that before anything else in this document is
+worth starting.
+
 ## Why this is not scheduled
 
 Because the first question is already answered, and it is the one people
@@ -117,6 +208,11 @@ function-level half of the map — which is most of what makes the map worth
 generating — for removing a dependency that costs almost nothing.
 
 The case would change if the goal were a LuaRocks package usable from a
-non-Neovim toolchain, or if a standalone treesitter binding turned out to be a
-drop-in. Neither is true today. Recorded so the estimate does not get made
-from scratch again.
+non-Neovim toolchain, or if a Lua binding to `libtree-sitter` turned out to
+match the API surface this code is written against. Neither is true today.
+
+**Step 1 is worth doing on its own merits, though**, and does not depend on any
+of the rest: the split already exists, and making it enforceable costs a rename
+plus one `layers` rule. Everything after it is optional.
+
+Recorded so the estimate does not get made from scratch again.
