@@ -510,10 +510,21 @@ silent precisely because neither one requires the other.
   a documented default. `considered` ships alongside `groups` so "nothing
   found" stays distinguishable from "nothing was large enough to look at".
 - **A panel, never a check.** Verified against this repo's own tree, which
-  reports exactly two groups: `read(path)`, implemented identically in three
+  reported exactly two groups: `read(path)`, implemented identically in three
   modules — a real duplicate the plugin previously had no way to see — and
   `scan.lua`'s `is_dir`/`is_file`, which share a shape and share nothing
   else. That second one is the argument: `--check` must not fail on this.
+
+**The first finding was acted on.** The `read(path)` group is gone: all three
+copies — `browse/trail_store.lua`, `cli.lua`, `health.lua` — now call
+`lib.nvim.fs.read`, which `browse/source.lua` and `tagfiles.lua` already used.
+Its contract already matched what the local copies returned (`nil` for a
+missing file, the raw bytes otherwise, binary mode on purpose), so no call site
+had to be bent to a different one; the extra `err` it returns second is
+discarded at all three, each a single-value context. The panel now reports one
+group, the `is_dir`/`is_file` pair it is supposed to keep reporting — which is
+the tool working in both directions: it found a duplicate worth removing and
+still declines to call the remaining pair a defect.
 
 The other limit is stated rather than worked around: a single edited line
 breaks the match, so this finds copies and not near-copies. Sliding a window

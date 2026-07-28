@@ -82,18 +82,6 @@ function M.path()
   return ((dir .. "/documentation.nvim/" .. FILE):gsub("\\", "/"))
 end
 
----@param path string
----@return string?
-local function read(path)
-  local fd = io.open(path, "rb")
-  if not fd then
-    return nil
-  end
-  local s = fd:read("*a")
-  fd:close()
-  return s
-end
-
 ---Coerce whatever was decoded into the shape the rest of this file assumes.
 ---
 ---Defensive on purpose: this file lives in the user's state directory, where
@@ -132,7 +120,7 @@ local function load()
   if db then
     return db
   end
-  local raw = read(M.path())
+  local raw = require("lib.nvim.fs.read")(M.path())
   if not raw or raw == "" then
     db = {}
     return db

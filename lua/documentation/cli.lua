@@ -19,18 +19,6 @@
 
 local M = {}
 
----@param path string
----@return string?
-local function read(path)
-  local fd = io.open(path, "rb")
-  if not fd then
-    return nil
-  end
-  local s = fd:read("*a")
-  fd:close()
-  return s
-end
-
 ---@param findings Documentation.Finding[]
 ---@return table<Documentation.Severity, integer>
 local function report(findings)
@@ -81,6 +69,7 @@ function M.run(opts, argv)
       expected["coverage.svg"] = require("documentation.doccoverage").badge_svg(ir)
     end
 
+    local read = require("lib.nvim.fs.read")
     local stale = {}
     for name, content in pairs(expected) do
       local path = root .. "/" .. opts.out_dir .. "/" .. name

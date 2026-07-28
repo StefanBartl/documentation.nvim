@@ -58,19 +58,6 @@ local function version_ok()
   return v.patch >= MIN_NVIM[3]
 end
 
----Bytes at `path`, or nil.
----@param path string
----@return string?
-local function read(path)
-  local fd = io.open(path, "rb")
-  if not fd then
-    return nil
-  end
-  local s = fd:read("*a")
-  fd:close()
-  return s
-end
-
 ---Count the `.lua` files directly under `dir`, recursively, without loading
 ---the scanner: the point of this check is to answer "is `source` pointing at
 ---anything" even when the scan itself is what is failing.
@@ -226,7 +213,7 @@ function M.check()
   h_start("documentation.nvim: artifacts")
 
   local artifact = cfg.root .. "/" .. cfg.out_dir .. "/module_map.json"
-  local raw = read(artifact)
+  local raw = require("lib.nvim.fs.read")(artifact)
   if not raw then
     h_info(("no map generated yet under %s"):format(cfg.out_dir), {
       "Run :DocMap (or nvim --headless -l scripts/gen_map.lua).",
