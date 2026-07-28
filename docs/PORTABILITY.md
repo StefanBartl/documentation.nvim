@@ -5,6 +5,9 @@ Neovim plugin** (yes, today, from the terminal) and **could it run without
 Neovim installed at all** (not without one specific dependency, and this
 document is the cost estimate).
 
+The other axis — supporting languages other than Lua — is costed separately
+in [`MULTILANG.md`](MULTILANG.md).
+
 Measured against the tree at the time of writing: 33 files, 14 059 lines
 excluding `@types/`, 221 `vim.*` call sites.
 
