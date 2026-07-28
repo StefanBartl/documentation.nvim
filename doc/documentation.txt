@@ -291,6 +291,7 @@ Keys, once open:
     S             save this trail under a name (Trail)
     L             load a saved trail, adding to this one (Trail)
     X             forget a saved trail (Trail)
+    f             filter this list in place
     /             search
     ?             this table, in a float, for the current mode
     q             close
@@ -299,6 +300,29 @@ Keys, once open:
 cannot describe a key that does not exist or omit one that does. Keys the
 current mode ignores are marked rather than hidden -- "why did + do nothing"
 is the question the overlay is opened to answer.
+
+`f` narrows the list on screen, in place: >
+
+    fs bar        rows containing "fs" AND "bar"
+    "open url"    a phrase, spaces and all
+    -spec         no row containing "spec"
+    -"unit test"  a negated phrase
+<
+Deliberately not what `/` does. `/` fuzzy-jumps across everything and answers
+"take me to the thing I can name"; `f` answers "show me less of what I am
+already looking at", and matches plain case-insensitive substrings so that a
+query means exactly what it says -- the point of typing `-spec` is that
+nothing containing "spec" survives it. Terms are ANDed; there is no OR,
+because every OR makes the list longer and the reason to narrow it is to make
+it shorter.
+
+One key: `f` opens prefilled with the query in effect, and submitting an
+empty line clears it. The status line always shows an active filter and how
+many rows it is holding back, since a filter is the only view state that
+removes rows. It belongs to the list it was typed against -- changing mode,
+node or function drops it, changing direction or depth keeps it -- and it
+travels with positions in the visit history. `gq` exports what is on screen,
+so `f` then `gq` sends a subset of a call graph to the |quickfix| list.
 
 ==============================================================================
 6. DRIFT CHECKS                                           *documentation-checks*

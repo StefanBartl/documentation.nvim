@@ -62,6 +62,16 @@ lib.nvim's git history if it is ever needed.
   `:DocMap` defaults its root to the cwd, so "it mapped the wrong repository"
   is invisible from the command's own output.
 
+- **Local list filter** (wayfinder item 4). Done, as `f`. The decision worth
+  keeping is what it is *not*: `/` stays a fuzzy jump across the whole tree,
+  and this matches plain substrings, because the point of typing `-spec` is
+  that nothing containing "spec" survives it and fuzzy matching is forgiving
+  in exactly the wrong direction. Terms AND; no `OR`, since every `OR` makes
+  the list longer and narrowing exists to make it shorter. It belongs to the
+  list it was typed against — changing subject drops it, changing an axis
+  keeps it — and it travels with positions in the visit history without
+  being a history stop itself.
+
 ## Genuinely open
 
 ### mdview.nvim integration — never built
@@ -203,6 +213,22 @@ the cursor", currently unbound in the browser and the only key a Vim user
 would try first. Same target, same fragment, rendered into the detail pane
 or a float rather than a browser tab.
 
+**The cheap version, if this never earns the full build:** a curated link
+list and nothing else — no panels, no generation, no context menu. That is
+worth having on its own, and it is honest about what most of the value
+actually is: knowing *where* to look, not having the answer inlined. Targets
+worth collecting are the Lua reference manual on `lua.org` (5.1, see the
+version note below), LuaLS's own annotation documentation, and Neovim's
+`:help luaref` / `:help lua-guide`. Exact URLs need checking before they
+ship — a dead link in a reference panel is worse than no panel, and this
+repo already has a `dead-readme-link` check because that lesson was learned
+once.
+
+Note this fallback does **not** subsume the tag panel's argument. A link to
+LuaLS's documentation says what LuaCATS supports; it says nothing about what
+*this scanner* reads, which is the smaller and more useful set, and the one
+that can drift.
+
 **One thing to decide before writing a single link:** which Lua version.
 Neovim runs LuaJIT, i.e. 5.1 plus selected 5.2 extensions — so
 `lua.org/manual/5.4` is the wrong target in a way that actively misleads
@@ -288,9 +314,9 @@ relative of `:LibBrowse`, genuine candidates if `:LibBrowse` gets revisited
    as both, since auto-persisting the working trail and naming copies of it
    are the same serialization of the same table. `S` saves, `L` loads
    additively, `X` forgets.
-4. **Local list filter** with negation/quoted phrases, narrowing the
-   *current* Deps/Calls list in place — different from `:LibBrowse`'s
-   existing `/`, which fuzzy-jumps across everything.
+4. ~~**Local list filter**~~ — shipped as `f`, in every mode rather than
+   only Deps/Calls: it narrows `st.entries`, which every mode has, so
+   restricting it would have been extra code to do less.
 
 Already covered, no gap: wayfinder's quickfix export (`x`) is already
 `:LibBrowse`'s `gq`.

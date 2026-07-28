@@ -127,6 +127,12 @@ Trails persist across Neovim restarts, in
 repository. `S` saves the current trail under a name, `L` loads one back
 (adding to what is already pinned, never replacing it) and `X` forgets one.
 
+`f` narrows the list on screen in place — `fs bar` for both terms, `"open url"`
+for a phrase, `-spec` to exclude. Deliberately not `/`, which fuzzy-jumps
+across the whole tree: this matches plain substrings, so `-spec` means nothing
+containing "spec" survives. The status line always shows an active filter and
+its hidden count, and `gq` exports what is on screen.
+
 ## Health
 
 ```vim

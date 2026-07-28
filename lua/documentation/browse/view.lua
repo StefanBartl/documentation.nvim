@@ -13,6 +13,8 @@
 --- What the editor *can* do — jump to source, fill the quickfix list, stay
 --- live — needs a navigator over the same edges, not a drawing of them.
 
+local filter = require("documentation.browse.filter")
+
 local M = {}
 
 ---Icon for a node kind. ASCII-adjacent glyphs only: these land in a scratch
@@ -817,6 +819,30 @@ function M.breadcrumb(ir, id)
   return table.concat(parts, " ▸ ")
 end
 
+---What every status line ends with, whichever of the three shapes below it
+---took.
+---
+---An active filter has to appear in all of them: it is the one piece of view
+---state that *removes rows*, so a list shortened by a filter and a list that
+---is genuinely that short are indistinguishable without it. The hidden count
+---is half the point — it says the rest is one keystroke away rather than
+---gone.
+---@param st table
+---@return string
+local function status_tail(st)
+  local out = ""
+  local q = filter.describe(st.filter)
+  if q then
+    out = out .. ("   ⌕ %s (%d hidden)"):format(q, st.filter_hidden or 0)
+  end
+  if st.hint then
+    out = out .. "   ⚠ " .. st.hint
+  end
+  return out
+end
+
+---The one-line status bar: what is being shown, along which axes, and what
+---is currently being hidden from it.
 ---@param ir Documentation.IR
 ---@param st table
 ---@return string
@@ -832,11 +858,7 @@ function M.status(ir, st)
     if st.impact_has_map == false then
       axes[#axes + 1] = "no map at this rev"
     end
-    local line = ("%s   [%s]"):format(subject, table.concat(axes, " "))
-    if st.hint then
-      line = line .. "   ⚠ " .. st.hint
-    end
-    return line
+    return ("%s   [%s]"):format(subject, table.concat(axes, " ")) .. status_tail(st)
   end
 
   local npins = #(st.pins or {})
@@ -845,11 +867,7 @@ function M.status(ir, st)
   -- whatever was pinned, so a breadcrumb would point at something unrelated
   -- to everything on screen.
   if st.mode == "trail" then
-    local line = ("%d pinned   [trail]"):format(npins)
-    if st.hint then
-      line = line .. "   ⚠ " .. st.hint
-    end
-    return line
+    return ("%d pinned   [trail]"):format(npins) .. status_tail(st)
   end
 
   local bits = { M.breadcrumb(ir, st.id) }
@@ -872,11 +890,7 @@ function M.status(ir, st)
     axes[#axes + 1] = ("📌%d"):format(npins)
   end
 
-  local line = ("%s   [%s]"):format(table.concat(bits, "  "), table.concat(axes, " "))
-  if st.hint then
-    line = line .. "   ⚠ " .. st.hint
-  end
-  return line
+  return ("%s   [%s]"):format(table.concat(bits, "  "), table.concat(axes, " ")) .. status_tail(st)
 end
 
 return M

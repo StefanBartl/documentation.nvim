@@ -174,6 +174,7 @@ do at all: jump to the source at the line (`gd`), fill the quickfix list
 | `S` | Save this trail under a name (Trail) |
 | `L` | Load a saved trail, adding to this one (Trail) |
 | `X` | Forget a saved trail (Trail) |
+| `f` | Filter this list in place (`-negate`, `"phrase"`; empty clears) |
 | `/` | Search |
 | `?` | This table, in a float, for the current mode |
 | `q` | Close |
