@@ -74,6 +74,15 @@ lib.nvim's git history if it is ever needed.
 
 ## Genuinely open
 
+### Other languages — costed, not scheduled
+
+Analysis in [`docs/MULTILANG.md`](../MULTILANG.md). Short version: 85% of the
+tree never learns what language produced the IR, but the 15% that does is one
+implementation *per language*, and the real obstacle is not syntax — it is
+that this plugin's checks are about docs and code *agreeing*, which needs a
+doc convention that makes checkable claims. JSDoc does, godoc essentially does
+not. If ever: JS/TS first, Go last.
+
 ### Running without Neovim — costed, not scheduled
 
 Analysis lives in [`docs/PORTABILITY.md`](../PORTABILITY.md) rather than here,
