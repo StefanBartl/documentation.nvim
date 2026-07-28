@@ -89,7 +89,22 @@ place, keeping its subscribers.
 | `gO` | Open the generated page at this exact position |
 | `gD` | The opened commit's diff in a scratch buffer (History) |
 | `/` | Fuzzy jump across every module and function |
+| `?` | This table, in a float, for the current mode |
 | `q` `<Esc>` | Close |
+
+`?` is rendered from the same `KEYS` table `bind()` installs from — the table
+above is a copy for readers, the overlay is not. A second hand-maintained list
+of keys is exactly the drift this plugin exists to detect, so the spec asserts
+the claim rather than leaving it to a comment: every key actually bound on the
+list buffer has to appear in the panel.
+
+Keys the current mode ignores (`+`/`_` outside Deps, `gD` outside History) are
+**marked, not hidden**. "Why did `+` do nothing" is the question someone opens
+the overlay to answer, and a key that has vanished from the list reads as one
+that was never there. They stay *bound* in every mode too — the handlers
+already gate themselves, and leaving the key unbound would let it fall through
+to Vim's own meaning, where `+` moves the cursor down a line. Nothing
+happening is the better wrong answer.
 
 The history stack is the counterpart to the browser's Back/Forward, and it
 matters *more* here: without an address bar there is no other answer to "where

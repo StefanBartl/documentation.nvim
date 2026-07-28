@@ -169,7 +169,14 @@ do at all: jump to the source at the line (`gd`), fill the quickfix list
 | `gO` | Open the HTML page at this position |
 | `gD` | The opened commit's diff |
 | `/` | Search |
+| `?` | This table, in a float, for the current mode |
 | `q` | Close |
+
+`?` renders from the same table `bind()` installs from, so it cannot describe
+a key the browser does not have or omit one it does — the spec asserts exactly
+that rather than leaving it to a comment. Keys the current mode ignores are
+marked rather than hidden: "why did `+` do nothing" is the question someone
+opens the overlay to answer.
 
 `history` mode calls git directly, so none of the `file://` origin problem
 applies to it — the server exists to get the *browser* past a restriction the

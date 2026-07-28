@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**2 modules** · 1 namespaces · 25 helper files
+**2 modules** · 1 namespaces · 26 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -39,7 +39,7 @@ flowchart LR
 
 | Module | Description | Fns | Docs |
 |---|---|---|---|
-| `documentation.browse` | `:DocBrowse` — the module map inside the editor. | 24 | [README](../../lua/documentation/browse/README.md) · [src](../../lua/documentation/browse/init.lua) |
+| `documentation.browse` | `:DocBrowse` — the module map inside the editor. | 28 | [README](../../lua/documentation/browse/README.md) · [src](../../lua/documentation/browse/init.lua) |
 | `render` |  |  |  |
 
 ## Drift
@@ -55,6 +55,6 @@ No errors or warnings.
 
 | Check | Message |
 |---|---|
-| `missing-readme` | lua/documentation has no README.md |
+| `unreferenced-module` | documentation.health is required by no other file in the tree |
 
 </details>

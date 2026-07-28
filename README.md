@@ -112,6 +112,25 @@ Full reference: [docs/COMMANDS.md](docs/COMMANDS.md).
 :DocBrowse history               " …opened on the commit list
 ```
 
+Inside `:DocBrowse`, `?` shows the keys for the current mode. It renders from
+the same table the browser installs its keys from, so it cannot drift from
+them; keys the current mode ignores are marked rather than hidden.
+
+## Health
+
+```vim
+:checkhealth documentation
+```
+
+Checks the dependencies and the treesitter Lua parser, and then the part worth
+running it for: the configuration a `:DocMap` issued right now would act on —
+the resolved root, the auto-detected `source`, how many `.lua` files are
+actually under it, and whether the committed map has fallen behind the sources.
+
+`:DocMap` defaults its root to the current working directory, so "it mapped the
+wrong repository" and "it says my tree has one module" are the same mistake
+seen from two angles, and neither is visible from the command's own output.
+
 ## Headless / CI
 
 ```bash
@@ -171,6 +190,7 @@ Repository-specific checks go in `opts.extra_checks`.
 | [docs/REUSE.md](docs/REUSE.md) | Generating a map for your own plugin. |
 | [docs/ANNOTATIONS.md](docs/ANNOTATIONS.md) | Which LuaCATS tags the scanner reads, and the two custom ones. |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Running the specs, the linters and the map locally. |
+| [docs/ROADMAP/](docs/ROADMAP/) | [FEATURES.md](docs/ROADMAP/FEATURES.md) — what shipped and why it was built that way. [ROADMAP.md](docs/ROADMAP/ROADMAP.md) — what is open, and what was considered and turned down (with the condition that would reopen it). |
 | [lua/documentation/browse/README.md](lua/documentation/browse/README.md) | The editor-side browser in detail. |
 | `:help documentation.nvim` | The same, in Vim help format. |
 

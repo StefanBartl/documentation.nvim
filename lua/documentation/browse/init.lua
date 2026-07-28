@@ -606,6 +606,180 @@ end
 
 -- ── Keymaps ─────────────────────────────────────────────────────────────────
 
+---Change the direction axis, but only where it means something and only when
+---it actually changes. Same reasoning as the mode keys: a move that changes
+---nothing must not become a history stop, or Back appears to stall on it.
+---@param st table
+---@param dir "in"|"out"
+local function set_dir(st, dir)
+  if (st.mode == "deps" or st.mode == "calls") and st.dir ~= dir then
+    go(st, { dir = dir })
+  end
+end
+
+---Depth is a Deps-only axis: `walk_requires` is the only thing that reads it.
+---Ungated, `+` in Structure or Types pushed a history stop that changed
+---nothing on screen — and a `<C-o>` that visibly does nothing reads as the
+---history being broken rather than as the depth key having been a no-op.
+---@param st table
+---@param delta integer
+local function set_depth(st, delta)
+  if st.mode ~= "deps" then
+    return
+  end
+  local want = math.max(1, math.min(9, st.depth + delta))
+  if want ~= st.depth then
+    go(st, { depth = want })
+  end
+end
+
+---The keymap table, and the **only** description of what the browser's keys
+---do. `bind()` installs from it and the `?` cheatsheet renders from it, so
+---the two cannot disagree — a hand-maintained second list of keys is exactly
+---the drift this plugin exists to detect, and shipping one inside it would be
+---hard to defend.
+---
+---`only` is the mode (or set of modes) an entry applies in. It is not a
+---binding condition — the handlers already gate themselves, and gating the
+---*binding* would make a key fall through to Vim's own meaning on the wrong
+---mode (`+` moves the cursor down a line, which is worse than nothing
+---happening). It is presentation: the cheatsheet greys out what the current
+---mode ignores, which is the question someone presses `?` to answer.
+---
+---`run == nil` means "documented, deliberately not bound" — `j`/`k` stay
+---native so counts and `scrolloff` behave, and a cheatsheet that omitted them
+---would read as if the browser had no movement keys at all.
+---@class Documentation.Browse.KeySpec
+---@field keys string[] Left-hand sides, all doing the same thing.
+---@field desc string Cheatsheet text.
+---@field only string|string[]|nil Mode(s) this applies in; nil = everywhere.
+---@field run fun(st: table)|nil Handler, or nil for a native key.
+
+---@type Documentation.Browse.KeySpec[]
+local KEYS = {
+  { keys = { "j", "k" }, desc = "move; the detail pane follows" },
+  { keys = { "<CR>" }, desc = "descend a level, or follow the edge", run = enter },
+  { keys = { "-", "<BS>" }, desc = "up a level", run = up },
+  {
+    keys = { "<C-o>" },
+    desc = "back through the visit history",
+    run = function(st)
+      history_step(st, -1)
+    end,
+  },
+  {
+    keys = { "<C-i>" },
+    desc = "forward through the visit history",
+    run = function(st)
+      history_step(st, 1)
+    end,
+  },
+  {
+    keys = { "h" },
+    desc = "direction: incoming edges",
+    only = { "deps", "calls" },
+    run = function(st)
+      set_dir(st, "in")
+    end,
+  },
+  {
+    keys = { "l" },
+    desc = "direction: outgoing edges",
+    only = { "deps", "calls" },
+    run = function(st)
+      set_dir(st, "out")
+    end,
+  },
+  {
+    keys = { "+" },
+    desc = "depth +1",
+    only = "deps",
+    run = function(st)
+      set_depth(st, 1)
+    end,
+  },
+  {
+    keys = { "_" },
+    desc = "depth -1",
+    only = "deps",
+    run = function(st)
+      set_depth(st, -1)
+    end,
+  },
+  { keys = { "gd" }, desc = "open the source at the line (closes)", run = goto_source },
+  { keys = { "gq" }, desc = "current list into the quickfix list (closes)", run = to_quickfix },
+  {
+    keys = { "gI" },
+    desc = "blast radius into the quickfix list (closes)",
+    run = impact_to_quickfix,
+  },
+  { keys = { "gO" }, desc = "open the generated page here", run = open_in_browser },
+  { keys = { "gD" }, desc = "the opened commit's diff", only = "history", run = show_diff },
+  { keys = { "/" }, desc = "fuzzy jump across modules and functions", run = search },
+  { keys = { "?" }, desc = "this list" },
+  {
+    keys = { "q", "<Esc>" },
+    desc = "close",
+    run = function()
+      M.close()
+    end,
+  },
+}
+
+---True when `spec` applies in `mode`.
+---@param spec Documentation.Browse.KeySpec
+---@param mode string
+---@return boolean
+local function applies_in(spec, mode)
+  if not spec.only then
+    return true
+  end
+  if type(spec.only) == "string" then
+    return spec.only == mode
+  end
+  return vim.tbl_contains(spec.only, mode)
+end
+
+---Render the `?` cheatsheet for the current mode.
+---
+---A `kit.viewer` rather than a hand-rolled float: read-only, auto-sized,
+---`q`/`<Esc>` to close and — the part that matters here — it dismisses itself
+---the moment focus returns to the list, so the overlay never has to be
+---explicitly closed before carrying on. The browser's own layout has no
+---focus-loss teardown, so nothing underneath it goes away with it.
+---@param st table
+local function cheatsheet(st)
+  local lines = { "" }
+  local pad = 14
+
+  local modes = {}
+  for i, mode in ipairs(MODES) do
+    modes[#modes + 1] = ("%d %s"):format(i, mode)
+  end
+  lines[#lines + 1] = ("  %-" .. pad .. "s%s"):format(
+    "1 … " .. #MODES,
+    table.concat(modes, "  ·  ")
+  )
+  lines[#lines + 1] = ""
+
+  for _, spec in ipairs(KEYS) do
+    local lhs = table.concat(spec.keys, " ")
+    -- Marked rather than hidden: "why did `+` do nothing" is precisely the
+    -- question this overlay is opened to answer, and a key that vanishes from
+    -- the list looks like it was never there.
+    local suffix = applies_in(spec, st.mode) and "" or "   (not in this mode)"
+    lines[#lines + 1] = ("  %-" .. pad .. "s%s%s"):format(lhs, spec.desc, suffix)
+  end
+  lines[#lines + 1] = ""
+
+  kit.viewer({
+    title = (" DocBrowse keys — %s "):format(st.mode),
+    lines = lines,
+    theme = st.opts.theme,
+    filetype = "documentation-browse-help",
+  })
+end
+
 ---@param st table
 local function bind(st)
   local mo = { buffer = st.slots.list.bufnr, nowait = true }
@@ -633,82 +807,22 @@ local function bind(st)
     desc = "documentation.browse: detail follows the list cursor",
   })
 
-  map("n", "<CR>", function()
-    enter(st)
-  end, mo)
-  for _, key in ipairs({ "-", "<BS>" }) do
-    map("n", key, function()
-      up(st)
-    end, mo)
-  end
-
-  map("n", "<C-o>", function()
-    history_step(st, -1)
-  end, mo)
-  map("n", "<C-i>", function()
-    history_step(st, 1)
-  end, mo)
-
-  -- Same reasoning as the mode keys above: a move that changes nothing must
-  -- not become a history stop, or Back appears to stall on it.
-  local function set_dir(dir)
-    if (st.mode == "deps" or st.mode == "calls") and st.dir ~= dir then
-      go(st, { dir = dir })
+  for _, spec in ipairs(KEYS) do
+    local run = spec.run
+    if run then
+      for _, key in ipairs(spec.keys) do
+        map("n", key, function()
+          run(st)
+        end, mo)
+      end
     end
   end
 
-  map("n", "h", function()
-    set_dir("in")
+  -- Bound here rather than carried on `KEYS` as a `run`, because it is the one
+  -- entry whose handler is the renderer of the table it lives in.
+  map("n", "?", function()
+    cheatsheet(st)
   end, mo)
-  map("n", "l", function()
-    set_dir("out")
-  end, mo)
-
-  -- Depth is a Deps-only axis: `walk_requires` is the only thing that reads
-  -- it. Ungated, `+` in Structure or Types pushed a history stop that changed
-  -- nothing on screen — and a `<C-o>` that visibly does nothing reads as the
-  -- history being broken rather than as the depth key having been a no-op.
-  local function set_depth(delta)
-    if st.mode ~= "deps" then
-      return
-    end
-    local want = math.max(1, math.min(9, st.depth + delta))
-    if want ~= st.depth then
-      go(st, { depth = want })
-    end
-  end
-
-  map("n", "+", function()
-    set_depth(1)
-  end, mo)
-  map("n", "_", function()
-    set_depth(-1)
-  end, mo)
-
-  map("n", "gd", function()
-    goto_source(st)
-  end, mo)
-  map("n", "gq", function()
-    to_quickfix(st)
-  end, mo)
-  map("n", "gI", function()
-    impact_to_quickfix(st)
-  end, mo)
-  map("n", "gO", function()
-    open_in_browser(st)
-  end, mo)
-  map("n", "gD", function()
-    show_diff(st)
-  end, mo)
-  map("n", "/", function()
-    search(st)
-  end, mo)
-
-  for _, key in ipairs({ "q", "<Esc>" }) do
-    map("n", key, function()
-      M.close()
-    end, mo)
-  end
 end
 
 -- ── Entry point ─────────────────────────────────────────────────────────────

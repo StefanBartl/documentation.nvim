@@ -543,6 +543,52 @@ return function(H)
       eq(status_now(), commit_list, "browse: - clears the open commit and returns to the list")
     end
 
+    -- `?` — the cheatsheet, and the claim it rests on.
+    --
+    -- The overlay is rendered from the same `KEYS` table `bind()` installs
+    -- from, so it cannot describe a key the browser does not have or omit one
+    -- it does. That is a claim worth testing rather than asserting in a
+    -- comment: every key actually bound on the list buffer has to appear in
+    -- the panel. `keytrans` because `nvim_buf_get_keymap` hands back resolved
+    -- termcodes (`\r`, `\15`) and the panel spells them `<CR>`, `<C-o>`.
+    browse.close()
+    browse.open({ root = root })
+    local q_win, q_buf = slot("documentation-browse-list")
+    vim.api.nvim_set_current_win(q_win)
+    press("?")
+
+    local _, help_buf = slot("documentation-browse-help")
+    ok(help_buf ~= nil, "browse: ? opens the key panel")
+    local help = table.concat(vim.api.nvim_buf_get_lines(help_buf or 0, 0, -1, false), "\n")
+    ok(help:find("quickfix", 1, true) ~= nil, "browse: the panel describes what the keys do")
+
+    -- `keytrans` is not quite the inverse of what a human writes: it escapes
+    -- a literal `<` as `<lt>` (so `<CR>` comes back as `<lt>CR>`) and
+    -- normalises the modifier case (`<C-o>` -> `<C-O>`). Undoing both is the
+    -- comparison actually intended here — the panel is meant to be readable,
+    -- not to spell keys the way the API round-trips them.
+    local undocumented = {}
+    local haystack = help:lower()
+    for _, m in ipairs(vim.api.nvim_buf_get_keymap(q_buf, "n")) do
+      local lhs = (vim.fn.keytrans(m.lhs):gsub("<lt>", "<"))
+      if haystack:find(lhs:lower(), 1, true) == nil then
+        undocumented[#undocumented + 1] = lhs
+      end
+    end
+    eq(
+      #undocumented,
+      0,
+      "browse: every bound key is in the panel (missing: " .. table.concat(undocumented, " ") .. ")"
+    )
+
+    -- Mode-specific keys are marked, not hidden: "why did + do nothing" is
+    -- exactly the question the panel is opened to answer.
+    ok(
+      help:find("not in this mode", 1, true) ~= nil,
+      "browse: keys the current mode ignores say so instead of disappearing"
+    )
+    vim.api.nvim_buf_delete(help_buf, { force = true })
+
     -- Centering on a NAMESPACE: `lua/documentation/render` has no init.lua and
     -- so declares no @module, but `documentation.render` is what a user types.
     -- Resolving only on a declared module silently lands on the root instead.

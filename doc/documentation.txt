@@ -52,8 +52,24 @@ filesystem, and the scanner never knows what will be drawn.
 2. REQUIREMENTS                                     *documentation-requirements*
 
     - Neovim 0.10+  (vim.uv, vim.treesitter)
+    - a treesitter Lua parser  (functions, call edges and symbols come from it)
     - lib.nvim      https://github.com/StefanBartl/lib.nvim
+    - git, optional — :DocMap diff/impact/serve and :DocBrowse history
     - lua-language-server, optional — only for `:DocMap full`
+
+                                                        *documentation-health*
+`:checkhealth documentation` verifies all of the above and, more usefully,
+prints the configuration a `:DocMap` issued right now would act on: the
+resolved root, the auto-detected source directory, how many `.lua` files are
+actually under it, and whether the committed map is older than the newest
+source file.
+
+That last part is what the check is really for. `:DocMap` defaults its root to
+the current working directory, so "it mapped the wrong repository" and "it
+says my tree has one module" are the same mistake seen from two angles, and
+neither is visible from the command's own output. The staleness answer there
+is an mtime comparison, not a regeneration -- `:DocMap check` is the
+authoritative one and costs a full scan.
 
 ==============================================================================
 3. INSTALLATION                                     *documentation-installation*
@@ -238,7 +254,13 @@ Keys, once open:
     gO            open the HTML page at this position
     gD            the opened commit's diff
     /             search
+    ?             this table, in a float, for the current mode
     q             close
+
+`?` is rendered from the same table the browser installs its keys from, so it
+cannot describe a key that does not exist or omit one that does. Keys the
+current mode ignores are marked rather than hidden -- "why did + do nothing"
+is the question the overlay is opened to answer.
 
 ==============================================================================
 6. DRIFT CHECKS                                           *documentation-checks*

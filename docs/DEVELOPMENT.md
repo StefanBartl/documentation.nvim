@@ -131,6 +131,7 @@ lua/documentation/
   serve.lua         the local map server
   cli.lua           --check/--full entry point
   command.lua       :DocMap
+  health.lua        :checkhealth documentation
   browse/           :DocBrowse
   render/           html · markdown · mermaid · dot · badge
   @types/           Documentation.* LuaCATS definitions
