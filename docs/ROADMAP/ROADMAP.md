@@ -74,6 +74,16 @@ lib.nvim's git history if it is ever needed.
 
 ## Genuinely open
 
+### Running without Neovim — costed, not scheduled
+
+Analysis lives in [`docs/PORTABILITY.md`](../PORTABILITY.md) rather than here,
+because half of it is documentation of what already works rather than a
+proposal. The short version: of 221 `vim.*` call sites, 83 would be *deleted*
+rather than ported (the editor half is 35% of the tree), ~113 are mechanical,
+and 25 are `vim.treesitter` — the only real blocker, and the thing that
+supplies every per-function fact the map has. Not scheduled, with the
+condition that would reopen it stated there.
+
 ### mdview.nvim integration — never built
 
 Concept existed (originally `docmap_hierarchy_and_integrations.md` Part 4),
