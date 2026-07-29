@@ -27,7 +27,18 @@ local M = {}
 -- Kept in one place because the two forms below must agree on what a module
 -- path may contain; `%-` is in the class for plugin names like `nvim-lspconfig`.
 local MODULE_CHARS = "[%w%._%-]+"
-local REQUIRE = "require%s*%(?%s*['\"](" .. MODULE_CHARS .. ")['\"]"
+-- The character class after `require` covers the three shapes a literal
+-- require takes: `require("m")`, `require "m"`, and `pcall(require, "m")` --
+-- an optional dependency, where the text following `require` is `, "m"`. The
+-- comma form was invisible before, and silently so: `health.lua` has required
+-- `documentation.bindings.autocmds` through `pcall` since it existed, while
+-- the orphan check kept reporting that module as referenced by nothing.
+--
+-- `pcall(require, mod)` with a *variable* stays invisible, deliberately.
+-- There is no literal to resolve, so the only honest options are no edge or a
+-- guessed one; the same reasoning that drops `require("lib." .. key)` below
+-- applies here. `health.lua`'s own DEPS loop is exactly that case.
+local REQUIRE = "require%s*[%(,]?%s*['\"](" .. MODULE_CHARS .. ")['\"]"
 local ALIAS = "^%s*local%s+([%w_]+)%s*=%s*" .. REQUIRE .. "%s*%)?(.*)$"
 
 ---Reject what is not a module path at all.
