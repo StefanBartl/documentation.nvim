@@ -707,6 +707,34 @@ return function(H)
   end
   ok(no_comment_modules, "docmap.deps: no require is taken from a comment line")
 
+  -- The optional-dependency idiom. `pcall(require, "m")` puts a comma where
+  -- the paren-or-nothing pattern used to stop, so every optional edge in the
+  -- tree was missing -- and missing in the direction that produces a false
+  -- "unreferenced module" finding rather than a visible error.
+  --
+  -- Scoped in a `do` block, not because the block is separable but because
+  -- this function sits against Lua's 200-active-locals limit; two more at
+  -- file scope is a compile error two hundred lines further down.
+  do
+    local optional = deps.extract_source(table.concat({
+      'local ok, m = pcall(require, "demo.optional")',
+      'local plain = require("demo.plain")',
+      'require "demo.bare_string"',
+      "for _, mod in ipairs(DEPS) do",
+      "  if not pcall(require, mod) then return end", -- a variable: nothing to resolve
+      "end",
+    }, "\n"))
+    eq(#optional, 3, "docmap.deps: pcall(require, ...) is found without swallowing the other forms")
+    eq(optional[1].module, "demo.optional", "docmap.deps: the comma form resolves the module path")
+    eq(optional[1].alias, nil, "docmap.deps: `local ok, m =` is not an alias binding")
+    eq(optional[2].module, "demo.plain", "docmap.deps: the paren form still matches")
+    eq(optional[2].alias, "plain", "docmap.deps: and is still recognised as an alias first")
+    eq(optional[3].module, "demo.bare_string", "docmap.deps: the parenless form still matches")
+
+    local variable_only = deps.extract_source("if not pcall(require, mod) then return end")
+    eq(#variable_only, 0, "docmap.deps: a require of a variable resolves to no edge")
+  end
+
   -- ----------------------------------------------- deps + calls over a tree
   -- A real scan, not a hand-built IR: resolution is the whole point of these
   -- two stages, and it only exists once a module index and require aliases
