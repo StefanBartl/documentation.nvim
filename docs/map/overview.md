@@ -62,6 +62,7 @@ flowchart LR
   nlua_documentation_core_timing_lua["documentation.core.timing"]
   nlua_documentation_editor_browse["documentation.editor.browse"]
   nlua_documentation_editor_command_lua["documentation.editor.command"]
+  nlua_documentation_editor_health_lua["documentation.editor.health"]
   nlua_documentation_editor_registry_lua["documentation.editor.registry"]
   nlua_documentation_editor_serve_lua["documentation.editor.serve"]
   nlua_documentation_bindings_docs_lua --> nlua_documentation_bindings_autocmds_lua
@@ -103,6 +104,7 @@ flowchart LR
   nlua_documentation_editor_browse --> nlua_documentation_editor_registry_lua
   nlua_documentation_editor_command_lua --> nlua_documentation_bindings_usrcmds
   nlua_documentation_editor_command_lua --> nlua_documentation_core_find_lua
+  nlua_documentation_editor_health_lua --> nlua_documentation_bindings_autocmds_lua
   nlua_documentation_editor_serve_lua --> nlua_documentation_core_history_lua
   nlua_documentation_editor_serve_lua --> nlua_documentation_editor_browse
 ```
