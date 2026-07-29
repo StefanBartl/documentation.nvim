@@ -29,7 +29,7 @@ files." Adopt a tag when the concrete case for it comes up, not in bulk.
 
 ## b) Standard tags, unused in this repo (0 hits), with real value for `docmap`
 
-- **`@deprecated`** — no hits. `docmap`'s function scanner (see [`functions.lua`](../functions.lua))
+- **`@deprecated`** — no hits. `docmap`'s function scanner (see [`functions.lua`](../lua/documentation/core/functions.lua))
   recognizes it and renders a deprecation banner + surfaces it in the Functions section. High value:
   this is the single most Doxygen-shaped signal missing today.
 - **`@see`** — no hits. Recognized as a cross-reference; `docmap` renders it as a clickable link when
@@ -59,7 +59,7 @@ Already in informal use, tolerated by `scan.lua`'s header parser as an alternati
 - **`@brief`** (8 hits), **`@description`** (10 hits) — competing convention for a module's leading
   summary line.
 
-Recognized by [`functions.lua`](../functions.lua):
+Recognized by [`functions.lua`](../lua/documentation/core/functions.lua):
 
 - **`@example`** — a code sample attached to a function's doc block, rendered by `docmap` as its own
   fenced block instead of being flattened into prose. Many modules already informally embed a ` ```lua `

@@ -65,7 +65,7 @@ vim.cmd("cq " .. code)
 Everything above it is generic: it resolves `cwd`, puts the repository and
 `lib.nvim` on the runtimepath, and hands off to `documentation.core.cli` — the same
 `--check`/`--full` CLI this repository uses on itself, extracted into
-[`cli.lua`](../lua/documentation/cli.lua) for exactly this reason. It returns
+[`cli.lua`](../lua/documentation/core/cli.lua) for exactly this reason. It returns
 an exit code rather than calling `cq` itself, so it stays a plain function a
 test can assert on.
 
