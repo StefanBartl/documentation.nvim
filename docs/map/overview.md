@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**2 modules** · 3 namespaces · 32 helper files
+**4 modules** · 4 namespaces · 49 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -14,10 +14,16 @@ source links; this page is the version the code host renders directly.
 ```mermaid
 flowchart LR
   nlua_documentation["documentation.nvim"]
+  nlua_documentation_bindings["bindings"]
+  nlua_documentation_bindings_usrcmds["usrcmdsbr/smallThe user commands: `:DocMap` and…/small"]
+  nlua_documentation_config["configbr/smallResolving a full `Documentation.Opts` for a…/small"]
   nlua_documentation_core["core"]
   nlua_documentation_core_render["render"]
   nlua_documentation_editor["editor"]
   nlua_documentation_editor_browse["browsebr/small`:DocBrowse` — the module map inside the…/small"]
+  nlua_documentation --> nlua_documentation_bindings
+  nlua_documentation_bindings --> nlua_documentation_bindings_usrcmds
+  nlua_documentation --> nlua_documentation_config
   nlua_documentation --> nlua_documentation_core
   nlua_documentation_core --> nlua_documentation_core_render
   nlua_documentation --> nlua_documentation_editor
@@ -33,11 +39,14 @@ in both directions, with load-time and lazy requires told apart.
 
 ```mermaid
 flowchart LR
+  nlua_documentation_bindings_autocmds_lua["documentation.bindings.autocmds"]
+  nlua_documentation_bindings_docs_lua["documentation.bindings.docs"]
+  nlua_documentation_bindings_keymaps_lua["documentation.bindings.keymaps"]
+  nlua_documentation_bindings_usrcmds["documentation.bindings.usrcmds"]
   nlua_documentation_core_calls_lua["documentation.core.calls"]
   nlua_documentation_core_check_lua["documentation.core.check"]
   nlua_documentation_core_churn_lua["documentation.core.churn"]
   nlua_documentation_core_cli_lua["documentation.core.cli"]
-  nlua_documentation_core_config_lua["documentation.core.config"]
   nlua_documentation_core_coverage_lua["documentation.core.coverage"]
   nlua_documentation_core_deps_lua["documentation.core.deps"]
   nlua_documentation_core_diff_lua["documentation.core.diff"]
@@ -50,11 +59,23 @@ flowchart LR
   nlua_documentation_core_scan_lua["documentation.core.scan"]
   nlua_documentation_core_symbols_lua["documentation.core.symbols"]
   nlua_documentation_core_tagfiles_lua["documentation.core.tagfiles"]
+  nlua_documentation_core_timing_lua["documentation.core.timing"]
   nlua_documentation_editor_browse["documentation.editor.browse"]
   nlua_documentation_editor_command_lua["documentation.editor.command"]
-  nlua_documentation_editor_health_lua["documentation.editor.health"]
   nlua_documentation_editor_registry_lua["documentation.editor.registry"]
   nlua_documentation_editor_serve_lua["documentation.editor.serve"]
+  nlua_documentation_bindings_docs_lua --> nlua_documentation_bindings_autocmds_lua
+  nlua_documentation_bindings_docs_lua --> nlua_documentation_editor_browse
+  nlua_documentation_bindings_usrcmds --> nlua_documentation_core_check_lua
+  nlua_documentation_bindings_usrcmds --> nlua_documentation_core_churn_lua
+  nlua_documentation_bindings_usrcmds --> nlua_documentation_core_deps_lua
+  nlua_documentation_bindings_usrcmds --> nlua_documentation_core_diff_lua
+  nlua_documentation_bindings_usrcmds --> nlua_documentation_core_find_lua
+  nlua_documentation_bindings_usrcmds --> nlua_documentation_core_history_lua
+  nlua_documentation_bindings_usrcmds --> nlua_documentation_core_timing_lua
+  nlua_documentation_bindings_usrcmds --> nlua_documentation_editor_browse
+  nlua_documentation_bindings_usrcmds --> nlua_documentation_editor_registry_lua
+  nlua_documentation_bindings_usrcmds --> nlua_documentation_editor_serve_lua
   nlua_documentation_core_calls_lua --> nlua_documentation_core_deps_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_deps_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_coverage_lua
@@ -75,21 +96,13 @@ flowchart LR
   nlua_documentation_core_scan_lua --> nlua_documentation_core_functions_lua
   nlua_documentation_core_symbols_lua --> nlua_documentation_core_scan_lua
   nlua_documentation_core_tagfiles_lua --> nlua_documentation_core_find_lua
+  nlua_documentation_editor_browse --> nlua_documentation_bindings_keymaps_lua
   nlua_documentation_editor_browse --> nlua_documentation_core_deps_lua
   nlua_documentation_editor_browse --> nlua_documentation_core_history_lua
   nlua_documentation_editor_browse --> nlua_documentation_editor_command_lua
   nlua_documentation_editor_browse --> nlua_documentation_editor_registry_lua
-  nlua_documentation_editor_command_lua --> nlua_documentation_core_check_lua
-  nlua_documentation_editor_command_lua --> nlua_documentation_core_churn_lua
-  nlua_documentation_editor_command_lua --> nlua_documentation_core_config_lua
-  nlua_documentation_editor_command_lua --> nlua_documentation_core_deps_lua
-  nlua_documentation_editor_command_lua --> nlua_documentation_core_diff_lua
+  nlua_documentation_editor_command_lua --> nlua_documentation_bindings_usrcmds
   nlua_documentation_editor_command_lua --> nlua_documentation_core_find_lua
-  nlua_documentation_editor_command_lua --> nlua_documentation_core_history_lua
-  nlua_documentation_editor_command_lua --> nlua_documentation_editor_browse
-  nlua_documentation_editor_command_lua --> nlua_documentation_editor_registry_lua
-  nlua_documentation_editor_command_lua --> nlua_documentation_editor_serve_lua
-  nlua_documentation_editor_health_lua --> nlua_documentation_core_config_lua
   nlua_documentation_editor_serve_lua --> nlua_documentation_core_history_lua
   nlua_documentation_editor_serve_lua --> nlua_documentation_editor_browse
 ```
@@ -99,24 +112,29 @@ flowchart LR
 
 | Module | Description | Fns | Docs |
 |---|---|---|---|
-| `core` |  |  |  |
+| `bindings` |  |  |  |
+| &nbsp;&nbsp;`documentation.bindings.usrcmds` | The user commands: `:DocMap` and `:DocBrowse` — registration, argument dispatch and completion. | 5 | [README](../../lua/documentation/bindings/usrcmds/README.md) · [src](../../lua/documentation/bindings/usrcmds/init.lua) |
+| `documentation.config` | Resolving a full `Documentation.Opts` for a repository: the defaults in [`DEFAULTS.lua`](DEFAULTS.lua), what can be derived from `root`, and the merge rule… | 2 | [README](../../lua/documentation/config/README.md) · [src](../../lua/documentation/config/init.lua) |
+| `core` |  |  | [README](../../lua/documentation/core/README.md) |
 | &nbsp;&nbsp;`render` |  |  |  |
-| `editor` |  |  |  |
-| &nbsp;&nbsp;`documentation.editor.browse` | `:DocBrowse` — the module map inside the editor. | 34 | [README](../../lua/documentation/editor/browse/README.md) · [src](../../lua/documentation/editor/browse/init.lua) |
+| `editor` |  |  | [README](../../lua/documentation/editor/README.md) |
+| &nbsp;&nbsp;`documentation.editor.browse` | `:DocBrowse` — the module map inside the editor. | 36 | [README](../../lua/documentation/editor/browse/README.md) · [src](../../lua/documentation/editor/browse/init.lua) |
 
 ## Drift
 
-0 errors · 0 warnings · 1 info
+0 errors · 0 warnings · 3 info
 
 No errors or warnings.
 
 
 <details>
-<summary>1 informational findings</summary>
+<summary>3 informational findings</summary>
 
 
 | Check | Message |
 |---|---|
+| `unreferenced-module` | documentation.bindings.docs is required by no other file in the tree |
+| `unreferenced-module` | documentation.core.config is required by no other file in the tree |
 | `unreferenced-module` | documentation.editor.health is required by no other file in the tree |
 
 </details>

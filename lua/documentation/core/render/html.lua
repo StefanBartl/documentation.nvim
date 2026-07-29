@@ -65,6 +65,20 @@ h1{margin:0;font-size:20px;font-weight:650;letter-spacing:-.01em}
 h1 .sub{color:var(--muted);font-weight:400;font-size:14px;margin-left:8px}
 .stats{margin-left:auto;display:flex;gap:14px;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
 .stats b{color:var(--ink);font-weight:600}
+/* The counts are buttons, but they must not look like the toolbar's. Stripped
+   back to text, gaining an underline only on hover — the affordance appears
+   where the pointer already is, without five chrome buttons in the header. */
+.stat-link{padding:0;border:0;background:none;color:inherit;font:inherit;cursor:pointer;
+  border-radius:4px}
+.stat-link:hover:not(:disabled){text-decoration:underline;text-underline-offset:3px}
+.stat-link:focus-visible{outline:2px solid var(--accent-soft);outline-offset:2px}
+/* A zero count is not a link. Same opacity as the surrounding muted text, so
+   it reads as a number rather than as something broken. */
+.stat-link:disabled{cursor:default}
+/* Where an errors/warnings click lands. Fades, so the eye is drawn to the row
+   without leaving a permanent highlight the reader then has to dismiss. */
+@keyframes findflash{from{background:var(--accent-soft)}to{background:transparent}}
+#findings tbody tr.flash td{animation:findflash 1.6s ease-out}
 .toolbar{padding:12px 24px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;
   border-bottom:1px solid var(--line)}
 #q{flex:1;min-width:200px;max-width:440px;padding:7px 11px;border:1px solid var(--line);
@@ -195,6 +209,9 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 #view-analysis{padding:22px 26px 60px}
 #antoggle{margin-bottom:14px}
 .antable{width:100%;border-collapse:collapse;font-size:12.5px}
+.antable th.ansort{cursor:pointer;user-select:none;white-space:nowrap}
+.antable th.ansort:hover{color:var(--ink)}
+.antable th.ansort.active{color:var(--accent)}
 .antable th{text-align:left;font-weight:600;color:var(--muted);font-size:11px;
   text-transform:uppercase;letter-spacing:.03em;padding:4px 8px;border-bottom:1px solid var(--line)}
 .antable td{padding:5px 8px;border-bottom:1px dashed var(--line);font-family:var(--mono)}
@@ -219,6 +236,11 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .hctl .hpath{font-family:var(--mono);font-size:12.5px;color:var(--muted);word-break:break-all}
 .hctl button{padding:4px 9px;font-size:12px}
 #hgraph-wrap{overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+/* Middle-drag panning. `grabbing` only while a drag is live — a permanent
+   grab cursor would advertise left-drag panning, which is deliberately not
+   what this does. `user-select:none` is on the dragging state only, so text
+   in the boxes stays selectable the rest of the time. */
+#hgraph-wrap.panning{cursor:grabbing;user-select:none}
 #hgraph{position:relative}
 /* The zoom lives on its own layer. #hstage carries the transform and keeps the
    analytic pixel layout; #hgraph is sized to the *scaled* extent, because a
@@ -507,7 +529,16 @@ local JS = [[
   var DEFAULT_STATE = {
     tab: "tree", id: null, center: null, view: "modules",
     dir: "out", depth: 2, fn: null, ext: false, iview: "functions", atool: "test",
-    sha: null
+    sha: null,
+    // Analysis sort. `null` means "this panel's own default order", which is
+    // deliberately not spelled as an explicit column: each panel's default is
+    // an editorial choice (worst coverage first, highest fan-in first) that a
+    // named column would flatten into "sorted by pct, descending" and lose the
+    // tiebreaks with it.
+    asort: null, adir: null,
+    // Per-tab text filter. One field, but the *contract* is per tab — see
+    // `filterFor`.
+    q: null
   };
   function freshState(){ return Object.assign({}, DEFAULT_STATE); }
 
@@ -544,8 +575,15 @@ local JS = [[
       // stays a bare `#tab=index` link.
       if(s.iview === "modules") parts.push("iview=modules");
     } else if(s.tab === "analysis"){
-      // Same rule, Analysis's own one axis: which tool panel is open.
+      // Same rule, Analysis's own axes: which tool panel is open, and how it
+      // is sorted. Both omitted at their defaults so the common case stays a
+      // bare `#tab=analysis` link.
       if(s.atool !== "test") parts.push("atool=" + encodeURIComponent(s.atool));
+      if(s.asort){
+        parts.push("asort=" + encodeURIComponent(s.asort));
+        parts.push("adir=" + encodeURIComponent(s.adir === "asc" ? "asc" : "desc"));
+      }
+      if(s.q) parts.push("q=" + encodeURIComponent(s.q));
     } else if(s.tab === "history"){
       // The opened commit, so a link to one is shareable. Validated on the
       // way back in — the server validates it again before it reaches git,
@@ -594,6 +632,14 @@ local JS = [[
       else if(k === "ext") s.ext = (v === "1" || v === "true");
       else if(k === "iview") s.iview = (v === "modules") ? "modules" : "functions";
       else if(k === "atool") s.atool = (v === "doc" || v === "deps" || v === "complexity") ? v : "test";
+      // Not whitelisted against a column list here, because the valid columns
+      // differ per panel and this parser does not know which panel `atool`
+      // will resolve to. `anSort` looks the key up in the panel's own column
+      // spec and falls back to the default order when it does not match — so
+      // an unknown value degrades to "the normal view", not to a broken one.
+      else if(k === "asort") s.asort = v || null;
+      else if(k === "adir") s.adir = (v === "asc") ? "asc" : "desc";
+      else if(k === "q") s.q = v || null;
       // Validated here, not just at the server: this value is interpolated
       // into a fetch URL, and the same whitelist the server applies before it
       // reaches git is the right shape to demand of a hash too. Anything else
@@ -629,6 +675,7 @@ local JS = [[
     if(s.tab === "analysis") drawAnalysis();
     if(s.tab === "history") drawHistory(s.sha || null);
     syncGraphControls(s);
+    syncSearchBox(s);
 
     var hash = serializeState(s);
     if(push){
@@ -641,8 +688,13 @@ local JS = [[
     }
   }
 
-  function navigate(patch){
-    applyState(Object.assign({}, state, patch), true);
+  ///Apply `patch` over the current state.
+  ///
+  ///`opts.push === false` replaces the current history entry instead of adding
+  ///one — for changes that happen per keystroke, where one Back-stack entry
+  ///per character would make the Back button useless.
+  function navigate(patch, opts){
+    applyState(Object.assign({}, state, patch), !(opts && opts.push === false));
   }
 
   window.addEventListener("popstate", function(ev){
@@ -1016,6 +1068,70 @@ local JS = [[
   });
 
   // =====================================================================
+  // Header counts → the view that shows that set.
+  //
+  // Three of the five destinations were obvious and two were not, which was
+  // the actual work:
+  //
+  //   modules     Hierarchy, Modules view — the graph of exactly those.
+  //   files       the Tree tab, which is the file tree.
+  //   namespaces  the Index tab's Modules view, which already lists "every
+  //               module and namespace" filed under the last path segment.
+  //               A dedicated namespace *view* was considered and rejected:
+  //               namespaces are already drawn in the Hierarchy graph and
+  //               already listed here, so a sixth tab would be a third
+  //               rendering of a set that has two.
+  //   errors      the findings disclosure at the foot of the page — which
+  //   warnings    already existed, collapsed. These two are not navigations
+  //               at all: they open it, scroll to the first row of that
+  //               severity, and flash it.
+  // =====================================================================
+  function revealFinding(severity){
+    var box = document.getElementById("findings");
+    if(!box) return;
+    var details = box.querySelector("details");
+    if(details) details.open = true;
+
+    // By class, not by the cell's visible text: the severity is already
+    // carried as `<span class="sev error">`, and matching the class keeps this
+    // working if the label is ever rendered differently (capitalised,
+    // translated, replaced with an icon).
+    var marker = box.querySelector("tbody tr td .sev." + severity);
+    var target = marker ? marker.closest("tr") : null;
+    // No row of that severity should be unreachable: the button is rendered
+    // disabled when the count is zero, so arriving here without a match means
+    // the tally and the table disagree — scroll to the section anyway rather
+    // than doing nothing visible.
+    (target || box).scrollIntoView({ behavior: "smooth", block: "center" });
+    if(target){
+      target.classList.remove("flash");
+      // Reflow between remove and add, or a second click on the same button
+      // restarts nothing — the class never left the element as far as the
+      // animation is concerned.
+      void target.offsetWidth;
+      target.classList.add("flash");
+    }
+  }
+
+  document.querySelectorAll(".stat-link").forEach(function(b){
+    b.addEventListener("click", function(){
+      if(b.disabled) return;
+      var to = b.dataset.goto;
+      if(to === "modules"){
+        navigate({ tab: "hierarchy", center: IR.root, view: "modules" });
+      } else if(to === "files"){
+        navigate({ tab: "tree" });
+      } else if(to === "namespaces"){
+        navigate({ tab: "index", iview: "modules" });
+      } else if(to === "errors"){
+        revealFinding("error");
+      } else if(to === "warnings"){
+        revealFinding("warn");
+      }
+    });
+  });
+
+  // =====================================================================
   // Tabs
   // =====================================================================
   document.querySelectorAll(".tab-btn").forEach(function(b){
@@ -1043,6 +1159,61 @@ local JS = [[
   var hstage = document.getElementById("hstage");
   var hpathEl = document.getElementById("hpath");
   var hlegendEl = document.getElementById("hlegend");
+  // ---------------------------------------------------------------------
+  // Middle-mouse panning.
+  //
+  // `#hgraph-wrap` is `overflow:auto`, so the graph has always scrolled — but
+  // only through scrollbars and the wheel, one axis at a time. A wide graph is
+  // the normal case here, and dragging it is the interaction every other graph
+  // tool has.
+  //
+  // Middle button only. Left-drag is a text selection on this page — the boxes
+  // carry module names people copy — and taking that away to gain a second way
+  // to pan would be a bad trade.
+  //
+  // Three things have to be suppressed or the browser fights the drag:
+  //   * `mousedown` default on button 1 starts Chrome/Firefox autoscroll (the
+  //     four-way arrow cursor that then scrolls on its own);
+  //   * `auxclick` fires on release and is what would open a link in a new tab
+  //     had the drag ended over one;
+  //   * text selection, once the pointer moves with a button held.
+  //
+  // Nothing here touches history or state: panning is a viewport change, the
+  // same category as the scrollbar it replaces, and pushing a Back-stack entry
+  // per drag would bury real navigation under it.
+  // ---------------------------------------------------------------------
+  var panning = null;
+
+  hgraphWrap.addEventListener("mousedown", function(ev){
+    if(ev.button !== 1) return;
+    ev.preventDefault();
+    panning = {
+      x: ev.clientX, y: ev.clientY,
+      left: hgraphWrap.scrollLeft, top: hgraphWrap.scrollTop
+    };
+    hgraphWrap.classList.add("panning");
+  });
+
+  // On `window`, not on the element: a drag that leaves the graph and comes
+  // back should keep panning, and a release outside it must still end the
+  // drag — otherwise the next click anywhere would resume it.
+  window.addEventListener("mousemove", function(ev){
+    if(!panning) return;
+    ev.preventDefault();
+    hgraphWrap.scrollLeft = panning.left - (ev.clientX - panning.x);
+    hgraphWrap.scrollTop = panning.top - (ev.clientY - panning.y);
+  });
+
+  window.addEventListener("mouseup", function(ev){
+    if(!panning || ev.button !== 1) return;
+    panning = null;
+    hgraphWrap.classList.remove("panning");
+  });
+
+  hgraphWrap.addEventListener("auxclick", function(ev){
+    if(ev.button === 1) ev.preventDefault();
+  });
+
   var hcenter = null;
   var MAX_HNODES = 90;
   var BOX_W = 168, BOX_H = 52, GAP_X = 16, GAP_Y = 44, PAD = 20;
@@ -1937,6 +2108,88 @@ local JS = [[
   // number `:DocMap`/the CLI prints for the same tree. The Test-coverage
   // panel passes false: `coverage.resolve` stamps `fn.tested` on every
   // function regardless of `@internal`, so its total is every function.
+  // ---------------------------------------------------------------------
+  // Sortable Analysis tables.
+  //
+  // Three pieces shared by every panel so the behaviour cannot differ between
+  // them: a header renderer, a sorter, and a filter. Each panel declares its
+  // columns as `{ label, key, get, initial }` and gets clickable headers, the
+  // arrow, the URL round-trip and the text filter for free.
+  //
+  // `key == null` means an unsortable column — the bar graphics, which are a
+  // rendering of a column already in the table and would sort by nothing.
+  //
+  // The panel's own default order survives: with no `asort` the caller's
+  // `fallback` comparator runs, tiebreaks included. That matters because
+  // "worst first, then most functions affected, then id" is an editorial
+  // judgement about where to look, and collapsing it to "sorted by pct desc"
+  // would quietly change what the panel recommends.
+  // ---------------------------------------------------------------------
+
+  ///Render a `<thead>` from a column spec, marking the active sort.
+  function anHead(cols){
+    var out = ['<thead><tr>'];
+    cols.forEach(function(c){
+      if(!c.key){ out.push('<th>' + (c.label || "") + '</th>'); return; }
+      var active = state.asort === c.key;
+      // The arrow is on the active column only. An idle arrow on every header
+      // reads as "these are all sorted", which is exactly backwards.
+      var arrow = active ? (state.adir === "asc" ? " ▲" : " ▼") : "";
+      out.push('<th class="ansort' + (active ? " active" : "") + '" data-sort="' +
+        esc(c.key) + '" data-initial="' + (c.initial === "asc" ? "asc" : "desc") +
+        '" title="Sort by ' + esc(c.label) + '">' + c.label + arrow + '</th>');
+    });
+    out.push('</tr></thead>');
+    return out.join("");
+  }
+
+  ///Sort `rows` per the active column, or by `fallback` when none is active.
+  function anSort(rows, cols, fallback){
+    var col = null;
+    for(var i = 0; i < cols.length; i++){
+      if(cols[i].key && cols[i].key === state.asort) col = cols[i];
+    }
+    if(!col || !col.get){
+      rows.sort(fallback);
+      return rows;
+    }
+    var dir = state.adir === "asc" ? 1 : -1;
+    rows.sort(function(a, b){
+      var av = col.get(a), bv = col.get(b);
+      if(av !== bv) return (av < bv ? -1 : 1) * dir;
+      // Always the same tiebreak, independent of direction: without it, two
+      // rows with equal values swap places on every re-render, which looks
+      // like the table is unstable.
+      var ak = a.sortkey || "", bk = b.sortkey || "";
+      return ak < bk ? -1 : (ak > bk ? 1 : 0);
+    });
+    return rows;
+  }
+
+  ///Keep only rows whose `haystack` contains the active query.
+  ///
+  ///Substring, case-insensitive, no fuzzy matching. The Tree tab's filter and
+  ///the Hierarchy jump already offer richer matching; what this answers is
+  ///"show me only this module", where a fuzzy match that also returns four
+  ///near-misses is worse than an exact one.
+  function anFilter(rows){
+    var q = (state.q || "").toLowerCase().trim();
+    if(!q) return rows;
+    return rows.filter(function(r){
+      return (r.haystack || "").toLowerCase().indexOf(q) >= 0;
+    });
+  }
+
+  ///The "N hidden by the filter" line, or "" when nothing is filtered.
+  ///
+  ///Said out loud rather than left implicit: a panel that silently shows three
+  ///of forty rows looks like a map with three modules in it.
+  function anFilterNote(shown, total){
+    if(shown === total) return "";
+    return ' <strong>' + shown + ' of ' + total + '</strong> shown, filtered by "' +
+      esc(state.q) + '".';
+  }
+
   function renderAnalysisPanel(label, sub, pick, excludeInternal){
     var rows = [];
     IR.nodes.forEach(function(n){
@@ -1946,12 +2199,20 @@ local JS = [[
       if(fns.length === 0) return;
       var hit = 0;
       fns.forEach(function(fn){ if(pick(fn)) hit++; });
-      rows.push({ node: n, hit: hit, total: fns.length, pct: hit / fns.length });
+      var name = n.module || n.path;
+      rows.push({
+        node: n, hit: hit, total: fns.length, pct: hit / fns.length,
+        name: name, haystack: name + " " + n.id, sortkey: n.id
+      });
     });
 
+    // Totals over *everything*, before the filter: the headline percentage is
+    // a property of the map, not of what is currently on screen, and a number
+    // that moved when you typed would be actively misleading.
     var totalHit = 0, totalAll = 0;
     rows.forEach(function(r){ totalHit += r.hit; totalAll += r.total; });
     var overallPct = totalAll > 0 ? Math.round(100 * totalHit / totalAll) : 0;
+    var totalRows = rows.length;
 
     if(rows.length === 0){
       return '<p class="ntext none">This map contains no documented functions.</p>';
@@ -1963,7 +2224,21 @@ local JS = [[
     // itself worse, so the tiebreak is functions-affected (a 0% module with
     // 20 functions matters more than one with 1), then module id for a
     // stable order once both numbers tie exactly.
-    rows.sort(function(a, b){
+    var cols = [
+      { label: "Module", key: "name", get: function(r){ return r.name; }, initial: "asc" },
+      { label: label, key: "pct", get: function(r){ return r.pct; }, initial: "asc" },
+      { label: "Functions", key: "total", get: function(r){ return r.total; }, initial: "desc" },
+      { label: "", key: null }
+    ];
+
+    rows = anFilter(rows);
+    anSort(rows, cols, function(a, b){
+      // The default: worst first. The module that needs attention most belongs
+      // at the top of a panel meant to answer "where should I look", not filed
+      // alphabetically where that answer is buried. Fewer functions is not
+      // itself worse, so the tiebreak is functions-affected (a 0% module with
+      // 20 functions matters more than one with 1), then module id for a
+      // stable order once both numbers tie exactly.
       if(a.pct !== b.pct) return a.pct - b.pct;
       if(a.total !== b.total) return b.total - a.total;
       return a.node.id < b.node.id ? -1 : (a.node.id > b.node.id ? 1 : 0);
@@ -1971,15 +2246,18 @@ local JS = [[
 
     var parts = [];
     parts.push('<p class="nsub">' + label + ': <strong>' + totalHit + '/' + totalAll +
-      '</strong> functions (' + overallPct + '%). ' + sub + '</p>');
-    parts.push('<table class="antable"><thead><tr><th>Module</th><th>' + label +
-      '</th><th></th></tr></thead><tbody>');
+      '</strong> functions (' + overallPct + '%). ' + sub +
+      anFilterNote(rows.length, totalRows) + '</p>');
+    if(rows.length === 0){
+      return parts.join("") + '<p class="ntext none">No module matches that filter.</p>';
+    }
+    parts.push('<table class="antable">' + anHead(cols) + '<tbody>');
     rows.forEach(function(r){
       var pct = Math.round(r.pct * 100);
-      var label2 = r.node.module || r.node.path;
       parts.push('<tr class="anrow" data-node="' + esc(r.node.id) + '">' +
-        '<td>' + esc(label2) + '</td>' +
+        '<td>' + esc(r.name) + '</td>' +
         '<td>' + r.hit + '/' + r.total + ' (' + pct + '%)</td>' +
+        '<td>' + r.total + '</td>' +
         '<td><div class="anbar"><div class="anfill" style="width:' + pct + '%"></div></div></td>' +
         '</tr>');
     });
@@ -2001,39 +2279,57 @@ local JS = [[
       var fanIn = (n.required_by || []).length;
       var fanOut = (n.requires || []).length;
       if(fanIn === 0 && fanOut === 0) return;
-      rows.push({ node: n, fanIn: fanIn, fanOut: fanOut });
+      var name = n.module || n.path;
+      rows.push({
+        node: n, fanIn: fanIn, fanOut: fanOut,
+        name: name, haystack: name + " " + n.id, sortkey: n.id
+      });
     });
 
     if(rows.length === 0){
       return '<p class="ntext none">This map contains no require edges.</p>';
     }
 
-    // Highest fan-in first: the module most other modules depend on is the
-    // one whose blast radius matters most, the same "most consequential
-    // first" rule the coverage panels already follow with their pct sort.
-    // Fan-out is the tiebreak, not an equal-weight second key — a module
-    // nothing depends on but that itself pulls in a lot is a different
-    // smell (the roadmap's "God module" idea), worth seeing but not at the
-    // cost of burying real fan-in leaders under it.
-    rows.sort(function(a, b){
+    var totalRows = rows.length;
+    var cols = [
+      { label: "Module", key: "name", get: function(r){ return r.name; }, initial: "asc" },
+      { label: "Fan-in", key: "fanIn", get: function(r){ return r.fanIn; }, initial: "desc" },
+      { label: "Fan-out", key: "fanOut", get: function(r){ return r.fanOut; }, initial: "desc" },
+      { label: "", key: null }
+    ];
+
+    rows = anFilter(rows);
+    anSort(rows, cols, function(a, b){
+      // Highest fan-in first: the module most other modules depend on is the
+      // one whose blast radius matters most, the same "most consequential
+      // first" rule the coverage panels already follow with their pct sort.
+      // Fan-out is the tiebreak, not an equal-weight second key — a module
+      // nothing depends on but that itself pulls in a lot is a different
+      // smell (the roadmap's "God module" idea), worth seeing but not at the
+      // cost of burying real fan-in leaders under it.
       if(a.fanIn !== b.fanIn) return b.fanIn - a.fanIn;
       if(a.fanOut !== b.fanOut) return b.fanOut - a.fanOut;
       return a.node.id < b.node.id ? -1 : (a.node.id > b.node.id ? 1 : 0);
     });
 
+    // Over the filtered set on purpose, unlike the coverage panels' headline
+    // percentage: this is a *scale* for the bars beside it, so it has to match
+    // the rows actually drawn or the longest visible bar stops being full.
     var maxFanIn = rows.reduce(function(m, r){ return Math.max(m, r.fanIn); }, 0);
 
     var parts = [];
-    parts.push('<p class="nsub">' + rows.length + ' modules with at least one require ' +
+    parts.push('<p class="nsub">' + totalRows + ' modules with at least one require ' +
       'edge. Fan-in is how many other modules require this one — the blast radius if it ' +
-      'changes. Fan-out is how many modules it requires itself.</p>');
-    parts.push('<table class="antable"><thead><tr><th>Module</th><th>Fan-in</th>' +
-      '<th>Fan-out</th><th></th></tr></thead><tbody>');
+      'changes. Fan-out is how many modules it requires itself.' +
+      anFilterNote(rows.length, totalRows) + '</p>');
+    if(rows.length === 0){
+      return parts.join("") + '<p class="ntext none">No module matches that filter.</p>';
+    }
+    parts.push('<table class="antable">' + anHead(cols) + '<tbody>');
     rows.forEach(function(r){
       var barPct = maxFanIn > 0 ? Math.round(100 * r.fanIn / maxFanIn) : 0;
-      var label = r.node.module || r.node.path;
       parts.push('<tr class="anrow" data-node="' + esc(r.node.id) + '">' +
-        '<td>' + esc(label) + '</td>' +
+        '<td>' + esc(r.name) + '</td>' +
         '<td>' + r.fanIn + '</td>' +
         '<td>' + r.fanOut + '</td>' +
         '<td><div class="anbar"><div class="anfill" style="width:' + barPct + '%"></div></div></td>' +
@@ -2054,8 +2350,16 @@ local JS = [[
   function renderAnalysisComplexity(){
     var rows = [];
     IR.nodes.forEach(function(n){
+      var name = n.module || n.path;
       (n.functions || []).forEach(function(fn){
-        rows.push({ node: n, fn: fn, complexity: fn.complexity || 1 });
+        rows.push({
+          node: n, fn: fn, complexity: fn.complexity || 1,
+          name: name, sig: fn.signature || "",
+          // Both, so "which of this module's functions are the tangled ones"
+          // and "where is `parse_header`" are the same box.
+          haystack: (fn.signature || "") + " " + name,
+          sortkey: name + "#" + (fn.signature || "")
+        });
       });
     });
 
@@ -2063,23 +2367,37 @@ local JS = [[
       return '<p class="ntext none">This map contains no documented functions.</p>';
     }
 
-    rows.sort(function(a, b){
+    var totalRows = rows.length;
+    var cols = [
+      { label: "Function", key: "sig", get: function(r){ return r.sig; }, initial: "asc" },
+      { label: "Module", key: "name", get: function(r){ return r.name; }, initial: "asc" },
+      { label: "Complexity", key: "complexity", get: function(r){ return r.complexity; },
+        initial: "desc" },
+      { label: "", key: null }
+    ];
+
+    rows = anFilter(rows);
+    anSort(rows, cols, function(a, b){
       if(a.complexity !== b.complexity) return b.complexity - a.complexity;
       return a.fn.signature < b.fn.signature ? -1 : 1;
     });
+    // Scale for the bars, so over the filtered set — same reasoning as the
+    // deps panel's `maxFanIn`.
     var maxC = rows.reduce(function(m, r){ return Math.max(m, r.complexity); }, 1);
 
     var parts = [];
-    parts.push('<p class="nsub">' + rows.length + ' documented functions, ranked by ' +
+    parts.push('<p class="nsub">' + totalRows + ' documented functions, ranked by ' +
       'cyclomatic complexity (McCabe) — one point per if/elseif/while/for/repeat/and/or, ' +
-      'plus a base of 1. Highest first.</p>');
-    parts.push('<table class="antable"><thead><tr><th>Function</th><th>Module</th>' +
-      '<th>Complexity</th><th></th></tr></thead><tbody>');
+      'plus a base of 1. Highest first.' + anFilterNote(rows.length, totalRows) + '</p>');
+    if(rows.length === 0){
+      return parts.join("") + '<p class="ntext none">No function matches that filter.</p>';
+    }
+    parts.push('<table class="antable">' + anHead(cols) + '<tbody>');
     rows.forEach(function(r){
       var barPct = Math.round(100 * r.complexity / maxC);
       parts.push('<tr class="anrow" data-node="' + esc(r.node.id) + '">' +
         '<td>' + esc(r.fn.signature) + '</td>' +
-        '<td>' + esc(r.node.module || r.node.path) + '</td>' +
+        '<td>' + esc(r.name) + '</td>' +
         '<td>' + r.complexity + '</td>' +
         '<td><div class="anbar"><div class="anfill" style="width:' + barPct + '%"></div></div></td>' +
         '</tr>');
@@ -2121,7 +2439,29 @@ local JS = [[
       'adapters around different APIs can be the same five lines of plumbing. ' +
       'This is a ranking to read, never a check that fails.</p>');
 
-    dup.groups.forEach(function(g){
+    // Filtered by *group*, not by member: a duplicate group with its matching
+    // members removed is no longer a duplicate group, and showing "3
+    // identical" above one row would be a lie. So a group survives if any
+    // member matches, and then survives whole.
+    var query = (state.q || "").toLowerCase().trim();
+    var groups = dup.groups;
+    if(query){
+      groups = groups.filter(function(g){
+        return g.members.some(function(m){
+          return ((m.signature || m.name || "") + " " + (m.module || m.node || ""))
+            .toLowerCase().indexOf(query) >= 0;
+        });
+      });
+      parts.push('<p class="nsub"><strong>' + groups.length + ' of ' +
+        dup.groups.length + '</strong> groups shown, filtered by "' + esc(state.q) +
+        '". A group matches when any of its members does, and is then shown whole — ' +
+        'a group with members removed would no longer be one.</p>');
+      if(groups.length === 0){
+        return parts.join("") + '<p class="ntext none">No group matches that filter.</p>';
+      }
+    }
+
+    groups.forEach(function(g){
       parts.push('<h3 class="nhead">' + g.members.length + ' identical, ' +
         g.size + ' nodes</h3>');
       parts.push('<table class="antable"><thead><tr><th>Function</th><th>Module</th>' +
@@ -2138,54 +2478,82 @@ local JS = [[
     return parts.join("");
   }
 
-  var analysisTestHTML = null, analysisDocHTML = null, analysisDepsHTML = null,
-    analysisComplexityHTML = null, analysisDuplicatesHTML = null;
+  // Rendered panels, memoised per *rendering* rather than per panel.
+  //
+  // One variable per panel was correct while a panel had exactly one
+  // rendering. Sorting and filtering give it many, so the key carries them —
+  // otherwise clicking a column re-serves the previous order out of the cache
+  // and the header arrow moves while the rows do not.
+  //
+  // Unbounded on purpose: the key space is (5 panels x ~4 columns x 2
+  // directions x the queries actually typed), every entry is a string already
+  // built once, and the alternative — evicting — would re-render on a Back
+  // button press, which is the one moment the cache exists for.
+  var analysisCache = {};
+
+  function anCacheKey(atool){
+    return atool + "|" + (state.asort || "") + "|" + (state.adir || "") + "|" + (state.q || "");
+  }
+
+  ///Render one panel from scratch. Sort and filter come from `state`.
+  function renderAnalysis(atool){
+    if(atool === "test"){
+      return renderAnalysisPanel(
+        "Tested",
+        "A function counts as tested when its bare name is found somewhere " +
+        "under the configured tests directory — see docmap's coverage.lua " +
+        "for what that heuristic can and cannot see.",
+        function(fn){ return !!fn.tested; },
+        false
+      );
+    }
+    if(atool === "doc"){
+      return renderAnalysisPanel(
+        "Documented",
+        "A function counts as documented when it has a summary and its " +
+        "parameters are fully and correctly named — @internal functions " +
+        "are excluded entirely, not counted as undocumented.",
+        function(fn){ return !!fn.documented; },
+        true
+      );
+    }
+    if(atool === "deps") return renderAnalysisDeps();
+    if(atool === "complexity") return renderAnalysisComplexity();
+    return renderAnalysisDuplicates();
+  }
+
   function drawAnalysis(){
     var host = document.getElementById("anbody");
     var atool = (state.atool === "doc" || state.atool === "deps" ||
       state.atool === "complexity" || state.atool === "duplicates")
       ? state.atool : "test";
 
-    if(atool === "test"){
-      if(analysisTestHTML === null){
-        analysisTestHTML = renderAnalysisPanel(
-          "Tested",
-          "A function counts as tested when its bare name is found somewhere " +
-          "under the configured tests directory — see docmap's coverage.lua " +
-          "for what that heuristic can and cannot see.",
-          function(fn){ return !!fn.tested; },
-          false
-        );
-      }
-      host.innerHTML = analysisTestHTML;
-    } else if(atool === "doc"){
-      if(analysisDocHTML === null){
-        analysisDocHTML = renderAnalysisPanel(
-          "Documented",
-          "A function counts as documented when it has a summary and its " +
-          "parameters are fully and correctly named — @internal functions " +
-          "are excluded entirely, not counted as undocumented.",
-          function(fn){ return !!fn.documented; },
-          true
-        );
-      }
-      host.innerHTML = analysisDocHTML;
-    } else if(atool === "deps"){
-      if(analysisDepsHTML === null) analysisDepsHTML = renderAnalysisDeps();
-      host.innerHTML = analysisDepsHTML;
-    } else if(atool === "complexity"){
-      if(analysisComplexityHTML === null) analysisComplexityHTML = renderAnalysisComplexity();
-      host.innerHTML = analysisComplexityHTML;
-    } else {
-      if(analysisDuplicatesHTML === null) analysisDuplicatesHTML = renderAnalysisDuplicates();
-      host.innerHTML = analysisDuplicatesHTML;
-    }
+    var key = anCacheKey(atool);
+    if(analysisCache[key] === undefined) analysisCache[key] = renderAnalysis(atool);
+    host.innerHTML = analysisCache[key];
 
     host.querySelectorAll(".anrow").forEach(function(tr){
       tr.addEventListener("click", function(){
         navigate({ tab: "tree", id: tr.dataset.node });
       });
     });
+
+    // Sortable headers. Clicking the active column flips direction; clicking a
+    // new one starts at that column's natural direction — descending for a
+    // number (largest first is what a ranking means), ascending for a name.
+    host.querySelectorAll("th.ansort").forEach(function(th){
+      th.addEventListener("click", function(){
+        var key2 = th.dataset.sort;
+        var dir;
+        if(state.asort === key2){
+          dir = state.adir === "asc" ? "desc" : "asc";
+        } else {
+          dir = th.dataset.initial === "asc" ? "asc" : "desc";
+        }
+        navigate({ tab: "analysis", atool: atool, asort: key2, adir: dir });
+      });
+    });
+
     document.querySelectorAll("#antoggle .anview-btn").forEach(function(b){
       b.classList.toggle("active", b.dataset.atool === atool);
     });
@@ -2958,8 +3326,74 @@ local JS = [[
   }
 
   var q = document.getElementById("q");
+
+  // One input, one contract *per tab* — not one matcher over the whole page.
+  //
+  // The tabs list genuinely different things (modules, aggregate rows,
+  // commits, a flat alphabet), and a single matcher over all of them would be
+  // vaguer than any of the four. What is shared is the placeholder, which has
+  // to say what the current tab will match, and the fragment state, so a
+  // filtered view is linkable.
+  //
+  // The two tabs that do nothing say so in the placeholder rather than
+  // sitting there with a stale prompt — a box that invites typing and then
+  // ignores it reads as broken, which is what this used to do on four tabs.
+  var PLACEHOLDERS = {
+    tree: "Filter modules, paths, descriptions…",
+    hierarchy: "Jump to a module — Enter commits",
+    analysis: "Filter this panel's rows…",
+    notes: "Filter is not used on Notes",
+    index: "Filter is not used on the Index",
+    history: "Filter is not used on History"
+  };
+  var FILTERING_TABS = { tree: true, hierarchy: true, analysis: true };
+
+  // The box's contents belong to the *active* tab, so they are reset when the
+  // tab changes and left alone otherwise. Resetting on every applyState would
+  // wipe a Tree filter the moment a row in it was clicked; never resetting
+  // would carry an Analysis query into the Tree tab, where it sits in the box
+  // looking applied while filtering nothing.
+  var lastSearchTab = null;
+
+  function syncSearchBox(s){
+    q.placeholder = PLACEHOLDERS[s.tab] || PLACEHOLDERS.tree;
+    q.disabled = !FILTERING_TABS[s.tab];
+
+    if(s.tab !== lastSearchTab){
+      // The Analysis filter lives in the URL, so a Back button or a shared
+      // link has to put it back in the box. The Tree and Hierarchy filters
+      // deliberately do not — both are transient views over rows that are all
+      // still there, and persisting them would make a shared link arrive
+      // pre-narrowed for no reason the recipient can see.
+      q.value = (s.tab === "analysis") ? (s.q || "") : "";
+      if(s.tab === "tree") showAllTreeRows();
+      lastSearchTab = s.tab;
+    } else if(s.tab === "analysis" && q.value !== (s.q || "")){
+      // Same tab, but the state changed underneath the box — a popstate, or a
+      // link followed within Analysis. Typing does not take this path: there
+      // the box is already the source of the value.
+      q.value = s.q || "";
+    }
+  }
+
+  ///Undo the Tree tab's row hiding.
+  function showAllTreeRows(){
+    treeEl.querySelectorAll(".row").forEach(function(r){ r.style.display = ""; });
+  }
+
   q.addEventListener("input", function(){
     var v = this.value.toLowerCase().trim();
+
+    if(state.tab === "analysis"){
+      // Replaces rather than pushes, for the same reason the Hierarchy
+      // preview does not push: five keystrokes narrowing to one module should
+      // not become five Back-button stops. Unlike Hierarchy this *does* go
+      // through navigate(), because the result is a re-render from state and
+      // there is no separate draw path to call.
+      navigate({ q: v || null }, { push: false });
+      return;
+    }
+
     if(state.tab === "hierarchy"){
       // Live preview only — draws directly, deliberately bypassing
       // navigate()/history entirely rather than replacing on every
@@ -3233,6 +3667,17 @@ function M.render(ir, findings, opts)
     nodes = nodes,
     edges = ir.edges or {},
     tag_links = ir.tag_links or {},
+    -- Was missing, which made the Duplicates panel unreachable: it reads
+    -- `IR.duplicates`, found nothing, and showed its "this map was generated
+    -- before duplicate detection existed — regenerate it" message on *every*
+    -- map including one generated a second earlier. The advice was impossible
+    -- to follow, because regenerating produced the same payload again.
+    --
+    -- The empty shape rather than `nil` when absent, so the panel can tell
+    -- "ran, found nothing" (its real no-duplicates message) apart from "this
+    -- artifact predates the feature" (the message above, which is now only
+    -- reachable by an artifact that genuinely predates it).
+    duplicates = ir.duplicates or { groups = {}, functions = 0, considered = 0, min_size = 0 },
   })
   -- `</script>` inside JSON would terminate the block early.
   payload = payload:gsub("</", "<\\/")
@@ -3278,22 +3723,40 @@ function M.render(ir, findings, opts)
     "<header><h1>",
     esc(ir.meta.title),
     '<span class="sub">module map</span></h1>',
+    -- Each count links to the view that shows that set. They were inert
+    -- `<span>`s: five numbers naming sets the reader could see the size of and
+    -- had no way to reach.
+    --
+    -- `<button>` rather than `<a href="#...">`, deliberately. An anchor would
+    -- write the fragment itself and then `applyState` would write it again
+    -- from the parsed state, producing two history entries per click — and the
+    -- errors/warnings ones are not navigations at all, they open a disclosure
+    -- further down the same page.
+    --
+    -- A count of zero is rendered disabled rather than as a live link, because
+    -- "0 warnings" that navigates somewhere empty is worse than a number that
+    -- never claimed to be clickable.
     '<div class="stats">',
-    "<span><b>",
-    tostring(c.module or 0),
-    "</b> modules</span>",
-    "<span><b>",
-    tostring(c.namespace or 0),
-    "</b> namespaces</span>",
-    "<span><b>",
-    tostring(c.file or 0),
-    "</b> files</span>",
-    '<span><b class="sev error">',
-    tostring(t.error),
-    "</b> errors</span>",
-    '<span><b class="sev warn">',
-    tostring(t.warn),
-    "</b> warnings</span>",
+    ('<button class="stat-link" data-goto="modules"%s><b>%d</b> modules</button>'):format(
+      (c.module or 0) == 0 and " disabled" or "",
+      c.module or 0
+    ),
+    ('<button class="stat-link" data-goto="namespaces"%s><b>%d</b> namespaces</button>'):format(
+      (c.namespace or 0) == 0 and " disabled" or "",
+      c.namespace or 0
+    ),
+    ('<button class="stat-link" data-goto="files"%s><b>%d</b> files</button>'):format(
+      (c.file or 0) == 0 and " disabled" or "",
+      c.file or 0
+    ),
+    ('<button class="stat-link" data-goto="errors"%s><b class="sev error">%d</b> errors</button>'):format(
+      t.error == 0 and " disabled" or "",
+      t.error
+    ),
+    ('<button class="stat-link" data-goto="warnings"%s><b class="sev warn">%d</b> warnings</button>'):format(
+      t.warn == 0 and " disabled" or "",
+      t.warn
+    ),
     "</div></header>",
 
     '<div class="tabs">',

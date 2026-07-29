@@ -1,4 +1,4 @@
--- docs/TESTS/docmap_browse_spec.lua — documentation.editor.browse
+-- TESTS/docmap_browse_spec.lua — documentation.editor.browse
 --
 -- Two halves, deliberately separated: `view`/`source` are pure and get a
 -- synthetic IR (deterministic, no dependency on whether docs/map is present
@@ -920,6 +920,142 @@ return function(H)
       "browse: keys the current mode ignores say so instead of disappearing"
     )
     vim.api.nvim_buf_delete(help_buf, { force = true })
+
+    -- `opts.keys` — rebinding and disabling.
+    --
+    -- Three cases in one open, because they share the same failure mode: an
+    -- override that is silently ignored looks identical to one that worked
+    -- until the key is actually pressed. So each is asserted from the buffer's
+    -- real keymap table, not from the resolved spec list — the latter would
+    -- pass just as well if `bind()` never read it.
+    do
+      browse.close()
+      browse.open({
+        root = root,
+        keys = {
+          quickfix = "gQ", -- a string replaces
+          filter = { "F", "<C-f>" }, -- a list replaces with several
+          pin = false, -- and false removes
+        },
+        -- which-key is not installed in the headless test environment, so this
+        -- is belt and braces: the registration is a `pcall(require, ...)` that
+        -- returns false there. Off explicitly so the spec never depends on
+        -- which of those two facts is true.
+        which_key = false,
+      })
+
+      local _, k_buf = slot("documentation-browse-list")
+      local bound = {}
+      for _, m in ipairs(vim.api.nvim_buf_get_keymap(k_buf or 0, "n")) do
+        bound[(vim.fn.keytrans(m.lhs):gsub("<lt>", "<")):lower()] = true
+      end
+
+      ok(bound["gq"] ~= nil, "browse: opts.keys rebinds an action to a new key")
+      ok(bound["f"] ~= nil, "browse: opts.keys accepts a list of left-hand sides")
+      ok(bound["<c-f>"] ~= nil, "browse: every key in an opts.keys list is bound")
+      ok(bound["p"] == nil, "browse: opts.keys = false leaves the action unbound")
+
+      -- The default `gq` is gone, not merely shadowed. Case matters here and
+      -- `bound` is lower-cased, so this asks the keymap table directly.
+      local still_default = false
+      for _, m in ipairs(vim.api.nvim_buf_get_keymap(k_buf or 0, "n")) do
+        if vim.fn.keytrans(m.lhs) == "gq" then
+          still_default = true
+        end
+      end
+      ok(not still_default, "browse: a rebound action does not keep its default key as well")
+
+      -- And the panel follows the override rather than the defaults — the
+      -- whole point of rendering it from the resolved set.
+      local kw = slot("documentation-browse-list")
+      vim.api.nvim_set_current_win(kw)
+      press("?")
+      local _, k_help = slot("documentation-browse-help")
+      ok(k_help ~= nil, "browse: ? still opens the panel with custom keys")
+      local ktext = table.concat(vim.api.nvim_buf_get_lines(k_help or 0, 0, -1, false), "\n")
+      ok(ktext:find("gQ", 1, true) ~= nil, "browse: the panel shows the rebound key")
+      ok(
+        ktext:find("(disabled)", 1, true) ~= nil,
+        "browse: a disabled action is named and marked, not dropped from the panel"
+      )
+
+      -- The original invariant, re-checked under overrides: this is where a
+      -- resolved-vs-default mismatch would actually show up.
+      local missing = {}
+      local khay = ktext:lower()
+      for _, m in ipairs(vim.api.nvim_buf_get_keymap(k_buf or 0, "n")) do
+        local lhs = (vim.fn.keytrans(m.lhs):gsub("<lt>", "<"))
+        if khay:find(lhs:lower(), 1, true) == nil then
+          missing[#missing + 1] = lhs
+        end
+      end
+      eq(
+        #missing,
+        0,
+        "browse: every bound key is in the panel under overrides too (missing: "
+          .. table.concat(missing, " ")
+          .. ")"
+      )
+      vim.api.nvim_buf_delete(k_help, { force = true })
+      browse.close()
+    end
+
+    -- `docs/BINDINGS.md` — the generated file, and the reason it is generated.
+    --
+    -- Same claim as the `?` panel one level up, aimed at a file instead of a
+    -- float: a hand-maintained key list inside a drift detector would be
+    -- indefensible, so the file is rendered from `KEYS` and this asserts the
+    -- rendering actually covers it. Checked against the *rendered string*, not
+    -- against the committed file, so the spec fails when the renderer drops a
+    -- key rather than when someone forgets to regenerate — the latter is the
+    -- map gate's job, and mixing the two would make one failure look like the
+    -- other.
+    do
+      local rendered = require("documentation.bindings.docs").render()
+      local specs = browse.keyspecs()
+
+      local missing = {}
+      for _, spec in ipairs(specs) do
+        if rendered:find("`" .. spec.id .. "`", 1, true) == nil then
+          missing[#missing + 1] = spec.id
+        end
+        for _, key in ipairs(spec.keys) do
+          if rendered:find("`" .. key .. "`", 1, true) == nil then
+            missing[#missing + 1] = spec.id .. ":" .. key
+          end
+        end
+      end
+      eq(
+        #missing,
+        0,
+        "bindings docs: every action and key is in BINDINGS.md (missing: "
+          .. table.concat(missing, " ")
+          .. ")"
+      )
+
+      -- The distinction a generated table is most likely to flatten: `j`/`k`
+      -- are documented *and deliberately not bound*, and a list that showed
+      -- them like every other row would be actively misleading.
+      ok(
+        rendered:find("native Vim key, not bound", 1, true) ~= nil,
+        "bindings docs: documented-but-native keys are marked as such"
+      )
+
+      -- Both commands and all four autocommands, from their manifests.
+      local manifest = require("documentation.bindings.autocmds")
+      for _, c in ipairs(manifest.usrcmds) do
+        ok(
+          rendered:find(":" .. c.name, 1, true) ~= nil,
+          "bindings docs: " .. c.name .. " is documented"
+        )
+      end
+      for _, a in ipairs(manifest.list) do
+        ok(
+          rendered:find(a.owner, 1, true) ~= nil,
+          "bindings docs: the autocmd owned by " .. a.owner .. " is documented"
+        )
+      end
+    end
 
     -- Trail, through the real keys. The model itself is covered above; what
     -- is left to prove is the wiring — that `p` reaches it, that mode 6 shows

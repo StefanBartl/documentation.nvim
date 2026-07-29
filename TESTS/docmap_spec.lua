@@ -1,4 +1,4 @@
--- docs/TESTS/docmap_spec.lua — documentation.core.functions, documentation.core.check
+-- TESTS/docmap_spec.lua — documentation.core.functions, documentation.core.check
 
 return function(H)
   local eq, ok = H.eq, H.ok
@@ -1235,7 +1235,7 @@ return function(H)
   -- that a bare name mentioned in a test file — the way a spec actually
   -- calls a function — is what lights `tested` up.
   local coverage = require("documentation.core.coverage")
-  write("docs/TESTS/demo_spec.lua", {
+  write("TESTS/demo_spec.lua", {
     "local util = require('demo.util')",
     "assert(util.trim('x') ~= nil)",
   })
@@ -1601,6 +1601,34 @@ return function(H)
   end
   eq(serve.safe_sha(nil), nil, "docmap.serve: refuses a nil path segment")
   eq(serve.safe_sha(42), nil, "docmap.serve: refuses a non-string")
+
+  -- The other half of the server's security surface: the static route may
+  -- only ever hand out a bare filename inside `out_dir`. Same reasoning as
+  -- `safe_sha` — the property is the whole point of the route, so it is
+  -- exported and tested rather than asserted in a comment.
+  eq(
+    serve.safe_static_name(""),
+    "index.html",
+    "docmap.serve: an empty path is the index, not a traversal"
+  )
+  eq(
+    serve.safe_static_name("module_map.json"),
+    "module_map.json",
+    "docmap.serve: a bare filename is served"
+  )
+  for _, bad in ipairs({
+    "../.git/config",
+    "..",
+    "../../etc/passwd",
+    "sub/dir.html",
+    "sub\\dir.html", -- backslash: a separator on the platform this runs on
+    "..%2f..%2fetc", -- already-decoded escape, so the `..` check is what catches it
+    "a/../b",
+  }) do
+    eq(serve.safe_static_name(bad), nil, ("docmap.serve: refuses static path %q"):format(bad))
+  end
+  eq(serve.safe_static_name(nil), nil, "docmap.serve: refuses a nil static path")
+  eq(serve.safe_static_name(42), nil, "docmap.serve: refuses a non-string static path")
 
   -- Lifecycle. Bound to loopback on an OS-assigned port, idempotent both
   -- ways: a second start must not orphan the first socket, and stopping what

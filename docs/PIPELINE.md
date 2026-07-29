@@ -262,7 +262,7 @@ nvim --headless -l scripts/gen_map.lua --check --lenient  # fail on staleness on
 nvim --headless -l scripts/gen_map.lua --full        # + LuaLS enrichment
 ```
 
-The `:DocMap` command is opt-in — call `require("documentation.editor.command").setup()`
+The `:DocMap` command is opt-in — call `require("documentation.bindings.usrcmds").setup()`
 to register it. Requiring `documentation` alone never creates a command.
 
 ## Live objects: `install()` / `uninstall()`
@@ -310,7 +310,7 @@ exactly the handle `:DocBrowse live` then reused, and "live" meant a view that
 never re-scanned.
 
 The watch itself is covered end to end in
-[`docs/TESTS/docmap_spec.lua`](TESTS/docmap_spec.lua) — a
+[`TESTS/docmap_spec.lua`](../TESTS/docmap_spec.lua) — a
 real `:write` through a real buffer, with `vim.wait` pumping the event loop
 until the debounced rescan lands. Both directions are asserted: a write under
 `source` rescans, and a write outside it does **not**. The second matters more
@@ -365,7 +365,7 @@ everything else in the IR is still valid.
 
 ## Using it for another plugin
 
-Nothing outside [`config.lua`](../lua/documentation/config.lua) knows lib.nvim's layout. Another
+Nothing outside [`config/`](../lua/documentation/config/init.lua) knows lib.nvim's layout. Another
 plugin points docmap at its own tree:
 
 ```lua
@@ -836,7 +836,7 @@ in this tree — a doc-comment that duplicates what the actual spec file
 already says is a second source of truth, and second sources of truth
 drift. [`coverage.lua`](../lua/documentation/coverage.lua) measures instead: every function's
 bare name is checked against every identifier mentioned anywhere under
-`opts.tests_dir` (default `docs/TESTS`), the same technique
+`opts.tests_dir` (default `TESTS`), the same technique
 [`calls.lua`](../lua/documentation/calls.lua)'s `identifier_counts` uses for "used as a value",
 pointed at the test tree instead of the source tree.
 
@@ -852,7 +852,7 @@ would be noise dressed up as a warning, not information.
 
 `docmap.coverage.summary(ir)` returns `tested, total`; `:DocMap`/
 `nvim --headless -l scripts/gen_map.lua` print it as one line after
-regenerating (`390/997 functions found by name in docs/TESTS (39%)`, this
+regenerating (`390/997 functions found by name in TESTS (39%)`, this
 repo's own current number). The natural home for this as a browsable, not
 just a printed, number is the planned "Analysis" tab — see the roadmap.
 

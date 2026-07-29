@@ -286,20 +286,38 @@ local function route_commit(cfg, client, sha)
   )
 end
 
----Serve a file out of `out_dir`.
+---Accept a request path only if it is a bare filename inside `out_dir`.
 ---
----`name` is a bare filename by contract — the caller has already rejected
----anything containing a separator — so this cannot be walked out of the
----directory. Kept as a check here too rather than trusting the caller,
----because that is the whole security property of this route.
+---An empty path means `index.html`; anything containing a separator or a `..`
+---segment is refused, so this route cannot be walked out of the served
+---directory. The caller has already applied its own contract — this is checked
+---again here rather than trusted, because it is the whole security property of
+---the route.
+---
+---Exported for the same reason `safe_sha` is: a security property that cannot
+---be tested without opening a socket does not get tested.
+---@param name string Path segment from the request line, without the leading "/".
+---@return string|nil filename Safe bare filename, or nil if refused.
+function M.safe_static_name(name)
+  if type(name) ~= "string" then
+    return nil
+  end
+  if name == "" then
+    return "index.html"
+  end
+  if name:find("[/\\]") or name:find("%.%.") then
+    return nil
+  end
+  return name
+end
+
+---Serve a file out of `out_dir`.
 ---@param cfg table
 ---@param client userdata
 ---@param name string
 local function route_static(cfg, client, name)
-  if name == "" then
-    name = "index.html"
-  end
-  if name:find("[/\\]") or name:find("%.%.") then
+  name = M.safe_static_name(name)
+  if not name then
     return respond_error(client, 400, "bad path")
   end
 

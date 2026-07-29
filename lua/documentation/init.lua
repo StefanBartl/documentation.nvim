@@ -55,6 +55,26 @@ M.parse_header = scan.parse_header
 M.check = check.run
 M.tally = check.tally
 
+---Reject a malformed options table at the published boundary.
+---
+---Only here, not on every function in the tree. Inside the pipeline LuaLS
+---already catches a wrong argument from the annotations, and asserts on 270
+---internal functions would be noise that never fires. What LuaLS cannot see is
+---a caller *outside* this repository — a plugin passing its own table, a
+---script, a `:lua` line — and there the difference is between a message that
+---names the mistake and an "attempt to index a nil value" three frames deep in
+---a scanner.
+---@param opts any
+---@param where string Function name, for the message.
+---@raises string When `opts` is not a table with a non-empty string `root`.
+local function assert_opts(opts, where)
+  assert(type(opts) == "table", where .. ": opts must be a table, got " .. type(opts))
+  assert(
+    type(opts.root) == "string" and opts.root ~= "",
+    where .. ": opts.root is required (absolute path to the repository root)"
+  )
+end
+
 ---`scan()` + optional LuaLS merge (`opts.luals`) + `check()`, in one call.
 ---The shared step `generate()` and `install()`'s rescan both build on, so the
 ---enrichment wiring exists in exactly one place rather than being repeated at
@@ -62,8 +82,24 @@ M.tally = check.tally
 ---@param opts Documentation.Opts
 ---@return Documentation.IR
 ---@return Documentation.Finding[]
+---@raises string When `opts.root` is missing, or `opts.source` names a directory that does not exist (from `scan`).
 function M.scan_full(opts)
-  local ir = M.scan(opts)
+  assert_opts(opts, "documentation.scan_full")
+
+  -- Instrumentation, off unless `opts.debug`. Attached to the IR rather than
+  -- returned as a third value: every caller of `scan_full` would otherwise
+  -- have to thread a value it mostly ignores, and `install()`'s rescan would
+  -- have to invent somewhere to put it. `ir.timing` is read by
+  -- `bindings/usrcmds/generate.lua` and by nothing on the render path — it is
+  -- deliberately **not** serialised into the artifact, because a duration is
+  -- different on every machine and `--check` byte-compares.
+  local timing = require("documentation.core.timing")
+  local t = timing.new(opts.debug)
+
+  local ir = timing.measure(t, "scan", function()
+    return M.scan(opts)
+  end)
+  ir.timing = t
   ir.edges = ir.edges or {}
 
   -- Always runs, even with no opts.tag_files: `tagfiles.resolve` sets
@@ -71,23 +107,31 @@ function M.scan_full(opts)
   -- LuaLS-enrichment fields, which stay nil when never run) is not itself a
   -- signal — checking `next(opts.tag_files or {})` is what a caller wanting
   -- to know "was this configured" should do.
-  require("documentation.core.tagfiles").resolve(ir, opts)
+  timing.measure(t, "tagfiles", function()
+    require("documentation.core.tagfiles").resolve(ir, opts)
+  end)
 
   -- Same reasoning: cheap, local, no reason to gate behind a flag. A
   -- missing opts.tests_dir just leaves every fn.tested false, same as a
   -- tree with no tag_files leaves every requires_external unresolved.
-  require("documentation.core.coverage").resolve(ir, opts)
+  timing.measure(t, "coverage", function()
+    require("documentation.core.coverage").resolve(ir, opts)
+  end)
 
   -- Same reasoning again: `fn.documented` is what the Analysis tab's
   -- Documentation panel reads to build a per-module breakdown without
   -- reimplementing `doccoverage.is_documented` in JS.
-  require("documentation.core.doccoverage").resolve(ir)
+  timing.measure(t, "doccoverage", function()
+    require("documentation.core.doccoverage").resolve(ir)
+  end)
 
   -- Grouped here rather than in JS, unlike the fan-in/fan-out panel: that one
   -- aggregates data already serialised, this one groups by `fn.shape`, which
   -- only `functions.lua` can produce because only the scan holds the parse
   -- tree. Cheap — one pass and a sort over what is already in memory.
-  ir.duplicates = require("documentation.core.duplicates").resolve(ir)
+  ir.duplicates = timing.measure(t, "duplicates", function()
+    return require("documentation.core.duplicates").resolve(ir)
+  end)
 
   local luals_err
   if opts.luals then
@@ -104,7 +148,9 @@ function M.scan_full(opts)
     end
   end
 
-  local findings = M.check(ir, opts)
+  local findings = timing.measure(t, "check", function()
+    return M.check(ir, opts)
+  end)
   if luals_err then
     table.insert(findings, 1, {
       severity = "info",
@@ -265,7 +311,13 @@ end
 ---@param findings Documentation.Finding[]
 ---@param opts Documentation.Opts
 ---@return string[] written Repo-relative paths of the files written
+---@raises string When `opts.root` is missing, or a file under `opts.out_dir` cannot be written.
 function M.write_artifacts(ir, findings, opts)
+  assert_opts(opts, "documentation.write_artifacts")
+  assert(
+    type(ir) == "table" and type(ir.order) == "table",
+    "documentation.write_artifacts: ir must be a scanned Documentation.IR"
+  )
   local root = opts.root:gsub("\\", "/"):gsub("/+$", "")
   local out_dir = opts.out_dir or "docs/map"
   local written = {}
@@ -297,7 +349,9 @@ end
 ---@return Documentation.IR
 ---@return Documentation.Finding[]
 ---@return string[] written Repo-relative paths of the files written
+---@raises string When `opts.root` is missing, `opts.source` does not exist, or an artifact cannot be written.
 function M.generate(opts)
+  assert_opts(opts, "documentation.generate")
   local ir, findings = M.scan_full(opts)
   local written = M.write_artifacts(ir, findings, opts)
   return ir, findings, written
@@ -309,7 +363,9 @@ end
 ---rather than `install()` auto-registering a usercmd itself.
 ---@param opts Documentation.Opts
 ---@return Documentation.Handle
+---@raises string When `opts.root` is missing — `registry.install` asserts it too, and does so before it can key a handle on a bad root.
 function M.install(opts)
+  assert_opts(opts, "documentation.install")
   return require("documentation.editor.registry").install(opts)
 end
 
@@ -322,16 +378,16 @@ function M.uninstall(handle_or_root)
 end
 
 ---Plugin entry point: register `:DocMap`/`:DocBrowse` for `opts` (defaults
----filled in by `documentation.core.config`, which resolves the tree from the
+---filled in by `documentation.config`, which resolves the tree from the
 ---current working directory).
 ---
----A thin alias for `documentation.editor.command.setup` rather than a second wiring
----path — `require("documentation")` on its own still creates no command, so a
----plugin embedding the pipeline is never forced to also take the commands.
+---A thin alias for `documentation.bindings.usrcmds.setup` rather than a second
+---wiring path — `require("documentation")` on its own still creates no command,
+---so a plugin embedding the pipeline is never forced to also take the commands.
 ---@param opts Documentation.Opts?
 ---@return Documentation.Handle
 function M.setup(opts)
-  return require("documentation.editor.command").setup(opts)
+  return require("documentation.bindings.usrcmds").setup(opts)
 end
 
 return M

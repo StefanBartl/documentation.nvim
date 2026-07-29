@@ -17,6 +17,40 @@
 ---@field width? number Fraction of the editor the whole layout uses. Default 0.86.
 ---@field height? number Default 0.86.
 ---@field list_width? number Fraction of the layout given to the list column. Default 0.38.
+---@field keys? table<Documentation.Browse.KeyAction, string|string[]|false> Rebind or disable the browser's keys, by action. A string or list of strings replaces that action's left-hand sides; `false` disables it (the action stays in the `?` cheatsheet, marked off, so a missing key is explained rather than mysterious). Unlisted actions keep their defaults. All bindings are buffer-local to the browser, so a replacement only has to be free *inside* it. An unknown action name is reported, not ignored.
+---@field which_key? boolean Register the resolved bindings with which-key when it is installed. Default true — a no-op when which-key is absent, since registration is guarded by `pcall(require, "which-key")`. Set false to keep the browser out of which-key entirely.
+
+---A rebindable action in the browser. The `id` of an entry in the `KEYS`
+---table in `browse/init.lua`, which is the only place these are defined.
+---
+---The mode-switch keys `1`…`6` are deliberately **not** here: they are
+---generated from `MODES` and are positional by nature (`3` means "the third
+---list"), so rebinding them individually would produce a numbering that no
+---longer matches what the status line shows.
+---@alias Documentation.Browse.KeyAction
+---| "move"         # j/k — documented, deliberately left native
+---| "enter"        # descend a level, or follow the edge
+---| "up"           # up a level
+---| "back"         # back through the visit history
+---| "forward"      # forward through the visit history
+---| "dir_in"       # direction: incoming edges
+---| "dir_out"      # direction: outgoing edges
+---| "depth_inc"    # depth +1
+---| "depth_dec"    # depth -1
+---| "goto_source"  # open the source at the line
+---| "quickfix"     # current list into the quickfix list
+---| "impact"       # blast radius into the quickfix list
+---| "open_page"    # open the generated HTML page
+---| "commit_diff"  # the opened commit's diff
+---| "pin"          # pin / unpin the entry under the cursor
+---| "unpin"        # unpin, in Trail
+---| "trail_save"   # save this trail under a name
+---| "trail_load"   # load a saved trail
+---| "trail_delete" # forget a saved trail
+---| "filter"       # filter this list in place
+---| "search"       # fuzzy jump across modules and functions
+---| "help"         # the `?` cheatsheet
+---| "close"        # close the browser
 
 ---Which list a browser state is showing.
 ---@alias Documentation.Browse.Mode
@@ -52,5 +86,34 @@
 ---@field close fun()
 ---@field toggle fun(opts: Documentation.Browse.Opts)
 ---@field is_open fun(): boolean
+
+---One parsed term of an `f` filter query.
+---@class Documentation.Browse.FilterTerm
+---@field text string Lower-cased needle; matched as a plain substring.
+---@field negated boolean A row containing this is excluded.
+
+---A parsed `f` filter query.
+---@class Documentation.Browse.Filter
+---@field raw string The query as typed, for the status line.
+---@field terms Documentation.Browse.FilterTerm[] Never empty — `parse` returns nil instead.
+
+---One pinned position in a trail.
+---
+---A pin records a *view* — the mode and the axes it was taken in — not just a
+---subject, because half-restoring is what makes bookmarks feel unreliable.
+---Identity is deliberately narrower than the record: `dir`/`depth` travel on
+---the pin but are not part of its key, so the same node at two depths is one
+---bookmark rather than two near-duplicates.
+---@class Documentation.Browse.Pin
+---@field mode string The mode the pin was taken in; restored on jump.
+---@field id string? IR node id.
+---@field fn string? Declared function name, when the pin is a function.
+---@field sha string? Commit, when the pin was taken in History mode.
+---@field dir "in"|"out"|nil Edge direction in force when pinned; restored on jump.
+---@field depth integer? Deps walk depth in force when pinned; restored on jump.
+---@field label string Display text.
+---@field detail string? Secondary display text.
+---@field source string? Repo-relative source path, for `gd`/`gq`.
+---@field line integer? Declaration line, same.
 
 return {}

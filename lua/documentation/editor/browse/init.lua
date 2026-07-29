@@ -29,7 +29,11 @@
 ---
 --- The authoritative key list is the `KEYS` table below: `bind()` installs
 --- from it and `?` renders from it, so neither this header nor any document
---- is what the browser actually reads.
+--- is what the browser actually reads. Every entry is rebindable or
+--- disableable through `opts.keys`, keyed by the entry's `id` — `resolve_keys`
+--- applies those once per open, and both `bind()` and `?` then work off the
+--- resolved list, so a configured browser documents itself as accurately as
+--- an unconfigured one.
 
 require("documentation.editor.browse.@types")
 
@@ -576,6 +580,15 @@ local function load_trail(st)
     title = " load trail ",
     items = names,
     theme = st.opts.theme,
+    -- Defer to the user's own picker when they have one (telescope-ui-select,
+    -- fzf-lua, dressing), falling back to kit's chooser when they do not.
+    --
+    -- Right for *these two* pickers specifically: both are a plain list of
+    -- names with no rendering the browser's theme contributes anything to, and
+    -- a published plugin that ignores a configured picker for a bare name list
+    -- is being opinionated about someone else's editor. The browser's own
+    -- panes stay kit-themed — they are the view, not a prompt over it.
+    respect_override = true,
     on_select = function(name)
       local _, added, skipped = trail_store.load_named(st.root, name)
       render(st)
@@ -610,6 +623,7 @@ local function delete_trail(st)
     title = " delete saved trail ",
     items = names,
     theme = st.opts.theme,
+    respect_override = true,
     on_select = function(name)
       -- Deletes a *saved* trail, never the pins on screen. Those are what the
       -- reader is looking at, and a key that could clear them from behind a
@@ -912,6 +926,12 @@ local function set_depth(st, delta)
   end
 end
 
+---Forward declaration: the `help` entry in `KEYS` below runs `cheatsheet`,
+---and `cheatsheet` renders `KEYS`. One of the two has to be named before it
+---is defined, and this is the cheaper direction.
+---@type fun(st: table)
+local cheatsheet
+
 ---The keymap table, and the **only** description of what the browser's keys
 ---do. `bind()` installs from it and the `?` cheatsheet renders from it, so
 ---the two cannot disagree — a hand-maintained second list of keys is exactly
@@ -928,18 +948,27 @@ end
 ---`run == nil` means "documented, deliberately not bound" — `j`/`k` stay
 ---native so counts and `scrolloff` behave, and a cheatsheet that omitted them
 ---would read as if the browser had no movement keys at all.
+---
+---`id` is the stable name a user's `opts.keys` table keys on. It is
+---deliberately not the default left-hand side: rebinding `<CR>` should not
+---change what the entry is *called*, and `docs/BINDINGS.md` is generated
+---against these ids too. Renaming one is a breaking change to user config;
+---adding one is not.
 ---@class Documentation.Browse.KeySpec
+---@field id Documentation.Browse.KeyAction Stable action name; what `opts.keys` addresses.
 ---@field keys string[] Left-hand sides, all doing the same thing.
 ---@field desc string Cheatsheet text.
 ---@field only string|string[]|nil Mode(s) this applies in; nil = everywhere.
 ---@field run fun(st: table)|nil Handler, or nil for a native key.
+---@field disabled boolean|nil Set by `resolve_keys` when the user passed `false`. Never set in the defaults.
 
 ---@type Documentation.Browse.KeySpec[]
 local KEYS = {
-  { keys = { "j", "k" }, desc = "move; the detail pane follows" },
-  { keys = { "<CR>" }, desc = "descend a level, or follow the edge", run = enter },
-  { keys = { "-", "<BS>" }, desc = "up a level", run = up },
+  { id = "move", keys = { "j", "k" }, desc = "move; the detail pane follows" },
+  { id = "enter", keys = { "<CR>" }, desc = "descend a level, or follow the edge", run = enter },
+  { id = "up", keys = { "-", "<BS>" }, desc = "up a level", run = up },
   {
+    id = "back",
     keys = { "<C-o>" },
     desc = "back through the visit history",
     run = function(st)
@@ -947,6 +976,7 @@ local KEYS = {
     end,
   },
   {
+    id = "forward",
     keys = { "<C-i>" },
     desc = "forward through the visit history",
     run = function(st)
@@ -954,6 +984,7 @@ local KEYS = {
     end,
   },
   {
+    id = "dir_in",
     keys = { "h" },
     desc = "direction: incoming edges",
     only = { "deps", "calls" },
@@ -962,6 +993,7 @@ local KEYS = {
     end,
   },
   {
+    id = "dir_out",
     keys = { "l" },
     desc = "direction: outgoing edges",
     only = { "deps", "calls" },
@@ -970,6 +1002,7 @@ local KEYS = {
     end,
   },
   {
+    id = "depth_inc",
     keys = { "+" },
     desc = "depth +1",
     only = "deps",
@@ -978,6 +1011,7 @@ local KEYS = {
     end,
   },
   {
+    id = "depth_dec",
     keys = { "_" },
     desc = "depth -1",
     only = "deps",
@@ -985,33 +1019,86 @@ local KEYS = {
       set_depth(st, -1)
     end,
   },
-  { keys = { "gd" }, desc = "open the source at the line (closes)", run = goto_source },
-  { keys = { "gq" }, desc = "current list into the quickfix list (closes)", run = to_quickfix },
   {
+    id = "goto_source",
+    keys = { "gd" },
+    desc = "open the source at the line (closes)",
+    run = goto_source,
+  },
+  {
+    id = "quickfix",
+    keys = { "gq" },
+    desc = "current list into the quickfix list (closes)",
+    run = to_quickfix,
+  },
+  {
+    id = "impact",
     keys = { "gI" },
     desc = "blast radius into the quickfix list (closes)",
     run = impact_to_quickfix,
   },
-  { keys = { "gO" }, desc = "open the generated page here", run = open_in_browser },
-  { keys = { "gD" }, desc = "the opened commit's diff", only = "history", run = show_diff },
-  { keys = { "p" }, desc = "pin / unpin the entry under the cursor", run = pin_current },
-  { keys = { "d" }, desc = "unpin", only = "trail", run = unpin_current },
-  { keys = { "S" }, desc = "save this trail under a name", only = "trail", run = save_trail },
   {
+    id = "open_page",
+    keys = { "gO" },
+    desc = "open the generated page here",
+    run = open_in_browser,
+  },
+  {
+    id = "commit_diff",
+    keys = { "gD" },
+    desc = "the opened commit's diff",
+    only = "history",
+    run = show_diff,
+  },
+  {
+    id = "pin",
+    keys = { "p" },
+    desc = "pin / unpin the entry under the cursor",
+    run = pin_current,
+  },
+  { id = "unpin", keys = { "d" }, desc = "unpin", only = "trail", run = unpin_current },
+  {
+    id = "trail_save",
+    keys = { "S" },
+    desc = "save this trail under a name",
+    only = "trail",
+    run = save_trail,
+  },
+  {
+    id = "trail_load",
     keys = { "L" },
     desc = "load a saved trail (adds to this one)",
     only = "trail",
     run = load_trail,
   },
-  { keys = { "X" }, desc = "forget a saved trail", only = "trail", run = delete_trail },
   {
+    id = "trail_delete",
+    keys = { "X" },
+    desc = "forget a saved trail",
+    only = "trail",
+    run = delete_trail,
+  },
+  {
+    id = "filter",
     keys = { "f" },
     desc = 'filter this list in place (-negate, "phrase"; empty clears)',
     run = set_filter,
   },
-  { keys = { "/" }, desc = "fuzzy jump across modules and functions", run = search },
-  { keys = { "?" }, desc = "this list" },
+  { id = "search", keys = { "/" }, desc = "fuzzy jump across modules and functions", run = search },
   {
+    id = "help",
+    keys = { "?" },
+    desc = "this list",
+    run = function(st)
+      -- Assigned below: `cheatsheet` renders the very table this entry lives
+      -- in, so it cannot be defined before it. Forward-declared rather than
+      -- special-cased in `bind()`, which is what made `?` the one key a user
+      -- could not rebind or disable.
+      cheatsheet(st)
+    end,
+  },
+  {
+    id = "close",
     keys = { "q", "<Esc>" },
     desc = "close",
     run = function()
@@ -1019,6 +1106,19 @@ local KEYS = {
     end,
   },
 }
+
+---Apply a user's `opts.keys` over `KEYS`.
+---
+---The rule itself — validate the action names, replace or disable, never
+---mutate the defaults — lives in `documentation.bindings.keymaps`, which is
+---generic over any table of `{ id, keys }`. `KEYS` stays here because every
+---entry's `run` closes over this module's navigation state; see that module's
+---header for why the table was not moved out with the rule.
+---@param opts Documentation.Browse.Opts
+---@return Documentation.Browse.KeySpec[]
+local function resolve_keys(opts)
+  return require("documentation.bindings.keymaps").resolve(KEYS, opts and opts.keys, notify)
+end
 
 ---True when `spec` applies in `mode`.
 ---@param spec Documentation.Browse.KeySpec
@@ -1042,7 +1142,7 @@ end
 ---explicitly closed before carrying on. The browser's own layout has no
 ---focus-loss teardown, so nothing underneath it goes away with it.
 ---@param st table
-local function cheatsheet(st)
+cheatsheet = function(st)
   local lines = { "" }
   local pad = 14
 
@@ -1056,12 +1156,22 @@ local function cheatsheet(st)
   )
   lines[#lines + 1] = ""
 
-  for _, spec in ipairs(KEYS) do
-    local lhs = table.concat(spec.keys, " ")
+  -- `st.keys`, not `KEYS`: the panel has to show what is actually bound in
+  -- *this* browser, overrides included. Rendering the defaults here would
+  -- reintroduce exactly the drift the shared table was built to prevent, only
+  -- now invisible — the panel would be right for an unconfigured user and
+  -- quietly wrong for a configured one.
+  for _, spec in ipairs(st.keys) do
+    local lhs = spec.disabled and "—" or table.concat(spec.keys, " ")
     -- Marked rather than hidden: "why did `+` do nothing" is precisely the
     -- question this overlay is opened to answer, and a key that vanishes from
     -- the list looks like it was never there.
-    local suffix = applies_in(spec, st.mode) and "" or "   (not in this mode)"
+    local suffix = ""
+    if spec.disabled then
+      suffix = "   (disabled)"
+    elseif not applies_in(spec, st.mode) then
+      suffix = "   (not in this mode)"
+    end
     lines[#lines + 1] = ("  %-" .. pad .. "s%s%s"):format(lhs, spec.desc, suffix)
   end
   lines[#lines + 1] = ""
@@ -1076,7 +1186,21 @@ end
 
 ---@param st table
 local function bind(st)
-  local mo = { buffer = st.slots.list.bufnr, nowait = true }
+  local bufnr = st.slots.list.bufnr
+
+  ---A **fresh** options table per binding, never a shared one.
+  ---
+  ---`lib.nvim.map` mutates what it is handed — it writes `desc`, `noremap`,
+  ---`silent` and the normalised `buffer` back into the table before calling
+  ---`vim.keymap.set`. One `mo` reused across every call therefore carried the
+  ---previous binding's `desc` into the next one, which is invisible until a
+  ---`desc` is actually set (as it now is) and then shows up as every key in
+  ---which-key being labelled "close".
+  ---@param desc string
+  ---@return table
+  local function mo(desc)
+    return { buffer = bufnr, nowait = true, desc = desc }
+  end
 
   for i, mode in ipairs(MODES) do
     map("n", tostring(i), function()
@@ -1086,7 +1210,7 @@ local function bind(st)
         -- commit the reader had already navigated away from.
         go(st, { mode = mode, sha = CLEAR })
       end
-    end, mo)
+    end, mo(("show the %s list"):format(mode)))
   end
 
   -- j/k stay native so counts and scrolloff behave; CursorMoved drives the
@@ -1101,22 +1225,25 @@ local function bind(st)
     desc = "documentation.editor.browse: detail follows the list cursor",
   })
 
-  for _, spec in ipairs(KEYS) do
+  -- `st.keys` rather than `KEYS`: the resolved set, with the user's overrides
+  -- already applied. A `disabled` entry has an empty `keys` list, so it falls
+  -- out here without needing its own branch.
+  for _, spec in ipairs(st.keys) do
     local run = spec.run
     if run then
       for _, key in ipairs(spec.keys) do
         map("n", key, function()
           run(st)
-        end, mo)
+        end, mo(spec.desc))
       end
     end
   end
 
-  -- Bound here rather than carried on `KEYS` as a `run`, because it is the one
-  -- entry whose handler is the renderer of the table it lives in.
-  map("n", "?", function()
-    cheatsheet(st)
-  end, mo)
+  -- Opt-out, and a no-op when which-key is not installed. Last, so it can
+  -- describe exactly what was bound above rather than what was intended.
+  if st.opts.which_key ~= false then
+    require("documentation.editor.browse.whichkey").register(bufnr, st.keys, MODES)
+  end
 end
 
 -- ── Entry point ─────────────────────────────────────────────────────────────
@@ -1201,6 +1328,11 @@ function M.open(opts)
 
   state = {
     opts = opts,
+    -- Resolved once per open, not per bind or per cheatsheet render: the
+    -- override warning for an unknown action then fires exactly once, and
+    -- `bind()` and `cheatsheet()` are guaranteed to be looking at the same
+    -- list.
+    keys = resolve_keys(opts),
     root = source.norm_root(opts.root),
     ir = ir,
     handle = handle,
@@ -1250,6 +1382,26 @@ function M.toggle(opts)
   else
     M.open(opts)
   end
+end
+
+---The default key table and the mode list, for anything that needs to
+---*describe* the browser rather than run it — `bindings/docs.lua` generates
+---`docs/BINDINGS.md` from exactly this.
+---
+---Exported deliberately narrowly: a copy of the specs, not `KEYS` itself, so a
+---caller cannot mutate the defaults every later browser will be built from.
+---`run` travels with each entry because it is what distinguishes a bound key
+---from a documented-but-native one (`j`/`k`), which any honest description has
+---to state — but calling it from outside a live browser is not supported and
+---will fail on the state it expects.
+---
+---Applying a user's `opts.keys` is *not* done here: that is
+---`bindings/keymaps.resolve`, and a doc generator wants the defaults, not one
+---particular user's configuration.
+---@return Documentation.Browse.KeySpec[] specs
+---@return string[] modes
+function M.keyspecs()
+  return vim.deepcopy(KEYS, true), vim.deepcopy(MODES)
 end
 
 return M

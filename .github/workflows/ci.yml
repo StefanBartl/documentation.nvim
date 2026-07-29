@@ -49,7 +49,7 @@ jobs:
       # lib.nvim is a runtime dependency: notify, fs, ui.kit, usercmd, map,
       # debounce, autocmd. A headless `-l` run has no plugin manager, so CI
       # provides it the same way a local checkout does — see
-      # docs/TESTS/run.lua's `add_lib_nvim`.
+      # TESTS/run.lua's `add_lib_nvim`.
       - uses: actions/checkout@v4
         with:
           repository: StefanBartl/lib.nvim

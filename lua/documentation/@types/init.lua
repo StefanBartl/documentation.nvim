@@ -21,10 +21,13 @@
 ---@field luals_timeout_ms? integer Kill the `lua-language-server --doc` run after this long. Default 60000.
 ---@field command_name? string Passed to `docmap.command.setup`: register a user command under this name. Default "DocMap".
 ---@field browse_command_name? string Passed to `docmap.command.setup`: register the editor-side map browser under this name. Default "DocBrowse".
+---@field keys? table<Documentation.Browse.KeyAction, string|string[]|false> Rebind or disable `:DocBrowse`'s keys, by action name. `false` turns an action off; a string or list replaces its left-hand sides; unlisted actions keep their defaults. Every binding is buffer-local to the browser, so a replacement only has to be free inside it. See `Documentation.Browse.KeyAction` for the list.
+---@field which_key? boolean Register `:DocBrowse`'s bindings with which-key when it is installed. Default true, and a no-op without which-key — the registration is guarded by `pcall`. Set false to keep the browser out of the which-key popup.
+---@field debug? boolean Collect per-stage scan timings and report them after a `:DocMap`. Off by default. Coarse on purpose — one entry per pipeline stage, answering "which stage is slow"; anything finer is a profiler's job. Costs nothing when off: `timing.measure` is a direct call with no clock read.
 ---@field watch? boolean `install()` only: rescan on `BufWritePost` under `source/**.lua`, debounced. Default false.
 ---@field watch_ms? integer `install()` only: debounce interval for `watch`. Default 500.
 ---@field tag_files? table<string, string> Doxygen `TAGFILES` equivalent: module-prefix -> another project's `docs/map`-shaped directory (must contain a committed `module_map.json`). A `requires_external` module matching the prefix resolves against that project's own artifact instead of staying an inert box. Local paths only — read synchronously during `scan_full()`, same as `opts.root` itself, so `--check` stays deterministic and offline. See `tagfiles.lua`.
----@field tests_dir? string Directory (relative to `root`) scanned for auto-derived test coverage — see `coverage.lua`. Default "docs/TESTS". A missing directory is not an error: every function is simply left `tested = false`.
+---@field tests_dir? string Directory (relative to `root`) scanned for auto-derived test coverage — see `coverage.lua`. Default "TESTS". A missing directory is not an error: every function is simply left `tested = false`.
 ---@field badge? boolean Write `coverage.svg` (a shields.io-shaped doc-coverage badge, see `doccoverage.lua`/`render/badge.lua`) alongside the other artifacts. Off by default — most consumers of `generate()` do not want an extra committed file they never asked for. Default false.
 
 ---A repo-specific drift check.
@@ -301,6 +304,7 @@
 ---@field edges Documentation.Edge[] Type-reference edges from LuaLS enrichment. Always an array, empty when `opts.luals` did not run.
 ---@field duplicates Documentation.Duplicates.Result Functions grouped by structural shape — see `duplicates.lua`. Set by `scan_full`, so a bare `scan()` leaves it nil; serialised into the artifact because the grouping needs `fn.shape`, and a page reading the artifact has no parse tree to redo it with.
 ---@field tag_links table<string, Documentation.TagLink> `requires_external` modules resolved through `opts.tag_files`. Always a table, empty when `opts.tag_files` is unset or nothing resolved — unlike `types_detail`, resolving is local and cheap, so there is no "did this run" question worth a nil.
+---@field timing Documentation.Timing? Per-stage durations, set by `scan_full` when `opts.debug` is on. Deliberately **not** serialised into the artifact: a duration differs on every machine and `--check` byte-compares, so embedding one would make the map invalidate itself.
 
 ---A live handle returned by `docmap.install()`. Keeps a scanned IR in memory
 ---and, optionally, keeps it fresh — the object-in-source-code counterpart to
