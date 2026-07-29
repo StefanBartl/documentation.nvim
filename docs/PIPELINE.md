@@ -52,7 +52,7 @@ on GitHub).
 drill-down navigator over the same edges rather than a diagram, because a
 terminal cannot draw one better than the browser already does. What it can do
 instead is jump to the source (`gd`), fill the quickfix list (`gq`) and stay
-live. See [browse/README.md](../lua/documentation/browse/README.md).
+live. See [browse/README.md](../lua/documentation/editor/browse/README.md).
 
 `why` answers the question the Deps view can only be walked by hand to
 answer. The chain goes to the **quickfix list**, not to a message, because
@@ -81,7 +81,7 @@ technically true and completely useless.
 ## Where a diff radiates to (`history.lua`)
 
 `diff` answers what a revision changed about the *shape* of the tree.
-[`history.lua`](../lua/documentation/history.lua) answers the other question a reviewer has:
+[`history.lua`](../lua/documentation/core/history.lua) answers the other question a reviewer has:
 these concrete lines changed — **who calls the code that changed**. Pure in
 the same sense `diff.lua` is (text and IRs in, a structure out; no git, no
 filesystem), so the same retrieval trick applies — every commit carries its
@@ -172,7 +172,7 @@ origin in Chrome and Firefox; `fetch()` refuses the `file:` scheme for CORS
 requests outright, and Firefox isolates file origins additionally
 (`privacy.file_unique_origin`, FF68+). `:DocMap open` opens exactly that way.
 So "load it when the reader clicks" cannot mean "read a neighbouring file" —
-it has to mean an origin, and that means [`serve.lua`](../lua/documentation/serve.lua). This is a
+it has to mean an origin, and that means [`serve.lua`](../lua/documentation/editor/serve.lua). This is a
 deliberate break with docmap's previous "produces files, has no runtime"
 self-image, taken because the alternative is not a worse version of the
 feature but no feature.
@@ -225,9 +225,9 @@ plain text saying so.
 the fifth `:DocBrowse` mode and calls git directly, so none of the origin
 problem above applies to it — the server exists to get the browser past a
 restriction the editor never had. Both read the same
-[`history.lua`](../lua/documentation/history.lua) analysis and show the same two caveats, so their
+[`history.lua`](../lua/documentation/core/history.lua) analysis and show the same two caveats, so their
 answers agree by construction rather than by review. See
-[browse/README.md](../lua/documentation/browse/README.md).
+[browse/README.md](../lua/documentation/editor/browse/README.md).
 
 `dot` is the third renderer for the same edges, and it exists because the
 other two cannot do what Graphviz does: the HTML page lays boxes out in BFS
@@ -336,7 +336,7 @@ Off by default — a full-repo `lua-language-server --doc` run costs several
 real seconds (measured: ~4.5s over this repo's ~250 files). Merges parsed
 `@class`/`@alias` definitions onto the node that owns the file, plus two kinds
 of directed edge (`node.types_detail`, `ir.edges`) — see
-[`luals.lua`](../lua/documentation/luals.lua):
+[`luals.lua`](../lua/documentation/core/luals.lua):
 
 - **type-reference edges** (`kind="type"`) extracted from field types — "this
   class's field points at that class", what the Hierarchy tab's dashed edges
@@ -365,7 +365,7 @@ everything else in the IR is still valid.
 
 ## Using it for another plugin
 
-Nothing outside [`config/`](../lua/documentation/config/init.lua) knows lib.nvim's layout. Another
+Nothing outside [`config/`](../lua/documentation/config/init.lua) knows any one repository's layout. Another
 plugin points docmap at its own tree:
 
 ```lua
@@ -386,22 +386,22 @@ else — module prefix, directory layout, types directory name — is an option.
 
 | Stage | Module | Produces |
 |---|---|---|
-| Scan | [`scan.lua`](../lua/documentation/scan.lua) | `Documentation.IR` — hierarchy, summaries, links |
-| Scan | [`functions.lua`](../lua/documentation/functions.lua) | `node.functions` — per-function docs via `vim.treesitter`, unconditional (no LuaLS needed) |
-| Scan | [`symbols.lua`](../lua/documentation/symbols.lua) | `node.symbols` — module-scope tables, constants and bindings |
-| Graph | [`deps.lua`](../lua/documentation/deps.lua) | `kind="require"` edges + `node.requires`/`required_by` |
-| Graph | [`calls.lua`](../lua/documentation/calls.lua) | `kind="call"` edges — which function calls which |
-| LuaLS (opt-in) | [`luals.lua`](../lua/documentation/luals.lua) | class/alias detail + `kind="type"` and `kind="extends"` edges merged into the IR |
-| Check | [`check.lua`](../lua/documentation/check.lua) | `Documentation.Finding[]` — documentation drift |
-| Render | [`render/`](../lua/documentation/render/) | HTML (Tree + Hierarchy + Notes + Index + History + Analysis tabs), Markdown, Mermaid, DOT |
-| Encode | [`json.lua`](../lua/documentation/json.lua) | deterministic JSON |
-| Diff | [`diff.lua`](../lua/documentation/diff.lua) | `Documentation.Diff` — what one revision changed about the shape |
-| History | [`history.lua`](../lua/documentation/history.lua) | `Documentation.History.Impact` — which functions a diff's changed lines touch, and who calls them |
-| Live | [`registry.lua`](../lua/documentation/registry.lua) | `install()`/`uninstall()` — an in-memory `Handle` instead of files |
-| CLI | [`cli.lua`](../lua/documentation/cli.lua) | `--check`/`--full` entry point, reused verbatim by `scripts/gen_map.lua` and any consuming plugin's equivalent |
-| Tag files | [`tagfiles.lua`](../lua/documentation/tagfiles.lua) | `ir.tag_links` — `requires_external` modules resolved against another project's own committed artifact (`opts.tag_files`) |
-| Coverage | [`coverage.lua`](../lua/documentation/coverage.lua) | `fn.tested` — auto-derived, no manual `@test` tagging required |
-| Doc coverage | [`doccoverage.lua`](../lua/documentation/doccoverage.lua), [`render/badge.lua`](../lua/documentation/render/badge.lua) | documented/total function count, optional `coverage.svg` badge (`opts.badge`) |
+| Scan | [`scan.lua`](../lua/documentation/core/scan.lua) | `Documentation.IR` — hierarchy, summaries, links |
+| Scan | [`functions.lua`](../lua/documentation/core/functions.lua) | `node.functions` — per-function docs via `vim.treesitter`, unconditional (no LuaLS needed) |
+| Scan | [`symbols.lua`](../lua/documentation/core/symbols.lua) | `node.symbols` — module-scope tables, constants and bindings |
+| Graph | [`deps.lua`](../lua/documentation/core/deps.lua) | `kind="require"` edges + `node.requires`/`required_by` |
+| Graph | [`calls.lua`](../lua/documentation/core/calls.lua) | `kind="call"` edges — which function calls which |
+| LuaLS (opt-in) | [`luals.lua`](../lua/documentation/core/luals.lua) | class/alias detail + `kind="type"` and `kind="extends"` edges merged into the IR |
+| Check | [`check.lua`](../lua/documentation/core/check.lua) | `Documentation.Finding[]` — documentation drift |
+| Render | [`render/`](../lua/documentation/core/render/) | HTML (Tree + Hierarchy + Notes + Index + History + Analysis tabs), Markdown, Mermaid, DOT |
+| Encode | [`json.lua`](../lua/documentation/core/json.lua) | deterministic JSON |
+| Diff | [`diff.lua`](../lua/documentation/core/diff.lua) | `Documentation.Diff` — what one revision changed about the shape |
+| History | [`history.lua`](../lua/documentation/core/history.lua) | `Documentation.History.Impact` — which functions a diff's changed lines touch, and who calls them |
+| Live | [`registry.lua`](../lua/documentation/editor/registry.lua) | `install()`/`uninstall()` — an in-memory `Handle` instead of files |
+| CLI | [`cli.lua`](../lua/documentation/core/cli.lua) | `--check`/`--full` entry point, reused verbatim by `scripts/gen_map.lua` and any consuming plugin's equivalent |
+| Tag files | [`tagfiles.lua`](../lua/documentation/core/tagfiles.lua) | `ir.tag_links` — `requires_external` modules resolved against another project's own committed artifact (`opts.tag_files`) |
+| Coverage | [`coverage.lua`](../lua/documentation/core/coverage.lua) | `fn.tested` — auto-derived, no manual `@test` tagging required |
+| Doc coverage | [`doccoverage.lua`](../lua/documentation/core/doccoverage.lua), [`render/badge.lua`](../lua/documentation/core/render/badge.lua) | documented/total function count, optional `coverage.svg` badge (`opts.badge`) |
 
 `deps` and `calls` run inside `scan()` itself, unlike the LuaLS merge: they
 need no external tool and cost only in-memory resolution over data the walk
@@ -434,7 +434,7 @@ before the first non-comment line — and stops. That is reliable here because
 of a Lua front end.
 
 The consequence: the scanner alone knows *that* a module exists and what it
-says about itself, not what its functions are — that's [`functions.lua`](../lua/documentation/functions.lua)'s job.
+says about itself, not what its functions are — that's [`functions.lua`](../lua/documentation/core/functions.lua)'s job.
 
 ## Function-level scanning (`node.functions`)
 
@@ -447,7 +447,7 @@ exports simply never appears. Retrofitting every module with a redundant
 aggregate class (duplicating what `---@param`/`---@return` already say above
 each function) would have been a drift risk, not a shortcut.
 
-So [`functions.lua`](../lua/documentation/functions.lua) uses `vim.treesitter` instead — already a
+So [`functions.lua`](../lua/documentation/core/functions.lua) uses `vim.treesitter` instead — already a
 lib.nvim dependency (`lib.nvim.treesitter`), no new one added. A query finds
 the three function shapes this repo actually uses (`function M.foo(...)`,
 `local function foo(...)`, `M.foo = function(...)`), matched via
@@ -496,7 +496,7 @@ signature's parameter count to the number of `@param` lines; deliberately
 Two things the detail pane could not answer before, both filled during the
 same scan and the same parse:
 
-**Module-scope tables, constants and bindings** ([`symbols.lua`](../lua/documentation/symbols.lua)).
+**Module-scope tables, constants and bindings** ([`symbols.lua`](../lua/documentation/core/symbols.lua)).
 `functions.lua` answers "what can I call"; this answers the rest of "what is in
 here" — the lookup tables a module dispatches through, the constants that
 encode its thresholds, the singletons it holds at load time. Reading a module's
@@ -538,11 +538,11 @@ enrichment ran, so `luals.merge` fills and rolls it up the same way.
 
 ## Call-graph scanning (`kind="call"` edges)
 
-[`calls.lua`](../lua/documentation/calls.lua) reuses the tree [`functions.lua`](../lua/documentation/functions.lua)
+[`calls.lua`](../lua/documentation/core/calls.lua) reuses the tree [`functions.lua`](../lua/documentation/core/functions.lua)
 already parsed — extraction and resolution are split, because resolution is
 not a per-file question. `fs.read()` only means something once you know this
 file bound `fs` to `lib.nvim.fs` and that some node declares that module,
-which is why require-alias collection in [`deps.lua`](../lua/documentation/deps.lua) is a
+which is why require-alias collection in [`deps.lua`](../lua/documentation/core/deps.lua) is a
 prerequisite rather than a coincidence.
 
 Four shapes resolve **exactly**, each a syntactic fact rather than a guess:
@@ -606,7 +606,7 @@ overlay drawing solid parent/child connectors and (once `opts.luals` ran)
 dashed type-reference connectors. Center on any module or namespace via its
 detail-pane "Hierarchy ↳" link, or double-click a box to re-center on a
 smaller subtree — capped at 90 nodes per view (`MAX_HNODES` in
-[`render/html.lua`](../lua/documentation/render/html.lua)), since a box-and-connector diagram of
+[`render/html.lua`](../lua/documentation/core/render/html.lua)), since a box-and-connector diagram of
 the whole ~250-node tree at once is not something either box-and-connector
 diagrams or the people reading them handle well.
 
@@ -834,10 +834,10 @@ same one `--check` already compares its own artifacts against.
 [`docs/ANNOTATIONS.md`](ANNOTATIONS.md)) and has exactly zero real hits
 in this tree — a doc-comment that duplicates what the actual spec file
 already says is a second source of truth, and second sources of truth
-drift. [`coverage.lua`](../lua/documentation/coverage.lua) measures instead: every function's
+drift. [`coverage.lua`](../lua/documentation/core/coverage.lua) measures instead: every function's
 bare name is checked against every identifier mentioned anywhere under
 `opts.tests_dir` (default `TESTS`), the same technique
-[`calls.lua`](../lua/documentation/calls.lua)'s `identifier_counts` uses for "used as a value",
+[`calls.lua`](../lua/documentation/core/calls.lua)'s `identifier_counts` uses for "used as a value",
 pointed at the test tree instead of the source tree.
 
 Coarse in the safe direction: `M.read` and an unrelated local `read` both
@@ -858,7 +858,7 @@ just a printed, number is the planned "Analysis" tab — see the roadmap.
 
 ### Documentation coverage (`opts.badge`, R4)
 
-[`doccoverage.lua`](../lua/documentation/doccoverage.lua) turns three scattered per-function
+[`doccoverage.lua`](../lua/documentation/core/doccoverage.lua) turns three scattered per-function
 findings — `missing-summary`, `undocumented-param`, `param-name-mismatch` —
 into one number: a function counts as documented when it has a non-empty
 summary *and* its parameters are fully and correctly named, reusing exactly
@@ -876,7 +876,7 @@ local documented, total = require("documentation.core.doccoverage").summary(ir)
 ```
 
 `opts.badge = true` additionally writes `coverage.svg` — a hand-rolled,
-shields.io-shaped badge (see [`render/badge.lua`](../lua/documentation/render/badge.lua)), not one
+shields.io-shaped badge (see [`render/badge.lua`](../lua/documentation/core/render/badge.lua)), not one
 fetched from shields.io itself: a network call during `scan_full()` would
 make `--check` depend on availability and timing the same way a `dot`-binary
 call would, which is exactly why `render/dot.lua` is a text export instead.
@@ -935,7 +935,7 @@ controls; a control that set one behind its back would produce a diagram the
 Back button cannot return from. Only the axes the current view actually uses
 are serialized, so a Tree-tab link is not three pieces of noise long. See
 `serializeState`/`parseState`/`applyState`/`navigate` in
-[`render/html.lua`](../lua/documentation/render/html.lua). One non-obvious rule worth knowing if
+[`render/html.lua`](../lua/documentation/core/render/html.lua). One non-obvious rule worth knowing if
 you touch this: **live-preview updates (the Hierarchy search box while
 typing) must never call `history.replaceState`.** An earlier version did,
 and it silently broke Back — `replaceState` overwrites whatever entry is
@@ -1017,11 +1017,11 @@ A tool palette, not a diagram — a fifth tab (`atool` state axis, same
 panels the way Hierarchy's view buttons switch between graphs, applied to
 aggregate numbers instead of boxes. Five tools today:
 
-- **Test coverage** — `fn.tested` (R2, [`coverage.lua`](../lua/documentation/coverage.lua))
-- **Documentation** — `fn.documented` (R4, [`doccoverage.lua`](../lua/documentation/doccoverage.lua))
+- **Test coverage** — `fn.tested` (R2, [`coverage.lua`](../lua/documentation/core/coverage.lua))
+- **Documentation** — `fn.documented` (R4, [`doccoverage.lua`](../lua/documentation/core/doccoverage.lua))
 - **Dependencies** — `n.requires`/`n.required_by` (R6, fan-in/fan-out)
-- **Complexity** — `fn.complexity` (cyclomatic/McCabe, [`functions.lua`](../lua/documentation/functions.lua))
-- **Duplicates** — `ir.duplicates` (structural copy-paste detection, [`duplicates.lua`](../lua/documentation/duplicates.lua))
+- **Complexity** — `fn.complexity` (cyclomatic/McCabe, [`functions.lua`](../lua/documentation/core/functions.lua))
+- **Duplicates** — `ir.duplicates` (structural copy-paste detection, [`duplicates.lua`](../lua/documentation/core/duplicates.lua))
 
 The first two are per-module breakdowns over data `scan_full()` already
 stamped into the IR: a table, one row per module/namespace/file that owns
@@ -1065,7 +1065,7 @@ per-module score would bury the one function that actually needs attention
 under a healthy module's mean. Reads `fn.complexity` — cyclomatic
 complexity (McCabe): one point per `if`/`elseif`/`while`/`for`/`repeat`/
 `and`/`or`, plus a base of 1, computed by
-[`functions.lua`](../lua/documentation/functions.lua)'s `cyclomatic_complexity` over each
+[`functions.lua`](../lua/documentation/core/functions.lua)'s `cyclomatic_complexity` over each
 function's own subtree (including nested anonymous closures — a callback's
 branches are still branches the function's reader has to follow, and
 docmap never scans the closure as its own unit). Unlike `tested`/
@@ -1084,7 +1084,7 @@ because neither one requires the other.
 
 The comparison is on `fn.shape`, a hash of the treesitter node *types* over
 a function's whole subtree, never their text, computed in
-[`functions.lua`](../lua/documentation/functions.lua) during the scan for the
+[`functions.lua`](../lua/documentation/core/functions.lua) during the scan for the
 same reason `complexity` is: only there does the parse tree exist. Ignoring
 identifier and literal names is the entire point — a copy-paste gets renamed
 on the way in, so a detector that only found byte-identical bodies would find
@@ -1130,7 +1130,7 @@ moment it lands. There is no fixed point. The roadmap listed the two
 candidates side by side as if they were the same kind of work; only one of
 them was ever buildable here. It ships as **`:DocMap churn`** instead —
 live-computed into the quickfix list, nothing written, the shape `:DocMap
-impact` already had. See [`churn.lua`](../lua/documentation/churn.lua) for the
+impact` already had. See [`churn.lua`](../lua/documentation/core/churn.lua) for the
 scoring and for the one property worth knowing: `commits × complexity` is a
 scalarization, so a large enough value on one axis outranks a moderate value
 on both. Tornhill's own presentation is a scatter plot whose answer is the
@@ -1258,7 +1258,7 @@ Two decisions make `--check` possible:
 
 - **No timestamp in the IR.** A `generated_at` field would make every
   regeneration a diff even when nothing changed.
-- **Sorted-key JSON** via [`json.lua`](../lua/documentation/json.lua), not `vim.json.encode`, whose
+- **Sorted-key JSON** via [`json.lua`](../lua/documentation/core/json.lua), not `vim.json.encode`, whose
   object key order is unspecified. Without it, two runs over an unchanged tree
   produced byte-different files and `--check` reported the map as stale
   immediately after generating it.

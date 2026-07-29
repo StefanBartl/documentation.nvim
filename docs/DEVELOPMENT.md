@@ -94,8 +94,8 @@ Two specs, both driven by the tiny shared harness in
 
 | Spec | Covers |
 |---|---|
-| [`docmap_spec.lua`](TESTS/docmap_spec.lua) | `functions`, `check`, `scan`, the graph stages, `diff`/`history`, and the `install()` watch end to end. |
-| [`docmap_browse_spec.lua`](TESTS/docmap_browse_spec.lua) | `browse` — real floats, real buffers. |
+| [`docmap_spec.lua`](../TESTS/docmap_spec.lua) | `functions`, `check`, `scan`, the graph stages, `diff`/`history`, and the `install()` watch end to end. |
+| [`docmap_browse_spec.lua`](../TESTS/docmap_browse_spec.lua) | `browse` — real floats, real buffers. |
 
 The runner prints one line per spec and exits non-zero on the first failure. It
 writes to stdout directly rather than through `print`: `print` in a headless
@@ -150,7 +150,7 @@ Two rules, and breaking either one makes `--check` useless:
 
 - **No timestamp in the IR.** A `generated_at` field would make every
   regeneration a diff even when nothing changed.
-- **Sorted-key JSON** via [`json.lua`](../lua/documentation/json.lua), never
+- **Sorted-key JSON** via [`json.lua`](../lua/documentation/core/json.lua), never
   `vim.json.encode`, whose object key order is unspecified. Without this, two
   runs over an unchanged tree produced byte-different files and `--check`
   reported the map as stale immediately after generating it.

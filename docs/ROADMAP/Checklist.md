@@ -9,7 +9,7 @@ bit-trick sections of the source checklist are not reproduced — nothing in thi
 plugin implements a sort, a balanced tree or a bit trick, so there is nothing to
 check against them.
 
-Companion audits: [`Arch&Coding.md`](Arch&Coding.md) (the coding rules) and
+Companion audits: [`ARCH_AND_CODING.md`](ARCH_AND_CODING.md) (the coding rules) and
 [`Zentral-Prinzipien.md`](Zentral-Prinzipien.md) (the ten-question pass).
 
 ---
@@ -172,7 +172,7 @@ The six items this audit and its companions produced are done.
 
 
 This audit produced no new items — the four from
-[`Arch&Coding.md`](Arch&Coding.md) and two from
+[`ARCH_AND_CODING.md`](ARCH_AND_CODING.md) and two from
 [`Zentral-Prinzipien.md`](Zentral-Prinzipien.md) cover everything it found:
 
 - **A** — argument type checks on the published API surface (`generate`,

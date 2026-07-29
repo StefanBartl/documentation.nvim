@@ -248,4 +248,4 @@ applies to it — the server exists to get the *browser* past a restriction the
 editor never had. Both read the same `history.lua` analysis and show the same
 two caveats, so their answers agree by construction rather than by review.
 
-Full detail: [`lua/documentation/browse/README.md`](../lua/documentation/browse/README.md).
+Full detail: [`lua/documentation/editor/browse/README.md`](../lua/documentation/editor/browse/README.md).

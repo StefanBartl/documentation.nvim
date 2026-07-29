@@ -410,7 +410,7 @@ Apply each separately, one output file per checklist, as `FINISH_ME.md`
 specifies:
 
 - `E:/repos/Notes/MyNotes/Checklists/Lua/Arch&Coding-Regeln.md` →
-  `docs/ROADMAP/Arch&Coding.md`
+  `docs/ROADMAP/ARCH_AND_CODING.md`
 - `.../Zentrale-Prinzipien.md` → `docs/ROADMAP/Zentral-Prinzipien.md`
 - `.../Checklist.md` → `docs/ROADMAP/Checklist.md`
 
