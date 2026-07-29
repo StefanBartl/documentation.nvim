@@ -54,20 +54,7 @@
 
 local M = {}
 
----One ranked module.
----@class Documentation.Churn.Entry
----@field node string Node id.
----@field module string? Declared `@module`, when it has one.
----@field source string? Repo-relative source path — what the commit count was counted against.
----@field commits integer Commits touching this module's source in the range.
----@field complexity integer Summed cyclomatic complexity of its documented functions.
----@field score integer `commits * complexity`.
----@field hottest string? Signature of its single most complex function — where to actually start reading.
-
----@class Documentation.Churn.Result
----@field entries Documentation.Churn.Entry[] Highest score first; ties by commits, then node id.
----@field commits integer Distinct commits seen in the range.
----@field unmatched integer Files that changed but back no scanned module — deleted files, docs, CI config.
+-- `Documentation.Churn.Entry`/`.Result` are declared in `core/@types`.
 
 ---Summed complexity of a node's own functions, and the worst single one.
 ---

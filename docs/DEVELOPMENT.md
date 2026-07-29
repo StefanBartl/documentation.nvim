@@ -25,13 +25,45 @@ export LIB_NVIM_DIR=/path/to/lib.nvim
 scripts/ci.sh
 ```
 
+Or, identically and without a POSIX shell:
+
+```bash
+nvim --headless -l scripts/ci.lua
+```
+
 That is all of them, in order, stopping at the first failure. One gate at a
-time with `scripts/ci.sh stylua|luacheck|tests|map`, which is also how
-`.github/workflows/ci.yml` calls it — one stage per job, so the four keep
-their independent red/green marks and their parallelism while *what* each
-gate is stays defined in one place. A workflow spelling the commands out
-again would be a second copy of them, which is the drift this repository
-exists to detect.
+time by naming it — `scripts/ci.sh luacheck`, `nvim --headless -l
+scripts/ci.lua luacheck` — which is also how `.github/workflows/ci.yml` calls
+it, one stage per job, so the four keep their independent red/green marks and
+their parallelism.
+
+**What each gate *is* lives in [`scripts/ci.lua`](../scripts/ci.lua) and
+nowhere else.** `ci.sh` is a three-line wrapper that picks the interpreter, and
+the workflow calls the wrapper. A workflow — or a second script — spelling the
+commands out again would be a second copy of them, which is the drift this
+repository exists to detect.
+
+The Lua entry point is not a curiosity, it is the cross-platform answer. This
+plugin's own code is portable by construction (no `io.popen`, no `os.execute`,
+`vim.system`/`vim.uv`/`vim.fs` throughout), but its tooling was bash, so a
+Windows contributor's answer to "how do I run the checks" used to be "install
+Git Bash". Neovim is already a hard requirement here; using it as the script
+host costs nothing and removes that.
+
+Two scripts remain shell, deliberately:
+
+- [`scripts/hooks/pre-commit`](../scripts/hooks/pre-commit) is `sh`. Git for
+  Windows ships one and runs hooks through it, so this works everywhere git
+  does — and a hook has to be executable by *git*, not by whatever the
+  contributor happens to have.
+- [`scripts/publish_map.sh`](../scripts/publish_map.sh) is bash. It is a
+  maintainer-side publishing utility, not a gate: nobody is blocked by it, and
+  rewriting it would buy nothing.
+
+One gate cannot come through `ci.lua` in GitHub Actions: stylua's action is
+both the installer and the runner, so there is no binary on PATH to hand a
+script. Its `args` in the workflow must therefore stay identical to what the
+`stylua` gate does — the whole tree, not a list of directories.
 
 The order is not cosmetic. A formatting failure is the cheapest one to find
 and the least interesting; a stale map is the most likely to be a real finding
@@ -53,11 +85,11 @@ same rule `*.sh` already had. If you cloned before that landed, one
 ## Tests
 
 ```bash
-nvim --headless -u NONE -l docs/TESTS/run.lua
+nvim --headless -u NONE -l TESTS/run.lua
 ```
 
 Two specs, both driven by the tiny shared harness in
-[`docs/TESTS/harness.lua`](TESTS/harness.lua) (`eq`, `ok`, `tmpfile`,
+[`TESTS/harness.lua`](../TESTS/harness.lua) (`eq`, `ok`, `tmpfile`,
 `read_lines` — no framework):
 
 | Spec | Covers |
@@ -72,7 +104,7 @@ redraw that swallows the pending newline, running two results together on one
 line. `docmap_browse_spec` mounts real floats, so that is not hypothetical.
 
 Adding a spec means adding its filename to the `specs` list in
-[`docs/TESTS/run.lua`](TESTS/run.lua) — explicit, not globbed, so the order is
+[`TESTS/run.lua`](../TESTS/run.lua) — explicit, not globbed, so the order is
 stable and a half-written file in the directory does not join the run by
 accident.
 
@@ -168,8 +200,17 @@ lua/documentation/
 declares one layering rule against this repository's own map:
 
 ```lua
-layers = { { from = "documentation.core", to = "documentation.editor" } }
+layers = {
+  { from = "documentation.core", to = "documentation.editor" },
+  { from = "documentation.core", to = "documentation.bindings" },
+}
 ```
+
+(Only that direction. `editor -> bindings` was tried and is wrong: `browse`
+requires `bindings.keymaps` for the key-override rule — a utility over key
+tables, not the command surface — and the deprecated `editor/command.lua` shim
+delegates upward on purpose. A rule that flagged those would only teach people
+to ignore the check.)
 
 so `:DocMap check` — and therefore CI — fails if a core module ever requires
 an editor one. That is the whole reason the directories exist: the pipeline

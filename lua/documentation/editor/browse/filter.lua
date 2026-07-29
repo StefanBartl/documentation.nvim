@@ -35,15 +35,8 @@
 
 local M = {}
 
----One parsed term.
----@class Documentation.Browse.FilterTerm
----@field text string Lower-cased needle; matched as a plain substring.
----@field negated boolean A row containing this is excluded.
-
----A parsed query.
----@class Documentation.Browse.Filter
----@field raw string The query as typed, for the status line.
----@field terms Documentation.Browse.FilterTerm[] Never empty — `parse` returns nil instead.
+-- `Documentation.Browse.Filter`/`.FilterTerm` are declared in
+-- `browse/@types`.
 
 ---Parse a query string.
 ---

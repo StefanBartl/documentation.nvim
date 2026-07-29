@@ -50,24 +50,8 @@ local M = {}
 ---@type integer
 M.MIN_SIZE = 40
 
----One group of structurally identical functions.
----@class Documentation.Duplicates.Group
----@field shape string The fingerprint they share.
----@field size integer Node count of the shared shape.
----@field members Documentation.Duplicates.Member[] At least two, sorted by node id then function name.
-
----@class Documentation.Duplicates.Member
----@field node string Node id the function is declared in.
----@field module string? The node's declared `@module`, when it has one.
----@field name string Qualified function name, e.g. "M.read".
----@field signature string
----@field line integer
-
----@class Documentation.Duplicates.Result
----@field groups Documentation.Duplicates.Group[] Largest group first, then by shape size, then by fingerprint.
----@field functions integer How many functions sit in some group.
----@field considered integer How many functions were large enough to compare at all.
----@field min_size integer The floor that was applied, so a reader can tell "nothing found" from "nothing looked at".
+-- `Documentation.Duplicates.Group`/`.Member`/`.Result` are declared in
+-- `core/@types`.
 
 ---Group every function in `ir` by structural shape.
 ---

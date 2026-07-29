@@ -50,7 +50,7 @@ Copy [`scripts/gen_map.lua`](../scripts/gen_map.lua) verbatim, then change only
 the options table at the bottom:
 
 ```lua
-local opts = require("documentation.core.config").build(root, {
+local opts = require("documentation.config").build(root, {
   source = "lua/myplugin",
   title = "myplugin.nvim",
   out_dir = "docs/map",

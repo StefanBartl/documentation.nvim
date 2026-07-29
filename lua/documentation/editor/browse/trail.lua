@@ -55,17 +55,7 @@ local function changed(root)
   end
 end
 
----@class Documentation.Browse.Pin
----@field mode string The mode the pin was taken in; restored on jump.
----@field id string? IR node id.
----@field fn string? Declared function name, when the pin is a function.
----@field sha string? Commit, when the pin was taken in History mode.
----@field dir "in"|"out"|nil Edge direction in force when pinned; restored on jump.
----@field depth integer? Deps walk depth in force when pinned; restored on jump.
----@field label string Display text.
----@field detail string? Secondary display text.
----@field source string? Repo-relative source path, for `gd`/`gq`.
----@field line integer? Declaration line, same.
+-- `Documentation.Browse.Pin` is declared in `browse/@types`.
 
 ---Pins per normalized root.
 ---@type table<string, Documentation.Browse.Pin[]>

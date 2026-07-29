@@ -1,4 +1,20 @@
-# documentation.nvim
+```
+     _                                        _        _   _
+  __| | ___   ___ _   _ _ __ ___   ___ _ __ | |_ __ _| |_(_) ___  _ __
+ / _` |/ _ \ / __| | | | '_ ` _ \ / _ \ '_ \| __/ _` | __| |/ _ \| '_ \
+| (_| | (_) | (__| |_| | | | | | |  __/ | | | || (_| | |_| | (_) | | | |
+ \__,_|\___/ \___|\__,_|_| |_| |_|\___|_| |_|\__\__,_|\__|_|\___/|_| |_|
+                                                                  .nvim
+```
+
+[![CI](https://github.com/StefanBartl/documentation.nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/StefanBartl/documentation.nvim/actions/workflows/ci.yml)
+![Neovim 0.10+](https://img.shields.io/badge/Neovim-0.10%2B-57A143?logo=neovim&logoColor=white)
+![Lua](https://img.shields.io/badge/Lua-5.1%2FLuaJIT-2C2D72?logo=lua&logoColor=white)
+
+> Pairs with [**lib.nvim**](https://github.com/StefanBartl/lib.nvim) — the
+> utility library this grew out of and still builds on. If you are mapping a
+> tree, you are probably about to want its `fs`, `ui.kit` and `usercmd` modules
+> too; this plugin uses exactly those.
 
 Doxygen for annotated Lua trees, as a Neovim plugin. Point it at a repository
 whose files carry `---@module`, and it produces a **module map**: an
@@ -44,6 +60,9 @@ real browser Back/Forward.
 Requires Neovim 0.10+ (`vim.uv`, `vim.treesitter`) and
 [`lib.nvim`](https://github.com/StefanBartl/lib.nvim).
 
+<details open>
+<summary><b>lazy.nvim</b></summary>
+
 ```lua
 {
   "StefanBartl/documentation.nvim",
@@ -52,10 +71,82 @@ Requires Neovim 0.10+ (`vim.uv`, `vim.treesitter`) and
   opts = {},
 }
 ```
+</details>
 
-`opts = {}` is enough: with no `root`, the commands map the current working
-directory and `documentation.core.config` derives `source` from it (`lua/<name>`
-when `lua/` holds exactly one candidate directory, `lua` otherwise).
+<details>
+<summary><b>vim.pack</b> (Neovim 0.12+, built in)</summary>
+
+```lua
+vim.pack.add({
+  { src = "https://github.com/StefanBartl/lib.nvim" },
+  { src = "https://github.com/StefanBartl/documentation.nvim" },
+})
+
+-- No lazy-loading layer here, so do it by hand: create the commands on first
+-- use rather than at startup. `setup()` scans the tree, which is not something
+-- to pay for in every session that never opens a map.
+for _, name in ipairs({ "DocMap", "DocBrowse" }) do
+  vim.api.nvim_create_user_command(name, function(a)
+    vim.api.nvim_del_user_command("DocMap")
+    vim.api.nvim_del_user_command("DocBrowse")
+    require("documentation").setup({})
+    vim.cmd(("%s %s"):format(name, a.args))
+  end, { nargs = "*" })
+end
+```
+</details>
+
+<details>
+<summary><b>mini.deps</b></summary>
+
+```lua
+local add, later = MiniDeps.add, MiniDeps.later
+add({
+  source = "StefanBartl/documentation.nvim",
+  depends = { "StefanBartl/lib.nvim" },
+})
+later(function()
+  require("documentation").setup({})
+end)
+```
+</details>
+
+<details>
+<summary><b>packer.nvim</b></summary>
+
+```lua
+use({
+  "StefanBartl/documentation.nvim",
+  requires = { "StefanBartl/lib.nvim" },
+  cmd = { "DocMap", "DocBrowse" },
+  config = function()
+    require("documentation").setup({})
+  end,
+})
+```
+</details>
+
+<details>
+<summary><b>paq-nvim</b> / manual <code>rtp</code></summary>
+
+```lua
+require("paq")({
+  "StefanBartl/lib.nvim",
+  "StefanBartl/documentation.nvim",
+})
+
+-- paq does no lazy-loading and runs no config hooks:
+require("documentation").setup({})
+```
+</details>
+
+`opts = {}` (or a bare `setup({})`) is enough: with no `root`, the commands map
+the current working directory and `documentation.config` derives `source` from
+it (`lua/<name>` when `lua/` holds exactly one candidate directory, `lua`
+otherwise).
+
+Whichever manager you use, load it **lazily on the two commands**. `setup()`
+scans the tree, and a session that never opens a map should not pay for one.
 
 Nothing registers a command until `setup()` runs — `require("documentation")`
 alone never touches the user's editor, so a plugin can embed the pipeline
@@ -83,7 +174,7 @@ per-field documentation is in
     luals = false,        -- opt-in LuaLS enrichment: @class/@alias detail,
                           -- type and inheritance edges. Costs seconds.
     badge = false,        -- also write coverage.svg
-    tests_dir = "docs/TESTS",          -- auto-derived `fn.tested`
+    tests_dir = "TESTS",  -- auto-derived `fn.tested`
     dead_code = false,    -- widen `dead-function` to published functions too
     calls_heuristic = false,           -- guessed call edges, drawn dashed
     layers = {},          -- module-prefix layering rules
@@ -91,9 +182,47 @@ per-field documentation is in
     extra_checks = {},    -- your own drift checks
     command_name = "DocMap",
     browse_command_name = "DocBrowse",
+
+    which_key = true,     -- register :DocBrowse's keys with which-key when
+                          -- it is installed; a no-op when it is not
+    keys = {},            -- rebind or disable :DocBrowse's keys, by action
   },
 }
 ```
+
+### Rebinding the browser's keys
+
+`opts.keys` is keyed by *action*, not by the default left-hand side, so a
+rebinding survives a change of defaults. A string or a list replaces an
+action's keys; `false` turns it off.
+
+```lua
+keys = {
+  quickfix = "gQ",              -- one replacement key
+  filter   = { "F", "<C-f>" },  -- several
+  pin      = false,             -- off entirely
+}
+```
+
+Every binding is buffer-local to the browser window, so a replacement only has
+to be free *inside* `:DocBrowse` — not in your global keymap. A disabled action
+still appears in the `?` cheatsheet, marked `(disabled)`, because "where did
+`p` go" deserves an answer. An unknown action name is reported rather than
+ignored.
+
+The action names are the `id` fields of the `KEYS` table in
+[`lua/documentation/editor/browse/init.lua`](lua/documentation/editor/browse/init.lua),
+enumerated as `Documentation.Browse.KeyAction` in
+[`lua/documentation/editor/browse/@types/init.lua`](lua/documentation/editor/browse/@types/init.lua):
+`move`, `enter`, `up`, `back`, `forward`, `dir_in`, `dir_out`, `depth_inc`,
+`depth_dec`, `goto_source`, `quickfix`, `impact`, `open_page`, `commit_diff`,
+`pin`, `unpin`, `trail_save`, `trail_load`, `trail_delete`, `filter`, `search`,
+`help`, `close`.
+
+The mode-switch keys `1`…`6` are deliberately not rebindable: they are
+positional (`3` means "the third list") and are generated from the mode list,
+so renumbering them individually would desynchronise them from what the status
+line shows.
 
 ## Commands
 
@@ -113,6 +242,7 @@ Full reference: [docs/COMMANDS.md](docs/COMMANDS.md).
 :DocMap churn                    " churn x complexity, hottest first -> quickfix
 :DocMap churn HEAD~200..         " …over one range instead of all history
 :DocMap serve                    " local map server (enables the History tab)
+:DocMap helptags                 " regenerate this plugin's own doc/tags
 
 :DocBrowse                       " navigate the map inside the editor
 :DocBrowse live                  " …re-scanning on every write
@@ -226,7 +356,3 @@ Repository-specific checks go in `opts.extra_checks`.
 | [docs/ROADMAP/](docs/ROADMAP/) | [FEATURES.md](docs/ROADMAP/FEATURES.md) — what shipped and why it was built that way. [ROADMAP.md](docs/ROADMAP/ROADMAP.md) — what is open, and what was considered and turned down (with the condition that would reopen it). |
 | [lua/documentation/browse/README.md](lua/documentation/browse/README.md) | The editor-side browser in detail. |
 | `:help documentation.nvim` | The same, in Vim help format. |
-
-## License
-
-MIT. See [LICENSE](LICENSE).

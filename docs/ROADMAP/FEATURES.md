@@ -120,7 +120,7 @@ architecturally. Five tools shipped, each a pure `ir -> result` function
 
 - **Test coverage** (`coverage.lua`) — `fn.tested` via the same
   identifier-counting technique `calls.lua` already uses, run against
-  `docs/TESTS/*_spec.lua` instead of the source tree. Replaces the manual
+  `TESTS/*_spec.lua` instead of the source tree. Replaces the manual
   `@test` tag (0 real uses in the wild) without removing the tag itself.
   Renders only a positive "tested" badge, never an "untested" warning — the
   heuristic has a real, documented blind spot (indirectly-tested functions

@@ -77,7 +77,7 @@ authoritative one and costs a full scan.
 ==============================================================================
 3. INSTALLATION                                     *documentation-installation*
 
-With lazy.nvim: >lua
+lazy.nvim: >lua
 
     {
       "StefanBartl/documentation.nvim",
@@ -86,9 +86,56 @@ With lazy.nvim: >lua
       opts = {},
     }
 <
-`opts = {}` is enough. With no `root`, the commands map the current working
-directory, and `source` is derived from it: `lua/<name>` when `lua/` holds
-exactly one candidate directory, `lua` otherwise.
+vim.pack (Neovim 0.12+, built in) — no lazy-loading layer, so the commands are
+created by hand on first use rather than at startup: >lua
+
+    vim.pack.add({
+      { src = "https://github.com/StefanBartl/lib.nvim" },
+      { src = "https://github.com/StefanBartl/documentation.nvim" },
+    })
+
+    for _, name in ipairs({ "DocMap", "DocBrowse" }) do
+      vim.api.nvim_create_user_command(name, function(a)
+        vim.api.nvim_del_user_command("DocMap")
+        vim.api.nvim_del_user_command("DocBrowse")
+        require("documentation").setup({})
+        vim.cmd(("%s %s"):format(name, a.args))
+      end, { nargs = "*" })
+    end
+<
+mini.deps: >lua
+
+    local add, later = MiniDeps.add, MiniDeps.later
+    add({
+      source = "StefanBartl/documentation.nvim",
+      depends = { "StefanBartl/lib.nvim" },
+    })
+    later(function() require("documentation").setup({}) end)
+<
+packer.nvim: >lua
+
+    use({
+      "StefanBartl/documentation.nvim",
+      requires = { "StefanBartl/lib.nvim" },
+      cmd = { "DocMap", "DocBrowse" },
+      config = function() require("documentation").setup({}) end,
+    })
+<
+paq-nvim, or a manual 'runtimepath' — neither lazy-loads nor runs config
+hooks, so call `setup()` yourself: >lua
+
+    require("paq")({
+      "StefanBartl/lib.nvim",
+      "StefanBartl/documentation.nvim",
+    })
+    require("documentation").setup({})
+<
+`opts = {}` (or a bare `setup({})`) is enough. With no `root`, the commands map
+the current working directory, and `source` is derived from it: `lua/<name>`
+when `lua/` holds exactly one candidate directory, `lua` otherwise.
+
+Whichever manager you use, load it lazily on the two commands. `setup()` scans
+the tree, and a session that never opens a map should not pay for one.
 
 Nothing registers a command until `setup()` runs. `require("documentation")`
 on its own never touches your editor, so a plugin can embed the pipeline
@@ -113,7 +160,7 @@ All options, with their defaults: >lua
       luals = false,            -- LuaLS enrichment; costs several seconds
       luals_timeout_ms = 60000,
       badge = false,            -- also write coverage.svg
-      tests_dir = "docs/TESTS", -- scanned to derive fn.tested
+      tests_dir = "TESTS",      -- scanned to derive fn.tested
       dead_code = false,        -- widen `dead-function` to published functions
       calls_heuristic = false,  -- guessed call edges, drawn dashed
       layers = {},              -- module-prefix layering rules
@@ -125,6 +172,9 @@ All options, with their defaults: >lua
 
       command_name = "DocMap",
       browse_command_name = "DocBrowse",
+
+      which_key = true,         -- register :DocBrowse's keys with which-key
+      keys = {},                -- rebind/disable them, by action
     })
 <
 Per-field documentation lives on the LuaCATS class itself, in
@@ -152,6 +202,45 @@ Two options that need a word of warning:
 calls — this plugin's and a consuming plugin's own map — do not register the
 same name. `usercmd.create` defaults to `force = true`, so that collision is
 not an error; it silently overwrites one of them.
+
+                                                             *documentation-keys*
+`keys` rebinds or disables the |:DocBrowse| keys. It is keyed by *action*
+rather than by the default left-hand side, so a rebinding survives a change of
+defaults: >lua
+
+    keys = {
+      quickfix = "gQ",              -- one replacement key
+      filter   = { "F", "<C-f>" },  -- several
+      pin      = false,             -- off entirely
+    }
+<
+Every binding is buffer-local to the browser window, so a replacement only has
+to be free inside |:DocBrowse|, not in the global keymap. A disabled action
+still appears in the `?` cheatsheet marked `(disabled)` rather than vanishing
+from it. An unknown action name is reported, not ignored.
+
+The action names are the `id` fields of the `KEYS` table in
+`lua/documentation/editor/browse/init.lua`, enumerated as the LuaCATS alias
+`Documentation.Browse.KeyAction`:
+
+    move           enter          up             back           forward
+    dir_in         dir_out        depth_inc      depth_dec      goto_source
+    quickfix       impact         open_page      commit_diff    pin
+    unpin          trail_save     trail_load     trail_delete   filter
+    search         help           close
+
+The mode keys `1`…`6` are deliberately not rebindable: they are positional
+(`3` means "the third list") and generated from the mode list, so renumbering
+them individually would desynchronise them from the status line.
+
+                                                        *documentation-which-key*
+`which_key` (default true) registers those bindings with which-key when it is
+installed, using `wk.add` (v3) or `wk.register` (v2), whichever the installed
+version provides. The whole registration is guarded by
+`pcall(require, "which-key")`, so leaving it on costs nothing when which-key is
+absent. Set it to false to keep |:DocBrowse| out of the which-key popup
+entirely. Note that the keys carry a `desc` either way — which-key can discover
+them on its own; what the registration adds is the mode scoping in the label.
 
 ==============================================================================
 5. COMMANDS                                             *documentation-commands*
@@ -542,7 +631,6 @@ Full survey: `docs/ANNOTATIONS.md` in the repository.
 11. CREDITS                                              *documentation-credits*
 
 Author:   Stefan Bartl
-License:  MIT
 Repo:     https://github.com/StefanBartl/documentation.nvim
 
 Grew inside lib.nvim as `lib.nvim.docmap` and was extracted once it had

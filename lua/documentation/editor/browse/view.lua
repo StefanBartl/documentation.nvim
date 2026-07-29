@@ -5,7 +5,7 @@
 --- Deliberately pure — every function here takes an IR plus a state table and
 --- returns strings. No window, buffer or keymap is touched, so the mode logic
 --- is testable headlessly without mounting anything, which is what
---- `docs/TESTS/docmap_browse_spec.lua` does.
+--- `TESTS/docmap_browse_spec.lua` does.
 ---
 --- Why lists and not a graph: a terminal is a fixed cell grid, and boxes with
 --- connecting curves need free positions and continuous zoom. Reproducing the

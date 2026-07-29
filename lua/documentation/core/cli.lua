@@ -122,7 +122,7 @@ function M.run(opts, argv)
       ("%d/%d functions found by name in %s (%.0f%%)\n"):format(
         tested,
         tested_total,
-        opts.tests_dir or "docs/TESTS",
+        opts.tests_dir or "TESTS",
         100 * tested / tested_total
       )
     )

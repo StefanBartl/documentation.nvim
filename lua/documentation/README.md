@@ -24,7 +24,9 @@ from the README, not from inside `lua/`.
 | Live | [`registry.lua`](editor/registry.lua) | `install()`/`uninstall()` |
 | Serve | [`serve.lua`](editor/serve.lua) | the loopback map server |
 | CLI | [`cli.lua`](core/cli.lua) | `--check`/`--full` |
-| Commands | [`command.lua`](editor/command.lua) · [`browse/`](editor/browse/README.md) | `:DocMap` · `:DocBrowse` |
+| Commands | [`bindings/usrcmds/`](bindings/usrcmds/init.lua) · [`browse/`](editor/browse/README.md) | `:DocMap` · `:DocBrowse` |
+| Bindings | [`bindings/`](bindings/) | key-override rule · the autocommand manifest |
+| Options | [`config/`](config/init.lua) | defaults + the merge rule |
 | Health | [`health.lua`](editor/health.lua) | `:checkhealth documentation` |
 
 Two rules worth knowing before changing anything here:

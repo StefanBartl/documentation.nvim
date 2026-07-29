@@ -92,7 +92,7 @@ end
 ---@param opts Documentation.Opts
 function M.resolve(ir, opts)
   local root = opts.root:gsub("\\", "/"):gsub("/+$", "")
-  local tests_dir = root .. "/" .. (opts.tests_dir or "docs/TESTS")
+  local tests_dir = root .. "/" .. (opts.tests_dir or "TESTS")
 
   local mentioned = {}
   for _, path in ipairs(lua_files(tests_dir)) do

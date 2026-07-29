@@ -357,7 +357,7 @@ so a user's own config can highlight them.
 | `init.lua` | Layout, state, navigation, keymaps, actions |
 
 `view.lua` being pure is what lets
-[`docs/TESTS/docmap_browse_spec.lua`](../../../../../docs/TESTS/docmap_browse_spec.lua)
+[`TESTS/docmap_browse_spec.lua`](../../../../TESTS/docmap_browse_spec.lua)
 check every mode against a synthetic IR without mounting anything.
 
 ## Notes

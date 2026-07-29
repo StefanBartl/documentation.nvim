@@ -55,7 +55,7 @@ end
 ensure("lib.nvim.fs.read", "lib.nvim")
 ensure("documentation.core.cli", "documentation.nvim")
 
-local opts = require("documentation.core.config").build(root, {
+local opts = require("documentation.config").build(root, {
   source = "lua/documentation",
   title = "documentation.nvim",
   out_dir = "docs/map",
@@ -77,8 +77,59 @@ local opts = require("documentation.core.config").build(root, {
       to = "documentation.editor",
       why = "the pipeline has to stay runnable without an editor — see docs/PORTABILITY.md",
     },
+    -- Added with the bindings layer, so the split is enforced rather than
+    -- being a directory rename nothing checks.
+    --
+    -- Only this direction. An `editor -> bindings` rule was tried and is
+    -- wrong: `browse` requires `bindings.keymaps` for the override rule,
+    -- which is a *utility* over key tables rather than part of the command
+    -- surface, and the deprecated `editor/command.lua` shim delegates upward
+    -- to `bindings.usrcmds` on purpose. Both are intended, so a rule that
+    -- flagged them would only teach people to ignore the check.
+    {
+      from = "documentation.core",
+      to = "documentation.bindings",
+      why = "the pipeline knows nothing about commands or keys",
+    },
   },
 })
 
 local code = require("documentation.core.cli").run(opts, _G.arg or {})
+
+-- `docs/BINDINGS.md`, generated from the same tables that drive the plugin.
+--
+-- Written here rather than by `cli.run` because it is *this repository's* own
+-- documentation, not an artifact of the pipeline: another plugin pointing
+-- docmap at its own tree wants a module map, not a page describing
+-- `:DocBrowse`'s keys. Same reason `layers` above lives here and not in a
+-- default.
+--
+-- Skipped under `--check`, which must write nothing — the hook and CI both run
+-- it that way, and a "verify" that rewrites a file is not a verify. A stale
+-- BINDINGS.md is caught by the spec instead, which asserts every bound key
+-- appears in the rendered output.
+local checking = false
+for _, a in ipairs(_G.arg or {}) do
+  if a == "--check" then
+    checking = true
+  end
+end
+
+if not checking then
+  local ok_bindings, rendered = pcall(function()
+    return require("documentation.bindings.docs").render()
+  end)
+  if ok_bindings then
+    local path = opts.root .. "/docs/BINDINGS.md"
+    local fd = io.open(path, "wb")
+    if fd then
+      fd:write(rendered)
+      fd:close()
+      io.stdout:write("wrote docs/BINDINGS.md\n")
+    end
+  else
+    io.stderr:write("could not render docs/BINDINGS.md: " .. tostring(rendered) .. "\n")
+  end
+end
+
 vim.cmd("cq " .. code)

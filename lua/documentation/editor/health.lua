@@ -176,6 +176,37 @@ function M.check()
     })
   end
 
+  -- What this plugin puts in the user's editor beyond the commands.
+  --
+  -- "Does this plugin install anything global?" is a fair question to be able
+  -- to answer without grepping, and for an autocommand the honest answer is
+  -- not derivable at runtime: `nvim_get_autocmds` shows what happens to be
+  -- installed *now*, which for four autocmds created lazily by four different
+  -- lifecycles is almost never the full set. So this reads the manifest in
+  -- `bindings/autocmds.lua`, which states the whole surface including the
+  -- parts not currently active.
+  local ok_manifest, manifest = pcall(require, "documentation.bindings.autocmds")
+  if ok_manifest then
+    local buffer_local, global = 0, 0
+    for _, a in ipairs(manifest.list) do
+      if a.scope == "buffer" then
+        buffer_local = buffer_local + 1
+      else
+        global = global + 1
+      end
+    end
+    h_info(
+      ("autocommands: %d global, %d buffer-local — all created lazily, none at require time"):format(
+        global,
+        buffer_local
+      ),
+      vim.tbl_map(function(a)
+        return ("%s (%s) — %s"):format(table.concat(a.events, ","), a.owner, a.lifetime)
+      end, manifest.list)
+    )
+    h_info("keymaps: none global — every binding is buffer-local to a :DocBrowse scratch buffer")
+  end
+
   -- Configuration ----------------------------------------------------------
   --
   -- The section this file exists for. Every number below is what a `:DocMap`
@@ -183,7 +214,7 @@ function M.check()
   h_start("documentation.nvim: resolved configuration")
 
   local ok_cfg, cfg = pcall(function()
-    return require("documentation.core.config").build(vim.fn.getcwd())
+    return require("documentation.config").build(vim.fn.getcwd())
   end)
   if not ok_cfg then
     h_error("documentation.core.config failed to load: " .. tostring(cfg))
@@ -207,6 +238,87 @@ function M.check()
     else
       h_ok(("%s contains %d .lua file%s"):format(cfg.source, n, n == 1 and "" or "s"))
     end
+  end
+
+  -- The one configuration mistake that produces a *plausible wrong answer*
+  -- rather than an error.
+  --
+  -- `coverage.resolve` treats a missing `tests_dir` as "nothing is tested" by
+  -- design — every function is simply left `tested = false`, which is the
+  -- honest result for a tree with no tests. But it is indistinguishable from
+  -- a tree whose tests are somewhere else: the Analysis tab then reports 0%
+  -- test coverage for the whole map, and that reads as a badly tested
+  -- repository rather than as a wrong path. Nothing else on the page says
+  -- otherwise, so this is where it gets said.
+  h_info(
+    ("tests_dir %s   (auto-derived fn.tested; override with opts.tests_dir)"):format(
+      cfg.tests_dir or "TESTS"
+    )
+  )
+
+  local tests_dir = cfg.root .. "/" .. (cfg.tests_dir or "TESTS")
+  if vim.fn.isdirectory(tests_dir) == 0 then
+    h_warn(("%s does not exist"):format(cfg.tests_dir or "TESTS"), {
+      "Not an error: a tree with no tests is a valid tree.",
+      "But every function will be left `tested = false`, so the Analysis tab's",
+      "test-coverage panel will report 0% for the whole map — which looks like",
+      "an untested repository rather than a misconfigured path.",
+      "If this tree does have tests, set opts.tests_dir to where they are.",
+    })
+  else
+    -- Every `.lua` file, not just `*_spec.lua`: `coverage.lua`'s `lua_files`
+    -- filters on the extension alone and nothing else, so a helper or a
+    -- fixture under `tests_dir` contributes mentioned names exactly like a
+    -- spec does. Counting only spec-shaped names here would report a smaller
+    -- number than the one the coverage figure is actually derived from.
+    local n = count_lua(tests_dir)
+    if n == 0 then
+      h_warn(("%s exists but holds no .lua files"):format(cfg.tests_dir or "TESTS"), {
+        "Same consequence as a missing directory: fn.tested stays false everywhere,",
+        "and the Analysis tab reports 0%% test coverage for the whole map.",
+      })
+    else
+      h_ok(
+        ("%s holds %d .lua file%s scanned for function mentions"):format(
+          cfg.tests_dir or "TESTS",
+          n,
+          n == 1 and "" or "s"
+        )
+      )
+    end
+  end
+
+  -- How the *headless runner* finds lib.nvim, which is a different question
+  -- from the one answered above.
+  --
+  -- The dependency section asks "does lib.nvim load right now", which a
+  -- plugin-manager install satisfies. `TESTS/run.lua` and `scripts/ci.sh` do
+  -- not run inside that editor — they are `nvim --headless -u NONE`, with no
+  -- plugin manager and an empty rtp — so they resolve lib.nvim through
+  -- LIB_NVIM_DIR, `.deps/lib.nvim`, or a sibling checkout. A contributor can
+  -- pass everything above and still have `scripts/ci.sh tests` fail on its
+  -- first line.
+  local lib_candidates = {
+    { label = "$LIB_NVIM_DIR", path = vim.env.LIB_NVIM_DIR },
+    { label = ".deps/lib.nvim", path = cfg.root .. "/.deps/lib.nvim" },
+    { label = "../lib.nvim", path = vim.fs.dirname(cfg.root) .. "/lib.nvim" },
+  }
+  local found_lib
+  for _, c in ipairs(lib_candidates) do
+    if c.path and vim.fn.isdirectory(c.path) == 1 then
+      found_lib = c
+      break
+    end
+  end
+  if found_lib then
+    h_ok(("headless runs resolve lib.nvim via %s"):format(found_lib.label))
+  else
+    h_info("headless runs would not find lib.nvim", {
+      "Only affects TESTS/run.lua and scripts/ci.sh, not the plugin itself —",
+      "those run with -u NONE and have no plugin manager to supply it.",
+      "Fix with any one of: LIB_NVIM_DIR=<path>, a clone at .deps/lib.nvim,",
+      "or a checkout beside this repository.",
+    })
   end
 
   -- Artifacts --------------------------------------------------------------
