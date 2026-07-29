@@ -3,6 +3,52 @@
 return function(H)
   local eq, ok = H.eq, H.ok
 
+  -- Scoped, because this file sits at Lua's 200-local-per-function
+  -- ceiling: a `local` at the spec's top level holds its slot for the
+  -- whole run, and adding this block was what first hit the limit.
+  do
+    -- ------------------------------------------------------------- docmap.json
+    --
+    -- The property the whole `--check` design rests on, and until now the only
+    -- one with no direct test. `--check` regenerates in memory and compares BYTE
+    -- FOR BYTE, so an encoder whose object-key order follows Lua's table
+    -- iteration reports the map as stale immediately after generating it. That
+    -- is what happened, and it is why this module exists instead of
+    -- `vim.json.encode` — but nothing was asserting it since.
+    local json = require("documentation.core.json")
+
+    eq(
+      json.encode({ b = 1, a = 2, c = 3 }),
+      '{"a":2,"b":1,"c":3}',
+      "docmap.json: object keys are sorted, whatever order they were built in"
+    )
+    eq(json.encode({ z = { y = 1, x = 2 } }), '{"z":{"x":2,"y":1}}', "docmap.json: nested too")
+
+    -- Arrays are a sequence, not a set: sorting them would reorder `ir.order`
+    -- and every `children` list, which are meaningful orders.
+    eq(json.encode({ "c", "a", "b" }), '["c","a","b"]', "docmap.json: arrays keep their order")
+    -- An empty Lua table is ambiguous, and the encoder resolves it to `[]` on
+    -- purpose: every empty container the IR actually produces is a list
+    -- (`children`, `types`, `functions`, `symbols`). The one record that could
+    -- collide with this rule, `stats`, always carries counts and so is never
+    -- empty. Asserted because the choice is invisible from the output and a
+    -- future "fix" towards `{}` would silently retype four fields.
+    eq(json.encode({}), "[]", "docmap.json: an empty table encodes as an empty list")
+
+    -- The contract stated directly: same input, same bytes.
+    local shaped = { name = "x", list = { 3, 1, 2 }, nested = { q = true, p = false } }
+    eq(json.encode(shaped), json.encode(shaped), "docmap.json: encoding is stable across calls")
+
+    -- Scalars still have to survive a real decoder — that half is delegated
+    -- rather than reimplemented, and delegation is exactly what stops being
+    -- obvious once it is someone else's library.
+    local tricky = { s = 'a "quoted" \\ back', nl = "one\ntwo", tab = "a\tb" }
+    local round = vim.json.decode(json.encode(tricky))
+    eq(round.s, tricky.s, "docmap.json: quotes and backslashes round-trip")
+    eq(round.nl, tricky.nl, "docmap.json: newlines round-trip")
+    eq(round.tab, tricky.tab, "docmap.json: tabs round-trip")
+  end
+
   -- --------------------------------------------------------- docmap.functions
   local functions = require("documentation.core.functions")
 
