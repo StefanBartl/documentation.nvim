@@ -224,6 +224,43 @@ Deliberately one-directional: the editor half reaching into the core is the
 point of the core existing. `init.lua` sits outside the rule and reaches both,
 which is what a facade is for.
 
+### The same rule applies to `lib.nvim`, and no check enforces it
+
+`lib.nvim` splits the way this plugin does: `lib.lua.*` is pure Lua,
+`lib.nvim.*` needs a running Neovim. So **a `lib.nvim.*` require inside
+`core/` costs exactly what a `documentation.editor` require would** — it is
+the same boundary, and `layer-violation` cannot see it, because the rule
+matches module prefixes inside the scanned tree and `lib.nvim` is outside it.
+
+Six such requires exist today, all of them earning their keep by wrapping a
+real Neovim API rather than a language feature: `fs.read` (cli, tagfiles),
+`fs.mkdirp` (init, luals), `fs.collect_recursive` (coverage) and
+`cross.uv.spawn_capture` (luals). Every one of them would need replacing in a
+standalone build anyway, and each already appears in
+[PORTABILITY.md](PORTABILITY.md)'s count.
+
+What that rules out is the tempting direction: replacing small pure-Lua
+helpers in `core/` with `lib.nvim.*` calls. That trades five lines of Lua for
+a dependency edge on the Neovim half, and makes the port measurably more
+expensive to buy tidiness. `lib.lua.*` is fair game — it comes along.
+
+Two concrete near-misses found while auditing this, both worth stating so
+they are not re-proposed:
+
+- **`lib.nvim.fs.write.to_file` for the artifact writer.** It appends a
+  trailing newline when the content lacks one. `index.html` legitimately ends
+  in `>`, and `--check` byte-compares the file against the in-memory string,
+  so the swap would report the map as stale immediately after generating it —
+  permanently.
+- **`lib.nvim.normalize.utils.normalize_path` for the 14 inline
+  `gsub("\\", "/")` sites.** It expands environment variables and runs
+  `vim.fs.normalize`, which resolves `..` and collapses separators. Node ids
+  are repo-relative paths used verbatim as artifact keys; putting them
+  through it would change the keys. `lib.nvim.cross.fs.separators.unify_slashes`
+  *is* semantically identical — it is a bare `gsub` — but it is a five-segment
+  require into the Neovim half for a one-line pure transform, which is the
+  trade this section exists to refuse.
+
 `core/diff.lua`, `core/history.lua`, `editor/browse/trail.lua` and
 `editor/browse/filter.lua` are
 pure — data in, a structure out; no git, no filesystem, and in the last two
