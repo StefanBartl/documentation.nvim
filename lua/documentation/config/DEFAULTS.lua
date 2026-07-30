@@ -29,6 +29,7 @@ local DEFAULTS = {
   tests_dir = "TESTS",
   command_name = "DocMap",
   browse_command_name = "DocBrowse",
+  progress_style = "auto",
 }
 
 return DEFAULTS

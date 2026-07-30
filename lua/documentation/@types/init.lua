@@ -19,6 +19,7 @@
 ---@field layers? Documentation.LayerRule[] Module-prefix layering rules for the `layer-violation` check. Empty/absent disables the check.
 ---@field luals? boolean Merge `lua-language-server --doc` output into the IR (class/alias/field detail, type-reference edges). Off by default — a full-tree run costs real seconds. Default false.
 ---@field luals_timeout_ms? integer Kill the `lua-language-server --doc` run after this long. Default 60000.
+---@field progress_style? "auto"|"notify"|"statusline"|"fidget"|"float"|"kit" Indicator while a long `:DocMap` runs (`full`'s LuaLS pass, `churn`'s history walk). Read by the bindings layer only — `core` stays UI-free. Needs lib.nvim, no-op without it. Default "auto".
 ---@field command_name? string Passed to `docmap.command.setup`: register a user command under this name. Default "DocMap".
 ---@field browse_command_name? string Passed to `docmap.command.setup`: register the editor-side map browser under this name. Default "DocBrowse".
 ---@field keys? table<Documentation.Browse.KeyAction, string|string[]|false> Rebind or disable `:DocBrowse`'s keys, by action name. `false` turns an action off; a string or list replaces its left-hand sides; unlisted actions keep their defaults. Every binding is buffer-local to the browser, so a replacement only has to be free inside it. See `Documentation.Browse.KeyAction` for the list.

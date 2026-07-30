@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**4 modules** · 4 namespaces · 49 helper files
+**4 modules** · 4 namespaces · 50 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -42,6 +42,7 @@ flowchart LR
   nlua_documentation_bindings_autocmds_lua["documentation.bindings.autocmds"]
   nlua_documentation_bindings_docs_lua["documentation.bindings.docs"]
   nlua_documentation_bindings_keymaps_lua["documentation.bindings.keymaps"]
+  nlua_documentation_bindings_progress_lua["documentation.bindings.progress"]
   nlua_documentation_bindings_usrcmds["documentation.bindings.usrcmds"]
   nlua_documentation_core_calls_lua["documentation.core.calls"]
   nlua_documentation_core_check_lua["documentation.core.check"]
@@ -67,6 +68,7 @@ flowchart LR
   nlua_documentation_editor_serve_lua["documentation.editor.serve"]
   nlua_documentation_bindings_docs_lua --> nlua_documentation_bindings_autocmds_lua
   nlua_documentation_bindings_docs_lua --> nlua_documentation_editor_browse
+  nlua_documentation_bindings_usrcmds --> nlua_documentation_bindings_progress_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_check_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_churn_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_deps_lua

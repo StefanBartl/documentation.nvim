@@ -26,8 +26,38 @@ function M.run(ctx, arg)
   end
   vim.list_extend(cmd, { "--", ".", (":(exclude)%s"):format(out_dir) })
 
-  local proc = vim.system(cmd, { cwd = ctx.cfg.root, text = true }):wait()
+  -- `git log` over a repository's whole history is the slow part of this
+  -- command, so it gets an indicator. It has to be `vim.system` + `vim.wait`
+  -- rather than the `:wait()` this used before: `:wait()` does not drain
+  -- scheduled callbacks, and a progress handle needs them to become visible at
+  -- all — measured 0 visible samples under `:wait()` against 62 under
+  -- `vim.wait`. See bindings/progress.lua. Same blocking behaviour either way,
+  -- so nothing downstream changes.
+  local progress = require("documentation.bindings.progress").create(
+    ctx,
+    range == "" and "reading history" or ("reading history (%s)"):format(range)
+  )
+
+  local proc
+  vim.system(cmd, { cwd = ctx.cfg.root, text = true }, function(res)
+    proc = res
+  end)
+  local settled = vim.wait(120000, function()
+    return proc ~= nil
+  end, 20)
+
+  if not settled or not proc then
+    if progress then
+      progress:finish("git log timed out")
+    end
+    ctx.notify.warn("git log did not finish within 120s")
+    return
+  end
+
   if proc.code ~= 0 then
+    if progress then
+      progress:finish("git log failed")
+    end
     ctx.notify.warn("git log failed: " .. vim.trim(proc.stderr or ""))
     return
   end
@@ -49,6 +79,13 @@ function M.run(ctx, arg)
         counts[path] = (counts[path] or 0) + 1
       end
     end
+  end
+
+  -- Closed here rather than at each `return` below: the tally above is pure
+  -- string work over an in-memory buffer, and `churn.rank` is too, so the wait
+  -- the indicator exists for is already over by this point.
+  if progress then
+    progress:finish(("%d commits examined"):format(seen_commits))
   end
 
   if seen_commits == 0 then
