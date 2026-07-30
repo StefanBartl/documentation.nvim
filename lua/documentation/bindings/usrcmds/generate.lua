@@ -37,9 +37,34 @@ function M.run(ctx, opts)
   local docmap = require("documentation")
   local luals = opts and opts.luals or false
 
-  local ir, findings = ctx.handle.rescan(luals and { luals = true } or nil)
+  -- Indeterminate rather than counted: `rescan` hands back a finished IR, so
+  -- there is no per-module tick to report without threading a callback through
+  -- the whole pipeline — and that pipeline must not know about the UI. What the
+  -- user actually needs here is "still working", which is the `full` variant's
+  -- problem: `lua-language-server --doc` over a whole tree is tens of seconds,
+  -- and it only becomes visible at all because `core/luals.lua` waits with
+  -- `vim.wait` (see bindings/progress.lua).
+  local progress = require("documentation.bindings.progress").create(
+    ctx,
+    luals and "scanning + lua-language-server" or "scanning"
+  )
+
+  local ok_rescan, ir, findings = pcall(ctx.handle.rescan, luals and { luals = true } or nil)
+  if not ok_rescan then
+    -- Close the indicator before re-raising, or a failed scan leaves it stuck
+    -- in the statusline for the rest of the session.
+    if progress then
+      progress:finish("scan failed")
+    end
+    error(ir, 0)
+  end
+
   local written = docmap.write_artifacts(ir, findings, ctx.cfg)
   local tally = docmap.tally(findings)
+
+  if progress then
+    progress:finish(("wrote %d artifacts"):format(#written))
+  end
 
   report_timing(ctx, ir)
 
