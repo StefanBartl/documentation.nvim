@@ -175,6 +175,8 @@ All options, with their defaults: >lua
 
       which_key = true,         -- register :DocBrowse's keys with which-key
       keys = {},                -- rebind/disable them, by action
+
+      progress_style = "auto",  -- indicator while a long :DocMap runs
     })
 <
 Per-field documentation lives on the LuaCATS class itself, in
@@ -189,6 +191,29 @@ Two options that need a word of warning:
                 Inheritance views say so explicitly rather than rendering
                 blank. If the tool is missing this degrades to an info-severity
                 `luals-unavailable` finding, not a failed scan.
+
+`progress_style`
+                Indicator while a long |:DocMap| runs — `full`'s
+                `lua-language-server --doc` pass (tens of seconds on a
+                whole tree) and `churn`'s walk over the repository's
+                history. One of "auto" (default), "notify", "statusline",
+                "fidget", "float", "kit".
+
+                Provided by lib.nvim's `lib.nvim.progress`, and an
+                optional dependency: without lib.nvim the option is
+                silently a no-op.
+
+                Read by the bindings layer only. `core/` must not touch
+                the UI — that rule is what keeps the pipeline runnable
+                with no editor attached — so the long operations stay
+                UI-free internally and `:DocMap` wraps them from the
+                outside. See `lua/documentation/bindings/progress.lua`,
+                which also records why a call site has to wait via
+                `vim.wait` specifically for the indicator to be visible
+                at all.
+
+                Delay-guarded: it only appears after ~150ms, so `churn`
+                on a small repository never flashes any UI.
 
 `calls_heuristic`
                 Adds one guessed shape back to the call graph: an unresolved
