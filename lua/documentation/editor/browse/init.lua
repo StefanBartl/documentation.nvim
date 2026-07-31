@@ -966,21 +966,30 @@ local cheatsheet
 local KEYS = {
   { id = "move", keys = { "j", "k" }, desc = "move; the detail pane follows" },
   { id = "enter", keys = { "<CR>" }, desc = "descend a level, or follow the edge", run = enter },
-  { id = "up", keys = { "-", "<BS>" }, desc = "up a level", run = up },
+  {
+    id = "up",
+    keys = { "-", "<BS>" },
+    desc = "up a level (×count)",
+    run = function(st)
+      for _ = 1, vim.v.count1 do
+        up(st)
+      end
+    end,
+  },
   {
     id = "back",
     keys = { "<C-o>" },
-    desc = "back through the visit history",
+    desc = "back through the visit history (×count)",
     run = function(st)
-      history_step(st, -1)
+      history_step(st, -vim.v.count1)
     end,
   },
   {
     id = "forward",
     keys = { "<C-i>" },
-    desc = "forward through the visit history",
+    desc = "forward through the visit history (×count)",
     run = function(st)
-      history_step(st, 1)
+      history_step(st, vim.v.count1)
     end,
   },
   {
@@ -1004,19 +1013,19 @@ local KEYS = {
   {
     id = "depth_inc",
     keys = { "+" },
-    desc = "depth +1",
+    desc = "depth +1 (×count)",
     only = "deps",
     run = function(st)
-      set_depth(st, 1)
+      set_depth(st, vim.v.count1)
     end,
   },
   {
     id = "depth_dec",
     keys = { "_" },
-    desc = "depth -1",
+    desc = "depth -1 (×count)",
     only = "deps",
     run = function(st)
-      set_depth(st, -1)
+      set_depth(st, -vim.v.count1)
     end,
   },
   {
