@@ -224,6 +224,101 @@ local function parse_return(rest)
   return { type = ty, name = name, desc = desc or "" }
 end
 
+---Split `s` on top-level commas, respecting `{}/()/<>` nesting the same way
+---`split_type` respects it for a single space — reused below for both an
+---overload's parameter list and its return-type list, which share the
+---identical "comma-separated, nesting-aware" shape.
+---@param s string
+---@return string[] chunks Trimmed; empty input yields an empty array, not `{""}`.
+local function split_commas(s)
+  local chunks = {}
+  local depth, start = 0, 1
+  for i = 1, #s do
+    local c = s:sub(i, i)
+    if c == "{" or c == "(" or c == "<" then
+      depth = depth + 1
+    elseif c == "}" or c == ")" or c == ">" then
+      depth = depth - 1
+    elseif c == "," and depth <= 0 then
+      chunks[#chunks + 1] = vim.trim(s:sub(start, i - 1))
+      start = i + 1
+    end
+  end
+  local last = vim.trim(s:sub(start))
+  if last ~= "" then
+    chunks[#chunks + 1] = last
+  end
+  return chunks
+end
+
+---Parse one `---@overload rest` line's `rest` — a LuaCATS function-type
+---literal, `fun(a: T, b: U): R1, R2` — into the same param/return shape the
+---primary signature uses, so an overload renders through the exact same
+---list markup as the function it belongs to instead of a second visual
+---language for one tag.
+---
+---Falls back to `params = {}, returns = {}` (raw text preserved) rather than
+---erroring when `rest` does not start with `fun(` or its parens do not
+---balance: an `@overload` value is free-form text someone typed, and a shape
+---this does not recognize should degrade to "shown as written" rather than
+---aborting the whole doc-block parse over one line.
+---@param rest string Text after `---@overload `, e.g. `fun(x: string): boolean`.
+---@return Documentation.OverloadInfo
+local function parse_overload(rest)
+  local body = rest:match("^fun%s*%((.*)$")
+  if not body then
+    return { raw = rest, params = {}, returns = {} }
+  end
+
+  -- The opening `(` was already consumed by the match above, so `depth`
+  -- starts at 1 — one level inside `fun(` — and the scan below looks for
+  -- where it returns to 0, which is that `(`'s matching close. Nesting is
+  -- tracked so a parameter type like `table<string, string>` or a nested
+  -- `fun(cb: fun(x: integer))` does not end the scan early.
+  local depth, close = 1, nil
+  for i = 1, #body do
+    local c = body:sub(i, i)
+    if c == "(" or c == "{" or c == "<" then
+      depth = depth + 1
+    elseif c == ")" or c == "}" or c == ">" then
+      depth = depth - 1
+      if depth == 0 then
+        close = i
+        break
+      end
+    end
+  end
+  if not close then
+    return { raw = rest, params = {}, returns = {} }
+  end
+
+  local params = {}
+  for _, chunk in ipairs(split_commas(body:sub(1, close - 1))) do
+    -- `name: type` is the documented shape; a bare `type` with no name is
+    -- also legal LuaCATS inside a `fun()` parameter list (an anonymous
+    -- positional parameter), so a chunk with no top-level `:` is not a
+    -- parse failure — the whole chunk is the type instead.
+    local name, ty = chunk:match("^%s*([%w_%.%?]+)%s*:%s*(.-)%s*$")
+    if not name then
+      name, ty = "_", chunk
+    end
+    local optional = false
+    if name:sub(-1) == "?" then
+      optional = true
+      name = name:sub(1, -2)
+    end
+    params[#params + 1] = { name = name, type = ty, optional = optional, desc = "" }
+  end
+
+  local returns = {}
+  local return_text = vim.trim((body:sub(close + 1):gsub("^%s*:%s*", "")))
+  for _, chunk in ipairs(split_commas(return_text)) do
+    returns[#returns + 1] = { type = chunk, name = nil, desc = "" }
+  end
+
+  return { raw = rest, params = params, returns = returns }
+end
+
 ---Strip a comment node's `--`/`---` prefix and one leading space.
 ---@param line string
 ---@return string
@@ -274,7 +369,7 @@ local function parse_doc_block(raw_lines)
           see[#see + 1] = vim.trim(target)
         end
       elseif tag == "overload" then
-        overload[#overload + 1] = rest
+        overload[#overload + 1] = parse_overload(rest)
       elseif tag == "todo" then
         todo[#todo + 1] = rest
       elseif tag == "bug" then

@@ -146,6 +146,16 @@ main{grid-template-columns:minmax(300px,1.1fr) minmax(0,1.4fr);gap:0;align-items
   border-radius:6px;padding:8px 10px;margin-top:6px;overflow-x:auto}
 .fn-see a{color:var(--accent);text-decoration:none}
 .fn-see a:hover{text-decoration:underline}
+/* @overload — one block per alternative call shape, indented under the
+   primary signature so it reads as "also, this" rather than a second
+   function. Left border rather than a background: a filled block here would
+   compete with the deprecation banner for the reader's eye, and this is a
+   much quieter fact. */
+.fn-overloads{margin:6px 0 0 0;padding-left:10px;border-left:2px solid var(--line)}
+.fn-ov-label{font-size:10.5px;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.04em;margin-bottom:2px}
+.fn-ov-sig{font-family:var(--mono);font-size:12px;color:var(--ink)}
+.fn-ov-raw{font-family:var(--mono);font-size:11.5px;color:var(--muted);font-style:italic}
 code{font-family:var(--mono);font-size:.92em;background:var(--accent-soft);
   padding:1px 4px;border-radius:4px}
 #findings{padding:0 24px 50px}
@@ -911,6 +921,14 @@ local JS = [[
         if(fn.nodiscard) badges.push('<span class="bd">nodiscard</span>');
         if(fn.internal) badges.push('<span class="bd sk-binding">internal</span>');
         if(fn.since) badges.push('<span class="bd">since '+esc(fn.since)+'</span>');
+        // Visible from the list, not only once the function is opened — the
+        // whole point of parsing @overload structurally instead of leaving
+        // it as opaque text is to answer "does this have call variants" at a
+        // glance, the same way "deprecated"/"async" already do.
+        if(fn.overload && fn.overload.length){
+          badges.push('<span class="bd">+'+fn.overload.length+' signature'
+            +(fn.overload.length===1?'':'s')+'</span>');
+        }
         // R2 — auto-derived, coarse and safe in the "tested" direction (see
         // coverage.lua). No badge for the false case: this is a "not found
         // by name in a spec" signal, not "definitely untested", and a
@@ -936,6 +954,40 @@ local JS = [[
               +(r.desc?' — '+esc(r.desc):'')+'</li>');
           });
           h.push('</ul>');
+        }
+        if(fn.overload && fn.overload.length){
+          h.push('<div class="fn-overloads"><div class="fn-ov-label">Also callable as</div>');
+          fn.overload.forEach(function(ov){
+            if(ov.params.length === 0 && ov.returns.length === 0 && !ov.raw.match(/^fun\s*\(\s*\)/)){
+              // Did not parse as fun(...) — shown verbatim rather than as an
+              // empty, misleading "fn.name()".
+              h.push('<div class="fn-ov-raw">'+esc(ov.raw)+'</div>');
+              return;
+            }
+            // An anonymous LuaCATS param (`fun(string)`, no `name:`) got the
+            // placeholder name "_" from parse_overload — shown as its type
+            // instead of a bare underscore, which would read as an actual
+            // parameter called "_" rather than as "unnamed".
+            var paramNames = ov.params.map(function(p){
+              return (p.name === "_" ? p.type : p.name) + (p.optional?'?':'');
+            });
+            h.push('<div class="fn-ov-sig">'+esc(fn.name)+'('+paramNames.join(', ')+')</div>');
+            if(ov.params.length){
+              h.push('<ul class="fn-plist">');
+              ov.params.forEach(function(p){
+                h.push('<li><code>'+esc(p.name)+(p.optional?'?':'')+'</code> '+esc(p.type)+'</li>');
+              });
+              h.push('</ul>');
+            }
+            if(ov.returns.length){
+              h.push('<ul class="fn-plist">');
+              ov.returns.forEach(function(r){
+                h.push('<li>→ <code>'+esc(r.type)+'</code></li>');
+              });
+              h.push('</ul>');
+            }
+          });
+          h.push('</div>');
         }
         if(fn.see && fn.see.length){
           var seeLinks = fn.see.map(function(target){

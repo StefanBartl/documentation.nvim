@@ -203,6 +203,52 @@ Parsed as booleans, rendered as badges. No check behind either.
 
 Names are collected and travel with the function's signature.
 
+### `@overload` — alternative call shapes, structurally parsed
+
+```lua
+---@overload fun(): nil
+---@overload fun(cache: table<string, string>): boolean, string
+---@param path string
+---@param opts table?
+---@return boolean
+function M.read(path, opts) end
+```
+
+Lua has no real function overloading — one function, one body. `@overload`
+documents that the function below it can *also* be called some other way
+(commonly because it type-switches internally), not that a second
+implementation exists somewhere to jump to.
+
+The value is a LuaCATS `fun(...)` type literal, parsed into the same
+`{ name, type, optional }` param shape and `{ type, name }` return shape the
+primary signature uses — reusing that shape is what lets an overload render
+through the exact same list markup as the function it belongs to, rather than
+a second visual language for one tag. Repeatable: each `@overload` line
+becomes one entry.
+
+Renders two ways:
+- a **badge** on the function row (`+N signatures`), visible before you open
+  it — the point of parsing structurally instead of leaving it as opaque text
+  is answering "does this have call variants" at a glance;
+- an **"Also callable as" block** in the detail pane, one compact signature
+  line plus its own param/return list per overload, indented under the
+  primary one.
+
+A parameter with no `name:` prefix (`fun(string)`, LuaCATS' anonymous
+positional form) renders by its type rather than a placeholder name. A value
+that is not `fun(...)` at all — someone typed something else, or a typo —
+keeps its raw text and renders it verbatim rather than an empty, misleading
+`M.foo()`; nothing errors over one unparseable annotation line.
+
+**Not yet done:** `undocumented-param` (`@param` — the only tag with a
+structural check behind it, above) still compares the raw signature's
+parameter count against `@param` lines only. A function documented entirely
+through `@overload` — no `@param` at all, its real parameter list living
+inside the `fun(...)` literals — still fires a false `undocumented-param`.
+Wiring that check to also credit an overload's parsed params is a small,
+separate piece of work; parsing `@overload` was the precondition for it, not
+the fix itself.
+
 ---
 
 ## Type-level tags — the LuaLS half
@@ -272,19 +318,12 @@ Everything else is optional and stays optional.
 
 ## Gaps: tags parsed but not surfaced
 
-These are read by the scanner and then go nowhere. Each is a small,
-self-contained piece of work rather than a design question.
-
-### `@overload` — parsed, never rendered
-
-`parse_doc_block` collects `overload` into an array and `Documentation.FunctionInfo`
-carries it, but no renderer reads it and no check consults it. A function with
-three overloads shows one signature.
-
-**Worth doing** because it is already collected: the detail pane would show
-alternative signatures, and `undocumented-param` could stop firing on functions
-whose real parameter list is described by an `@overload` line rather than by
-`@param`s — which is currently a false positive.
+Read by the scanner and then goes nowhere. `@overload` used to be listed here
+too — it moved up to [Function-level tags](#overload--alternative-call-shapes-structurally-parsed)
+once parsing it structurally and rendering it stopped being a gap, though one
+piece of the value it was meant to unlock (`undocumented-param` awareness of
+overload-only signatures) is still open, and is noted there rather than here
+so it stays next to the tag it depends on.
 
 ### Header tags collected and discarded
 

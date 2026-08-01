@@ -104,6 +104,16 @@
 ---@field name string?
 ---@field desc string
 
+---One `---@overload` on a documented function: an additional way the same
+---function may be called, expressed as a LuaCATS `fun(...)` type literal
+---rather than a second function definition — Lua has no true overloading,
+---so `@overload` documents alternative call shapes of the *one* function
+---below it, not alternative implementations.
+---@class Documentation.OverloadInfo
+---@field raw string The `@overload` value exactly as written, e.g. `fun(x: string): boolean`. Always present, even when `params`/`returns` below are empty because the value did not parse as `fun(...)`.
+---@field params Documentation.ParamInfo[] Parsed from inside the parens. `desc` is always `""` — a `fun()` type literal carries no per-parameter prose, only `name: type`. `optional` and `name` behave as they do on `Documentation.ParamInfo`.
+---@field returns Documentation.ReturnInfo[] Parsed from after the parens. `name`/`desc` are always nil/`""` for the same reason as `params`.
+
 ---A single documented function, extracted via `documentation.core.functions`
 ---(a `vim.treesitter` query, not `lua-language-server --doc` — see that
 ---module's header for why). Attached to whichever node owns the file it's
@@ -128,7 +138,7 @@
 ---@field tested boolean Set by `coverage.resolve` (R2): this function's bare name is mentioned somewhere under `opts.tests_dir`. `false` until `coverage.resolve` has run, and even then means "not found by name in a spec" rather than "definitely untested" — see that module's header for the blind spot.
 ---@field documented boolean Set by `doccoverage.resolve` (R4): a non-empty summary plus fully, correctly documented parameters. `false` for `@internal` functions regardless — an internal function's documentation bar is the author's own, and folding it into a "published API" number would answer a question nobody asked.
 ---@field see string[] Raw `@see` targets, unresolved — `docmap.check` validates them.
----@field overload string[] Raw `@overload` signatures, unparsed (rendered as-is).
+---@field overload Documentation.OverloadInfo[] Additional call signatures, each parsed the same way the function's own `params`/`returns` are — see `Documentation.OverloadInfo`.
 ---@field todo string[] `@todo` entries, one per occurrence. Collected into the Notes tab's aggregate list, the way Doxygen's `\todo` feeds its Todo List.
 ---@field bug string[] `@bug` entries, one per occurrence.
 ---@field test string[] `@test` entries, one per occurrence.

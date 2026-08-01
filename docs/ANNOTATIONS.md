@@ -16,6 +16,12 @@ files." Adopt a tag when the concrete case for it comes up, not in bulk.
 
 ## a) Standard tags already used heavily
 
+**Counts below are stale** — last regenerated before the `config`/`bindings`
+split and the `@raises` tag's introduction shrank and reshaped this tree; the
+`grep` command in the intro is exact and cheap, re-run it before trusting a
+number here. Recorded so the drift is visible rather than silently wrong,
+which is the more urgent finding than any one count.
+
 | Tag | Count | What it's for here |
 |---|---|---|
 | `@field` | 1725 | Class/alias member declarations in `@types/` files |
@@ -30,10 +36,18 @@ files." Adopt a tag when the concrete case for it comes up, not in bulk.
 | `@alias` | 57 | Named unions / enum-shaped string literals |
 | `@diagnostic` | 5 | Suppressing a specific LuaLS diagnostic on one line |
 | `@cast` | 4 | Narrowing a variable's type mid-function |
-| `@overload` | 1 | Technically standard, practically almost unused here |
+| `@raises` | not counted at last pass | Not in the table when it was built — added since. See [`ANNOTATION_TAGS.md`](ANNOTATION_TAGS.md). |
 
 ## b) Standard tags, unused in this repo (0 hits), with real value for `docmap`
 
+- **`@overload`** — no hits in this repo's own source (only in `TESTS/`
+  fixtures, which this count deliberately excludes). Fully recognized as of
+  the change that added this line: parsed into a structured param/return list
+  — the same shape the primary signature uses — badged on the function row
+  and rendered as an "Also callable as" block in the detail pane. See
+  [`ANNOTATION_TAGS.md`](ANNOTATION_TAGS.md) for the full contract, including
+  the one piece still open (`undocumented-param` does not yet credit an
+  overload-only parameter list).
 - **`@deprecated`** — no hits. `docmap`'s function scanner (see [`functions.lua`](../lua/documentation/core/functions.lua))
   recognizes it and renders a deprecation banner + surfaces it in the Functions section. High value:
   this is the single most Doxygen-shaped signal missing today.

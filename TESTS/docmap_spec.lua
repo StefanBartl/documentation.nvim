@@ -63,6 +63,7 @@ return function(H)
     "---@param opts table? extra options",
     "---@return boolean ok",
     "---@return string? err",
+    "---@overload fun(x: string): boolean",
     "---@deprecated use new_thing instead",
     "---@async",
     "---@nodiscard",
@@ -129,6 +130,22 @@ return function(H)
   eq(old_thing.see[1], "M.new_thing", "docmap.functions: first @see target")
   eq(old_thing.since, "v1.2.0", "docmap.functions: @since text")
   eq(old_thing.generic[1], "T", "docmap.functions: @generic name")
+  eq(#old_thing.overload, 1, "docmap.functions: 1 @overload entry")
+  eq(
+    old_thing.overload[1].raw,
+    "fun(x: string): boolean",
+    "docmap.functions: @overload raw text preserved verbatim"
+  )
+  eq(#old_thing.overload[1].params, 1, "docmap.functions: @overload parsed 1 param")
+  eq(old_thing.overload[1].params[1].name, "x", "docmap.functions: @overload param name")
+  eq(old_thing.overload[1].params[1].type, "string", "docmap.functions: @overload param type")
+  eq(
+    old_thing.overload[1].params[1].optional,
+    false,
+    "docmap.functions: @overload param not optional"
+  )
+  eq(#old_thing.overload[1].returns, 1, "docmap.functions: @overload parsed 1 return")
+  eq(old_thing.overload[1].returns[1].type, "boolean", "docmap.functions: @overload return type")
   ok(
     old_thing.example and old_thing.example:match("assert%(ok%)"),
     "docmap.functions: @example block captured across multiple lines"
@@ -142,6 +159,85 @@ return function(H)
   ok(bare, "docmap.functions: top-level 'local function bare_helper' is scanned")
   eq(bare.signature, "bare_helper(a, b)", "docmap.functions: bare local function signature")
   eq(old_thing.internal, false, "docmap.functions: @internal defaults to false")
+
+  -- @overload edge cases: several on one function, a nested generic type
+  -- (proving the same `{}/()/<>` depth tracking `split_type` uses is applied
+  -- to the comma split), a no-param/no-return shape, an anonymous
+  -- (unnamed) parameter, and a value that is not `fun(...)` at all — which
+  -- must degrade to "shown as written" rather than error, since `@overload`
+  -- is free-form text someone typed.
+  --
+  -- Scoped in `do...end`, same reason as the file's other scoped blocks: a
+  -- top-level `local` holds its slot for the whole spec run, and this file
+  -- already sits at Lua's 200-local ceiling.
+  do
+    local fixture_ov = H.tmpfile(".lua")
+    local fw_ov = assert(io.open(fixture_ov, "w"))
+    fw_ov:write(table.concat({
+      "local M = {}",
+      "",
+      "---Reads from several sources.",
+      "---@overload fun(): nil",
+      "---@overload fun(cache: table<string, string>): boolean, string",
+      "---@overload fun(string): boolean", -- anonymous (unnamed) positional param
+      "---@overload not a function type at all",
+      "---@param path string",
+      "---@param opts table?",
+      "---@return boolean",
+      "function M.read(path, opts)",
+      "  return true",
+      "end",
+      "",
+      "return M",
+    }, "\n"))
+    fw_ov:close()
+
+    local ov_fns = functions.scan_file(fixture_ov)
+    local read_fn
+    for _, f in ipairs(ov_fns) do
+      if f.name == "M.read" then
+        read_fn = f
+      end
+    end
+    ok(read_fn, "docmap.functions: M.read found")
+    eq(#read_fn.overload, 4, "docmap.functions: 4 @overload entries, one per line")
+
+    eq(#read_fn.overload[1].params, 0, "docmap.functions: fun() has no params")
+    eq(#read_fn.overload[1].returns, 1, "docmap.functions: fun(): nil has 1 return")
+    eq(read_fn.overload[1].returns[1].type, "nil", "docmap.functions: fun(): nil return type")
+
+    eq(#read_fn.overload[2].params, 1, "docmap.functions: nested-generic overload has 1 param")
+    eq(
+      read_fn.overload[2].params[1].type,
+      "table<string, string>",
+      "docmap.functions: comma inside table<...> does not split the param list early"
+    )
+    eq(#read_fn.overload[2].returns, 2, "docmap.functions: fun(...): boolean, string has 2 returns")
+    eq(read_fn.overload[2].returns[2].type, "string", "docmap.functions: second return type")
+
+    eq(#read_fn.overload[3].params, 1, "docmap.functions: anonymous param still counts as 1 param")
+    eq(
+      read_fn.overload[3].params[1].type,
+      "string",
+      "docmap.functions: a bare type with no 'name:' prefix is used as the type"
+    )
+
+    eq(
+      #read_fn.overload[4].params,
+      0,
+      "docmap.functions: a non-'fun(...)' @overload value parses to no params"
+    )
+    eq(
+      #read_fn.overload[4].returns,
+      0,
+      "docmap.functions: a non-'fun(...)' @overload value parses to no returns"
+    )
+    eq(
+      read_fn.overload[4].raw,
+      "not a function type at all",
+      "docmap.functions: an unparseable @overload keeps its raw text rather than erroring"
+    )
+  end
 
   -- `@internal` marks implementation rather than published surface. It is
   -- what lets every "is this used" question stop guessing from the shape of
