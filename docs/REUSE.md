@@ -195,6 +195,13 @@ Function-level data (`node.functions`, the call graph, complexity) comes from
 `vim.treesitter` instead, and needs no annotation at all beyond the doc
 comments you already write.
 
+Everything past that one requirement is opt-in, and each tag buys a specific
+thing: `@param` unlocks the three structural checks and the coverage number,
+`@internal` makes that number describe your API rather than your helpers,
+`@see` gets cross-references with a check behind them. The full contract —
+which tag feeds which part of the pipeline, plus a minimum-viable set to adopt
+first — is in [ANNOTATION_TAGS.md](ANNOTATION_TAGS.md).
+
 Structure is derived, not declared:
 
 | Node kind | What it is |
