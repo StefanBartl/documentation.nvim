@@ -30,13 +30,13 @@ rebindable — see `Documentation.Browse.KeyAction`.
 |---|---|---|---|
 | `j` `k` | `move` | all | move; the detail pane follows *(native Vim key, not bound)* |
 | `<CR>` | `enter` | all | descend a level, or follow the edge |
-| `-` `<BS>` | `up` | all | up a level |
-| `<C-o>` | `back` | all | back through the visit history |
-| `<C-i>` | `forward` | all | forward through the visit history |
+| `-` `<BS>` | `up` | all | up a level (×count) |
+| `<C-o>` | `back` | all | back through the visit history (×count) |
+| `<C-i>` | `forward` | all | forward through the visit history (×count) |
 | `h` | `dir_in` | deps, calls | direction: incoming edges |
 | `l` | `dir_out` | deps, calls | direction: outgoing edges |
-| `+` | `depth_inc` | deps | depth +1 |
-| `_` | `depth_dec` | deps | depth -1 |
+| `+` | `depth_inc` | deps | depth +1 (×count) |
+| `_` | `depth_dec` | deps | depth -1 (×count) |
 | `gd` | `goto_source` | all | open the source at the line (closes) |
 | `gq` | `quickfix` | all | current list into the quickfix list (closes) |
 | `gI` | `impact` | all | blast radius into the quickfix list (closes) |
