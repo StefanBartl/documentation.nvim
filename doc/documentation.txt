@@ -650,7 +650,10 @@ A `@types/` directory is an attribute of its module, not a sibling node: types
 belong to the thing they type, and promoting them doubles the tree for no
 navigational gain.
 
-Full survey: `docs/ANNOTATIONS.md` in the repository.
+Annotating your own plugin: `docs/ANNOTATION_TAGS.md` — what each tag feeds in
+the pipeline, a minimum-viable set to adopt first, and the tags worth adding
+that do not exist yet. `docs/ANNOTATIONS.md` is the counted inventory of what
+this tree itself uses.
 
 ==============================================================================
 11. CREDITS                                              *documentation-credits*

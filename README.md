@@ -351,7 +351,8 @@ Repository-specific checks go in `opts.extra_checks`.
 | [docs/REUSE.md](docs/REUSE.md) | Generating a map for your own plugin. |
 | [docs/PORTABILITY.md](docs/PORTABILITY.md) | Mapping a Lua project that is not a Neovim plugin — and what a Neovim-free port would actually cost. |
 | [docs/MULTILANG.md](docs/MULTILANG.md) | What supporting other languages would take, and how much of the code survives it. |
-| [docs/ANNOTATIONS.md](docs/ANNOTATIONS.md) | Which LuaCATS tags the scanner reads, and the two custom ones. |
+| [docs/ANNOTATION_TAGS.md](docs/ANNOTATION_TAGS.md) | **Annotating your own plugin**: what each tag buys you here, the minimum viable set, and which custom tags would be worth adding. |
+| [docs/ANNOTATIONS.md](docs/ANNOTATIONS.md) | The inventory — which LuaCATS tags this tree actually uses, counted. |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Running the specs, the linters and the map locally. |
 | [docs/ROADMAP/](docs/ROADMAP/) | [FEATURES.md](docs/ROADMAP/FEATURES.md) — what shipped and why it was built that way. [ROADMAP.md](docs/ROADMAP/ROADMAP.md) — what is open, and what was considered and turned down (with the condition that would reopen it). |
 | [lua/documentation/editor/browse/README.md](lua/documentation/editor/browse/README.md) | The editor-side browser in detail. |

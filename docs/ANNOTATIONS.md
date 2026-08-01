@@ -9,6 +9,11 @@ time of writing; re-run it yourself if this drifts.
 This is a reference and a recommendation, not a mandate — nothing here means "go retrofit all ~250
 files." Adopt a tag when the concrete case for it comes up, not in bulk.
 
+> **Annotating your own plugin?** Read [`ANNOTATION_TAGS.md`](ANNOTATION_TAGS.md) instead. That one is
+> the *contract* — which part of the pipeline consumes each tag and what you get back. This one is the
+> *inventory* — what one particular tree happens to use, counted. Contract before annotating,
+> inventory when auditing.
+
 ## a) Standard tags already used heavily
 
 | Tag | Count | What it's for here |
