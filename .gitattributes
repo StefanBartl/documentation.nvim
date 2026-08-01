@@ -15,6 +15,20 @@ scripts/hooks/*  text eol=lf
 
 # Generated map artifacts: keep them out of diffs and language stats, but do
 # not mark them binary — they are reviewed on purpose.
-docs/map/index.html      linguist-generated=true
-docs/map/module_map.json linguist-generated=true
-docs/map/overview.md     linguist-generated=true
+#
+# `eol=lf` for the same reason as the two blocks above, and here it is not a
+# tidiness argument but a correctness one: `--check` regenerates these in
+# memory and **byte-compares** them against what is on disk. The generator
+# writes LF. With `core.autocrlf=true` on Windows they are checked out as CRLF,
+# every byte after the first newline differs, and the `map` gate reports the
+# map as stale forever — on a clean checkout, with nothing actually wrong.
+# Regenerating appears to fix it until the next `git checkout` or `git stash`
+# converts them back.
+docs/map/index.html      text eol=lf linguist-generated=true
+docs/map/module_map.json text eol=lf linguist-generated=true
+docs/map/overview.md     text eol=lf linguist-generated=true
+
+# Generated from the KEYS table and the two manifests by `scripts/gen_map.lua`.
+# Not byte-compared by `--check`, but it is written by the same run, so a CRLF
+# working copy would show it as modified after every regeneration.
+docs/BINDINGS.md         text eol=lf linguist-generated=true
