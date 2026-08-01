@@ -74,6 +74,23 @@ lib.nvim's git history if it is ever needed.
 
 ## Genuinely open
 
+### `undocumented-param` should credit `@overload`-only signatures
+
+`@overload` was parsed and rendered on 2026-07-31 (structured params/returns,
+badge, "Also callable as" block — see
+[`ANNOTATION_TAGS.md`](../ANNOTATION_TAGS.md#overload--alternative-call-shapes-structurally-parsed)).
+One piece of its original value case is still open: `check_undocumented_params`
+in `core/check.lua` compares the raw signature's parameter count against
+`@param` lines only, so a function documented entirely through `@overload` —
+zero `@param`s, its real parameter list living inside the `fun(...)` literals —
+still fires a false `undocumented-param`.
+
+Fix is small and scoped: when a function has no `@param` lines but at least one
+overload whose parsed params cover the declared parameter count, skip the
+finding (or downgrade its message to name the overload instead of an empty
+`@param` count). Parsing `@overload` structurally was the precondition; this is
+the remaining consumer.
+
 ### Other languages — costed, not scheduled
 
 Analysis in [`docs/MULTILANG.md`](../MULTILANG.md). Short version: 85% of the
