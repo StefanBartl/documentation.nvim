@@ -100,6 +100,17 @@ that this plugin's checks are about docs and code *agreeing*, which needs a
 doc convention that makes checkable claims. JSDoc does, godoc essentially does
 not. If ever: JS/TS first, Go last.
 
+**A second, later layer, if JS/TS ever lands:**
+[`docs/FRAMEWORK_CONVENTIONS.md`](../FRAMEWORK_CONVENTIONS.md) — the same
+idea `core/plugins.lua` proved for Lua + lazy.nvim (a recognizer for one
+ecosystem's structural convention, built on top of language support rather
+than part of it), costed for the web ecosystem: Next.js/SvelteKit/Nuxt-style
+file-based routing (recommended, as a new Hierarchy **Routes** view — the
+layout-nesting is the point, so it wants a graph) and React hooks mapping
+(lower priority — `eslint-plugin-react-hooks` already owns the higher-value
+half of that space). Strictly sequenced behind the JS/TS step above; not
+buildable before it.
+
 ### Running without Neovim — costed, not scheduled
 
 Analysis lives in [`docs/PORTABILITY.md`](../PORTABILITY.md) rather than here,
