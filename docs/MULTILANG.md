@@ -160,3 +160,8 @@ convention within an already-supported language, the same thing
 `core/plugins.lua` already does for Lua + lazy.nvim. Next.js-style
 file-based routing and React hooks, for the web-ecosystem case; strictly
 sequenced behind everything in this document.
+
+**If the target is ever all five languages named here, not just JS/TS:**
+[`docs/ROADMAP/MULTILANG.md`](ROADMAP/MULTILANG.md) breaks that down into
+the shared infrastructure every backend needs first and a task list per
+language — planning only, nothing below has been implemented.

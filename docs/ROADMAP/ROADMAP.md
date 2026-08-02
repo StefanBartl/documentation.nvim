@@ -111,6 +111,14 @@ layout-nesting is the point, so it wants a graph) and React hooks mapping
 half of that space). Strictly sequenced behind the JS/TS step above; not
 buildable before it.
 
+**Task breakdown, if the scope is ever "all five" at once:**
+[`docs/ROADMAP/MULTILANG.md`](MULTILANG.md) — the shared Phase-0
+infrastructure every language needs first (a language-backend interface, an
+enforced `core.lang.*` layering rule, IR changes for owning-scope and
+one-file-many-modules), then one task list per language. States plainly
+that scope is not sequencing: naming five languages is not an argument for
+building five at once.
+
 ### Running without Neovim — costed, not scheduled
 
 Analysis lives in [`docs/PORTABILITY.md`](../PORTABILITY.md) rather than here,
