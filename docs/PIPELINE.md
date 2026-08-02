@@ -1015,13 +1015,14 @@ the default), the same "only the axes a view actually uses" rule
 A tool palette, not a diagram — a fifth tab (`atool` state axis, same
 `iview=`-shaped URL rule as the Index tab) whose toolbar switches between
 panels the way Hierarchy's view buttons switch between graphs, applied to
-aggregate numbers instead of boxes. Five tools today:
+aggregate numbers instead of boxes. Six tools today:
 
 - **Test coverage** — `fn.tested` (R2, [`coverage.lua`](../lua/documentation/core/coverage.lua))
 - **Documentation** — `fn.documented` (R4, [`doccoverage.lua`](../lua/documentation/core/doccoverage.lua))
 - **Dependencies** — `n.requires`/`n.required_by` (R6, fan-in/fan-out)
 - **Complexity** — `fn.complexity` (cyclomatic/McCabe, [`functions.lua`](../lua/documentation/core/functions.lua))
 - **Duplicates** — `ir.duplicates` (structural copy-paste detection, [`duplicates.lua`](../lua/documentation/core/duplicates.lua))
+- **Plugins** — `n.plugins` (lazy.nvim spec inventory, [`plugins.lua`](../lua/documentation/core/plugins.lua))
 
 The first two are per-module breakdowns over data `scan_full()` already
 stamped into the IR: a table, one row per module/namespace/file that owns
@@ -1137,6 +1138,42 @@ on both. Tornhill's own presentation is a scatter plot whose answer is the
 top-right quadrant and which has no such failure mode — but that is not a
 ranking, and a quickfix list is. Both columns ship on every row, so when the
 order looks wrong the numbers beside it say why.
+
+**Plugins** exists for a tree this map was blind to before it: a Neovim
+*config* (as opposed to a Neovim *plugin*), where `lua/plugins/*.lua` is
+mostly `return { { "author/repo", event = "…" }, … }` — no functions, no
+symbols, nothing any other panel has anything to say about. Extracted in
+[`plugins.lua`](../lua/documentation/core/plugins.lua), during the same scan
+pass as `functions`/`symbols`, off the parse tree that already exists.
+Scoped to **lazy.nvim's spec shape** specifically and named as such —
+packer.nvim and vim-plug specs look different and would need their own
+extractor, not a bent version of this one.
+
+Verified against a real, ~450-file Neovim config rather than only synthetic
+fixtures, which found two precision bugs neither invented test case would
+have:
+
+- **A single spec returned directly is not an array whose fields are each
+  their own entry.** `return { {...}, {...} }` (many plugins) and `return {
+  "repo", event = "…" }` (one plugin — a real, common style: config split
+  one file per plugin) parse to the same node type. Read naively, `event`'s
+  *value* looks like just another positional array element, and a first
+  pass genuinely produced a spec whose `repo` was the string `"VeryLazy"`.
+  Fixed on the one real distinguishing signal: an array of specs never has
+  a *named* field at the outer level; a single spec's own trigger/metadata
+  keys always do.
+- **A bare-string array is not unique to plugin specs.** A plain list of
+  command names (`return { "NeotestRunNearest", … }`, found genuinely
+  documenting `:command` names in the same config) is the identical shape.
+  Fixed by requiring a bare positional string to contain `/` with no
+  embedded whitespace — GitHub shorthand is the one thing lazy.nvim's own
+  contract requires of that position, so this is the format, not a style
+  guess. Reduced one real config's false-positive count from 235 spec-shaped
+  matches to 52 genuine ones.
+
+Also flags a repo declared in more than one file — a real footgun in a
+config split across files, where the last one lazy.nvim imports silently
+wins and nothing else in this map could ever have surfaced it.
 
 ## Drift checks
 

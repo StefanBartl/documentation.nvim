@@ -227,6 +227,8 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .antable td{padding:5px 8px;border-bottom:1px dashed var(--line);font-family:var(--mono)}
 .anrow{cursor:pointer}
 .anrow:hover td{background:var(--accent-soft)}
+.anflag{color:var(--warn);font-size:11px;border:1px solid var(--warn);
+  border-radius:4px;padding:1px 5px;margin-left:6px}
 .anbar{width:120px;height:8px;background:var(--line);border-radius:4px;overflow:hidden}
 .anfill{height:100%;background:var(--accent)}
 #view-index h3{margin:22px 0 6px;font-size:15px;font-weight:700;color:var(--accent);
@@ -2530,6 +2532,97 @@ local JS = [[
     return parts.join("");
   }
 
+  // One line per trigger kind actually present on a spec — mirrors
+  // bindings/usrcmds/plugins.lua's `traits()` in Lua exactly, kept in sync by
+  // hand because the two run in different languages and read the same
+  // `Documentation.PluginSpec` shape for two different surfaces (this panel,
+  // that command's quickfix list).
+  function pluginTraits(spec){
+    var bits = [];
+    if(spec.lazy === false) bits.push("eager");
+    if((spec.event || []).length) bits.push("event:" + spec.event.join(","));
+    if((spec.cmd || []).length) bits.push("cmd:" + spec.cmd.join(","));
+    if((spec.keys || []).length) bits.push("keys:" + spec.keys.join(","));
+    if((spec.ft || []).length) bits.push("ft:" + spec.ft.join(","));
+    if(spec.enabled === false) bits.push("disabled");
+    if(bits.length === 0) bits.push("no trigger — loads at startup");
+    return bits.join("  ");
+  }
+
+  // lazy.nvim spec entries, straight off `n.plugins` — JS-side aggregation
+  // only, no new Lua extraction, the same shape as the fan-in/fan-out panel:
+  // the data already sits per-node in the serialised IR (`core/plugins.lua`
+  // extracts it during the scan, where the parse tree exists; this only
+  // walks what is already JSON).
+  //
+  // Sorted by repo, ascending, by default — unlike every other panel here.
+  // The others rank a health metric worst-first; this is an inventory, and
+  // "what do I have installed" is read alphabetically, not by severity.
+  function renderAnalysisPlugins(){
+    var rows = [];
+    var seen = {};
+    IR.nodes.forEach(function(n){
+      (n.plugins || []).forEach(function(spec){
+        seen[spec.repo] = (seen[spec.repo] || 0) + 1;
+      });
+    });
+    IR.nodes.forEach(function(n){
+      var name = n.module || n.path;
+      (n.plugins || []).forEach(function(spec){
+        var traits = pluginTraits(spec);
+        rows.push({
+          node: n, spec: spec, repo: spec.repo, traits: traits,
+          dup: seen[spec.repo] > 1, name: name,
+          haystack: spec.repo + " " + traits + " " + name,
+          sortkey: spec.repo + "#" + n.id
+        });
+      });
+    });
+
+    if(rows.length === 0){
+      return '<p class="ntext none">No lazy.nvim-shaped plugin spec found in this tree. ' +
+        'See <code>core/plugins.lua</code> for what is recognized — packer.nvim and ' +
+        'vim-plug specs look different and are not.</p>';
+    }
+
+    var totalRows = rows.length;
+    var ndup = 0;
+    Object.keys(seen).forEach(function(r){ if(seen[r] > 1) ndup++; });
+
+    var cols = [
+      { label: "Repo", key: "repo", get: function(r){ return r.repo; }, initial: "asc" },
+      { label: "Triggers", key: "traits", get: function(r){ return r.traits; }, initial: "asc" },
+      { label: "Declared in", key: "name", get: function(r){ return r.name; }, initial: "asc" }
+    ];
+
+    rows = anFilter(rows);
+    anSort(rows, cols, function(a, b){
+      if(a.repo !== b.repo) return a.repo < b.repo ? -1 : 1;
+      return a.node.id < b.node.id ? -1 : (a.node.id > b.node.id ? 1 : 0);
+    });
+
+    var parts = [];
+    parts.push('<p class="nsub">' + totalRows + ' plugin spec entr' +
+      (totalRows === 1 ? 'y' : 'ies') + '.' +
+      (ndup > 0 ? ' <strong>' + ndup + '</strong> repo' + (ndup === 1 ? '' : 's') +
+        ' declared more than once — in a config split across files, the last one ' +
+        'lazy.nvim imports silently wins.' : '') +
+      anFilterNote(rows.length, totalRows) + '</p>');
+    if(rows.length === 0){
+      return parts.join("") + '<p class="ntext none">No spec matches that filter.</p>';
+    }
+    parts.push('<table class="antable">' + anHead(cols) + '<tbody>');
+    rows.forEach(function(r){
+      parts.push('<tr class="anrow" data-node="' + esc(r.node.id) + '">' +
+        '<td>' + esc(r.repo) + (r.dup ? ' <span class="anflag">⚠ duplicate</span>' : '') + '</td>' +
+        '<td>' + esc(r.traits) + '</td>' +
+        '<td>' + esc(r.name) + '</td>' +
+        '</tr>');
+    });
+    parts.push("</tbody></table>");
+    return parts.join("");
+  }
+
   // Rendered panels, memoised per *rendering* rather than per panel.
   //
   // One variable per panel was correct while a panel had exactly one
@@ -2537,7 +2630,7 @@ local JS = [[
   // otherwise clicking a column re-serves the previous order out of the cache
   // and the header arrow moves while the rows do not.
   //
-  // Unbounded on purpose: the key space is (5 panels x ~4 columns x 2
+  // Unbounded on purpose: the key space is (6 panels x ~4 columns x 2
   // directions x the queries actually typed), every entry is a string already
   // built once, and the alternative — evicting — would re-render on a Back
   // button press, which is the one moment the cache exists for.
@@ -2571,13 +2664,15 @@ local JS = [[
     }
     if(atool === "deps") return renderAnalysisDeps();
     if(atool === "complexity") return renderAnalysisComplexity();
-    return renderAnalysisDuplicates();
+    if(atool === "duplicates") return renderAnalysisDuplicates();
+    return renderAnalysisPlugins();
   }
 
   function drawAnalysis(){
     var host = document.getElementById("anbody");
     var atool = (state.atool === "doc" || state.atool === "deps" ||
-      state.atool === "complexity" || state.atool === "duplicates")
+      state.atool === "complexity" || state.atool === "duplicates" ||
+      state.atool === "plugins")
       ? state.atool : "test";
 
     var key = anCacheKey(atool);
@@ -3884,6 +3979,7 @@ function M.render(ir, findings, opts)
     '<button class="anview-btn" data-atool="deps">Dependencies</button>',
     '<button class="anview-btn" data-atool="complexity">Complexity</button>',
     '<button class="anview-btn" data-atool="duplicates">Duplicates</button>',
+    '<button class="anview-btn" data-atool="plugins">Plugins</button>',
     "</div>",
     '<div id="anbody"></div>',
     "</div>",

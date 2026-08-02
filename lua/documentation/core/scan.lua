@@ -293,9 +293,10 @@ function M.scan(opts)
     local kind = has_init and "module" or "namespace"
     counts[kind] = counts[kind] + 1
 
-    local fns, calls, requires, syms, loc = {}, {}, {}, {}, 0
+    local fns, calls, requires, syms, plugins, loc = {}, {}, {}, {}, {}, 0
     if has_init then
-      fns, calls, requires, syms, loc = require("documentation.core.functions").scan_file(init)
+      fns, calls, requires, syms, plugins, loc =
+        require("documentation.core.functions").scan_file(init)
     end
 
     -- Own tally for this directory: what sits directly in it, plus its
@@ -346,6 +347,7 @@ function M.scan(opts)
       children = {},
       functions = fns,
       symbols = syms,
+      plugins = plugins,
       stats = own,
       requires = {},
       required_by = {},
@@ -370,7 +372,7 @@ function M.scan(opts)
         -- rather than being folded into the parent's detail pane.
         local h = M.parse_header(child_abs)
         counts.file = counts.file + 1
-        local leaf_fns, leaf_calls, leaf_requires, leaf_syms, leaf_loc =
+        local leaf_fns, leaf_calls, leaf_requires, leaf_syms, leaf_plugins, leaf_loc =
           require("documentation.core.functions").scan_file(child_abs)
         local leaf_stats = zero_stats()
         leaf_stats.files_lua = 1
@@ -395,6 +397,7 @@ function M.scan(opts)
           children = {},
           functions = leaf_fns,
           symbols = leaf_syms,
+          plugins = leaf_plugins,
           stats = leaf_stats,
           requires = {},
           required_by = {},

@@ -348,6 +348,21 @@ key and then regretted.
                         wall the History tab hit. Live-computed here instead,
                         like `:DocMap impact`.
 
+:DocMap plugins         Every recognized lazy.nvim spec in the tree, into the
+                        |quickfix| list, sorted by repo. Instant -- the specs
+                        already sit on the live handle's IR, extracted during
+                        the scan. Exists for a Neovim *config* (as opposed to
+                        a Neovim *plugin*), where lua/plugins/*.lua is mostly
+                        `return { {...}, {...} }` with no function in sight,
+                        invisible to every other command. Each row shows
+                        which triggers (event/cmd/keys/ft) load the plugin,
+                        or says "no trigger -- loads at startup". A repo
+                        declared in more than one file is flagged, since the
+                        last one lazy.nvim imports silently wins.
+
+                        Scoped to lazy.nvim's spec shape specifically;
+                        packer.nvim and vim-plug are not recognized.
+
 :DocMap serve           Start the local map server, which is what enables the
                         History tab in the browser. A `file://` page gets an
                         opaque origin and `fetch()` refuses the `file:` scheme

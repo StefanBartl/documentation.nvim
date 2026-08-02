@@ -429,11 +429,12 @@ end
 ---@return Documentation.RawCall[] calls
 ---@return Documentation.RawRequire[] requires
 ---@return Documentation.SymbolInfo[] symbols
+---@return Documentation.PluginSpec[] plugins
 ---@return integer lines
 function M.scan_file(path)
   local fd = io.open(path, "rb")
   if not fd then
-    return {}, {}, {}, {}, 0
+    return {}, {}, {}, {}, {}, 0
   end
   local src = fd:read("*a")
   fd:close()
@@ -454,13 +455,13 @@ function M.scan_file(path)
 
   local ok, parser = pcall(vim.treesitter.get_string_parser, src, "lua")
   if not ok then
-    return {}, {}, requires, {}, lines
+    return {}, {}, requires, {}, {}, lines
   end
   local ok_parse, trees = pcall(function()
     return parser:parse()
   end)
   if not ok_parse or not trees or not trees[1] then
-    return {}, {}, requires, {}, lines
+    return {}, {}, requires, {}, {}, lines
   end
   local root = trees[1]:root()
 
@@ -609,7 +610,8 @@ function M.scan_file(path)
     fn.local_refs = math.max(0, (ident_counts[bare] or 1) - 1)
   end
   local symbols = require("documentation.core.symbols").extract(root, src, doc_block_above)
-  return out, calls, requires, symbols, lines
+  local plugins = require("documentation.core.plugins").extract(root, src)
+  return out, calls, requires, symbols, plugins, lines
 end
 
 return M

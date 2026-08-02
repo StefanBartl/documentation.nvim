@@ -353,6 +353,140 @@ return function(H)
   eq(#fns2, 1, "docmap.functions: undocumented function is still scanned")
   eq(#fns2[1].params, 0, "docmap.functions: undocumented function has an empty params list")
 
+  -- ------------------------------------------------------------ docmap.plugins
+  --
+  -- Scoped: this file sits at Lua's 200-local-per-function ceiling.
+  do
+    local spec_fixture = H.tmpfile(".lua")
+    local pf = assert(io.open(spec_fixture, "w"))
+    pf:write(table.concat({
+      "---@module 'plugins.sample'",
+      "return {",
+      "  {",
+      '    "kdheepak/lazygit.nvim",',
+      "    lazy = true,",
+      '    cmd = { "LazyGit", "LazyGitConfig" },',
+      '    dependencies = { "nvim-lua/plenary.nvim", { "other/dep", opts = {} } },',
+      "    keys = {",
+      '      { "<leader>lg", "<cmd>LazyGit<cr>", desc = "Open UI" },',
+      "    },",
+      "    config = function()",
+      "      vim.g.x = 1",
+      "    end,",
+      "  },",
+      "  {",
+      '    "lewis6991/gitsigns.nvim",',
+      '    event = { "BufReadPre", "BufNewFile" },',
+      "    config = true,",
+      "  },",
+      '  "sindrets/diffview.nvim",',
+      "  {",
+      '    name = "custom-thing",',
+      '    dir = "/local/path",',
+      "    enabled = false,",
+      "    priority = 100,",
+      "  },",
+      "  a_variable_no_docmap_can_read,",
+      "}",
+    }, "\n"))
+    pf:close()
+
+    local _, _, _, _, specs = functions.scan_file(spec_fixture)
+    eq(#specs, 4, "docmap.plugins: 4 readable entries; the bare variable is skipped, not guessed")
+
+    eq(specs[1].repo, "kdheepak/lazygit.nvim", "docmap.plugins: positional string is the repo")
+    eq(specs[1].lazy, true, "docmap.plugins: lazy = true read")
+    eq(#specs[1].cmd, 2, "docmap.plugins: cmd array normalised")
+    eq(
+      #specs[1].dependencies,
+      2,
+      "docmap.plugins: dependencies unwraps both the bare-string and the nested-spec-table form"
+    )
+    eq(specs[1].dependencies[2], "other/dep", "docmap.plugins: ... to just the nested repo string")
+    eq(specs[1].keys[1], "<leader>lg", "docmap.plugins: keys collects the lhs, not the rhs command")
+    eq(specs[1].has_config, true, "docmap.plugins: config = function(...) counts as has_config")
+    eq(specs[1].has_opts, false, "docmap.plugins: and has_opts is false, not nil, when unset")
+
+    eq(specs[2].event[1], "BufReadPre", "docmap.plugins: event array read")
+    eq(specs[2].has_config, true, "docmap.plugins: config = true also counts as has_config")
+
+    eq(specs[3].repo, "sindrets/diffview.nvim", "docmap.plugins: the bare-string shorthand form")
+    eq(#specs[3].dependencies, 0, "docmap.plugins: ... with every other field a real empty array")
+
+    eq(
+      specs[4].repo,
+      "custom-thing",
+      "docmap.plugins: falls back to name= when no positional string"
+    )
+    eq(specs[4].dir, "/local/path", "docmap.plugins: dir= read")
+    eq(specs[4].enabled, false, "docmap.plugins: enabled = false read")
+    eq(specs[4].priority, 100, "docmap.plugins: priority read as a number")
+
+    -- Files unrelated to plugin specs are unaffected — nothing here should
+    -- ever fire on an ordinary module.
+    local _, _, _, _, ordinary_specs = functions.scan_file(fixture2)
+    eq(#ordinary_specs, 0, "docmap.plugins: an ordinary function file has no spec entries")
+
+    -- The documented non-goal: `local M = {...}; return M` is not traced.
+    -- Getting this wrong would mean guessing at an assignment miles away from
+    -- the `return`, which is the class of guess this scanner declines to make
+    -- everywhere else (see deps.lua on `require(expr .. var)`).
+    local indirect_fixture = H.tmpfile(".lua")
+    local ivf = assert(io.open(indirect_fixture, "w"))
+    ivf:write('local M = {\n  { "author/repo" },\n}\nreturn M\n')
+    ivf:close()
+    local _, _, _, _, indirect_specs = functions.scan_file(indirect_fixture)
+    eq(#indirect_specs, 0, "docmap.plugins: indirection through a local is not traced, by design")
+
+    -- Two false positives found live, against a real Neovim config, both
+    -- fixed structurally rather than by special-casing the file that
+    -- surfaced them.
+
+    -- A bare-string array is not unique to plugin specs: a plain list of
+    -- command names is the identical shape. Rejected on content — none of
+    -- these strings contain "/", the one thing every real spec sampled from
+    -- that config had.
+    local cmdlist_fixture = H.tmpfile(".lua")
+    local cf = assert(io.open(cmdlist_fixture, "w"))
+    cf:write('return {\n  "NeotestRunNearest",\n  "NeotestDebugNearest",\n}\n')
+    cf:close()
+    local _, _, _, _, cmdlist_specs = functions.scan_file(cmdlist_fixture)
+    eq(#cmdlist_specs, 0, "docmap.plugins: a bare-string list with no '/' is not plugins")
+
+    -- `return { "repo", event = "…" }` is ONE spec (a config split one file
+    -- per plugin), not an array whose fields are each their own entry —
+    -- treating `event`'s value as a positional element produced a spec
+    -- whose repo was literally the string "VeryLazy". The two return shapes
+    -- parse to the same node type; the distinguishing signal is whether the
+    -- table has ANY named field, which an array of specs never does.
+    local single_fixture = H.tmpfile(".lua")
+    local sf = assert(io.open(single_fixture, "w"))
+    sf:write('return {\n  "nvzone/menu",\n  event = "VeryLazy",\n  config = function() end,\n}\n')
+    sf:close()
+    local _, _, _, _, single_specs = functions.scan_file(single_fixture)
+    eq(
+      #single_specs,
+      1,
+      "docmap.plugins: a single spec returned directly is one entry, not several"
+    )
+    eq(single_specs[1].repo, "nvzone/menu", "docmap.plugins: ... with the repo read correctly")
+    eq(
+      single_specs[1].event[1],
+      "VeryLazy",
+      "docmap.plugins: ... and event read as a trigger, not mistaken for a second repo"
+    )
+
+    -- The mirror image of the command-list case: EVERY field bracket-keyed
+    -- or named, no positional string anywhere. A real keymap table
+    -- (`["dd"] = "buffer_delete"`), not a plugin spec with no repo.
+    local keymap_fixture = H.tmpfile(".lua")
+    local kf = assert(io.open(keymap_fixture, "w"))
+    kf:write('return {\n  ["dd"] = "buffer_delete",\n  ["+"] = "noop",\n}\n')
+    kf:close()
+    local _, _, _, _, keymap_specs = functions.scan_file(keymap_fixture)
+    eq(#keymap_specs, 0, "docmap.plugins: an all-named-fields table with no repo is not a spec")
+  end
+
   -- ------------------------------------------------------------- docmap.check
   local check = require("documentation.core.check")
 
@@ -1770,7 +1904,10 @@ return function(H)
   }, "\n"))
   sfw:close()
 
-  local _, _, _, syms, loc = functions.scan_file(sym_fixture)
+  -- `select(4, ...)` rather than three leading `_`s: this file sits at Lua's
+  -- 200-local-per-function ceiling, and `select` costs no local slots for the
+  -- values being skipped.
+  local syms, _, loc = select(4, functions.scan_file(sym_fixture))
   local by_sym = {}
   for _, s in ipairs(syms) do
     by_sym[s.name] = s

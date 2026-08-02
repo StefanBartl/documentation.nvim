@@ -43,11 +43,15 @@ plugin](docs/PIPELINE.md#why-this-is-its-own-plugin).
 | `docs/map/module_map.json` | The IR, byte-deterministic. What `--check` compares and what `:DocMap diff` reads out of old commits. |
 | `docs/map/coverage.svg` | Optional (`opts.badge`): a doc-coverage badge, hand-rolled, no network call. |
 
-The Analysis tab ranks the tree five ways over the same IR — test coverage,
-documentation coverage, fan-in/fan-out, cyclomatic complexity, and structural
-**duplicates**: functions whose parse-tree shape is identical, which is the one
-kind of drift the require graph is blind to by construction (two modules that
-each grew their own `read(path)` do not require each other).
+The Analysis tab ranks the tree six ways over the same IR — test coverage,
+documentation coverage, fan-in/fan-out, cyclomatic complexity, structural
+**duplicates** (functions whose parse-tree shape is identical, which is the one
+kind of drift the require graph is blind to by construction — two modules that
+each grew their own `read(path)` do not require each other), and **plugins**:
+every lazy.nvim spec in the tree, which matters when `documentation.nvim` is
+pointed at a Neovim *config* rather than a plugin — `lua/plugins/*.lua` is
+mostly `return { { "author/repo", event = "…" } }` with no function in sight,
+invisible to every other panel.
 
 The Hierarchy tab draws five graphs over the same IR — **Modules** (directory
 hierarchy), **Types** (`@class`/`@alias` collaboration), **Inheritance**,
@@ -241,6 +245,7 @@ Full reference: [docs/COMMANDS.md](docs/COMMANDS.md).
 :DocMap impact                   " …and where the changed lines radiate to
 :DocMap churn                    " churn x complexity, hottest first -> quickfix
 :DocMap churn HEAD~200..         " …over one range instead of all history
+:DocMap plugins                  " every lazy.nvim spec in the tree -> quickfix
 :DocMap serve                    " local map server (enables the History tab)
 :DocMap helptags                 " regenerate this plugin's own doc/tags
 

@@ -67,6 +67,7 @@
 ---@field children string[] Child node ids, directories first, then files.
 ---@field types_detail Documentation.TypeInfo[]? `@class`/`@alias` detail for this node's `types` files, from `lua-language-server --doc`. `nil` when LuaLS enrichment did not run; `{}` is a real "ran, found nothing here" result.
 ---@field functions Documentation.FunctionInfo[] Documented functions found in this node's own source file (not its `@types/` files). Always an array, never nil — unlike `types_detail`, this runs unconditionally as part of `scan()`, no LuaLS required.
+---@field plugins Documentation.PluginSpec[] Plugin-manager (lazy.nvim-shaped) spec entries found in this node's own source — see `core/plugins.lua`. Always an array, empty for a source file that is not a plugin-spec file, which is nearly all of them; runs unconditionally as part of `scan()`, no configuration required.
 ---@field requires string[] Node ids this node requires, sorted. Derived from `ir.edges`; an index for convenience, not a second source of truth.
 ---@field required_by string[] Node ids that require this node, sorted. Same derivation.
 ---@field requires_external string[] Module paths this node requires that resolve to nothing in the scanned tree — other plugins, or anything outside `source`. Plain strings, not invented nodes: the map only claims to describe what it scanned. The Deps view can draw them on request.
@@ -171,6 +172,27 @@
 ---@field detail string Short right-hand-side summary: "12 fields" for a table, the literal for a constant, a condensed expression otherwise.
 ---@field summary string One-line prose from the doc block above it, if any.
 ---@field line integer 1-based line the binding starts on.
+
+---One plugin-manager spec entry — currently lazy.nvim's shape only, see
+---`core/plugins.lua`'s header for why packer/vim-plug are a separate,
+---unbuilt extractor rather than a bent version of this one.
+---@class Documentation.PluginSpec
+---@field repo string The "author/repo" shorthand, or the `name`/`dir`/`url` fallback when no positional string is given.
+---@field line integer 1-based line the spec entry starts on.
+---@field lazy boolean? Explicit `lazy = true|false`; `nil` when unstated — lazy.nvim's own default is true when any trigger field is present, false otherwise, which this does not attempt to re-derive.
+---@field event string[] `event` trigger(s), normalised to an array whether declared as one string or several.
+---@field cmd string[] `cmd` trigger(s), same normalisation.
+---@field ft string[] `ft` trigger(s), same normalisation.
+---@field keys string[] Left-hand sides of `keys` trigger entries — what the mapping does is not collected, only when it makes the plugin load.
+---@field dependencies string[] Dependency repo shorthands, one level of nested-spec-table unwrapped.
+---@field enabled boolean? Explicit `enabled = true|false`; `nil` when absent or set to a function (dynamic — not evaluated).
+---@field priority integer?
+---@field branch string?
+---@field version string?
+---@field dir string?
+---@field url string?
+---@field has_opts boolean Whether the spec sets `opts` at all, not what it contains.
+---@field has_config boolean Whether the spec sets `config` (a table, `true`, or a function) at all.
 
 ---Counts over a node and everything below it. Aggregated rather than own-only:
 ---the question a directory answers is "how big is this part of the tree".
