@@ -153,3 +153,10 @@ whether the backend abstraction works, rather than a rewrite wearing one.
 Go is the one to *not* start with, however tempting the ecosystem: godoc gives
 this design almost nothing to check, and a map with no drift checks is a
 diagram, which is a different product.
+
+**A JS/TS backend is only layer 1.** [`FRAMEWORK_CONVENTIONS.md`](FRAMEWORK_CONVENTIONS.md)
+costs out the layer above it — recognizing one ecosystem's structural
+convention within an already-supported language, the same thing
+`core/plugins.lua` already does for Lua + lazy.nvim. Next.js-style
+file-based routing and React hooks, for the web-ecosystem case; strictly
+sequenced behind everything in this document.
