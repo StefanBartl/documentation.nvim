@@ -642,3 +642,69 @@ portability bugs in the spec, not by restoring the old layout.
 Cost, for the record: 45 files rewritten, 19 `dead-readme-link` findings from
 the module READMEs pointing at moved files — every one of them raised by this
 plugin's own check against its own tree, which is the argument for the check.
+
+## `:DocMap plugins` and the Plugins Analysis panel — lazy.nvim spec inventory (2026-08-03)
+
+The map's first feature aimed specifically at a Neovim *config* rather than
+a Neovim *plugin*. Motivated by checking, concretely, whether this plugin is
+useful applied to a real ~450-file `nvim` user config — the answer was
+"structurally yes, but blind to the files someone most wants an overview
+of": `lua/plugins/*.lua` is mostly `return { { "author/repo", event = "…" },
+… }`, no function or symbol in sight, so every existing panel and check saw
+an empty leaf. `core/plugins.lua` extracts these during the same scan pass
+as `functions`/`symbols`, off the parse tree that already exists; `n.plugins`
+is a new `Documentation.Node` field, serialized like `functions`/`symbols`.
+`:DocMap plugins` (quickfix, sorted by repo) and a sixth Analysis-tab panel
+both read it — the panel via client-side aggregation over the serialized
+per-node data, the same split fan-in/fan-out uses, since (unlike
+`duplicates`) there is no cross-file grouping that needs to happen in Lua.
+
+**Scoped to lazy.nvim's spec shape specifically, named as such.**
+packer.nvim (`use {...}` calls) and vim-plug (`Plug '...'` commands) are a
+different shape and would need their own extractor, not a bent version of
+this one — a real follow-up, not attempted here.
+
+**Not followed:** `local M = {...}; return M`. Tracing an identifier back
+to its assignment is exactly the kind of guess this scanner declines to
+make elsewhere (`deps.lua` on `require(expr .. var)`). A file using the
+indirect form contributes no plugins, the same as it contributes no
+functions to `functions.lua` today.
+
+**Verified against a real config, and it found two precision bugs no
+synthetic fixture would have** — the reason to test a feature like this
+against real data before calling it done, not just against cases invented
+to match the design:
+
+- **A single spec returned directly is not an array whose fields are each
+  their own entry.** `return { {...}, {...} }` (many plugins) and `return {
+  "repo", event = "…" }` (one plugin — a real, common style: config split
+  one file per plugin, confirmed as this exact config's own convention in
+  places) parse to the same node type. Read naively, `event`'s *value*
+  looked like just another positional array element, and a first pass
+  genuinely produced a spec whose `repo` was the string `"VeryLazy"`. Fixed
+  on the one real distinguishing signal: an array of specs never has a
+  *named* field at the outer level; a single spec's own trigger/metadata
+  keys always do.
+- **A bare-string array is not unique to plugin specs.** A plain list of
+  command names (`return { "NeotestRunNearest", … }`, found genuinely
+  documenting `:command` names via a doc-comment convention in the same
+  config) is the identical shape. Fixed by requiring a bare positional
+  string to contain `/` with no embedded whitespace — GitHub shorthand is
+  the one thing lazy.nvim's own contract requires of that position, so this
+  is the format, not a style guess. Reduced one real config's
+  false-positive count from 235 spec-shaped matches to 52 genuine ones,
+  verified by hand against the file and line each came from.
+
+Also flags a repo declared in more than one file — a real footgun in a
+config split across files, where the last one lazy.nvim imports silently
+wins and no other check or panel here could ever have surfaced it.
+
+Verification method worth naming: the read-only path
+(`doc.scan_full(cfg)` → `render.html(ir, findings, cfg)` → write the string
+to a scratch file, never `write_artifacts`) never touched the config
+directory being analyzed — no `docs/map/` appeared there, confirmed by
+`git status` on that repository before and after. The rendered HTML was
+served from a local static server and driven in a real browser
+(`document.querySelector(...).click()`, reading `console` for errors),
+since nothing in CI lints the JavaScript embedded in `render/html.lua` —
+that verification only happens by actually loading the page.

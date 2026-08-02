@@ -154,6 +154,30 @@ weakness every scalarization has — a large enough value on one axis outranks a
 moderate value on both. Both columns are on every row, so when the order looks
 wrong the numbers next to it say why.
 
+### `:DocMap plugins`
+
+Every recognized **lazy.nvim spec** in the tree → quickfix list, sorted by
+repo. Instant, unlike `impact`/`churn`: the specs already sit on
+`ir.nodes[*].plugins`, extracted during the scan that produced the live
+handle — no git, no second pass.
+
+Exists for the shape of tree this map was previously blind to: a Neovim
+*config*, where most of `lua/plugins/*.lua` is `return { {...}, {...} }`
+with no function in sight — invisible to every other command and panel.
+Each row carries the repo, which triggers load it (`event`/`cmd`/`keys`/`ft`,
+or "no trigger — loads at startup" when none is set), and the file it came
+from. A repo declared in more than one file is flagged — the last one
+lazy.nvim imports silently wins, and nothing else in this map could ever
+surface that.
+
+Scoped to lazy.nvim's spec shape specifically; packer.nvim and vim-plug
+specs look different and are not recognized. See
+[`core/plugins.lua`](../lua/documentation/core/plugins.lua) for exactly what
+counts as a spec — in particular, `return { "repo", event = "…" }` (one
+plugin) is read correctly as one entry, not as several with `event`'s value
+mistaken for a second repo, and a bare-string list is only accepted as
+plugins when every string is shaped like `owner/repo`.
+
 ### `:DocMap serve` / `:DocMap serve stop`
 
 Start (or stop) the local map server, which is what enables the **History tab**

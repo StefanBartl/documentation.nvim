@@ -251,6 +251,7 @@ function M.to_json(ir)
       '"types": ' .. json.encode(n.types),
       '"types_detail": ' .. (n.types_detail and json.encode(n.types_detail) or "null"),
       '"functions": ' .. json.encode(n.functions),
+      '"plugins": ' .. json.encode(n.plugins),
       '"export": ' .. (n.export and str(n.export) or "null"),
       '"parent": ' .. (n.parent and str(n.parent) or "null"),
       '"depth": ' .. tostring(n.depth),

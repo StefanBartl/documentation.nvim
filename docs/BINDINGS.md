@@ -10,7 +10,7 @@ actually drive the plugin — do not edit by hand. Regenerate with
 
 | Command | Arguments | What it is |
 |---|---|---|
-| `:DocMap` | `[check\|full\|open\|graph\|why\|dot\|diff\|impact\|churn\|serve\|helptags]` | Generate or verify the module map. The bare form writes artifacts. |
+| `:DocMap` | `[check\|full\|open\|graph\|why\|dot\|diff\|impact\|churn\|plugins\|serve\|helptags]` | Generate or verify the module map. The bare form writes artifacts. |
 | `:DocBrowse` | `[live] [history\|trail\|module]` | Navigate the same map inside the editor. Only ever reads. |
 
 Both names are configurable — `opts.command_name` and
