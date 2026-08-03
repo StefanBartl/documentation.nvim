@@ -146,6 +146,15 @@ main{grid-template-columns:minmax(300px,1.1fr) minmax(0,1.4fr);gap:0;align-items
   border-radius:6px;padding:8px 10px;margin-top:6px;overflow-x:auto}
 .fn-see a{color:var(--accent);text-decoration:none}
 .fn-see a:hover{text-decoration:underline}
+/* The bounded source snippet — popup-only, see snippetHTML()'s own comment
+   for why this never touches the Tree tab's detail pane. Same shape as
+   `.fn-ex`'s code block, a distinct class since the content is source, not
+   an authored `@example`. */
+.fn-snip-label{font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--muted);margin-top:10px}
+.fn-snip-label .bd{text-transform:none;letter-spacing:0;margin-left:6px}
+.fn-snip{font-family:var(--mono);font-size:11.5px;white-space:pre-wrap;background:var(--accent-soft);
+  border-radius:6px;padding:8px 10px;margin-top:4px;overflow-x:auto}
 /* Annotation popup — the same fn-* markup the detail pane renders, floated
    over whichever list the reader is scanning. Every list in this map shows a
    signature and nothing else; the params, returns and prose that were
@@ -688,6 +697,27 @@ local JS = [[
     }
     if(fn.example){ h.push('<div class="fn-ex">'+esc(fn.example)+'</div>'); }
     return h.join("");
+  }
+
+  // The bounded source snippet, popup-only — deliberately **not** folded
+  // into `fnAnnotationHTML` above, unlike everything else that function
+  // renders. That function is shared with the Tree tab's detail pane, which
+  // already lists every function of a node in full; a node with a few dozen
+  // functions each carrying up to 40 lines of source would turn that pane
+  // into mostly code, for a question ("what does this look like") the
+  // pane's own click-through to source already answers one step away. The
+  // popup is a different reading task — one function, inspected without
+  // navigating — where the tradeoff runs the other way. See
+  // `docs/ECOSYSTEM.md` §3.5 for the "bounded snippet, embeddable tier"
+  // this implements.
+  function snippetHTML(fn){
+    if(!fn.snippet) return "";
+    var omitted = fn.snippet_omitted
+      ? ' <span class="bd" title="truncated — not carried into the artifact">+' +
+        fn.snippet_omitted + ' more line' + (fn.snippet_omitted === 1 ? '' : 's') + '</span>'
+      : '';
+    return '<div class="fn-snip-label">Source' + omitted + '</div>' +
+      '<div class="fn-snip">' + esc(fn.snippet) + '</div>';
   }
 
   // Artifact lives in out_dir; repo-relative paths need to climb back out.
@@ -4064,7 +4094,7 @@ local JS = [[
       // A key with no entry is a bug in whatever rendered the trigger, not
       // something to paper over with an empty card — say nothing at all.
       if(!entry) return;
-      html = fnAnnotationHTML(entry.fn) +
+      html = fnAnnotationHTML(entry.fn) + snippetHTML(entry.fn) +
         '<div class="fn-desc fn-see"><a href="#" data-sig-goto="' +
         esc(entry.node.id) + '">' + esc(entry.node.module || entry.node.path) +
         ':' + entry.fn.line + '</a></div>';

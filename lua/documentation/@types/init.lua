@@ -170,6 +170,8 @@
 ---@field example string? `@example` block text, if any.
 ---@field since string? `@since` text, if any.
 ---@field is_hook boolean? True when this function's name matches React's own hook convention (`^use[A-Z]`, the same signal `eslint-plugin-react-hooks` relies on) — set by `core/lang/ecma.lua`, `nil` for languages with no such convention (Lua never sets it).
+---@field snippet string? This function's own source, bounded to `core/snippet.lua`'s `MAX_LINES` — the embeddable tier of `docs/ECOSYSTEM.md` §3.5's hover preview. `nil` for an empty/invalid span, a real absence rather than an empty string standing in for one.
+---@field snippet_omitted integer Lines cut off past the cap; `0` when the whole function fit.
 
 ---What kind of relationship an edge in `ir.edges` records. One array with a
 ---discriminator rather than three parallel arrays, so layout, filtering and

@@ -68,6 +68,7 @@ local specs = {
   "lang_registry_spec.lua",
   "docs_spec.lua",
   "lang_js_spec.lua",
+  "snippet_spec.lua",
   "docmap_browse_spec.lua",
 }
 

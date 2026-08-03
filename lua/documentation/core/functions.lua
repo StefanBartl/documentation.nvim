@@ -543,6 +543,8 @@ function M.scan_file(path)
       -- exactly the functions most likely to need a @see fix-up.
       local parsed = parse_doc_block(raw_lines)
       local shape, shape_size = shape_of(def.def_node)
+      local snippet, snippet_omitted =
+        require("documentation.core.snippet").extract(src, frow, feorow)
 
       out[#out + 1] = {
         name = name,
@@ -585,6 +587,12 @@ function M.scan_file(path)
         -- checking everywhere it's read.
         tested = false,
         documented = false,
+        -- Bounded, embeddable tier of `docs/ECOSYSTEM.md` §3.5's hover
+        -- preview: the function's own body, capped by `snippet.lua` —
+        -- computed here for the same reason `complexity`/`shape` are:
+        -- only this pass has the source text and the row span together.
+        snippet = snippet,
+        snippet_omitted = snippet_omitted,
       }
     end
   end

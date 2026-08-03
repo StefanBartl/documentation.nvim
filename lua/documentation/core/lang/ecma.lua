@@ -268,6 +268,7 @@ local function build_fn(name_node, func_node, stmt_node, src, lang)
     or { summary = "", body = "", params = {}, returns = {}, deprecated = nil, internal = false }
 
   local shape, shape_size = shape_of(func_node)
+  local snippet, snippet_omitted = require("documentation.core.snippet").extract(src, srow, erow)
 
   return {
     name = name,
@@ -296,6 +297,12 @@ local function build_fn(name_node, func_node, stmt_node, src, lang)
     tested = false,
     documented = false,
     is_hook = is_hook_name(name),
+    -- Bounded, embeddable tier of `docs/ECOSYSTEM.md` §3.5's hover preview
+    -- — shared with the Lua backend via `core/snippet.lua` rather than
+    -- reimplemented here, since the bounding rule is a policy decision,
+    -- not a per-language fact.
+    snippet = snippet,
+    snippet_omitted = snippet_omitted,
   }
 end
 
