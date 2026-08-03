@@ -630,6 +630,18 @@ Ordered so each step is independently useful and nothing is a big-bang.
    `runtime-analysis.nvim`'s `lua/runtime-analysis/telemetry/README.md` for
    the full API, and lib.nvim's `docs/modules.md`/`doc/lib.nvim.txt` for the
    pointer left behind at the old location.
+   **Revised (2026-08-03, same day):** `lib.strategies.telemetry_wrap`
+   initially took an already-constructed instance as a parameter, splitting
+   "who knows about `runtime-analysis.telemetry`'s API" across two files for
+   no real benefit with exactly one caller. Reworked into a self-contained
+   `setup()`/`teardown()` pair that owns the whole lifecycle — creating the
+   instance, the materialize-then-wrap dance, starting it — so a caller
+   needs neither `runtime-analysis.telemetry`'s API nor
+   `lib.strategies.control`'s. Also gained `runtime-analysis.telemetry.auto()`
+   in the same round: the generic "new+wrap+start on a plugin's load event"
+   shape, extracted out of what had been hand-rolled entirely in personal
+   config, with the plugin-manager hook and per-plugin policy deliberately
+   left to the caller (see that module's own README section).
 8. **`:DocBrowse` gains a telemetry mode** — the static × runtime join,
    in-editor, per `telemetry-documentation-bridge.md`'s existing design.
    That document calls it "Mode 7", written before step 6 above claimed
