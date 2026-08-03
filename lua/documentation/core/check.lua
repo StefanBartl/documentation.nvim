@@ -191,6 +191,43 @@ local function check_readme_links(ir, findings, opts)
   end
 end
 
+--- Prose describing a function that is no longer there.
+---
+--- Dead code's mirror image, and the one drift in this plugin's whole
+--- catalogue that lives outside the source tree entirely: every other check
+--- reads annotations sitting next to the code they describe, where a rename
+--- at least moves them both in one diff. A `.md` file has no such coupling —
+--- it goes stale silently, and nothing but a reader ever notices.
+---
+--- Reads `ir.docs.missing`, which `docs.lua` fills during `scan_full`. The
+--- rule there is deliberately narrow (the mention's longest dotted prefix
+--- must be a real module in this map), so this fires on
+--- `documentation.core.scan.parse_headr` and stays quiet on `vim.fn.expand`
+--- — see that module's header.
+---
+--- `warn`, matching `dead-see-target` and `dead-readme-link`: a stale
+--- reference is a real defect a reader will hit, but it breaks nothing at
+--- runtime, so it is not an error.
+---@param ir Documentation.IR
+---@param findings Documentation.Finding[]
+local function check_doc_references(ir, findings)
+  for _, m in ipairs((ir.docs or {}).missing or {}) do
+    add(
+      findings,
+      "warn",
+      "doc-references-missing",
+      m.node,
+      ("%s:%d references '%s', but %s has no '%s'"):format(
+        m.doc,
+        m.line,
+        m.text,
+        m.module,
+        m.missing
+      )
+    )
+  end
+end
+
 --- A module that exists on disk but is required by nothing above it was
 --- either written and never wired up, or orphaned by a refactor.
 ---
@@ -502,24 +539,13 @@ end
 ---@param ir Documentation.IR
 ---@param findings Documentation.Finding[]
 local function check_see_targets(ir, findings)
-  local known = {}
-  for _, id in ipairs(ir.order) do
-    local node = ir.nodes[id]
-    if node.module then
-      known[node.module] = true
-    end
-    for _, fn in ipairs(node.functions) do
-      known[fn.name] = true
-      if node.module then
-        -- "M.foo" -> "foo": this repo's universal local-table convention is
-        -- `local M = {}`, so a leading capitalized identifier + dot is the
-        -- table, not part of the function's own name. A bare `local function
-        -- foo` has no dot and passes through unchanged.
-        local bare = fn.name:gsub("^%u[%w_]*%.", "")
-        known[node.module .. "." .. bare] = true
-      end
-    end
-  end
+  -- The same name -> entity index the documentation-reference resolver uses
+  -- (`docs.build_index`), rather than a second loop building a boolean
+  -- version of it here. Two answers to "what names does this tree export"
+  -- would drift, and this plugin exists to notice that kind of thing.
+  -- `idx.exact` holds exactly what this check used to collect: module
+  -- paths, declared function names, and qualified `module.bare` forms.
+  local known = require("documentation.core.docs").build_index(ir).exact
 
   for _, id in ipairs(ir.order) do
     local node = ir.nodes[id]
@@ -785,6 +811,7 @@ function M.run(ir, opts)
   check_module_paths(ir, findings, opts)
   check_readmes(ir, findings)
   check_readme_links(ir, findings, opts)
+  check_doc_references(ir, findings)
   check_orphans(ir, findings)
   check_require_cycles(ir, findings)
   check_require_not_declared(ir, findings, opts)

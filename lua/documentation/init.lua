@@ -133,6 +133,15 @@ function M.scan_full(opts)
     return require("documentation.core.duplicates").resolve(ir)
   end)
 
+  -- The prose half of the same tree: which `.md` file mentions which module
+  -- or function. Runs unconditionally for the same reason coverage and
+  -- doccoverage do — it is local, cheap, and a tree with no documentation
+  -- files simply produces an empty corpus, which is a real answer rather
+  -- than a missing one.
+  timing.measure(t, "docs", function()
+    require("documentation.core.docs").resolve_all(ir, opts)
+  end)
+
   local luals_err
   if opts.luals then
     local luals = require("documentation.core.luals")
