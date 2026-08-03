@@ -1359,3 +1359,66 @@ to it in the same edit rather than left to go stale again.
 This closes `docs/ECOSYSTEM.md`'s step 2 completely. Next up per its own
 sequencing: step 3 (bounded snippet previews) and step 4 (the API endpoint
 inventory).
+
+## Bounded snippet previews — ECOSYSTEM.md step 3 (2026-08-03)
+
+`docs/ECOSYSTEM.md` §3.5 split hover previews into three tiers by cost:
+signature (already free, shipped as the annotation popup), a bounded snippet
+around a known line (this entry), and a full file (needs `serve`, explicitly
+out of scope). This is the second tier: every function's own body, capped,
+embedded in the artifact, working offline.
+
+**Shared, not duplicated, across both language backends.** `core/snippet.lua`
+is a new, small module: given a source string and a 0-based row span, return
+the text capped at `MAX_LINES` (40) plus how many lines were cut. Both
+`functions.lua` (Lua) and `core/lang/ecma.lua` (JS/TS/TSX) already have `src`
+and a row range in scope at the exact point they build a
+`Documentation.FunctionInfo` — neither needed a new file read or a new parse,
+only a call to the shared helper. The bounding rule is policy, not a
+per-language fact, so a second implementation would have been the kind of
+drift `MULTILANG.md` already flags as a real risk once a second language
+exists to duplicate against.
+
+**No payload-wiring trap this time — verified why, not assumed.** The
+previous two features in this sequence (`ir.duplicates`, `ir.docs`) each
+needed an explicit new key in `html.lua`'s payload builder, because both are
+*top-level* IR fields the payload assembles by hand. `snippet`/
+`snippet_omitted` are ordinary fields on `Documentation.FunctionInfo`, and
+`nodes` in that same payload is already `ir.nodes[id]` copied whole — so a
+new field on a function flows through automatically, the same way `is_hook`
+did in Stage 2. Confirmed by generating this repository's own map and
+finding real snippet text already present, rather than assumed from the
+architecture alone.
+
+**Deliberately not folded into `fnAnnotationHTML`.** That function is shared
+between the Tree tab's detail pane (which already lists every function of a
+node in full) and the annotation popup (one function, inspected without
+navigating). A node with a few dozen functions, each carrying up to 40 lines
+of source in the detail pane, would turn "browse this module" into "read
+most of its source" — a question the pane's own click-through to source
+already answers one navigation away. `snippetHTML(fn)` is a separate small
+function, called only from the popup's own composition in `sigOpen`.
+
+**Measured, not assumed, and reported honestly.** This repository's own
+regenerated artifact grew from 797KB to 1031KB (`index.html`, +29%) and from
+430KB to 662KB (`module_map.json`, +54%). Bounded and proportional to the
+number of functions, as §3.5 predicted — but a real cost, not the "no new
+extraction, basically free" character step 2's docs-only overview genuinely
+had. `docs/ECOSYSTEM.md`'s own step 3 entry now states this plainly rather
+than calling the feature cheaper than it measured.
+
+Explicitly not attempted: a snippet at an arbitrary `path:line:col` — a call
+site, or a doc reference's own line inside the `.md` file that mentions it.
+Those lines live in files this pass (which only ever visits a function's
+*own* file, at its *own* declared span) was never reading. A real, separate
+extension, not a small one, and left for later rather than guessed at.
+
+Verified in an actual browser against this repository's own regenerated map:
+a short function's popup shows its real body; a function longer than the cap
+(`history.lua`'s `M.analyze`, among others) shows the truncated text plus a
+"+N more lines" badge with the exact real count; the existing popup lifecycle
+(hover-open, click-to-pin, Escape-to-close) is unaffected. A committed
+regression test (`TESTS/snippet_spec.lua`) checks `core/snippet.lua` directly
+— an exact span, exactly-at-the-cap (the boundary itself, not "one over"),
+over-the-cap, and an invalid/inverted span — plus an end-to-end check that
+`functions.lua` actually calls it during a real scan.

@@ -537,7 +537,24 @@ Ordered so each step is independently useful and nothing is a big-bang.
    `ir.docs.files`, exactly as cheap as §3.4 predicted: no new extraction,
    just the existing `anFilter`/`anSort`/`anHead` plumbing every other
    panel already uses. Step 2 is now fully done.
-3. **Bounded snippet previews.** Embeddable tier only.
+3. ~~**Bounded snippet previews.** Embeddable tier only.~~ **Done
+   (2026-08-03)** — `core/snippet.lua`, shared by both language backends,
+   caps each function's own body at 40 lines and reports how many were cut.
+   Rendered only in the annotation popup, deliberately not folded into
+   `fnAnnotationHTML` (the Tree tab's detail pane already lists every
+   function of a node in full; adding up to 40 code lines per function
+   there would turn a many-function node's pane into mostly code, for a
+   question the pane's own click-through to source already answers).
+   **Measured, not assumed:** this repository's own artifact grew ~29%
+   (`index.html`, 797KB → 1031KB) and ~54% (`module_map.json`, 430KB →
+   662KB) from this alone — bounded and proportional to entity count as
+   §3.5 predicted, but a real cost worth stating plainly rather than
+   calling "cheap" the way step 2's docs-only overview genuinely was. Only
+   a function's own declared span is covered; a snippet at an arbitrary
+   `path:line:col` (a call site, a doc reference's own line in the `.md`
+   file) is not attempted — those lines live in files this pass over
+   function definitions was never reading, a separate task, not a small
+   extension of this one.
 4. **API endpoint inventory.** Call-based recognizer first (flat, an Analysis
    panel); file-based later (Hierarchy view, per
    `FRAMEWORK_CONVENTIONS.md`).
