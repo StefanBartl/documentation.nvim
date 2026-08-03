@@ -776,3 +776,87 @@ one-file-many-modules, and the schema-versioning check — are explicitly
 enough (the same shape Lua already has) that Phase 1 does not require
 them. Recorded as deferred-with-reason in `MULTILANG.md` itself, not
 silently skipped.
+
+## `core/lang/ecma.lua` — JavaScript, TypeScript and TSX as real backends (2026-08-03)
+
+`docs/ROADMAP/MULTILANG.md`'s Phase 1: the first real (non-Lua) language
+plugged into the seam `core/lang_registry.lua` built. One shared
+implementation (`ecma.lua`) behind three one-line registrations (`js.lua`,
+`ts.lua`, `tsx.lua`), the same relationship `core/lang/lua.lua` has to
+`functions.lua` — because the three grammars agree on every shape this
+module actually reads, verified against real parses rather than assumed
+from documentation.
+
+**Built and verified against real grammars, not guessed at.** Since
+touching this repository's own Neovim environment was explicitly ruled
+out for this work, the `tree-sitter` CLI built `javascript`/`typescript`/
+`tsx` shared libraries from cloned grammar sources into a scratch temp
+directory, used only to probe real node shapes (`tree-sitter parse`/
+`query`) and, after the extraction was written, to run the full
+`ecma.lua` fixture against real parses of all four function forms, JSDoc,
+`async`, hook detection, and both import styles — twice: once to catch
+two real bugs (below), once clean. Nothing from that scratch directory is
+part of the repository or the committed test; `TESTS/lang_js_spec.lua`
+looks for a parser the normal way (`vim.treesitter.language.add`, no
+explicit path) and skips with a stated reason when none is on the
+runtimepath, which is the honest state of this repository's own CI today.
+
+**Scope, stated narrowly rather than guessed at:** `function name() {}`,
+`const/let name = (...) => {}`, `const/let name = function() {}`, and any
+of those under `export`/`export default` (verified: both wrap the same
+`declaration` field, no distinguishing node). Not covered: class methods,
+object-literal methods, `module.exports = {...}`, generators, IIFEs — a
+file using only those contributes no functions, the same honest gap
+`functions.lua` leaves for a Lua construct it cannot read a def out of.
+Imports: ESM (default/named/namespace) and CommonJS `require()` assigned
+to `const`/`let`; a computed `require()` target or dynamic `import()` is
+not resolved, matching `deps.lua`'s own stated position on computed
+targets. `complexity`/`shape` are real, computed against this grammar's
+own verified node names (`ternary_expression`, `switch_case`; no
+`elseif_statement`/`repeat_statement` — `else if` is a nested
+`if_statement`). React hooks are recognized by the same `^use[A-Z]` naming
+convention `eslint-plugin-react-hooks` itself relies on (`is_hook`),
+carried on `Documentation.FunctionInfo` alongside a real field rather than
+inferred at the panel layer — `docs/FRAMEWORK_CONVENTIONS.md`'s own
+conclusion that a *map* of hooks, not rules-of-hooks linting ESLint
+already owns, is the underserved half.
+
+**One check needed to learn a second convention exists.**
+`check_summaries`' `missing-module-tag` fired on `node.module` being falsy
+— correct for Lua, which needs `---@module` to recover a name its file
+path alone cannot give, but wrong for JS/TS, whose module identity *is*
+its file path with nothing to declare. Caught by reasoning through the
+check's code before writing the JS backend, not by a failing test after
+the fact. Fixed with a new `Documentation.LangBackend.module_tag` field
+(default `true`) and a `wants_module_tag(node)` helper that asks the
+registry, never a specific backend — the same discipline `check.lua`
+already keeps elsewhere. Verified byte-identical behavior on this
+repository's own all-Lua tree (same findings) before and after.
+
+**A second, more consequential bug: the new layer rule itself over-fired
+once a second language actually had internal files to require each
+other.** `js.lua`/`ts.lua`/`tsx.lua` each require `ecma.lua` — all three
+live under `documentation.core.lang`, so that require never leaves
+`core.lang`'s own scope. But `check_layers`' prefix match only checked
+that `from` was under `rule.from` and `to` was under `rule.to`; since
+`documentation.core.lang.js` is trivially also "under" `documentation.core`
+by plain prefix, the rule fired on `ecma.lua` being required from inside
+its own package, misreading an edge that never crossed the
+core-into-`core.lang` boundary as though it had. Caught by actually
+regenerating this repository's own map after adding the three backends,
+not assumed clean because Stage 1's version of the rule had been correct
+for the one case it was tested against. Fixed by requiring `from` to sit
+*outside* `rule.to`'s scope as well as inside `rule.from`'s — the general
+fix, not a special case for `core.lang`, so any future rule with a nested
+`to` under `from` gets the same correct behavior. Verified both
+directions after the fix: the three legitimate intra-`core.lang` requires
+went silent, and a deliberate throwaway direct require
+(`scan.lua` → `core/lang/lua.lua`) was still caught, then removed before
+commit.
+
+Left genuinely open, not silently answered: calls/symbols extraction,
+class-method owning-scope, `.jsx` support (left for `js.lua` to extend,
+per that file's own header), `module.exports = {...}` recognition, and
+this repository's own CI not yet installing a JS/TS parser to run
+`lang_js_spec.lua`'s assertions rather than its skip path. Tracked in
+`docs/ROADMAP/MULTILANG.md`'s Phase 1 checklist.

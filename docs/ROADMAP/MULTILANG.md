@@ -91,26 +91,80 @@ specifically — the language `docs/FRAMEWORK_CONVENTIONS.md`'s layer-2 work
 (Next.js-style routing, React hooks) depends on, so getting this one right
 pays twice.
 
-- [ ] Treesitter grammar: `tree-sitter-javascript` + `tree-sitter-typescript`
+- [x] Treesitter grammar: `tree-sitter-javascript` + `tree-sitter-typescript`
   (the latter ships a `tsx` dialect too — needed if this ever reaches JSX,
-  which `docs/FRAMEWORK_CONVENTIONS.md`'s routing work will).
-  `core/functions.lua`'s query-based extraction is the reference shape;
-  the node *type names* differ (`function_declaration` exists in both
-  grammars but with a different field set — verify against a real parse
-  before writing a query, the standing rule every existing extractor in
-  this repo already follows, not a new one).
-- [ ] Import extraction: ESM (`import x from "y"`) and CommonJS
+  which `docs/FRAMEWORK_CONVENTIONS.md`'s routing work will). **(2026-08-03)**
+  Node shapes verified against real parses (grammars built from source into
+  a scratch directory, the user's own environment untouched) rather than
+  assumed: `function_declaration`, `export_statement` (wraps `export` and
+  `export default` identically, no distinguishing node),
+  `lexical_declaration`/`variable_declaration` → `variable_declarator`,
+  `arrow_function`/`function_expression`, `import_statement` (default/
+  named/namespace), CommonJS `require()`, and the branch-relevant nodes
+  `ternary_expression`/`switch_case`/`for_in_statement` (covers both
+  for-of and for-in). Confirmed JS has no `elseif_statement`/
+  `repeat_statement` — `else if` is a nested `if_statement`. See
+  `core/lang/ecma.lua` and `docs/ROADMAP/FEATURES.md`'s ledger entry for
+  this phase.
+- [x] Import extraction: ESM (`import x from "y"`) and CommonJS
   (`require("y")`) both need recognizing — unlike Lua's single `require()`
   idiom, real JS/TS trees mix both within one project, sometimes one file.
-- [ ] JSDoc/TSDoc doc-block parsing: `@param`, `@returns`, `@see`,
+  **(2026-08-03)** Both forms handled by `ecma.lua`'s `extract_requires`;
+  a computed `require()` target or dynamic `import()` is not resolved,
+  matching `deps.lua`'s own stated position on computed targets — not
+  silently guessed at.
+- [x] JSDoc/TSDoc doc-block parsing: `@param`, `@returns`, `@see`,
   `@deprecated` map close to directly onto the existing `Documentation.
   FunctionInfo` shape. TypeScript's own types make `undocumented-param`
   partly redundant — `docs/MULTILANG.md` already calls this a feature, not
   a problem to solve; do not build a check that fights the type checker.
-- [ ] Which of the fourteen existing checks port unchanged (the require-graph
+  **(2026-08-03)** `@param`/`@returns`/`@return`/`@deprecated`/`@internal`/
+  `@private` parsed by `ecma.lua`'s `parse_jsdoc`. Not yet parsed: `@see`,
+  `@overload`, `@todo`/`@bug`/`@test`, `@example`, `@since`, `@generic` —
+  real JSDoc-adjacent conventions left as an honest gap, the same as
+  `core/plugins.lua` leaves an unreadable spec's `dependencies` at `{}`.
+- [x] Which of the fourteen existing checks port unchanged (the require-graph
   ones, README ones) vs. need a JS-specific variant (module-path
   conventions differ: no `@module` tag idiom exists in JS to check against)
-  — audit check-by-check before assuming parity.
+  — audit check-by-check before assuming parity. **(2026-08-03)** One
+  check needed a variant, found by reasoning through its code before
+  writing the JS backend: `missing-module-tag` assumed every language
+  needs a declared name, which is only true of Lua. Fixed via
+  `Documentation.LangBackend.module_tag` (default `true`, `false` for
+  js/ts/tsx) and a registry-aware `wants_module_tag(node)` helper in
+  `check.lua` — see `docs/ROADMAP/FEATURES.md`. The rest of the audit (the
+  other thirteen checks against a real, non-trivial JS/TS tree) has not
+  happened yet — this repository's own tree is still all-Lua, so nothing
+  has exercised most of them against real JS/TS findings.
+- [ ] React function components and hooks: `ecma.lua` already tags a
+  function `is_hook` by the `^use[A-Z]` naming convention
+  (`eslint-plugin-react-hooks`'s own signal), per
+  `docs/FRAMEWORK_CONVENTIONS.md`'s conclusion that a *map* of hooks is the
+  underserved half of React support. Not yet built: an Analysis panel or
+  `:DocMap` view surfacing that map — the field exists, nothing reads it
+  yet.
+- [ ] Calls/symbols extraction: `ecma.lua`'s `scan_file` currently returns
+  `{}` for both, honestly, not a placeholder pretending to be resolved —
+  needed before JS/TS gets the same call-graph/duplicate-detection
+  coverage Lua has.
+- [ ] Class-method owning-scope: `ecma.lua` recognizes standalone functions
+  only; a method inside a `class` body has no representation yet — the
+  same Phase-0 owning-scope gap Python/Rust/Go will also need, not unique
+  to JS/TS, deferred for the same reason.
+- [ ] `.jsx` support: deliberately left to `js.lua` to extend (its own
+  header says so) rather than claimed by `tsx.lua`, which the `tsx`
+  grammar could technically parse — a `.jsx` file is JavaScript, not
+  TypeScript, and conflating the two here would be a wrong module
+  identity, not a shortcut.
+- [ ] `module.exports = {...}` (the CommonJS export-object idiom): not
+  recognized — a file using only this form contributes no functions today,
+  the same honest gap as class methods.
+- [ ] This repository's own CI does not install JS/TS/TSX treesitter
+  parsers yet, so `TESTS/lang_js_spec.lua` currently exercises its skip
+  path in CI, not its real assertions — those were verified by hand
+  against grammars built from source for this phase's development (see
+  `docs/ROADMAP/FEATURES.md`), but nothing re-checks them automatically
+  until CI gains a parser install step.
 
 ## Phase 2 — Python
 

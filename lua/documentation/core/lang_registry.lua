@@ -38,7 +38,12 @@ local M = {}
 ---language backend is one more line in this list, still with nothing
 ---outside this file naming it.
 ---@type string[]
-local KNOWN_BACKENDS = { "documentation.core.lang.lua" }
+local KNOWN_BACKENDS = {
+  "documentation.core.lang.lua",
+  "documentation.core.lang.js",
+  "documentation.core.lang.ts",
+  "documentation.core.lang.tsx",
+}
 
 local loaded = false
 
