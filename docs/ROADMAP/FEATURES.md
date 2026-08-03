@@ -708,3 +708,71 @@ served from a local static server and driven in a real browser
 (`document.querySelector(...).click()`, reading `console` for errors),
 since nothing in CI lints the JavaScript embedded in `render/html.lua` —
 that verification only happens by actually loading the page.
+
+## `core/lang_registry.lua` — the language-backend seam (2026-08-03)
+
+`docs/ROADMAP/MULTILANG.md`'s Phase 0, item one and two: a real, working
+extension point for a second language, built without touching a single
+existing function's behavior. Verified, not assumed — every field on every
+pre-existing node in this repository's own map came back byte-identical
+after the change; the only diffs were two new nodes (for the two new files)
+and the require-graph/stats edges those two files legitimately add.
+
+**The seam is narrower than it looks.** `scan.lua`'s walk hardcoded three
+Lua facts: `"%.lua$"` (is this my file), `"init.lua"` (does this directory
+own a module), and a direct call into `functions.lua` (how do I read one).
+All three now go through `core/lang_registry.lua`'s `for_file`/`module_file`
+contract instead. Everything else — `functions.lua` itself, `scan.lua`'s own
+`parse_header`, the `@types/` collection, `export_shape` — is untouched and
+still Lua-specific, deliberately: those are real language-support work with
+no abstraction to build yet, not oversights.
+
+`core/lang/lua.lua` is the thin registration, not a second implementation:
+`is_source`/`module_file` are new, one line each, and `parse_header`/
+`scan_file` are one-line delegations to the code that already existed.
+Both delegations are deferred `require()`s inside their own function
+bodies, the same established pattern `functions.lua`/`symbols.lua` already
+use for their own back-reference to `scan.lua`'s `split_summary` — verified
+this is not circular the same way that precedent already is, by tracing
+exactly when each require actually fires.
+
+**The new layer rule caught a real design mistake while this was being
+built, the same way the `core`/`editor` rule caught `tagfiles.lua` reaching
+into `command.lua`.** The first draft had `scan.lua` require
+`core/lang/lua.lua` directly, to trigger its self-registration —
+`documentation.core` reaching into `documentation.core.lang.lua`, exactly
+the coupling `{ from = "documentation.core", to =
+"documentation.core.lang" }` exists to forbid. `--check` flagged it
+immediately. Fixed by giving the registry itself a small, explicit list of
+backend modules to require lazily (`KNOWN_BACKENDS`) — the one place
+allowed to name a specific backend — rather than suppressing the finding.
+Verified the rule the other direction too: it stays silent on the
+legitimate registration path, and a deliberate throwaway violation (a
+one-off file requiring `core/lang/lua.lua` directly) was caught and the
+file deleted before commit.
+
+**A second, subtler bug, found only by testing `reset()` for real rather
+than trusting the docstring:** the first version of `reset()` cleared
+`backends`/`order` and also cleared a `loaded` flag, on the theory that the
+registry's lazy `ensure_loaded()` would repopulate the real "lua" backend
+on the next lookup. It does not — `require()` on a module already in Lua's
+own cache returns the same table without re-running the file, so the
+`register(...)` call at a backend's own bottom line never fires a second
+time. Verified empirically with a two-line throwaway script before writing
+the fix: `for_file("x.lua")` returned a real table before `reset()` and
+`nil` after it, forever, for the rest of the process. Fixed by giving each
+backend a `name` field on its own table and having `reset()` re-register
+every known backend explicitly, from its already-cached module, rather
+than depending on re-execution that Lua's semantics do not provide.
+`TESTS/lang_registry_spec.lua` asserts the fixed behavior directly, in its
+own file rather than a block in `docmap_spec.lua` — that file already sits
+at Lua's 200-local-per-function ceiling, and this suite touches the
+process-wide singleton every other spec's real scanning depends on.
+
+Three of `MULTILANG.md`'s remaining Phase 0 items — owning-scope,
+one-file-many-modules, and the schema-versioning check — are explicitly
+**not** done and not needed yet: modern JS/TS is function-based enough
+(React function components and hooks, not classes) and file-is-a-module
+enough (the same shape Lua already has) that Phase 1 does not require
+them. Recorded as deferred-with-reason in `MULTILANG.md` itself, not
+silently skipped.
