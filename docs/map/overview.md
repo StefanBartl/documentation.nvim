@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**4 modules** · 5 namespaces · 54 helper files
+**4 modules** · 5 namespaces · 58 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -86,6 +86,7 @@ flowchart LR
   nlua_documentation_bindings_usrcmds --> nlua_documentation_editor_serve_lua
   nlua_documentation_core_calls_lua --> nlua_documentation_core_deps_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_deps_lua
+  nlua_documentation_core_check_lua --> nlua_documentation_core_lang_registry_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_coverage_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_doccoverage_lua
   nlua_documentation_core_diff_lua --> nlua_documentation_core_check_lua
@@ -136,20 +137,24 @@ flowchart LR
 
 ## Drift
 
-0 errors · 0 warnings · 4 info
+0 errors · 0 warnings · 8 info
 
 No errors or warnings.
 
 
 <details>
-<summary>4 informational findings</summary>
+<summary>8 informational findings</summary>
 
 
 | Check | Message |
 |---|---|
+| `undocumented-param` | complexity has 3 parameter(s) but only 2 @param line(s) |
 | `unreferenced-module` | documentation.bindings.docs is required by no other file in the tree |
 | `unreferenced-module` | documentation.core.config is required by no other file in the tree |
+| `unreferenced-module` | documentation.core.lang.js is required by no other file in the tree |
 | `unreferenced-module` | documentation.core.lang.lua is required by no other file in the tree |
+| `unreferenced-module` | documentation.core.lang.ts is required by no other file in the tree |
+| `unreferenced-module` | documentation.core.lang.tsx is required by no other file in the tree |
 | `unreferenced-module` | documentation.editor.health is required by no other file in the tree |
 
 </details>

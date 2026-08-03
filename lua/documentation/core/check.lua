@@ -47,6 +47,33 @@ function M.expected_module(path, lua_root)
   return (rest:gsub("/", "."))
 end
 
+--- Whether this node's language backend uses a `@module`-tag-shaped
+--- authoring convention worth checking the absence of. Lua does — a Lua
+--- module's canonical dotted name cannot be recovered from its file path
+--- alone in general, which is the entire reason `expected_module`/
+--- `module-path-mismatch` exist. A language whose module identity already
+--- *is* its file path (JS/TS's ESM imports resolve by path, not by an
+--- internal tag) has nothing to be missing, and firing an error-severity
+--- finding on every such file would be a real regression the moment a
+--- second backend without the convention exists — not a hypothetical one.
+---
+--- Read through the registry, never a specific backend: the same rule
+--- `layer-violation` enforces everywhere else in `core`.
+---@param node Documentation.Node
+---@return boolean
+local function wants_module_tag(node)
+  if not node.source then
+    return true
+  end
+  local backend = require("documentation.core.lang_registry").for_file(
+    node.source:match("([^/]+)$") or node.source
+  )
+  -- No backend found (or one that never states an opinion): preserve
+  -- today's behavior rather than silently waive the check on an unknown
+  -- shape of node.
+  return not backend or backend.module_tag ~= false
+end
+
 --- Every module and helper file should say what it is in one sentence — that
 --- sentence is what the map, the README tables and the vimdoc all render.
 ---@param ir Documentation.IR
@@ -55,7 +82,7 @@ local function check_summaries(ir, findings)
   for _, id in ipairs(ir.order) do
     local node = ir.nodes[id]
     if node.kind ~= "namespace" then
-      if not node.module then
+      if wants_module_tag(node) and not node.module then
         add(
           findings,
           "error",
@@ -69,7 +96,7 @@ local function check_summaries(ir, findings)
           "warn",
           "missing-summary",
           id,
-          ("%s has ---@module but no description line"):format(node.source or id)
+          ("%s has no description line"):format(node.source or id)
         )
       end
     end
@@ -435,7 +462,19 @@ local function check_layers(ir, findings, opts)
       local to = ir.nodes[edge.to]
       if from.module and to.module then
         for _, rule in ipairs(rules) do
-          if under(from.module, rule.from) and under(to.module, rule.to) then
+          -- `from` must be outside `rule.to`'s own scope, not just inside
+          -- `rule.from`'s — otherwise a rule like `{from="documentation.core",
+          -- to="documentation.core.lang"}` also fires on `core.lang.js`
+          -- requiring `core.lang.ecma`: both modules sit trivially "under"
+          -- `documentation.core` by prefix, so without this exclusion every
+          -- intra-`core.lang` require would be misread as the very
+          -- core-into-lang boundary crossing the rule exists to catch, not
+          -- an edge that stays inside `core.lang` the whole way.
+          if
+            under(from.module, rule.from)
+            and not under(from.module, rule.to)
+            and under(to.module, rule.to)
+          then
             add(
               findings,
               "warn",

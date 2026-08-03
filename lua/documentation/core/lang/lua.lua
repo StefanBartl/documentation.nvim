@@ -29,6 +29,13 @@ local M = {}
 ---the table it already has, not by re-requiring anything.
 M.name = "lua"
 
+---A Lua module's canonical dotted name cannot be recovered from its file
+---path alone in general — that is the entire reason
+---`check.expected_module`/`module-path-mismatch` exist. Explicit `true`
+---rather than leaving the field unset, so a reader of this file does not
+---have to know the default to see the decision.
+M.module_tag = true
+
 ---@param filename string
 ---@return boolean
 function M.is_source(filename)
