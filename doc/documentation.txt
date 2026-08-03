@@ -31,8 +31,10 @@ at a repository whose files carry `---@module` and it produces:
                                History and Analysis tabs. Self-contained —
                                no CDN, no build step. The Analysis tab ranks
                                test coverage, documentation coverage,
-                               fan-in/fan-out, cyclomatic complexity and
-                               structural duplicates.
+                               fan-in/fan-out, cyclomatic complexity,
+                               structural duplicates, lazy.nvim plugin specs
+                               and React hooks (functions named like
+                               `^use[A-Z]`).
     docs/map/overview.md       the same tree as Markdown, renders on GitHub
     docs/map/module_map.json   the IR, byte-deterministic
     docs/map/coverage.svg      optional documentation-coverage badge
