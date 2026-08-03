@@ -621,7 +621,11 @@ local function walk(root, src, lang)
     if stmt:type() == "export_statement" then
       unwrapped = stmt:field("declaration")[1] or stmt
     end
-    if stmt:type() == "import_statement" or unwrapped:type() == "lexical_declaration" then
+    if
+      stmt:type() == "import_statement"
+      or unwrapped:type() == "lexical_declaration"
+      or unwrapped:type() == "variable_declaration"
+    then
       for _, r in
         ipairs(extract_requires(stmt:type() == "import_statement" and stmt or unwrapped, src))
       do
