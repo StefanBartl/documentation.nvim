@@ -914,3 +914,31 @@ Left open, the same items `MULTILANG.md` already tracked before this
 panel existed: no `.jsx` support, no class-method hooks, no CommonJS
 `module.exports` recognition — the panel shows whatever `ecma.lua`'s
 existing scope already finds, nothing more.
+
+## CI now installs real JS/TS/TSX parsers (2026-08-03)
+
+Closes the last item Stage 2's own ledger entry left open: this
+repository's GitHub Actions `tests` job only ever exercised
+`TESTS/lang_js_spec.lua`'s stated skip path, never its real assertions —
+the same grammars this session built by hand into a scratch directory to
+verify `ecma.lua` during development were never available to CI itself.
+
+`.github/workflows/ci.yml`'s `tests` job now builds all three grammars
+from source with the `tree-sitter` CLI (both `tree-sitter-javascript` and
+`tree-sitter-typescript` ship pre-generated `parser.c`, so only
+`tree-sitter build` — compiling, not generating — is needed) into
+`.deps/ts-parsers`, then exports `DOCUMENTATION_TS_PARSERS_DIR` via
+`$GITHUB_ENV` for the `scripts/ci.sh tests` step that follows it.
+`TESTS/run.lua` reads that variable itself and appends it to the rtp —
+optional, unlike the existing `LIB_NVIM_DIR` handling right above it in
+the same file, since `lang_js_spec.lua` already has a real, tested skip
+path for the ordinary case of a local run with no such variable set; a
+missing/absent directory is silently a no-op, not an error, the same way
+an absent `lib.nvim` is a hard failure and an absent JS parser is not.
+
+Verified by actually cloning both grammar repos and running
+`tree-sitter build` locally before writing the workflow step, then
+running the full suite twice — once with the built parsers on the rtp via
+the new environment variable (all real assertions ran), once without
+(the pre-existing skip path, unchanged) — rather than trusting the YAML
+would work the first time it ran in CI.

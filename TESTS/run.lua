@@ -39,6 +39,19 @@ end
 
 add_lib_nvim()
 
+-- Optional, unlike lib.nvim: `lang_js_spec.lua` already degrades to a stated
+-- skip when no javascript/typescript/tsx parser is on the rtp (true for a
+-- plain local run, where nothing should fail loudly over an absent
+-- treesitter grammar). CI builds real grammars from source into a directory
+-- and points here via this variable so that spec's real assertions run
+-- instead of its skip path — see `.github/workflows/ci.yml`.
+if
+  vim.env.DOCUMENTATION_TS_PARSERS_DIR
+  and vim.fn.isdirectory(vim.env.DOCUMENTATION_TS_PARSERS_DIR) == 1
+then
+  vim.opt.rtp:append(vim.env.DOCUMENTATION_TS_PARSERS_DIR)
+end
+
 local dir = debug.getinfo(1, "S").source:sub(2):match("(.*[/\\])") or "./"
 local H = dofile(dir .. "harness.lua")
 
