@@ -289,6 +289,14 @@ function M.to_json(ir)
   -- redo it. Same reason `stats` is serialised rather than recomputed in JS.
   put(',\n  "duplicates": ')
   put(json.encode(ir.duplicates or { groups = {}, functions = 0, considered = 0, min_size = 0 }))
+  -- Carried for the same reason `duplicates` is: the page has no filesystem
+  -- to re-read `.md` files from, so a reference index it could rebuild
+  -- itself does not exist. Bounded at the source — `docs.lua` caps both the
+  -- stored context length and the references kept per entity — rather than
+  -- trimmed here, so what the check reasons about and what the page shows
+  -- are the same data.
+  put(',\n  "docs": ')
+  put(json.encode(ir.docs or { files = {}, refs = {}, missing = {} }))
   put("\n}\n")
   return table.concat(out)
 end

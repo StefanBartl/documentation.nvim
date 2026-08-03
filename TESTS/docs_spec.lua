@@ -26,21 +26,26 @@ return function(H)
         path = "lua/demo",
         functions = { { name = "M.setup" }, { name = "write" } },
       },
+      -- `parent` links are set because the prefix walk climbs them: a real
+      -- IR always has them, and a fixture without them silently exercised a
+      -- fallback path instead of the real one.
       ["n/scan"] = {
         id = "n/scan",
         module = "demo.core.scan",
         path = "lua/demo/core/scan.lua",
+        parent = "n/ns",
         functions = { { name = "M.run" }, { name = "git" } },
       },
       ["n/deep"] = {
         id = "n/deep",
         module = "demo.core.deps",
         path = "lua/demo/core/deps.lua",
+        parent = "n/ns",
         -- `write` also exists on n/root: a bare name owned twice.
         functions = { { name = "M.build" }, { name = "write" } },
       },
       -- A directory with no init.lua: no `module` tag of its own.
-      ["n/ns"] = { id = "n/ns", path = "lua/demo/core", functions = {} },
+      ["n/ns"] = { id = "n/ns", path = "lua/demo/core", parent = "n/root", functions = {} },
     },
   }
 
@@ -59,6 +64,25 @@ return function(H)
   )
   eq(idx.bare["git"].fn, "git", "docs: a tree-unique bare name is available to the heuristic")
   eq(idx.bare["write"], nil, "docs: a bare name owned by two modules is owned by neither")
+
+  -- A prefix must name the namespace itself, not one of its children. The
+  -- first version resolved `demo.core` to whichever module under it
+  -- `pairs()` happened to yield first — a different one per run, which made
+  -- the byte-compared artifact permanently stale because regenerating never
+  -- reproduced the previous file. Both halves are asserted: the right node,
+  -- and the same node every time.
+  eq(
+    idx.exact["demo.core"].node,
+    "n/ns",
+    "docs: a namespace prefix resolves to the namespace node, not to a child module"
+  )
+  for _ = 1, 5 do
+    eq(
+      docs.build_index(ir).exact["demo.core"].node,
+      "n/ns",
+      "docs: ... and does so deterministically, run after run"
+    )
+  end
 
   -- ---------------------------------------------------------------------
   -- Resolution — qualified by default, bare only when asked

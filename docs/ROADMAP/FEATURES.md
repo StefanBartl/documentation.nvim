@@ -1284,3 +1284,43 @@ tree export" would drift, and noticing that is this plugin's whole job.
 Two bugs were caught by `TESTS/docs_spec.lua` while writing it, both real:
 the ambiguity leak above, and a double-backtick pattern using `[^`]+` for
 content whose entire purpose is to *contain* backticks.
+
+## Doc references in the map, and a determinism bug (2026-08-03)
+
+The UI half of step 2: a marker beside anything the prose mentions, opening
+the references with their surrounding line. Rendered **only where references
+exist** — an always-present icon that is usually empty trains the reader to
+ignore it, while one that appears exactly when a document mentions this thing
+is a signal before it is even clicked. It reuses the annotation popup's card
+and lifecycle rather than introducing a second floating element: two
+independently positioned popups that can both be open would have to negotiate
+overlap, focus and Escape between them, and no reading task wants both at
+once.
+
+**Two bugs, both found by opening the page rather than by reading the code.**
+
+The first was already documented in this file, one line above where it
+happened again. `duplicates` carries a comment explaining that it had been
+missing from the page payload, which made its panel permanently unreachable.
+That payload is built independently of `documentation.to_json`, so adding a
+field to the IR *and* to the JSON artifact still leaves the page without it —
+which is exactly what happened here: the browser showed an artifact whose
+`docs` key did not exist. Now stated plainly in the code rather than left for
+a third feature to rediscover.
+
+The second was worse, and would have been invisible without the `map` gate.
+The index registered namespace prefixes by iterating `pairs()` over a table,
+so `documentation.core` resolved to whichever module under it the hash order
+yielded first — **a different one on every run**. In a byte-compared artifact
+that is not cosmetic: regenerating produced a different file each time, so
+`--check` could never pass and the map was permanently "stale" with no edit
+that could fix it. Iterating `ir.order` fixes the determinism; climbing the
+`parent` chain in lockstep with stripping name segments also makes the answer
+*correct*, resolving a prefix to the real namespace node instead of to an
+arbitrary child of it. Three consecutive generations now hash identically,
+and the spec asserts both halves.
+
+Writing that regression test exposed a third, quieter problem: the fixture IR
+had no `parent` links, so it had been exercising a fallback path rather than
+the real one. A fixture that cannot fail the way production fails is not a
+test of production.
