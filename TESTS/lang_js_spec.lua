@@ -72,7 +72,7 @@ return function(H)
   }, "\n"))
   fw:close()
 
-  local fns, _, requires, _, _, lines = js_backend.scan_file(fixture)
+  local fns, _, requires, _, _, _, lines = js_backend.scan_file(fixture)
 
   eq(#fns, 5, "lang.js: finds all four recognized function shapes plus the hook")
   eq(fns[1].name, "add", "lang.js: function_declaration recognized, in line order")
@@ -253,6 +253,69 @@ return function(H)
     ok(by_name.fromRequire == nil, "lang.js: a require() binding is not also a symbol")
 
     os.remove(symbols_fixture)
+  end
+
+  -- Endpoints: call-based route registrations, `core/endpoints.lua`'s own
+  -- recognizer, threaded through the seventh `scan_file` return value.
+  do
+    local ep_fixture = H.tmpfile(".js")
+    local ef = assert(io.open(ep_fixture, "w"))
+    ef:write(table.concat({
+      'const express = require("express");',
+      "const app = express();",
+      "",
+      "/**",
+      " * Fetch one user by id.",
+      " */",
+      "function getUser(req, res) {",
+      "  res.send(req.params.id);",
+      "}",
+      "",
+      "function createUser(req, res) {",
+      '  res.send("created");',
+      "}",
+      "",
+      'app.get("/users/:id", getUser);',
+      'app.post("/users", createUser);',
+      'app.delete("/users/:id", function(req, res) { res.send("deleted"); });',
+      "",
+      'app.use("/static", staticMiddleware);', -- must not be recognized
+      'cache.get("key");', -- must not be recognized: not path-shaped
+    }, "\n"))
+    ef:close()
+
+    local _, _, _, _, _, endpoints = js_backend.scan_file(ep_fixture)
+    eq(#endpoints, 3, "lang.js: three real routes found; use() and a non-path .get() excluded")
+
+    local by_path = {}
+    for _, e in ipairs(endpoints) do
+      by_path[e.method .. " " .. e.path] = e
+    end
+
+    local get = by_path["get /users/:id"]
+    ok(get, 'lang.js: app.get("/users/:id", ...) recognized')
+    eq(get.handler, "getUser", "lang.js: ... with the named handler")
+    eq(
+      get.framework,
+      "express",
+      'lang.js: ... framework read from this file\'s own require("express")'
+    )
+    ok(get.documented, "lang.js: ... and documented, since getUser carries a JSDoc summary")
+
+    local post = by_path["post /users"]
+    ok(post, 'lang.js: app.post("/users", ...) recognized')
+    ok(not post.documented, "lang.js: ... but not documented — createUser has no doc block")
+
+    local del = by_path["delete /users/:id"]
+    ok(del, "lang.js: app.delete(...) with an inline handler recognized")
+    eq(
+      del.handler,
+      nil,
+      "lang.js: ... but no handler name — nothing to name for an inline function"
+    )
+    ok(not del.documented, "lang.js: ... so not documented either")
+
+    os.remove(ep_fixture)
   end
 
   -- TypeScript and TSX share the same extraction; a light touch confirms

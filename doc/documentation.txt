@@ -32,9 +32,12 @@ at a repository whose files carry `---@module` and it produces:
                                no CDN, no build step. The Analysis tab ranks
                                test coverage, documentation coverage,
                                fan-in/fan-out, cyclomatic complexity,
-                               structural duplicates, lazy.nvim plugin specs
-                               and React hooks (functions named like
-                               `^use[A-Z]`).
+                               structural duplicates, lazy.nvim plugin specs,
+                               React hooks (functions named like
+                               `^use[A-Z]`), the documentation corpus (which
+                               `.md` files exist and how much they
+                               reference), and call-based API routes
+                               (Express/Fastify/Koa-shaped).
     docs/map/overview.md       the same tree as Markdown, renders on GitHub
     docs/map/module_map.json   the IR, byte-deterministic
     docs/map/coverage.svg      optional documentation-coverage badge
@@ -364,6 +367,22 @@ key and then regretted.
 
                         Scoped to lazy.nvim's spec shape specifically;
                         packer.nvim and vim-plug are not recognized.
+
+:DocMap endpoints       Every recognized call-based route registration in the
+                        tree, into the |quickfix| list, sorted by path.
+                        Instant, same reason as `:DocMap plugins` -- the
+                        routes already sit on the live handle's IR. Recognizes
+                        `app.get("/path", handler)`-shaped calls (a lowercase
+                        HTTP verb or `all`, first argument a string starting
+                        with `/`) -- Express/Fastify/Koa all share this
+                        syntax. `framework` is read from the file's own
+                        `require`/`import`, never guessed from the call
+                        shape.
+
+                        File-based routing (Next.js App/Pages Router,
+                        SvelteKit, Nuxt, Remix) is a separate, unbuilt concept
+                        -- its route structure comes from directory nesting,
+                        which belongs in the Hierarchy view, not a flat list.
 
 :DocMap serve           Start the local map server, which is what enables the
                         History tab in the browser. A `file://` page gets an

@@ -1422,3 +1422,83 @@ regression test (`TESTS/snippet_spec.lua`) checks `core/snippet.lua` directly
 — an exact span, exactly-at-the-cap (the boundary itself, not "one over"),
 over-the-cap, and an invalid/inverted span — plus an end-to-end check that
 `functions.lua` actually calls it during a real scan.
+
+## API endpoint inventory — call-based routing, ECOSYSTEM.md step 4 (2026-08-03)
+
+`docs/ECOSYSTEM.md` §3.1's own conclusion: call-based routing (Express/
+Fastify/Koa) is flat and belongs in an Analysis panel, structurally
+identical to Plugins or Hooks; file-based routing (Next.js/SvelteKit/Nuxt/
+Remix) has real parent-directory structure worth preserving and belongs in
+a Hierarchy view instead — a materially different piece of work, not
+attempted here. This entry is the first half only.
+
+**`core/endpoints.lua` is new**, a layer-2 convention recognizer in
+`FRAMEWORK_CONVENTIONS.md`'s own vocabulary — the same shape
+`core/plugins.lua` already is for lazy.nvim specs, just for JS/TS's routing
+convention instead. Recognizes `IDENTIFIER.METHOD("/path", ...handler)`
+where METHOD is a lowercase HTTP verb or `all`, verified against a real
+parse: `call_expression`'s `function` field is a `member_expression`
+(`object`/`property` fields give the receiver and method name), and the
+first argument is a `string` node. `app.use(...)` is excluded by construction
+— `use` is simply not in the recognized method set, since it mounts
+middleware rather than registering one route. With more than two arguments
+(middleware chained before a final handler), the *last* argument is taken
+as the handler.
+
+**`framework` is read, never guessed.** Express, Fastify and Koa (via
+`koa-router`) all accept the identical call shape, so nothing about the
+call itself says which one it is — `detect_framework` instead checks this
+file's own already-extracted `requires` for a known routing package name,
+labelling every route in the file accordingly, or leaving `framework` `nil`
+when the shape matched but no known package was imported. **The accepted
+risk, stated rather than hidden:** nothing checks what the receiver
+identifier is bound to — a cache or router-like object whose own
+`.get(path, handler)`-shaped method happens to match would false-positive.
+Not verified against a real Express application; `docs/ECOSYSTEM.md`'s own
+stated limit ("every framework-syntax claim above is unverified") applies
+here too.
+
+**Widened a shared contract carefully, not casually.** `endpoints` is a new,
+seventh value in every language backend's `scan_file` return — alongside
+`plugins`, not folded into it, since `docs/ECOSYSTEM.md` explicitly treats
+them as two separate per-node fields. Touched `Documentation.LangBackend`'s
+type, both backends (`functions.lua` returns `{}` unconditionally — no Lua
+equivalent convention — `core/lang/ecma.lua` calls the new recognizer), and
+`scan.lua`'s two call sites (module node and leaf node construction).
+
+**Two pre-existing call sites broke from the widened tuple, both found by
+actually running the test suite, not by reading the diff.** `TESTS/
+docmap_spec.lua`'s `select(4, functions.scan_file(...))` used to capture
+three trailing values (symbols/plugins/lines); with a new value inserted
+before `lines`, it silently captured `endpoints` into what the test expected
+to be the line count, and `eq(loc, 13, ...)` failed with a table where an
+integer was expected. `TESTS/lang_js_spec.lua`'s original fixture had the
+same shape one position earlier. Both fixed by adding one more captured (or
+skipped) slot; the failures themselves are the reason this widening was
+verified against the full suite rather than only the new recognizer's own
+fixture.
+
+Ninth Analysis panel (`renderAnalysisEndpoints`), same shape as Plugins:
+Method/Path/Handler/Framework/Declared-in columns, sorted by path by
+default (an inventory, not a ranked health metric), `anFilter`/`anSort`
+reused unchanged. A named handler gets the same `sigTrigger`/`docTrigger`
+icons every other panel's functions do — clicking one opens the real
+annotation popup for that function, not a copy. `:DocMap endpoints` mirrors
+`:DocMap plugins` almost verbatim: every route into the quickfix list,
+sorted by path, with a summary line reporting how many are documented.
+
+Verified in an actual browser, with real Express-shaped source through the
+real (scratch-built) JS grammar end to end: `app.get("/users/:id",
+getUser)` (a documented handler, framework read from `require("express")`),
+`app.post("/users", createUser)` (undocumented), and `app.delete(...,
+function(req,res){...})` (inline, no handler name) all recognized correctly
+— then the Analysis panel checked separately with a hand-built fixture:
+correct columns, sort, filter, row click-through to Tree, the handler
+trigger opening the real popup, and the empty state on this repository's
+own map (which has no JS/Express code at all).
+
+Left genuinely open: file-based routing (the other half of ECOSYSTEM.md's
+own step 4, a Hierarchy view, not an Analysis panel — different enough
+work to be its own future entry), and — same caveat every recognizer in
+this document carries — no real-world Express/Fastify/Koa application has
+been run through this yet, only hand-written fixtures.

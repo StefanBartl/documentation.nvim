@@ -555,9 +555,19 @@ Ordered so each step is independently useful and nothing is a big-bang.
    file) is not attempted — those lines live in files this pass over
    function definitions was never reading, a separate task, not a small
    extension of this one.
-4. **API endpoint inventory.** Call-based recognizer first (flat, an Analysis
-   panel); file-based later (Hierarchy view, per
-   `FRAMEWORK_CONVENTIONS.md`).
+4. ~~**API endpoint inventory.** Call-based recognizer first (flat, an
+   Analysis panel); file-based later (Hierarchy view, per
+   `FRAMEWORK_CONVENTIONS.md`).~~ **Call-based done (2026-08-03)** —
+   `core/endpoints.lua` recognizes `app.get("/path", handler)`-shaped
+   registrations (Express/Fastify/Koa syntax), feeding a new `endpoints`
+   field alongside `plugins`, a ninth Analysis panel, and `:DocMap
+   endpoints` (mirroring `:DocMap plugins` exactly). `framework` is read
+   from the file's own imports, never guessed from the call shape — Express/
+   Fastify/Koa all share the identical syntax. **File-based routing
+   (Next.js/SvelteKit/Nuxt/Remix) remains not attempted** — it belongs in a
+   Hierarchy view per the reasoning already in §3.1, a materially different
+   piece of work, not a follow-up to this one. See
+   `docs/ROADMAP/FEATURES.md`.
 
 **Then in runtime-analysis.nvim:**
 

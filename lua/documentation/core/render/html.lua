@@ -858,7 +858,8 @@ local JS = [[
       else if(k === "ext") s.ext = (v === "1" || v === "true");
       else if(k === "iview") s.iview = (v === "modules") ? "modules" : "functions";
       else if(k === "atool") s.atool = (v === "doc" || v === "deps" || v === "complexity" ||
-        v === "duplicates" || v === "plugins" || v === "hooks" || v === "docs") ? v : "test";
+        v === "duplicates" || v === "plugins" || v === "hooks" || v === "docs" ||
+        v === "endpoints") ? v : "test";
       // Not whitelisted against a column list here, because the valid columns
       // differ per panel and this parser does not know which panel `atool`
       // will resolve to. `anSort` looks the key up in the panel's own column
@@ -2762,6 +2763,88 @@ local JS = [[
     return parts.join("");
   }
 
+  // Call-based route registrations, straight off `n.endpoints` — JS-side
+  // aggregation only, no new extraction: `core/endpoints.lua` already
+  // recognizes these during the scan, the same shape `n.plugins` already
+  // is. See that module's own header for what counts as a route
+  // (Express/Fastify/Koa-shaped `app.get(path, handler)`) and what does
+  // not — `docs/ECOSYSTEM.md` §3.1 puts file-based routing
+  // (Next.js/SvelteKit/Nuxt/Remix) in a Hierarchy view instead, not here.
+  //
+  // Sorted by path, ascending, by default — the same reasoning
+  // `renderAnalysisPlugins` gives for repo: an inventory ("what routes does
+  // this codebase have"), not a ranked health metric.
+  function renderAnalysisEndpoints(){
+    var rows = [];
+    IR.nodes.forEach(function(n){
+      var name = n.module || n.path;
+      var fnByName = {};
+      (n.functions || []).forEach(function(fn){ fnByName[fn.name] = fn; });
+      (n.endpoints || []).forEach(function(spec){
+        var handlerFn = spec.handler ? fnByName[spec.handler] : null;
+        rows.push({
+          node: n, spec: spec, method: spec.method.toUpperCase(),
+          path: spec.path, handler: spec.handler || "(inline handler)",
+          handlerFn: handlerFn, framework: spec.framework || "", name: name,
+          documented: !!spec.documented, line: spec.line,
+          haystack: spec.method + " " + spec.path + " " + (spec.handler || "") +
+            " " + (spec.framework || "") + " " + name,
+          sortkey: spec.path + "#" + spec.method
+        });
+      });
+    });
+
+    if(rows.length === 0){
+      return '<p class="ntext none">No call-based route registration found in this ' +
+        'tree. See <code>core/endpoints.lua</code> for what is recognized — file-based ' +
+        'routing (Next.js and similar) is a separate, unbuilt concept, not this.</p>';
+    }
+
+    var totalRows = rows.length;
+    var ndoc = 0;
+    rows.forEach(function(r){ if(r.documented) ndoc++; });
+
+    var cols = [
+      { label: "Method", key: "method", get: function(r){ return r.method; }, initial: "asc" },
+      { label: "Path", key: "path", get: function(r){ return r.path; }, initial: "asc" },
+      { label: "Handler", key: "handler", get: function(r){ return r.handler; }, initial: "asc" },
+      { label: "Framework", key: "framework", get: function(r){ return r.framework; }, initial: "asc" },
+      { label: "Declared in", key: "name", get: function(r){ return r.name; }, initial: "asc" }
+    ];
+
+    rows = anFilter(rows);
+    anSort(rows, cols, function(a, b){
+      if(a.path !== b.path) return a.path < b.path ? -1 : 1;
+      return a.method < b.method ? -1 : (a.method > b.method ? 1 : 0);
+    });
+
+    var parts = [];
+    parts.push('<p class="nsub">' + totalRows + ' route' + (totalRows === 1 ? '' : 's') +
+      ' found. <strong>' + ndoc + '</strong> of ' + totalRows +
+      ' handler' + (totalRows === 1 ? '' : 's') + ' documented.' +
+      anFilterNote(rows.length, totalRows) + '</p>');
+    if(rows.length === 0){
+      return parts.join("") + '<p class="ntext none">No route matches that filter.</p>';
+    }
+    parts.push('<table class="antable">' + anHead(cols) + '<tbody>');
+    rows.forEach(function(r){
+      var handlerCell = esc(r.handler);
+      if(r.handlerFn){
+        handlerCell += sigTrigger(r.node.id, r.handlerFn.name) +
+          docTrigger(fnKey(r.node.id, r.handlerFn.name));
+      }
+      parts.push('<tr class="anrow" data-node="' + esc(r.node.id) + '">' +
+        '<td>' + esc(r.method) + '</td>' +
+        '<td>' + esc(r.path) + '</td>' +
+        '<td>' + handlerCell + '</td>' +
+        '<td>' + esc(r.framework) + '</td>' +
+        '<td>' + esc(r.name) + '</td>' +
+        '</tr>');
+    });
+    parts.push("</tbody></table>");
+    return parts.join("");
+  }
+
   // React hooks, straight off `fn.is_hook` — JS-side aggregation only, no new
   // extraction: `core/lang/ecma.lua` already tags this per function at scan
   // time, the same shape as `n.plugins` above. A tree with no JS/TS backend
@@ -2903,7 +2986,7 @@ local JS = [[
   // otherwise clicking a column re-serves the previous order out of the cache
   // and the header arrow moves while the rows do not.
   //
-  // Unbounded on purpose: the key space is (8 panels x ~4 columns x 2
+  // Unbounded on purpose: the key space is (9 panels x ~4 columns x 2
   // directions x the queries actually typed), every entry is a string already
   // built once, and the alternative — evicting — would re-render on a Back
   // button press, which is the one moment the cache exists for.
@@ -2940,6 +3023,7 @@ local JS = [[
     if(atool === "duplicates") return renderAnalysisDuplicates();
     if(atool === "hooks") return renderAnalysisHooks();
     if(atool === "docs") return renderAnalysisDocs();
+    if(atool === "endpoints") return renderAnalysisEndpoints();
     return renderAnalysisPlugins();
   }
 
@@ -2947,7 +3031,8 @@ local JS = [[
     var host = document.getElementById("anbody");
     var atool = (state.atool === "doc" || state.atool === "deps" ||
       state.atool === "complexity" || state.atool === "duplicates" ||
-      state.atool === "plugins" || state.atool === "hooks" || state.atool === "docs")
+      state.atool === "plugins" || state.atool === "hooks" || state.atool === "docs" ||
+      state.atool === "endpoints")
       ? state.atool : "test";
 
     var key = anCacheKey(atool);
@@ -4387,6 +4472,7 @@ function M.render(ir, findings, opts)
     '<button class="anview-btn" data-atool="plugins">Plugins</button>',
     '<button class="anview-btn" data-atool="hooks">Hooks</button>',
     '<button class="anview-btn" data-atool="docs">Docs</button>',
+    '<button class="anview-btn" data-atool="endpoints">Endpoints</button>',
     "</div>",
     '<div id="anbody"></div>',
     "</div>",
