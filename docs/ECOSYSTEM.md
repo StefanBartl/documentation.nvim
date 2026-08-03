@@ -533,7 +533,10 @@ Ordered so each step is independently useful and nothing is a big-bang.
    `docs/ROADMAP/FEATURES.md`. **UI done (2026-08-03)** — a marker beside any
    entity the prose mentions, rendered only where references exist, reusing
    the annotation popup's card rather than adding a second floating element.
-   **Still open from this step:** the docs-only overview/filter.
+   **Docs-only overview done (2026-08-03)** — an eighth Analysis panel over
+   `ir.docs.files`, exactly as cheap as §3.4 predicted: no new extraction,
+   just the existing `anFilter`/`anSort`/`anHead` plumbing every other
+   panel already uses. Step 2 is now fully done.
 3. **Bounded snippet previews.** Embeddable tier only.
 4. **API endpoint inventory.** Call-based recognizer first (flat, an Analysis
    panel); file-based later (Hierarchy view, per
