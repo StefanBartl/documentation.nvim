@@ -19,6 +19,14 @@ JS/TS scanner backend, which [`MULTILANG.md`](MULTILANG.md) costs out and
 does not schedule. This document is layer 2, sequenced strictly after that
 layer 1 — a roadmap note for *if*, not a proposal to start now.
 
+> **Update (2026-08-03): that dependency is satisfied.** `core/lang/ecma.lua`
+> ships functions, imports, calls and symbols for JS/TS/TSX, so layer 2 is no
+> longer blocked. [`ECOSYSTEM.md`](ECOSYSTEM.md) takes the routing question
+> further — in particular it refines this document's "routes belong in
+> Hierarchy" conclusion, which holds for *file-based* routing but not for
+> *call-based* routing (`app.get("/x", h)`), where there is no ancestry to
+> preserve and an Analysis panel is the honest shape.
+
 **Epistemic note, unlike the rest of this repository's convention:** every
 other design doc here states a claim about syntax only after verifying it
 against a real parse (`tree-sitter query` against real files, for the plugin
