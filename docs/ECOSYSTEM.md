@@ -571,9 +571,23 @@ Ordered so each step is independently useful and nothing is a big-bang.
 
 **Then in runtime-analysis.nvim:**
 
-5. **The plugin's first feature: the in-editor request runner.** No browser,
-   no server, no CORS. `lib.nvim.net.curl` for execution, `lib.nvim.ui.kit`
-   for the panes.
+5. ~~**The plugin's first feature: the in-editor request runner.** No
+   browser, no server, no CORS. `lib.nvim.net.curl` for execution,
+   `lib.nvim.ui.kit` for the panes.~~ **Done (2026-08-03)** —
+   `runtime-analysis.nvim`'s `:RARequest`/`:RASend`, one request per buffer
+   in the same shape VS Code's REST Client/IntelliJ's HTTP Client already
+   use. Not `lib.nvim.ui.kit`'s panes in the end: that toolkit's
+   `viewer`/`surface` components are floats that close on focus loss,
+   exactly wrong for an edit-send-glance-edit-again workflow — a plain
+   persistent split, hand-written, fit the job this needed. Required
+   extending `lib.nvim.net.curl` first: its existing `fetch_json` API
+   force-decoded every response as JSON and never exposed the HTTP status
+   code or headers at all (curl's own exit code says nothing about the
+   HTTP status — it is `0` for a successful request regardless of `200` or
+   `404`) — `fetch_raw`/`fetch_raw_blocking` are new there, verified
+   against a hermetic `vim.uv` TCP server, no external test dependency.
+   See `runtime-analysis.nvim`'s own README and `lib.nvim`'s
+   `lua/lib/nvim/net/curl/README.md`.
 6. **documentation.nvim's endpoint panel gains "send a request"**, soft
    dependency on step 5.
 7. **Telemetry moves** into runtime-analysis.nvim, `wrap_lib()` staying in
