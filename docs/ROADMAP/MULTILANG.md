@@ -136,13 +136,16 @@ pays twice.
   other thirteen checks against a real, non-trivial JS/TS tree) has not
   happened yet — this repository's own tree is still all-Lua, so nothing
   has exercised most of them against real JS/TS findings.
-- [ ] React function components and hooks: `ecma.lua` already tags a
-  function `is_hook` by the `^use[A-Z]` naming convention
+- [x] React function components and hooks: `ecma.lua` tags a function
+  `is_hook` by the `^use[A-Z]` naming convention
   (`eslint-plugin-react-hooks`'s own signal), per
   `docs/FRAMEWORK_CONVENTIONS.md`'s conclusion that a *map* of hooks is the
-  underserved half of React support. Not yet built: an Analysis panel or
-  `:DocMap` view surfacing that map — the field exists, nothing reads it
-  yet.
+  underserved half of React support. **(2026-08-03)** A seventh Analysis
+  panel (`core/render/html.lua`'s `renderAnalysisHooks`) now surfaces it:
+  every `is_hook` function across the tree, sortable/filterable the same
+  way the other six panels are. `Documentation.FunctionInfo.is_hook` is
+  now a declared, documented field on the type rather than an undeclared
+  passenger. See `docs/ROADMAP/FEATURES.md`.
 - [ ] Calls/symbols extraction: `ecma.lua`'s `scan_file` currently returns
   `{}` for both, honestly, not a placeholder pretending to be resolved —
   needed before JS/TS gets the same call-graph/duplicate-detection
