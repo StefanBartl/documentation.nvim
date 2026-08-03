@@ -139,21 +139,38 @@ function M.build_index(ir)
   -- serve`, even though it has no `init.lua` and therefore no `@module` tag
   -- of its own to be indexed by. Registering the prefixes is what keeps
   -- `doc-references-missing` from reporting a namespace as a missing member
-  -- of its own parent. Derived from the module names themselves rather than
-  -- from file paths, so no second path-to-module convention exists here to
-  -- disagree with `check.expected_module`.
-  for name, id in pairs(vim.deepcopy(idx.modules)) do
-    local pos = 0
-    while true do
-      local dot = name:find(".", pos + 1, true)
-      if not dot then
-        break
+  -- of its own parent.
+  --
+  -- Two properties this loop has to have, both learned the hard way:
+  --
+  -- 1. **Deterministic.** An earlier version iterated `pairs(idx.modules)`,
+  --    so `documentation.core` resolved to whichever module under it the
+  --    hash order happened to yield first — a *different one per run*. The
+  --    artifact is byte-compared by `--check`, so that made the map
+  --    permanently stale: regenerating produced a different file every time
+  --    and the gate could never pass. `ir.order` is the deterministic walk
+  --    order, and iterating it fixes the output.
+  -- 2. **Pointing somewhere true.** Stripping one segment off a module name
+  --    and climbing one `parent` link move together, so `documentation.core`
+  --    resolves to the actual `lua/documentation/core` namespace node rather
+  --    than to an arbitrary child of it. A prefix is a real place in this
+  --    tree; the index should name that place.
+  for _, id in ipairs(ir.order) do
+    local node = ir.nodes[id]
+    if node.module then
+      local name = node.module
+      local owner = node.parent
+      while true do
+        local shorter = name:match("^(.*)%.[^.]+$")
+        if not shorter then
+          break
+        end
+        name = shorter
+        if not idx.exact[name] then
+          idx.exact[name] = { kind = "module", node = owner or id }
+        end
+        owner = owner and ir.nodes[owner] and ir.nodes[owner].parent or nil
       end
-      local prefix = name:sub(1, dot - 1)
-      if not idx.exact[prefix] then
-        idx.exact[prefix] = { kind = "module", node = id }
-      end
-      pos = dot
     end
   end
 

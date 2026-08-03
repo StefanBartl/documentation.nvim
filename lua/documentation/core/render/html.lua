@@ -165,6 +165,18 @@ main{grid-template-columns:minmax(300px,1.1fr) minmax(0,1.4fr);gap:0;align-items
 .sigi:hover,.sigi:focus,.sigi.on{opacity:1;color:var(--accent);border-color:var(--accent);
   outline:none}
 li:hover>.sigi,tr:hover .sigi{opacity:.8}
+/* The prose-reference affordance. Rendered only where references exist, so
+   unlike `.sigi` it carries information by being present at all — hence a
+   accent-tinted resting state rather than `.sigi`'s near-invisible one. */
+.doci{display:inline-block;margin-left:6px;padding:0 5px;border-radius:4px;cursor:help;
+  font-size:10.5px;line-height:15px;color:var(--accent);border:1px solid var(--line);
+  background:var(--accent-soft);opacity:.75;transition:opacity .12s;user-select:none}
+.doci:hover,.doci:focus,.doci.on{opacity:1;border-color:var(--accent);outline:none}
+.docn{margin-left:4px;font-weight:600}
+.docref{margin:7px 0;padding-left:9px;border-left:2px solid var(--line)}
+.docref-where{font-family:var(--mono);font-size:11px;color:var(--accent)}
+.docref-where .bd{margin-left:6px}
+.docref-ctx{font-size:11.5px;color:var(--muted);margin-top:2px}
 /* @overload — one block per alternative call shape, indented under the
    primary signature so it reads as "also, this" rather than a second
    function. Left border rather than a background: a filled block here would
@@ -532,6 +544,46 @@ local JS = [[
   function sigTrigger(nodeId, fnName){
     return '<span class="sigi" tabindex="0" role="button" aria-label="Annotations"' +
       ' data-sig="' + esc(fnKey(nodeId, fnName)) + '">&#9432;</span>';
+  }
+
+  var DOCREFS = (IR.docs && IR.docs.refs) || {};
+
+  // The same affordance for prose references, and deliberately **only
+  // rendered when there are some**. An always-present icon that is usually
+  // empty trains the reader to ignore it; one that appears exactly when a
+  // document mentions this thing is itself the signal, before it is clicked.
+  // `key` is a node id for a module or `nodeId#fnName` for a function — the
+  // shape `docs.lua` files references under.
+  function docTrigger(key){
+    var refs = DOCREFS[key];
+    if(!refs || !refs.length) return "";
+    return '<span class="doci" tabindex="0" role="button" data-doc="' + esc(key) +
+      '" aria-label="Mentioned in ' + refs.length + ' place' +
+      (refs.length === 1 ? '' : 's') + ' in the docs">&#182;' +
+      (refs.length > 1 ? '<span class="docn">' + refs.length + '</span>' : '') + '</span>';
+  }
+
+  // Where a mention lives, and the line it sits on. Rendered into the same
+  // card the annotation popup uses rather than a second floating thing with
+  // its own lifecycle — one set of rules for one page.
+  function docRefsHTML(key){
+    var refs = DOCREFS[key] || [];
+    var h = ['<div class="fn-sig">Mentioned in the docs<span class="fn-badges">' +
+      '<span class="bd">' + refs.length + '</span></span></div>'];
+    refs.forEach(function(r){
+      h.push('<div class="docref">' +
+        '<div class="docref-where">' + esc(r.doc) + ':' + r.line +
+        (r.confidence === "heuristic"
+          ? '<span class="bd" title="matched on a bare, tree-unique name">heuristic</span>'
+          : '') +
+        '</div>' +
+        '<div class="docref-ctx">' + esc(r.context) + '</div></div>');
+    });
+    if(refs.more){
+      h.push('<div class="fn-desc">… and ' + refs.more +
+        ' more, not carried into the artifact.</div>');
+    }
+    return h.join("");
   }
 
   // Everything a function's annotations say, as HTML: signature line with
@@ -954,7 +1006,7 @@ local JS = [[
   function renderDetail(n){
     var h = [];
     h.push('<h2>'+esc(n.name)+'</h2>');
-    h.push('<div class="mp">'+esc(n.module || n.path)+'</div>');
+    h.push('<div class="mp">'+esc(n.module || n.path)+docTrigger(n.id)+'</div>');
 
     var links = [];
     if(n.readme) links.push('<a href="'+esc(rel(n.readme))+'">README</a>');
@@ -1051,6 +1103,10 @@ local JS = [[
         var key = fnKey(n.id, fn.name);
         h.push('<div class="fn" data-fn="'+esc(key)+'">');
         h.push(fnAnnotationHTML(fn));
+        // Prose references for this function, where the reader is already
+        // looking at everything else known about it.
+        var dref = docTrigger(key);
+        if(dref) h.push('<div class="fn-desc fn-see">' + dref + '</div>');
 
         // The per-function entry into the Calls view. Counts are shown up
         // front so a function with no edges either way does not offer a link
@@ -2002,7 +2058,7 @@ local JS = [[
       items.forEach(function(it){
         parts.push('<li><a class="nfn" data-node="' + esc(it.node.id) + '">' +
           esc(it.fn.signature) + '</a>' +
-          sigTrigger(it.node.id, it.fn.name) +
+          sigTrigger(it.node.id, it.fn.name) + docTrigger(fnKey(it.node.id, it.fn.name)) +
           '<span class="nwhere">' + esc(it.node.module || it.node.path) +
           ':' + it.fn.line + '</span>' +
           '<div class="ntext">' + (it.text ? esc(it.text) : "&mdash;") + '</div></li>');
@@ -2114,7 +2170,7 @@ local JS = [[
       built.buckets[c].forEach(function(e){
         parts.push('<li><a class="nfn" data-node="' + esc(e.node.id) + '">' +
           esc(e.fn.signature) + '</a>' +
-          sigTrigger(e.node.id, e.fn.name) +
+          sigTrigger(e.node.id, e.fn.name) + docTrigger(fnKey(e.node.id, e.fn.name)) +
           (e.fn.internal ? '<span class="ixtag">internal</span>' : '') +
           (e.fn.deprecated ? '<span class="ixtag dep">deprecated</span>' : '') +
           (e.fn.tested ? '<span class="ixtag tested">tested</span>' : '') +
@@ -2164,7 +2220,7 @@ local JS = [[
       built.buckets[c].forEach(function(e){
         var fnCount = (e.node.functions || []).length;
         parts.push('<li><a class="nfn" data-node="' + esc(e.node.id) + '">' +
-          esc(e.label) + '</a>' +
+          esc(e.label) + '</a>' + docTrigger(e.node.id) +
           '<span class="ixtag">' + esc(e.node.kind) + '</span>' +
           '<span class="nwhere">' + fnCount + (fnCount === 1 ? " function" : " functions") +
           '</span></li>');
@@ -2502,7 +2558,8 @@ local JS = [[
     rows.forEach(function(r){
       var barPct = Math.round(100 * r.complexity / maxC);
       parts.push('<tr class="anrow" data-node="' + esc(r.node.id) + '">' +
-        '<td>' + esc(r.fn.signature) + sigTrigger(r.node.id, r.fn.name) + '</td>' +
+        '<td>' + esc(r.fn.signature) + sigTrigger(r.node.id, r.fn.name) +
+          docTrigger(fnKey(r.node.id, r.fn.name)) + '</td>' +
         '<td>' + esc(r.name) + '</td>' +
         '<td>' + r.complexity + '</td>' +
         '<td><div class="anbar"><div class="anfill" style="width:' + barPct + '%"></div></div></td>' +
@@ -3926,18 +3983,29 @@ local JS = [[
   }
 
   function sigOpen(el){
-    var entry = fnByKey[el.dataset.sig];
-    // A key with no entry is a bug in whatever rendered the trigger, not
-    // something to paper over with an empty card — say nothing at all.
-    if(!entry) return;
+    // Two kinds of trigger, one card: `data-sig` shows what the annotations
+    // say, `data-doc` shows where the prose mentions it. Sharing the element
+    // is not just economy — two independently-positioned cards that can both
+    // be open would have to negotiate overlap, focus and Escape between
+    // them, and there is no reading task that wants both at once.
+    var html;
+    if(el.dataset.doc){
+      html = docRefsHTML(el.dataset.doc);
+    } else {
+      var entry = fnByKey[el.dataset.sig];
+      // A key with no entry is a bug in whatever rendered the trigger, not
+      // something to paper over with an empty card — say nothing at all.
+      if(!entry) return;
+      html = fnAnnotationHTML(entry.fn) +
+        '<div class="fn-desc fn-see"><a href="#" data-sig-goto="' +
+        esc(entry.node.id) + '">' + esc(entry.node.module || entry.node.path) +
+        ':' + entry.fn.line + '</a></div>';
+    }
 
     if(sigAnchor && sigAnchor !== el) sigAnchor.classList.remove("on");
     sigAnchor = el;
     el.classList.add("on");
-    sigpop.innerHTML = fnAnnotationHTML(entry.fn) +
-      '<div class="fn-desc fn-see"><a href="#" data-sig-goto="' +
-      esc(entry.node.id) + '">' + esc(entry.node.module || entry.node.path) +
-      ':' + entry.fn.line + '</a></div>';
+    sigpop.innerHTML = html;
     sigpop.classList.add("on");
 
     // Measured after it is in the DOM, then flipped rather than clamped
@@ -3958,7 +4026,7 @@ local JS = [[
   // travel into the card to scroll it or select text. Click pins, which is
   // what makes the card usable at all for a long `@example` block.
   document.addEventListener("mouseover", function(ev){
-    var el = ev.target.closest && ev.target.closest("[data-sig]");
+    var el = ev.target.closest && ev.target.closest("[data-sig],[data-doc]");
     if(el){
       if(sigTimer){ clearTimeout(sigTimer); sigTimer = null; }
       if(el !== sigAnchor) sigOpen(el);
@@ -3981,7 +4049,7 @@ local JS = [[
       navigate({ tab: "tree", id: id });
       return;
     }
-    var el = ev.target.closest && ev.target.closest("[data-sig]");
+    var el = ev.target.closest && ev.target.closest("[data-sig],[data-doc]");
     if(el){
       ev.preventDefault();
       if(sigPinned && sigAnchor === el){ sigClose(); return; }
@@ -3998,7 +4066,7 @@ local JS = [[
     if(ev.key === "Escape" && sigAnchor){ sigClose(); return; }
     if(ev.key !== "Enter" && ev.key !== " ") return;
     var el = document.activeElement;
-    if(!el || !el.dataset || !el.dataset.sig) return;
+    if(!el || !el.dataset || !(el.dataset.sig || el.dataset.doc)) return;
     ev.preventDefault();
     if(sigPinned && sigAnchor === el){ sigClose(); return; }
     sigOpen(el);
@@ -4056,6 +4124,14 @@ function M.render(ir, findings, opts)
     -- artifact predates the feature" (the message above, which is now only
     -- reachable by an artifact that genuinely predates it).
     duplicates = ir.duplicates or { groups = {}, functions = 0, considered = 0, min_size = 0 },
+    -- The same omission as `duplicates` above, made a second time and caught
+    -- the same way — by opening the generated page and finding the feature
+    -- silently absent. This payload is built independently of
+    -- `documentation.to_json`, so adding a field to `ir` and to the JSON
+    -- artifact does *not* put it on the page; both sites need it. That is
+    -- the trap, and it has now cost two features, so it is worth stating
+    -- plainly rather than leaving for a third.
+    docs = ir.docs or { files = {}, refs = {}, missing = {} },
   })
   -- `</script>` inside JSON would terminate the block early.
   payload = payload:gsub("</", "<\\/")
