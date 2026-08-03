@@ -860,3 +860,57 @@ per that file's own header), `module.exports = {...}` recognition, and
 this repository's own CI not yet installing a JS/TS parser to run
 `lang_js_spec.lua`'s assertions rather than its skip path. Tracked in
 `docs/ROADMAP/MULTILANG.md`'s Phase 1 checklist.
+
+## A seventh Analysis panel — Hooks (2026-08-03)
+
+The most contained, immediately practical follow-up to the JS/TS backend:
+surface `is_hook` (already computed, unread by anything) as its own
+Analysis panel, the same shape `renderAnalysisPlugins` already gave
+`n.plugins` — data that already sits on the serialized IR, no new Lua
+extraction, no git, nothing to wait on. Closes the loop on
+`docs/FRAMEWORK_CONVENTIONS.md`'s own conclusion that a *map* of hooks,
+not rules-of-hooks linting, is the underserved half of React support —
+and on this session's original ask for a concrete, demoable example
+built on the new backend.
+
+`Documentation.FunctionInfo.is_hook` is now a declared field on the type
+(`boolean?`, Lua never sets it) rather than the "harmless passenger, not
+real yet" state `ecma.lua`'s own comment left it in — nothing to change
+in the JSON encoder itself, since `core/json.lua`'s `M.encode` walks
+whatever table it is given rather than a fixed field whitelist; the field
+already survived serialization, it was only ever unread.
+
+**A real, pre-existing bug found while wiring the panel in, not
+introduced by it.** `parseState`'s `atool` URL-parameter whitelist
+(`html.lua`, the hash-routing state parser) only accepted `doc`/`deps`/
+`complexity` — `duplicates` and `plugins` were added as panels after that
+whitelist was last touched and never added to it. The practical effect:
+a shared link, a page reload, or the Back button landing on
+`#tab=analysis&atool=duplicates` silently fell back to the Test-coverage
+panel instead, with no error — the URL round-trip was quietly broken for
+two of the six panels that existed before this change. Found by having
+to touch that exact line to add `hooks` to it and asking what else was
+missing, not by a report. Fixed by listing all three (`duplicates`,
+`plugins`, `hooks`) rather than only adding the new one. `drawAnalysis`'s
+own separate whitelist (used for the toolbar's active-button state) was
+already current for `duplicates`/`plugins` — only `parseState`'s had
+drifted — and both now agree.
+
+**Verified in an actual browser, not by reading the JS.** This
+repository's html.lua panels have no automated test today (there is no
+JS test harness in this repo, and the existing six panels are equally
+untested that way) — so a hand-built `module_map.json` fixture with two
+`is_hook` functions was served locally and driven directly: the panel
+lists both rows with the right columns; clicking the `Line` header
+sorts ascending then descending; typing into the filter box narrows to
+one row and reports "1 of 2 shown"; clicking a row navigates to the Tree
+tab with the right node id; reloading with `#atool=duplicates`,
+`#atool=plugins` and `#atool=hooks` in the URL now lands on the right
+panel instead of silently resetting. The empty state (no hook found) was
+verified separately against this repository's own real, all-Lua
+generated map, which naturally has no `is_hook` function.
+
+Left open, the same items `MULTILANG.md` already tracked before this
+panel existed: no `.jsx` support, no class-method hooks, no CommonJS
+`module.exports` recognition — the panel shows whatever `ecma.lua`'s
+existing scope already finds, nothing more.

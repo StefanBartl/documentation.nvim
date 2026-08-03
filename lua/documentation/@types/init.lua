@@ -168,6 +168,7 @@
 ---@field test string[] `@test` entries, one per occurrence.
 ---@field example string? `@example` block text, if any.
 ---@field since string? `@since` text, if any.
+---@field is_hook boolean? True when this function's name matches React's own hook convention (`^use[A-Z]`, the same signal `eslint-plugin-react-hooks` relies on) — set by `core/lang/ecma.lua`, `nil` for languages with no such convention (Lua never sets it).
 
 ---What kind of relationship an edge in `ir.edges` records. One array with a
 ---discriminator rather than three parallel arrays, so layout, filtering and

@@ -643,7 +643,8 @@ local JS = [[
       else if(k === "fn") s.fn = v;
       else if(k === "ext") s.ext = (v === "1" || v === "true");
       else if(k === "iview") s.iview = (v === "modules") ? "modules" : "functions";
-      else if(k === "atool") s.atool = (v === "doc" || v === "deps" || v === "complexity") ? v : "test";
+      else if(k === "atool") s.atool = (v === "doc" || v === "deps" || v === "complexity" ||
+        v === "duplicates" || v === "plugins" || v === "hooks") ? v : "test";
       // Not whitelisted against a column list here, because the valid columns
       // differ per panel and this parser does not know which panel `atool`
       // will resolve to. `anSort` looks the key up in the panel's own column
@@ -2623,6 +2624,73 @@ local JS = [[
     return parts.join("");
   }
 
+  // React hooks, straight off `fn.is_hook` — JS-side aggregation only, no new
+  // extraction: `core/lang/ecma.lua` already tags this per function at scan
+  // time, the same shape as `n.plugins` above. A tree with no JS/TS backend
+  // registered (this repository's own map, today) simply has no function
+  // with the field set, which reads as "no hooks" rather than an error —
+  // the panel does not need to know which languages exist.
+  //
+  // Sorted by name, ascending, by default — an inventory ("what hooks does
+  // this codebase have"), not a ranked health metric, the same reasoning
+  // `renderAnalysisPlugins` gives for sorting by repo instead of worst-first.
+  function renderAnalysisHooks(){
+    var rows = [];
+    IR.nodes.forEach(function(n){
+      var name = n.module || n.path;
+      (n.functions || []).forEach(function(fn){
+        if(!fn.is_hook) return;
+        rows.push({
+          node: n, fn: fn, name: fn.name, module: name,
+          signature: fn.signature || fn.name, summary: fn.summary || "",
+          line: fn.line,
+          haystack: fn.name + " " + (fn.signature || "") + " " + name,
+          sortkey: fn.name + "#" + n.id
+        });
+      });
+    });
+
+    if(rows.length === 0){
+      return '<p class="ntext none">No function named like a React hook ' +
+        '(<code>^use[A-Z]</code> — the same convention ' +
+        '<code>eslint-plugin-react-hooks</code> itself relies on) was found. ' +
+        'Only JavaScript/TypeScript/TSX files are checked for this — see ' +
+        '<code>core/lang/ecma.lua</code>.</p>';
+    }
+
+    var totalRows = rows.length;
+    var cols = [
+      { label: "Hook", key: "name", get: function(r){ return r.name; }, initial: "asc" },
+      { label: "Signature", key: "signature", get: function(r){ return r.signature; }, initial: "asc" },
+      { label: "Declared in", key: "module", get: function(r){ return r.module; }, initial: "asc" },
+      { label: "Line", key: "line", get: function(r){ return r.line; }, initial: "asc" }
+    ];
+
+    rows = anFilter(rows);
+    anSort(rows, cols, function(a, b){
+      if(a.name !== b.name) return a.name < b.name ? -1 : 1;
+      return a.node.id < b.node.id ? -1 : (a.node.id > b.node.id ? 1 : 0);
+    });
+
+    var parts = [];
+    parts.push('<p class="nsub">' + totalRows + ' hook' + (totalRows === 1 ? '' : 's') +
+      ' found by name.' + anFilterNote(rows.length, totalRows) + '</p>');
+    if(rows.length === 0){
+      return parts.join("") + '<p class="ntext none">No hook matches that filter.</p>';
+    }
+    parts.push('<table class="antable">' + anHead(cols) + '<tbody>');
+    rows.forEach(function(r){
+      parts.push('<tr class="anrow" data-node="' + esc(r.node.id) + '">' +
+        '<td>' + esc(r.name) + '</td>' +
+        '<td>' + esc(r.signature) + '</td>' +
+        '<td>' + esc(r.module) + '</td>' +
+        '<td>' + r.line + '</td>' +
+        '</tr>');
+    });
+    parts.push("</tbody></table>");
+    return parts.join("");
+  }
+
   // Rendered panels, memoised per *rendering* rather than per panel.
   //
   // One variable per panel was correct while a panel had exactly one
@@ -2630,7 +2698,7 @@ local JS = [[
   // otherwise clicking a column re-serves the previous order out of the cache
   // and the header arrow moves while the rows do not.
   //
-  // Unbounded on purpose: the key space is (6 panels x ~4 columns x 2
+  // Unbounded on purpose: the key space is (7 panels x ~4 columns x 2
   // directions x the queries actually typed), every entry is a string already
   // built once, and the alternative — evicting — would re-render on a Back
   // button press, which is the one moment the cache exists for.
@@ -2665,6 +2733,7 @@ local JS = [[
     if(atool === "deps") return renderAnalysisDeps();
     if(atool === "complexity") return renderAnalysisComplexity();
     if(atool === "duplicates") return renderAnalysisDuplicates();
+    if(atool === "hooks") return renderAnalysisHooks();
     return renderAnalysisPlugins();
   }
 
@@ -2672,7 +2741,7 @@ local JS = [[
     var host = document.getElementById("anbody");
     var atool = (state.atool === "doc" || state.atool === "deps" ||
       state.atool === "complexity" || state.atool === "duplicates" ||
-      state.atool === "plugins")
+      state.atool === "plugins" || state.atool === "hooks")
       ? state.atool : "test";
 
     var key = anCacheKey(atool);
@@ -3980,6 +4049,7 @@ function M.render(ir, findings, opts)
     '<button class="anview-btn" data-atool="complexity">Complexity</button>',
     '<button class="anview-btn" data-atool="duplicates">Duplicates</button>',
     '<button class="anview-btn" data-atool="plugins">Plugins</button>',
+    '<button class="anview-btn" data-atool="hooks">Hooks</button>',
     "</div>",
     '<div id="anbody"></div>',
     "</div>",

@@ -273,8 +273,6 @@ local function build_fn(name_node, func_node, stmt_node, src, lang)
     since = nil,
     tested = false,
     documented = false,
-    -- Not a real field on the type today, but harmless to carry; a future
-    -- Analysis panel reading it needs no IR change to start from something.
     is_hook = is_hook_name(name),
   }
 end
