@@ -162,12 +162,16 @@ pays twice.
 - [ ] `module.exports = {...}` (the CommonJS export-object idiom): not
   recognized — a file using only this form contributes no functions today,
   the same honest gap as class methods.
-- [ ] This repository's own CI does not install JS/TS/TSX treesitter
-  parsers yet, so `TESTS/lang_js_spec.lua` currently exercises its skip
-  path in CI, not its real assertions — those were verified by hand
-  against grammars built from source for this phase's development (see
-  `docs/ROADMAP/FEATURES.md`), but nothing re-checks them automatically
-  until CI gains a parser install step.
+- [x] This repository's own CI now installs JS/TS/TSX treesitter parsers.
+  **(2026-08-03)** `.github/workflows/ci.yml`'s `tests` job builds all
+  three grammars from source (`tree-sitter build`, both grammar repos ship
+  pre-generated `parser.c` so no `tree-sitter generate` step is needed)
+  into `.deps/ts-parsers`, and `TESTS/run.lua` appends
+  `DOCUMENTATION_TS_PARSERS_DIR` to the rtp itself when set — optional,
+  unlike `lib.nvim`, since `lang_js_spec.lua` already has a real skip path
+  for the common case of a plain local run with no such variable set.
+  `lang_js_spec.lua` now runs its real assertions in CI on every push,
+  not just its skip path.
 
 ## Phase 2 — Python
 
