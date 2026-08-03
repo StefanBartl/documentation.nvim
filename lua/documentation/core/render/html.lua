@@ -146,6 +146,25 @@ main{grid-template-columns:minmax(300px,1.1fr) minmax(0,1.4fr);gap:0;align-items
   border-radius:6px;padding:8px 10px;margin-top:6px;overflow-x:auto}
 .fn-see a{color:var(--accent);text-decoration:none}
 .fn-see a:hover{text-decoration:underline}
+/* Annotation popup — the same fn-* markup the detail pane renders, floated
+   over whichever list the reader is scanning. Every list in this map shows a
+   signature and nothing else; the params, returns and prose that were
+   already parsed sat one navigation away, which is what this closes.
+   `position:fixed` because the trigger can live inside a scrolling panel and
+   an absolutely-positioned card would scroll away from its own anchor. */
+.sigpop{position:fixed;z-index:60;display:none;max-width:520px;min-width:260px;
+  max-height:60vh;overflow-y:auto;background:var(--bg);border:1px solid var(--line);
+  border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:12px 14px}
+.sigpop.on{display:block}
+.sigpop .fn-sig{font-size:12px}
+/* The trigger. Kept at full opacity for keyboard focus and while its popup
+   is open, so tabbing through a list does not chase an invisible control. */
+.sigi{display:inline-block;margin-left:6px;padding:0 4px;border-radius:4px;cursor:help;
+  font-size:10.5px;line-height:15px;color:var(--muted);border:1px solid var(--line);
+  opacity:.45;transition:opacity .12s,color .12s;user-select:none}
+.sigi:hover,.sigi:focus,.sigi.on{opacity:1;color:var(--accent);border-color:var(--accent);
+  outline:none}
+li:hover>.sigi,tr:hover .sigi{opacity:.8}
 /* @overload — one block per alternative call shape, indented under the
    primary signature so it reads as "also, this" rather than a second
    function. Left border rather than a background: a filled block here would
@@ -505,6 +524,119 @@ local JS = [[
 
   function esc(s){ return (s||"").replace(/[&<>"]/g, function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+
+  // The affordance that opens the annotation popup, for any list that shows
+  // a function. `tabindex` because a keyboard reader must be able to reach
+  // it; `aria-label` rather than `title` because a native tooltip would open
+  // *beside* the card this control exists to open, saying less.
+  function sigTrigger(nodeId, fnName){
+    return '<span class="sigi" tabindex="0" role="button" aria-label="Annotations"' +
+      ' data-sig="' + esc(fnKey(nodeId, fnName)) + '">&#9432;</span>';
+  }
+
+  // Everything a function's annotations say, as HTML: signature line with
+  // badges, deprecation, summary, params, returns, overloads, see-also,
+  // example.
+  //
+  // Shared on purpose between the Tree tab's detail pane (which has always
+  // rendered this) and the annotation popup (which is the whole reason this
+  // was extracted). Two copies of "how a function's annotations look" is
+  // exactly the drift this plugin exists to detect, and shipping one inside
+  // it would be hard to defend — the same argument the `?` key-hint overlay
+  // already makes for rendering from the same KEYS table it binds from.
+  //
+  // What deliberately stays with the caller: the `<div class="fn">` wrapper
+  // and the Calls-view links, both of which only make sense in the detail
+  // pane, where `callOut`/`callIn` counts and a stable per-function anchor
+  // exist.
+  function fnAnnotationHTML(fn){
+    var h = [];
+    var badges = [];
+    if(fn.deprecated !== undefined) badges.push('<span class="bd dep">deprecated</span>');
+    if(fn.async) badges.push('<span class="bd">async</span>');
+    if(fn.nodiscard) badges.push('<span class="bd">nodiscard</span>');
+    if(fn.internal) badges.push('<span class="bd sk-binding">internal</span>');
+    if(fn.since) badges.push('<span class="bd">since '+esc(fn.since)+'</span>');
+    // Visible from the list, not only once the function is opened — the
+    // whole point of parsing @overload structurally instead of leaving
+    // it as opaque text is to answer "does this have call variants" at a
+    // glance, the same way "deprecated"/"async" already do.
+    if(fn.overload && fn.overload.length){
+      badges.push('<span class="bd">+'+fn.overload.length+' signature'
+        +(fn.overload.length===1?'':'s')+'</span>');
+    }
+    // R2 — auto-derived, coarse and safe in the "tested" direction (see
+    // coverage.lua). No badge for the false case: this is a "not found
+    // by name in a spec" signal, not "definitely untested", and a
+    // warning-shaped badge on the majority of functions would be noise,
+    // not information.
+    if(fn.tested) badges.push('<span class="bd tested">tested</span>');
+    h.push('<div class="fn-sig">'+esc(fn.signature)
+      +(badges.length?'<span class="fn-badges">'+badges.join("")+'</span>':'')+'</div>');
+    if(fn.deprecated){ h.push('<div class="fn-dep">⚠ Deprecated: '+esc(fn.deprecated)+'</div>'); }
+    if(fn.summary){ h.push('<div class="fn-desc">'+esc(fn.summary)+'</div>'); }
+    if(fn.params && fn.params.length){
+      h.push('<ul class="fn-plist">');
+      fn.params.forEach(function(p){
+        h.push('<li><code>'+esc(p.name)+(p.optional?'?':'')+'</code> '+esc(p.type)
+          +(p.desc?' — '+esc(p.desc):'')+'</li>');
+      });
+      h.push('</ul>');
+    }
+    if(fn.returns && fn.returns.length){
+      h.push('<ul class="fn-plist">');
+      fn.returns.forEach(function(r){
+        h.push('<li>→ <code>'+esc(r.type)+'</code>'+(r.name?' '+esc(r.name):'')
+          +(r.desc?' — '+esc(r.desc):'')+'</li>');
+      });
+      h.push('</ul>');
+    }
+    if(fn.overload && fn.overload.length){
+      h.push('<div class="fn-overloads"><div class="fn-ov-label">Also callable as</div>');
+      fn.overload.forEach(function(ov){
+        if(ov.params.length === 0 && ov.returns.length === 0 && !ov.raw.match(/^fun\s*\(\s*\)/)){
+          // Did not parse as fun(...) — shown verbatim rather than as an
+          // empty, misleading "fn.name()".
+          h.push('<div class="fn-ov-raw">'+esc(ov.raw)+'</div>');
+          return;
+        }
+        // An anonymous LuaCATS param (`fun(string)`, no `name:`) got the
+        // placeholder name "_" from parse_overload — shown as its type
+        // instead of a bare underscore, which would read as an actual
+        // parameter called "_" rather than as "unnamed".
+        var paramNames = ov.params.map(function(p){
+          return (p.name === "_" ? p.type : p.name) + (p.optional?'?':'');
+        });
+        h.push('<div class="fn-ov-sig">'+esc(fn.name)+'('+paramNames.join(', ')+')</div>');
+        if(ov.params.length){
+          h.push('<ul class="fn-plist">');
+          ov.params.forEach(function(p){
+            h.push('<li><code>'+esc(p.name)+(p.optional?'?':'')+'</code> '+esc(p.type)+'</li>');
+          });
+          h.push('</ul>');
+        }
+        if(ov.returns.length){
+          h.push('<ul class="fn-plist">');
+          ov.returns.forEach(function(r){
+            h.push('<li>→ <code>'+esc(r.type)+'</code></li>');
+          });
+          h.push('</ul>');
+        }
+      });
+      h.push('</div>');
+    }
+    if(fn.see && fn.see.length){
+      var seeLinks = fn.see.map(function(target){
+        var targetId = seeIndex[target];
+        return targetId
+          ? '<a href="#" data-see-target="'+esc(targetId)+'">'+esc(target)+'</a>'
+          : '<span title="unresolved">'+esc(target)+'</span>';
+      });
+      h.push('<div class="fn-desc fn-see">See also: '+seeLinks.join(", ")+'</div>');
+    }
+    if(fn.example){ h.push('<div class="fn-ex">'+esc(fn.example)+'</div>'); }
+    return h.join("");
+  }
 
   // Artifact lives in out_dir; repo-relative paths need to climb back out.
   function rel(p){ return (IR.meta.out_depth ? "../".repeat(IR.meta.out_depth) : "") + p; }
@@ -918,90 +1050,7 @@ local JS = [[
       n.functions.forEach(function(fn){
         var key = fnKey(n.id, fn.name);
         h.push('<div class="fn" data-fn="'+esc(key)+'">');
-        var badges = [];
-        if(fn.deprecated !== undefined) badges.push('<span class="bd dep">deprecated</span>');
-        if(fn.async) badges.push('<span class="bd">async</span>');
-        if(fn.nodiscard) badges.push('<span class="bd">nodiscard</span>');
-        if(fn.internal) badges.push('<span class="bd sk-binding">internal</span>');
-        if(fn.since) badges.push('<span class="bd">since '+esc(fn.since)+'</span>');
-        // Visible from the list, not only once the function is opened — the
-        // whole point of parsing @overload structurally instead of leaving
-        // it as opaque text is to answer "does this have call variants" at a
-        // glance, the same way "deprecated"/"async" already do.
-        if(fn.overload && fn.overload.length){
-          badges.push('<span class="bd">+'+fn.overload.length+' signature'
-            +(fn.overload.length===1?'':'s')+'</span>');
-        }
-        // R2 — auto-derived, coarse and safe in the "tested" direction (see
-        // coverage.lua). No badge for the false case: this is a "not found
-        // by name in a spec" signal, not "definitely untested", and a
-        // warning-shaped badge on the majority of functions would be noise,
-        // not information.
-        if(fn.tested) badges.push('<span class="bd tested">tested</span>');
-        h.push('<div class="fn-sig">'+esc(fn.signature)
-          +(badges.length?'<span class="fn-badges">'+badges.join("")+'</span>':'')+'</div>');
-        if(fn.deprecated){ h.push('<div class="fn-dep">⚠ Deprecated: '+esc(fn.deprecated)+'</div>'); }
-        if(fn.summary){ h.push('<div class="fn-desc">'+esc(fn.summary)+'</div>'); }
-        if(fn.params && fn.params.length){
-          h.push('<ul class="fn-plist">');
-          fn.params.forEach(function(p){
-            h.push('<li><code>'+esc(p.name)+(p.optional?'?':'')+'</code> '+esc(p.type)
-              +(p.desc?' — '+esc(p.desc):'')+'</li>');
-          });
-          h.push('</ul>');
-        }
-        if(fn.returns && fn.returns.length){
-          h.push('<ul class="fn-plist">');
-          fn.returns.forEach(function(r){
-            h.push('<li>→ <code>'+esc(r.type)+'</code>'+(r.name?' '+esc(r.name):'')
-              +(r.desc?' — '+esc(r.desc):'')+'</li>');
-          });
-          h.push('</ul>');
-        }
-        if(fn.overload && fn.overload.length){
-          h.push('<div class="fn-overloads"><div class="fn-ov-label">Also callable as</div>');
-          fn.overload.forEach(function(ov){
-            if(ov.params.length === 0 && ov.returns.length === 0 && !ov.raw.match(/^fun\s*\(\s*\)/)){
-              // Did not parse as fun(...) — shown verbatim rather than as an
-              // empty, misleading "fn.name()".
-              h.push('<div class="fn-ov-raw">'+esc(ov.raw)+'</div>');
-              return;
-            }
-            // An anonymous LuaCATS param (`fun(string)`, no `name:`) got the
-            // placeholder name "_" from parse_overload — shown as its type
-            // instead of a bare underscore, which would read as an actual
-            // parameter called "_" rather than as "unnamed".
-            var paramNames = ov.params.map(function(p){
-              return (p.name === "_" ? p.type : p.name) + (p.optional?'?':'');
-            });
-            h.push('<div class="fn-ov-sig">'+esc(fn.name)+'('+paramNames.join(', ')+')</div>');
-            if(ov.params.length){
-              h.push('<ul class="fn-plist">');
-              ov.params.forEach(function(p){
-                h.push('<li><code>'+esc(p.name)+(p.optional?'?':'')+'</code> '+esc(p.type)+'</li>');
-              });
-              h.push('</ul>');
-            }
-            if(ov.returns.length){
-              h.push('<ul class="fn-plist">');
-              ov.returns.forEach(function(r){
-                h.push('<li>→ <code>'+esc(r.type)+'</code></li>');
-              });
-              h.push('</ul>');
-            }
-          });
-          h.push('</div>');
-        }
-        if(fn.see && fn.see.length){
-          var seeLinks = fn.see.map(function(target){
-            var targetId = seeIndex[target];
-            return targetId
-              ? '<a href="#" data-see-target="'+esc(targetId)+'">'+esc(target)+'</a>'
-              : '<span title="unresolved">'+esc(target)+'</span>';
-          });
-          h.push('<div class="fn-desc fn-see">See also: '+seeLinks.join(", ")+'</div>');
-        }
-        if(fn.example){ h.push('<div class="fn-ex">'+esc(fn.example)+'</div>'); }
+        h.push(fnAnnotationHTML(fn));
 
         // The per-function entry into the Calls view. Counts are shown up
         // front so a function with no edges either way does not offer a link
@@ -1953,6 +2002,7 @@ local JS = [[
       items.forEach(function(it){
         parts.push('<li><a class="nfn" data-node="' + esc(it.node.id) + '">' +
           esc(it.fn.signature) + '</a>' +
+          sigTrigger(it.node.id, it.fn.name) +
           '<span class="nwhere">' + esc(it.node.module || it.node.path) +
           ':' + it.fn.line + '</span>' +
           '<div class="ntext">' + (it.text ? esc(it.text) : "&mdash;") + '</div></li>');
@@ -2064,6 +2114,7 @@ local JS = [[
       built.buckets[c].forEach(function(e){
         parts.push('<li><a class="nfn" data-node="' + esc(e.node.id) + '">' +
           esc(e.fn.signature) + '</a>' +
+          sigTrigger(e.node.id, e.fn.name) +
           (e.fn.internal ? '<span class="ixtag">internal</span>' : '') +
           (e.fn.deprecated ? '<span class="ixtag dep">deprecated</span>' : '') +
           (e.fn.tested ? '<span class="ixtag tested">tested</span>' : '') +
@@ -2451,7 +2502,7 @@ local JS = [[
     rows.forEach(function(r){
       var barPct = Math.round(100 * r.complexity / maxC);
       parts.push('<tr class="anrow" data-node="' + esc(r.node.id) + '">' +
-        '<td>' + esc(r.fn.signature) + '</td>' +
+        '<td>' + esc(r.fn.signature) + sigTrigger(r.node.id, r.fn.name) + '</td>' +
         '<td>' + esc(r.name) + '</td>' +
         '<td>' + r.complexity + '</td>' +
         '<td><div class="anbar"><div class="anfill" style="width:' + barPct + '%"></div></div></td>' +
@@ -2523,7 +2574,7 @@ local JS = [[
         '<th>Line</th></tr></thead><tbody>');
       g.members.forEach(function(m){
         parts.push('<tr class="anrow" data-node="' + esc(m.node) + '">' +
-          '<td>' + esc(m.signature || m.name) + '</td>' +
+          '<td>' + esc(m.signature || m.name) + sigTrigger(m.node, m.name) + '</td>' +
           '<td>' + esc(m.module || m.node) + '</td>' +
           '<td>' + m.line + '</td>' +
           '</tr>');
@@ -2682,7 +2733,7 @@ local JS = [[
     rows.forEach(function(r){
       parts.push('<tr class="anrow" data-node="' + esc(r.node.id) + '">' +
         '<td>' + esc(r.name) + '</td>' +
-        '<td>' + esc(r.signature) + '</td>' +
+        '<td>' + esc(r.signature) + sigTrigger(r.node.id, r.fn.name) + '</td>' +
         '<td>' + esc(r.module) + '</td>' +
         '<td>' + r.line + '</td>' +
         '</tr>');
@@ -3848,6 +3899,117 @@ local JS = [[
   });
 
   // =====================================================================
+  // Annotation popup
+  //
+  // Every list in this map — Index, Notes, Complexity, Hooks, Duplicates —
+  // shows a function as its signature and nothing else. The params, returns,
+  // deprecation and prose were all parsed and are all already in this page;
+  // they were simply one navigation away, in the Tree tab's detail pane.
+  // This surfaces them where the reader already is.
+  //
+  // No new data: `fnByKey` and `fnAnnotationHTML` both already exist, which
+  // is why this costs a popup and not an extraction.
+  //
+  // Lifecycle deliberately mirrors the context menu above (close on
+  // click-outside, blur, resize, scroll, Escape) rather than inventing a
+  // second set of rules for a second floating thing on the same page.
+  // =====================================================================
+  var sigpop = document.getElementById("sigpop");
+  var sigAnchor = null, sigPinned = false, sigTimer = null;
+
+  function sigClose(){
+    if(sigTimer){ clearTimeout(sigTimer); sigTimer = null; }
+    sigpop.classList.remove("on");
+    if(sigAnchor) sigAnchor.classList.remove("on");
+    sigAnchor = null;
+    sigPinned = false;
+  }
+
+  function sigOpen(el){
+    var entry = fnByKey[el.dataset.sig];
+    // A key with no entry is a bug in whatever rendered the trigger, not
+    // something to paper over with an empty card — say nothing at all.
+    if(!entry) return;
+
+    if(sigAnchor && sigAnchor !== el) sigAnchor.classList.remove("on");
+    sigAnchor = el;
+    el.classList.add("on");
+    sigpop.innerHTML = fnAnnotationHTML(entry.fn) +
+      '<div class="fn-desc fn-see"><a href="#" data-sig-goto="' +
+      esc(entry.node.id) + '">' + esc(entry.node.module || entry.node.path) +
+      ':' + entry.fn.line + '</a></div>';
+    sigpop.classList.add("on");
+
+    // Measured after it is in the DOM, then flipped rather than clamped
+    // vertically: a card pinned to the bottom edge would cover the very row
+    // the reader is pointing at, which a menu (positioned at the cursor)
+    // does not have to worry about.
+    var a = el.getBoundingClientRect();
+    var r = sigpop.getBoundingClientRect();
+    var left = Math.max(8, Math.min(a.left, window.innerWidth - r.width - 8));
+    var top = (a.bottom + r.height + 8 <= window.innerHeight)
+      ? a.bottom + 6
+      : Math.max(8, a.top - r.height - 6);
+    sigpop.style.left = left + "px";
+    sigpop.style.top = top + "px";
+  }
+
+  // Hover opens, but with a grace period on the way out so the pointer can
+  // travel into the card to scroll it or select text. Click pins, which is
+  // what makes the card usable at all for a long `@example` block.
+  document.addEventListener("mouseover", function(ev){
+    var el = ev.target.closest && ev.target.closest("[data-sig]");
+    if(el){
+      if(sigTimer){ clearTimeout(sigTimer); sigTimer = null; }
+      if(el !== sigAnchor) sigOpen(el);
+      return;
+    }
+    if(sigPinned || !sigAnchor) return;
+    if(ev.target.closest && ev.target.closest("#sigpop")){
+      if(sigTimer){ clearTimeout(sigTimer); sigTimer = null; }
+      return;
+    }
+    if(!sigTimer) sigTimer = setTimeout(sigClose, 180);
+  });
+
+  document.addEventListener("click", function(ev){
+    var goto = ev.target.closest && ev.target.closest("[data-sig-goto]");
+    if(goto){
+      ev.preventDefault();
+      var id = goto.dataset.sigGoto;
+      sigClose();
+      navigate({ tab: "tree", id: id });
+      return;
+    }
+    var el = ev.target.closest && ev.target.closest("[data-sig]");
+    if(el){
+      ev.preventDefault();
+      if(sigPinned && sigAnchor === el){ sigClose(); return; }
+      sigOpen(el);
+      sigPinned = true;
+      return;
+    }
+    if(sigAnchor && !(ev.target.closest && ev.target.closest("#sigpop"))) sigClose();
+  });
+
+  // Keyboard parity: the trigger is focusable, so tabbing a list reaches it
+  // and Enter/Space opens the same card the pointer would.
+  document.addEventListener("keydown", function(ev){
+    if(ev.key === "Escape" && sigAnchor){ sigClose(); return; }
+    if(ev.key !== "Enter" && ev.key !== " ") return;
+    var el = document.activeElement;
+    if(!el || !el.dataset || !el.dataset.sig) return;
+    ev.preventDefault();
+    if(sigPinned && sigAnchor === el){ sigClose(); return; }
+    sigOpen(el);
+    sigPinned = true;
+  });
+
+  window.addEventListener("blur", sigClose);
+  window.addEventListener("resize", sigClose);
+  document.addEventListener("scroll", sigClose, true);
+
+  // =====================================================================
   // Initial load: parse whatever hash the page was opened with (a bare
   // #<id> from an old-style/shared link, a full serialized state from
   // Back/Forward, or nothing) and apply it as a *replace*, not a push — the
@@ -4062,6 +4224,7 @@ function M.render(ir, findings, opts)
     "</tbody></table></div></details></div>",
 
     '<div id="ctx" role="menu"></div>',
+    '<div id="sigpop" class="sigpop" role="tooltip"></div>',
 
     '<script type="application/json" id="ir">',
     payload,
