@@ -15,6 +15,16 @@ local M = {}
 
 local uv = vim.uv or vim.loop
 
+-- This is the only backend-aware line in this file, and it names a
+-- registry, never a specific backend — `core/lang.lua` requiring THIS
+-- module back (deferred, inside its own functions) is fine, but this file
+-- requiring `core/lang/lua.lua` directly was tried first and correctly
+-- caught by the `documentation.core` -> `documentation.core.lang` layer
+-- rule: that is exactly the coupling the registry exists to prevent, and
+-- `core/lang_registry.lua`'s own `KNOWN_BACKENDS` list is where that
+-- self-registration require now lives instead.
+local lang_registry = require("documentation.core.lang_registry")
+
 ---Normalize to forward slashes; every path in the IR is stored this way so
 ---the artifact is byte-identical regardless of which OS generated it.
 ---@param p string
@@ -271,9 +281,23 @@ function M.scan(opts)
     local id = rel
     local name = rel:match("([^/]+)$") or opts.title or rel
 
-    local init = abs .. "/init.lua"
-    local has_init = is_file(init)
-    local header = has_init and M.parse_header(init) or nil
+    -- The first registered backend whose `module_file` exists here owns this
+    -- directory. Only Lua is registered today (`core/lang/lua.lua`), so this
+    -- is exactly the `init.lua` check it replaces — see
+    -- `docs/ROADMAP/MULTILANG.md` Phase 0 for why the walk asks the registry
+    -- instead of assuming there is only ever one answer.
+    local module_backend, module_abs
+    for _, backend in ipairs(lang_registry.all()) do
+      if backend.module_file then
+        local candidate = abs .. "/" .. backend.module_file
+        if is_file(candidate) then
+          module_backend, module_abs = backend, candidate
+          break
+        end
+      end
+    end
+    local has_init = module_backend ~= nil
+    local header = module_backend and module_backend.parse_header(module_abs) or nil
 
     -- `@types/` is an attribute of its module, not a node of its own: a
     -- module's types belong to it, and promoting them to siblings doubles the
@@ -294,9 +318,8 @@ function M.scan(opts)
     counts[kind] = counts[kind] + 1
 
     local fns, calls, requires, syms, plugins, loc = {}, {}, {}, {}, {}, 0
-    if has_init then
-      fns, calls, requires, syms, plugins, loc =
-        require("documentation.core.functions").scan_file(init)
+    if module_backend then
+      fns, calls, requires, syms, plugins, loc = module_backend.scan_file(module_abs)
     end
 
     -- Own tally for this directory: what sits directly in it, plus its
@@ -335,13 +358,13 @@ function M.scan(opts)
       kind = kind,
       name = name,
       path = rel,
-      source = has_init and (rel .. "/init.lua") or nil,
+      source = module_backend and (rel .. "/" .. module_backend.module_file) or nil,
       module = header and header.module or nil,
       summary = header and header.summary or "",
       body = header and header.body or "",
       readme = readme,
       types = type_files,
-      export = has_init and export_shape(init) or nil,
+      export = module_backend and export_shape(module_abs) or nil,
       parent = parent_id,
       depth = depth,
       children = {},
@@ -362,18 +385,26 @@ function M.scan(opts)
     for _, e in ipairs(dir_entries) do
       local child_abs = abs .. "/" .. e.name
       local child_rel = rel .. "/" .. e.name
+      -- Looked up once per entry rather than in the branch condition below:
+      -- a second call cannot prove to the type checker it would return the
+      -- same table, and calling a registry lookup twice per file is waste
+      -- besides.
+      local leaf_backend = e.type ~= "directory" and lang_registry.for_file(e.name) or nil
 
       if e.type == "directory" then
         if e.name ~= types_dir then
           node.children[#node.children + 1] = walk_dir(child_abs, child_rel, id, depth + 1)
         end
-      elseif e.name:match("%.lua$") and e.name ~= "init.lua" then
+      elseif leaf_backend and e.name ~= (module_backend and module_backend.module_file) then
         -- Helper files are real, documented units and stay visible as leaves
-        -- rather than being folded into the parent's detail pane.
-        local h = M.parse_header(child_abs)
+        -- rather than being folded into the parent's detail pane. The
+        -- exclusion above is what keeps the file that already became this
+        -- directory's own `source` (this backend's `module_file`) from also
+        -- appearing a second time as its own leaf.
+        local h = leaf_backend.parse_header(child_abs)
         counts.file = counts.file + 1
         local leaf_fns, leaf_calls, leaf_requires, leaf_syms, leaf_plugins, leaf_loc =
-          require("documentation.core.functions").scan_file(child_abs)
+          leaf_backend.scan_file(child_abs)
         local leaf_stats = zero_stats()
         leaf_stats.files_lua = 1
         leaf_stats.lines = leaf_loc

@@ -95,6 +95,7 @@ Two specs, both driven by the tiny shared harness in
 | Spec | Covers |
 |---|---|
 | [`docmap_spec.lua`](../TESTS/docmap_spec.lua) | `functions`, `check`, `scan`, the graph stages, `diff`/`history`, and the `install()` watch end to end. |
+| [`lang_registry_spec.lua`](../TESTS/lang_registry_spec.lua) | `core/lang_registry.lua` — registration order, `reset()` recovering the real "lua" backend from Lua's own module cache rather than losing it. Its own file: it touches the process-wide singleton other specs' real scans depend on. |
 | [`docmap_browse_spec.lua`](../TESTS/docmap_browse_spec.lua) | `browse` — real floats, real buffers. |
 
 The runner prints one line per spec and exits non-zero on the first failure. It
@@ -167,6 +168,8 @@ lua/documentation/
   @types/           Documentation.* LuaCATS definitions
 
   core/             the pipeline. No editor, and a layer rule says so.
+    lang_registry.lua  which language backend owns a file — see below
+    lang/lua.lua    Lua registered as a backend; thin, delegates to scan/functions
     scan.lua        filesystem walk + header parse   -> IR
     functions.lua   per-function docs via treesitter -> node.functions
     symbols.lua     module-scope tables/constants    -> node.symbols
@@ -223,6 +226,28 @@ lookup that touches nothing but the IR, now `core/find.lua`.
 Deliberately one-directional: the editor half reaching into the core is the
 point of the core existing. `init.lua` sits outside the rule and reaches both,
 which is what a facade is for.
+
+**A third rule, added with `core/lang_registry.lua`**
+(`docs/ROADMAP/MULTILANG.md`'s Phase 0): `{ from = "documentation.core", to =
+"documentation.core.lang" }`. `scan.lua`'s walk used to hardcode `"%.lua$"`,
+`"init.lua"` and a direct call into `functions.lua` — every one of those is a
+fact about Lua, not about how a walk works. The registry is the seam;
+`core/lang/lua.lua` is Lua registered through it, a thin wrapper delegating to
+the same `scan.lua`/`functions.lua` code that predates the interface, not a
+rewrite of either.
+
+The registry module is deliberately named `lang_registry`, not `lang.init` —
+living inside `documentation.core.lang.*` would trip this very rule, since a
+registry that legitimately knows about every backend is not the violation the
+rule exists to catch. It sits beside the boundary, the same reason `init.lua`
+sits outside the `core`/`editor` rule.
+
+Declaring this rule caught a real violation on the first `--check`, the same
+way the `core`/`editor` rule did: `scan.lua` originally required
+`core/lang/lua.lua` directly, to trigger its self-registration. Moving that
+require into the registry's own `KNOWN_BACKENDS` list — the one place allowed
+to name a specific backend module — fixed it, rather than suppressing the
+finding.
 
 ### The same rule applies to `lib.nvim`, and no check enforces it
 

@@ -28,25 +28,21 @@ generic caution.
 None of the language-specific work below can start before this phase,
 because it changes the shape every language backend plugs into.
 
-- [ ] **Language-backend interface.** Five functions, one implementation per
-  language, selected by file extension — `docs/MULTILANG.md`'s own sketch:
-  given a file, return its module identity, its functions with doc blocks,
-  its symbols, and its imports. `core/scan.lua`'s walk currently calls
-  `functions.lua` unconditionally; this becomes a dispatch table keyed on
-  extension, with Lua's existing `scan.lua`/`functions.lua`/`symbols.lua`/
-  `deps.lua`/`calls.lua` becoming the first (and reference) implementation
-  of the interface, not a special case beside it.
-- [ ] **`core.lang.*` layering, enforced.** `docs/PORTABILITY.md` and
-  `docs/DEVELOPMENT.md` already document why `documentation.core` /
-  `documentation.editor` is a declared `layers` rule and not a convention —
-  a boundary nothing checks is a boundary that rots. The same treatment
-  applies here: language backends must not reach into each other
-  (`core.lang.js` requiring `core.lang.python` is exactly the kind of
-  coupling `layer-violation` exists to catch), and the shared `core/`
-  modules (`check.lua`, `duplicates.lua`, `churn.lua`, the renderers) must
-  not import any specific `core.lang.*` — they read the IR, never the
-  backend that produced it. Write the rule at the same time as the first
-  backend, the same order the `core`/`editor` split happened in, not after.
+- [x] **Language-backend interface.** Done (2026-08-03). `core/lang_registry.lua`
+  dispatches by file extension; `core/lang/lua.lua` registers Lua as the
+  reference implementation, a thin wrapper delegating to the
+  `scan.lua`/`functions.lua` code that predates the interface, not a
+  rewrite of either. Verified byte-accountable against the pre-change map —
+  every diff on an existing node was the direct, explainable consequence of
+  adding two new files, nothing else moved. See `FEATURES.md`'s own entry
+  for the design and the bug the layer rule below caught while building it.
+- [x] **`core.lang.*` layering, enforced.** Done alongside the interface, the
+  same order the `core`/`editor` split happened in. One rule so far
+  (`documentation.core` → `documentation.core.lang` forbidden); the
+  cross-backend rule (`core.lang.js` must not require `core.lang.python`)
+  is still just intent, not a written rule — there is only one backend to
+  test it against, and this repository's own standard is not to add a rule
+  unverified. Write it when Phase 1 gives it a second prefix to check.
 - [ ] **`Documentation.Node` grows an owning-scope concept.** Functions
   currently hang off the *module*. Python methods belong to a class, Rust
   functions to an `impl` block, Go methods to a receiver type. `docs/
@@ -55,13 +51,19 @@ because it changes the shape every language backend plugs into.
   grouping, `churn.lua`'s per-module complexity sum, both Analysis-panel
   renderers, the Hierarchy tab's Calls view), so it has to land before any
   language that needs it, not be bolted on when Python arrives and breaks
-  everything already reading `fn.name` as flat.
+  everything already reading `fn.name` as flat. **Not blocking Phase 1**:
+  modern JS/TS is overwhelmingly function-based (React function components
+  and hooks, not classes), so the seam can prove itself on JS/TS first and
+  this can land when Python's classes actually need it, not before.
 - [ ] **`Documentation.Node` allows one file, many modules.** Rust's `mod x
   { … }` and JS's multiple named exports both break the file-is-a-module
   assumption `scan.lua`'s walk is built on. The second of `docs/
   MULTILANG.md`'s three IR gaps, and the one that touches the walk itself,
   not just the parser — `id`/`path`/`source` currently assume a 1:1
-  relationship between a node and a file.
+  relationship between a node and a file. **Not blocking Phase 1 either**:
+  a JS/TS module IS its file, the same shape Lua already has (`index.js`
+  playing `init.lua`'s role) — this is Rust's problem specifically, not a
+  JS/TS one, and deferring it does not mean deferring Phase 1.
 - [ ] **Visibility as a first-class `Documentation.FunctionInfo` field.**
   `@internal` is a tag today; Rust has `pub`, Go has identifier
   capitalisation, TS has `private`. Third IR gap from `docs/MULTILANG.md`.
@@ -74,7 +76,9 @@ because it changes the shape every language backend plugs into.
   to every node and the three struct changes above is exactly the kind of
   change that check exists for — confirm the tolerance path still degrades
   rather than errors on a mixed old/new-schema `:DocMap diff` before any
-  language backend ships, not after someone hits it.
+  language backend ships, not after someone hits it. Genuinely open: no IR
+  field changed yet, since the interface work above added new *modules*
+  (`core/lang_registry.lua`, `core/lang/lua.lua`) but no new *node* fields.
 - [ ] **A real per-language sample tree**, checked into `TESTS/fixtures/` or
   fetched by the runner, per language — not just hand-written snippets.
   Section *Considerations* below explains why this is not optional.

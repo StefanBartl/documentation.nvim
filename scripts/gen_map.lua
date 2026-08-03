@@ -91,6 +91,21 @@ local opts = require("documentation.config").build(root, {
       to = "documentation.bindings",
       why = "the pipeline knows nothing about commands or keys",
     },
+    -- Added with `core/lang_registry.lua` (docs/ROADMAP/MULTILANG.md Phase
+    -- 0), for the same reason as the two rules above: the walk asks the
+    -- registry which language owns a file, and nothing else in `core` may
+    -- reach a specific backend directly — that is exactly the coupling a
+    -- second language backend would otherwise be tempted to introduce.
+    --
+    -- The registry itself is not `documentation.core.lang.*` (it is
+    -- `documentation.core.lang_registry`, a sibling segment) precisely so
+    -- this rule does not also flag the registry's own, legitimate knowledge
+    -- of every backend — see that module's header.
+    {
+      from = "documentation.core",
+      to = "documentation.core.lang",
+      why = "language backends are reached through core/lang_registry.lua, never directly — see docs/ROADMAP/MULTILANG.md",
+    },
   },
 })
 

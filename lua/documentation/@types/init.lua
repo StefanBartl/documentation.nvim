@@ -34,6 +34,28 @@
 ---A repo-specific drift check.
 ---@alias Documentation.Check fun(ir: Documentation.IR, opts: Documentation.Opts): Documentation.Finding[]
 
+---A source file's leading doc-comment block, parsed. What `scan.lua`'s
+---`parse_header` has always returned; named here so `Documentation.
+---LangBackend`'s `parse_header` field can point at one shape shared by every
+---language's implementation of it, not a shape only Lua's happens to match.
+---@class Documentation.Header
+---@field module string? The declared module path, however this language spells that — `---@module` for Lua, a JSDoc `@module` tag for JS/TS.
+---@field summary string
+---@field body string
+---@field tags table<string, string>
+
+---One supported source language, selected by file extension. See
+---`core/lang_registry.lua` for why this exists as a registry rather than an
+---if/elseif chain in `scan.lua`, and `docs/ROADMAP/MULTILANG.md` for what
+---adding a second one (beyond the Lua reference registration in
+---`core/lang/lua.lua`) actually costs.
+---@class Documentation.LangBackend
+---@field name string Short identifier, e.g. `"lua"` — the same string it registers itself under, kept on the table too so `lang_registry.reset()` can re-register an already-cached backend by name without needing to re-require (and thus re-execute) its module.
+---@field module_file string? Filename that marks a directory as owning a module of its own (Lua: `"init.lua"`). `nil` for a language with no such convention, where every source file is its own node.
+---@field is_source fun(filename: string): boolean Whether `filename` (bare, no path) is a source file this backend scans.
+---@field parse_header fun(path: string): Documentation.Header
+---@field scan_file fun(path: string): Documentation.FunctionInfo[], Documentation.RawCall[], Documentation.RawRequire[], Documentation.SymbolInfo[], table[], integer Same six-value shape `functions.lua`'s `scan_file` already returns. The fifth (`plugins`) is Lua+lazy.nvim-specific — see `docs/FRAMEWORK_CONVENTIONS.md` on why that is a layer *above* language support, not part of this contract — and a backend with no equivalent convention returns `{}` there, not `nil`.
+
 ---One layering rule: modules whose `@module` starts with `from` may not
 ---require modules whose `@module` starts with `to`. Both are plain prefixes,
 ---not patterns — `lib.vim` matches `lib.vim.buffer` but never `lib.vimx`.

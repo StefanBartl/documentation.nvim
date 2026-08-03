@@ -44,6 +44,7 @@ local H = dofile(dir .. "harness.lua")
 
 local specs = {
   "docmap_spec.lua",
+  "lang_registry_spec.lua",
   "docmap_browse_spec.lua",
 }
 
