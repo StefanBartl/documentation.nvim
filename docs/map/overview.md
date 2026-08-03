@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**4 modules** · 5 namespaces · 60 helper files
+**4 modules** · 5 namespaces · 62 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -55,6 +55,7 @@ flowchart LR
   nlua_documentation_core_diff_lua["documentation.core.diff"]
   nlua_documentation_core_doccoverage_lua["documentation.core.doccoverage"]
   nlua_documentation_core_docs_lua["documentation.core.docs"]
+  nlua_documentation_core_endpoints_lua["documentation.core.endpoints"]
   nlua_documentation_core_find_lua["documentation.core.find"]
   nlua_documentation_core_functions_lua["documentation.core.functions"]
   nlua_documentation_core_history_lua["documentation.core.history"]
@@ -104,6 +105,7 @@ flowchart LR
   nlua_documentation_core_functions_lua --> nlua_documentation_core_snippet_lua
   nlua_documentation_core_functions_lua --> nlua_documentation_core_symbols_lua
   nlua_documentation_core_history_lua --> nlua_documentation_core_deps_lua
+  nlua_documentation_core_lang --> nlua_documentation_core_endpoints_lua
   nlua_documentation_core_lang --> nlua_documentation_core_functions_lua
   nlua_documentation_core_lang --> nlua_documentation_core_lang_registry_lua
   nlua_documentation_core_lang --> nlua_documentation_core_scan_lua

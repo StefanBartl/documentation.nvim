@@ -1906,8 +1906,10 @@ return function(H)
 
   -- `select(4, ...)` rather than three leading `_`s: this file sits at Lua's
   -- 200-local-per-function ceiling, and `select` costs no local slots for the
-  -- values being skipped.
-  local syms, _, loc = select(4, functions.scan_file(sym_fixture))
+  -- values being skipped. Four names now, not three: `scan_file` returns
+  -- symbols, plugins, endpoints, lines from this position on, since the
+  -- endpoints recognizer widened the shared seven-value contract.
+  local syms, _, _, loc = select(4, functions.scan_file(sym_fixture))
   local by_sym = {}
   for _, s in ipairs(syms) do
     by_sym[s.name] = s

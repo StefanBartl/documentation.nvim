@@ -56,7 +56,7 @@
 ---@field is_source fun(filename: string): boolean Whether `filename` (bare, no path) is a source file this backend scans.
 ---@field module_tag boolean? Whether this language has a `@module`-tag-shaped authoring convention worth `check.lua`'s `missing-module-tag` checking the absence of. Lua: `true` (its canonical module name cannot be recovered from the file path alone). A language whose module identity already is its file path (JS/TS's ESM imports resolve by path): `false` — nothing tag-shaped can be "missing." Absent/`nil` is treated as `true`, the conservative default that preserves today's behavior for a backend that never states an opinion.
 ---@field parse_header fun(path: string): Documentation.Header
----@field scan_file fun(path: string): Documentation.FunctionInfo[], Documentation.RawCall[], Documentation.RawRequire[], Documentation.SymbolInfo[], table[], integer Same six-value shape `functions.lua`'s `scan_file` already returns. The fifth (`plugins`) is Lua+lazy.nvim-specific — see `docs/FRAMEWORK_CONVENTIONS.md` on why that is a layer *above* language support, not part of this contract — and a backend with no equivalent convention returns `{}` there, not `nil`.
+---@field scan_file fun(path: string): Documentation.FunctionInfo[], Documentation.RawCall[], Documentation.RawRequire[], Documentation.SymbolInfo[], table[], Documentation.EndpointSpec[], integer Same seven-value shape `functions.lua`'s `scan_file` already returns. The fifth (`plugins`) and sixth (`endpoints`) are ecosystem-specific — see `docs/FRAMEWORK_CONVENTIONS.md`/`docs/ECOSYSTEM.md` on why each is a layer *above* language support, not part of this contract — and a backend with no equivalent convention returns `{}` there, not `nil`.
 
 ---One layering rule: modules whose `@module` starts with `from` may not
 ---require modules whose `@module` starts with `to`. Both are plain prefixes,
@@ -92,6 +92,7 @@
 ---@field types_detail Documentation.TypeInfo[]? `@class`/`@alias` detail for this node's `types` files, from `lua-language-server --doc`. `nil` when LuaLS enrichment did not run; `{}` is a real "ran, found nothing here" result.
 ---@field functions Documentation.FunctionInfo[] Documented functions found in this node's own source file (not its `@types/` files). Always an array, never nil — unlike `types_detail`, this runs unconditionally as part of `scan()`, no LuaLS required.
 ---@field plugins Documentation.PluginSpec[] Plugin-manager (lazy.nvim-shaped) spec entries found in this node's own source — see `core/plugins.lua`. Always an array, empty for a source file that is not a plugin-spec file, which is nearly all of them; runs unconditionally as part of `scan()`, no configuration required.
+---@field endpoints Documentation.EndpointSpec[] Call-based route registrations (Express/Fastify/Koa-shaped) found in this node's own source — see `core/endpoints.lua`. Always an array, empty for a source file with no route registrations (nearly all of them, and every non-JS/TS file); runs unconditionally as part of `scan()`.
 ---@field requires string[] Node ids this node requires, sorted. Derived from `ir.edges`; an index for convenience, not a second source of truth.
 ---@field required_by string[] Node ids that require this node, sorted. Same derivation.
 ---@field requires_external string[] Module paths this node requires that resolve to nothing in the scanned tree — other plugins, or anything outside `source`. Plain strings, not invented nodes: the map only claims to describe what it scanned. The Deps view can draw them on request.
@@ -220,6 +221,18 @@
 ---@field url string?
 ---@field has_opts boolean Whether the spec sets `opts` at all, not what it contains.
 ---@field has_config boolean Whether the spec sets `config` (a table, `true`, or a function) at all.
+
+---One call-based route registration — `app.get("/path", handler)`-shaped,
+---see `core/endpoints.lua`'s header for exactly what is and is not
+---recognized, and why file-based routing (Next.js/SvelteKit/Nuxt/Remix) is
+---a separate, unbuilt concept rather than a bent version of this one.
+---@class Documentation.EndpointSpec
+---@field method string HTTP method, lowercase, as written (`"get"`, `"post"`, ... or `"all"`).
+---@field path string Route path as written, including any Express-style params (`":id"`).
+---@field handler string? The handler's declared name, when it is a named reference; `nil` for an inline function/arrow expression with nothing to name.
+---@field line integer 1-based line the route registration call sits on.
+---@field framework string? Recognized from this file's own imports (`express`/`fastify`/`koa`/`connect`/`restify`/`hapi`); `nil` when the call shape matched but no known routing package was imported in this file.
+---@field documented boolean Whether the handler (when named) is one of this file's own functions with a non-empty summary; `false` for an inline handler or an unresolved name.
 
 ---Counts over a node and everything below it. Aggregated rather than own-only:
 ---the question a directory answers is "how big is this part of the tree".

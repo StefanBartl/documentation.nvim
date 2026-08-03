@@ -727,13 +727,13 @@ function M.backend(name, lang, extensions, module_file)
 
       local ok, parser = pcall(vim.treesitter.get_string_parser, src, lang)
       if not ok then
-        return {}, {}, {}, {}, {}, lines
+        return {}, {}, {}, {}, {}, {}, lines
       end
       local ok_parse, trees = pcall(function()
         return parser:parse()
       end)
       if not ok_parse or not trees or not trees[1] then
-        return {}, {}, {}, {}, {}, lines
+        return {}, {}, {}, {}, {}, {}, lines
       end
 
       local root = trees[1]:root()
@@ -756,9 +756,16 @@ function M.backend(name, lang, extensions, module_file)
         fn.local_refs = math.max(0, (ident_counts[fn.name] or 1) - 1)
       end
 
+      -- Call-based route registrations — Express/Fastify/Koa-shaped, see
+      -- `core/endpoints.lua`'s own header for exactly what is recognized.
+      -- Given `functions`/`requires` this file's own scan already produced,
+      -- for the `documented`/`framework` cross-references.
+      local endpoints =
+        require("documentation.core.endpoints").extract(root, src, lang, functions, requires)
+
       -- Fifth slot (`plugins`) is Lua+lazy.nvim-specific, per the shared
       -- `scan_file` contract — see `docs/FRAMEWORK_CONVENTIONS.md`.
-      return functions, calls, requires, symbols, {}, lines
+      return functions, calls, requires, symbols, {}, endpoints, lines
     end,
   }
 end
