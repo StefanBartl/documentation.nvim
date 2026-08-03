@@ -51,8 +51,16 @@
 --- bound — a real, separate task, not a small extension of this one. A
 --- member-expression call (`obj.method()`) is captured too, but matches no
 --- resolver branch and is silently dropped, the same honest degradation an
---- unknown Lua receiver already gets. Symbols (module-scope non-function
---- bindings) remain unextracted.
+--- unknown Lua receiver already gets.
+---
+--- Symbols (`extract_symbols`) are real too: module-scope `const`/`let`/`var`
+--- bindings that are neither a function (`as_function` already claims that
+--- declarator) nor a `require()` call (`extract_requires` already claims
+--- that one), mirroring `documentation.core.symbols`'s own Lua scope and
+--- classification (table/constant/binding). Unlike Lua, there is no
+--- export-table name to filter out — JS/TS has no single chunk-level
+--- "this is the module" return the way `local M = {}` / `return M` is, so
+--- every qualifying binding is reported, not just the non-exported ones.
 
 local M = {}
 
@@ -337,6 +345,121 @@ local function extract_requires(stmt_node, src)
   return out
 end
 
+---Collapse a value expression to one short line for display — the same
+---policy `documentation.core.symbols`'s own `condense` uses for Lua.
+---@param text string
+---@return string
+local function condense(text)
+  local flat = text:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+  if #flat > 48 then
+    flat = flat:sub(1, 47) .. "…"
+  end
+  return flat
+end
+
+---Classify a module-scope binding's value expression, mirroring
+---`documentation.core.symbols`'s own `classify` for Lua. Two shapes are
+---excluded (return `nil`), because another stage already owns them:
+---
+---   arrow_function/function_expression   -> `as_function` already claims
+---                                            this declarator as a function
+---   require("…") call_expression         -> `extract_requires` already
+---                                            models this as a dependency
+---
+---Verified against a real parse (see this file's own header and
+---`docs/ROADMAP/MULTILANG.md`): `object`/`array` literals, `number`/
+---`string`/`true`/`false` primitives (JS has no single "boolean" node type —
+---`true` and `false` are distinct), `null`/`undefined` (JS-only shapes with
+---no Lua equivalent; both fall through to "binding", the same as any other
+---unlisted Lua literal would), and anything else (`binary_expression`, a
+---bare identifier reference, a non-`require` call) evaluated at load time.
+---@param value TSNode
+---@param src string
+---@return Documentation.SymbolKind? kind
+---@return string detail
+local function classify_symbol(value, src)
+  local ty = value:type()
+
+  if ty == "arrow_function" or ty == "function_expression" then
+    return nil, ""
+  end
+  if ty == "call_expression" then
+    local fn = value:field("function")[1]
+    if fn and vim.treesitter.get_node_text(fn, src) == "require" then
+      return nil, ""
+    end
+  end
+
+  if ty == "object" or ty == "array" then
+    -- Every named child is a real member for either shape: `pair`,
+    -- `shorthand_property_identifier` and `spread_element` all count for an
+    -- object; an element expression counts for an array. Broader than
+    -- Lua's own `count_fields` (which only counts `field` nodes), and
+    -- correctly so — JS object literals have more member shapes than Lua
+    -- table constructors do, verified against a real parse of `{ a, b, c:
+    -- 3, ...rest }` (two `shorthand_property_identifier`s, one `pair`, one
+    -- `spread_element`).
+    local n = value:named_child_count()
+    local noun = ty == "object" and "field" or "element"
+    return "table", n > 0 and (n .. " " .. noun .. (n == 1 and "" or "s")) or "empty"
+  end
+  if ty == "number" or ty == "string" or ty == "true" or ty == "false" then
+    return "constant", condense(vim.treesitter.get_node_text(value, src))
+  end
+
+  return "binding", condense(vim.treesitter.get_node_text(value, src))
+end
+
+---Module-scope symbols from one top-level statement — `documentation.core.
+---symbols`'s own scope, extended to JS/TS/TSX. Every `variable_declarator`
+---in the statement is considered independently (not just the first, unlike
+---`extract_requires`'s accepted narrow gap there), so `const helper = () =>
+---{}, CONFIG = {...};` correctly reports only `CONFIG` — `classify_symbol`
+---excludes `helper`'s arrow-function value on its own, so there is no
+---double-count against `as_function` claiming `helper` from the same
+---statement.
+---
+---No equivalent of Lua's `local M = {}` / `return M` export-table filter is
+---applied — JS/TS has no single chunk-level "this is the module" return the
+---way a Lua `require()`d file does (see this file's own header on module
+---identity), so there is no analogous name to exclude. Every non-function,
+---non-`require` module-scope binding is reported.
+---@param stmt_node TSNode The original statement — export_statement or the declaration itself — for `leading_jsdoc`'s sibling check.
+---@param unwrapped TSNode The declaration, export unwrapped.
+---@param src string
+---@return Documentation.SymbolInfo[]
+local function extract_symbols(stmt_node, unwrapped, src)
+  local out = {}
+  local ty = unwrapped:type()
+  if ty ~= "lexical_declaration" and ty ~= "variable_declaration" then
+    return out
+  end
+
+  for i = 0, unwrapped:named_child_count() - 1 do
+    local decl = unwrapped:named_child(i)
+    if decl:type() == "variable_declarator" then
+      local name_node = decl:field("name")[1]
+      local value_node = decl:field("value")[1]
+      if name_node and name_node:type() == "identifier" and value_node then
+        local kind, detail = classify_symbol(value_node, src)
+        if kind then
+          local doc = leading_jsdoc(stmt_node, src)
+          local parsed = doc and parse_jsdoc(doc)
+          local srow = name_node:range()
+          out[#out + 1] = {
+            name = vim.treesitter.get_node_text(name_node, src),
+            kind = kind,
+            detail = detail,
+            summary = parsed and parsed.summary or "",
+            line = srow + 1,
+          }
+        end
+      end
+    end
+  end
+  return out
+end
+
 ---Parsed queries are per-grammar (`javascript`/`typescript`/`tsx` each
 ---produce a distinct query object even for identical query text), so each
 ---is parsed once per grammar and cached rather than reparsed per file.
@@ -485,9 +608,9 @@ end
 ---@param root TSNode
 ---@param src string
 ---@param lang string
----@return Documentation.FunctionInfo[], Documentation.RawRequire[]
+---@return Documentation.FunctionInfo[], Documentation.RawRequire[], Documentation.SymbolInfo[]
 local function walk(root, src, lang)
-  local functions, requires = {}, {}
+  local functions, requires, symbols = {}, {}, {}
   for i = 0, root:child_count() - 1 do
     local stmt = root:child(i)
     local fn = as_function(stmt, src, lang)
@@ -505,11 +628,21 @@ local function walk(root, src, lang)
         requires[#requires + 1] = r
       end
     end
+    -- Every declarator in the statement is considered independently — no
+    -- `if not fn` guard needed, since `classify_symbol` already excludes a
+    -- function-shaped declarator on its own (see `extract_symbols`'s own
+    -- header for the multi-declarator case this handles correctly).
+    for _, s in ipairs(extract_symbols(stmt, unwrapped, src)) do
+      symbols[#symbols + 1] = s
+    end
   end
   table.sort(functions, function(a, b)
     return a.line < b.line
   end)
-  return functions, requires
+  table.sort(symbols, function(a, b)
+    return a.line < b.line
+  end)
+  return functions, requires, symbols
 end
 
 ---The leading module-level JSDoc block, if the very first statement-level
@@ -593,7 +726,7 @@ function M.backend(name, lang, extensions, module_file)
       end
 
       local root = trees[1]:root()
-      local functions, requires = walk(root, src, lang)
+      local functions, requires, symbols = walk(root, src, lang)
 
       -- Ranges derived from the already-built functions rather than
       -- collected as a separate pass: `line`/`line_end` are already the
@@ -612,10 +745,9 @@ function M.backend(name, lang, extensions, module_file)
         fn.local_refs = math.max(0, (ident_counts[fn.name] or 1) - 1)
       end
 
-      -- Symbols (module-scope non-function bindings) remain a real gap,
-      -- not a silent zero pretending to be a resolved answer — see this
-      -- file's own header.
-      return functions, calls, requires, {}, {}, lines
+      -- Fifth slot (`plugins`) is Lua+lazy.nvim-specific, per the shared
+      -- `scan_file` contract — see `docs/FRAMEWORK_CONVENTIONS.md`.
+      return functions, calls, requires, symbols, {}, lines
     end,
   }
 end

@@ -1069,3 +1069,73 @@ and absent (the existing skip path, unchanged).
 `docs/ROADMAP/MULTILANG.md`'s "calls/symbols extraction" checklist item
 is now two items: calls is done (with cross-file resolution split out
 as its own explicitly open task), symbols remains untouched.
+
+## Symbols extraction for JS/TS/TSX (2026-08-03)
+
+The other half of the split checklist item the calls-extraction session
+left open: `ecma.lua`'s `scan_file` returned `{}` for symbols — module-scope
+`const`/`let`/`var` bindings that are not functions and not `require()`
+calls, the part of a module's surface that answers "what is in here"
+rather than "what can I call." `extract_symbols` mirrors
+`documentation.core.symbols`'s own Lua-side scope and classification
+exactly (table/constant/binding), verified against a real parse before
+writing it — the same discipline as every extractor in this file.
+
+Two shapes are excluded, because another stage already owns them, the
+identical reasoning `documentation.core.symbols` gives for excluding
+`local fs = require(...)` and `M.foo = function() ... end` on the Lua
+side: a declarator whose value is an `arrow_function`/`function_expression`
+(`as_function` already claims it), and a `require("…")` call
+(`extract_requires` already claims it). Verified this does not
+double-count a same-statement mix — `const helper = () => {}, CONFIG =
+{...};` correctly yields one function (`helper`) and one symbol
+(`CONFIG`), since `classify_symbol` excludes `helper`'s declarator on its
+own regardless of position, with no `if not fn` guard needed in `walk()`.
+
+**Classification, verified node-by-node against a real parse:**
+`object`/`array` literals are `"table"`, counted by named-child count
+rather than filtering to one node type the way Lua's own `count_fields`
+narrows to `field` — JS object literals have more member shapes than Lua
+table constructors do (`{ a, b, c: 3, ...rest }` parses as one
+`shorthand_property_identifier` each for `a`/`b`, one `pair` for `c: 3`,
+one `spread_element` for the rest — all real members, all counted).
+`number`/`string`/`true`/`false` are `"constant"` — JS has no single
+boolean node type, `true` and `false` are distinct node types, both
+confirmed against a real parse rather than assumed to work like a
+generic "boolean" the way `count_fields`'s Lua original might suggest.
+`null`/`undefined` (shapes with no Lua equivalent at all) fall through to
+`"binding"`, deliberately not special-cased — the same treatment any
+other literal Lua's own `classify` does not explicitly list already
+gets there. TypeScript's type annotations (`const CONFIG: Record<string,
+number> = {...}`) do not interfere: the `name`/`value` fields resolve
+identically with or without one, confirmed against a real TS parse
+alongside `interface`/`type`/`enum` declarations, which simply do not
+match `lexical_declaration`/`variable_declaration` and so need no
+exclusion of their own.
+
+**No equivalent of Lua's export-table filter.** `documentation.core.
+symbols` drops `local M = {}` specifically because `return M` at the end
+of the chunk makes it *the module itself*, already represented by the
+node — measured at 188 of 600 Lua symbols before that filter existed.
+JS/TS has no equivalent: there is no single chunk-level return that names
+"the module" the way a Lua `require()`d file's last statement does (see
+`ecma.lua`'s own header on module identity never being set for JS/TS).
+So every qualifying binding is reported, including one a project might
+consider its de facto public surface — an honest difference from Lua's
+behavior, not an oversight, since inventing a JS-specific "this export IS
+the module" convention to filter on would be a guess this file declines
+to make elsewhere either.
+
+Verified end to end, the same pattern the calls-extraction session used:
+a real fixture (JSDoc-commented `object`, a `number`, a `string`, an
+export-wrapped `object`, a function, an arrow-function-as-symbol
+negative case, a `require()` binding, and a computed expression) scanned
+through the real, scratch-built parser before a single assertion was
+written, confirming the exact five symbols expected and nothing else —
+*then* committed to `TESTS/lang_js_spec.lua` as a real assertion block,
+not just an ad hoc check thrown away after confirming the shape worked.
+
+`docs/ROADMAP/MULTILANG.md`'s Phase 1 checklist now has two remaining
+real gaps from this pass: cross-file call resolution (named imports
+binding a bare name directly into scope) and class-method owning-scope
+(shared with Phase 0, not unique to JS/TS).

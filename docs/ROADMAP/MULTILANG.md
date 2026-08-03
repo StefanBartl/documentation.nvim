@@ -169,9 +169,26 @@ pays twice.
   Real, valuable, and a separate task from same-file resolution — tracked
   here rather than guessed at.
 
-  Symbols extraction (module-scope non-function bindings — `const CONFIG =
-  {...}`) remains open, a separate task from calls despite the two having
-  shared one checklist item before this session.
+- [x] Symbols extraction (module-scope non-function, non-`require` bindings
+  — `const CONFIG = {...}`), a separate task from calls despite the two
+  having shared one checklist item before the calls-extraction session.
+  **(2026-08-03)** `ecma.lua`'s `extract_symbols` mirrors
+  `documentation.core.symbols`'s own Lua scope and classification
+  (table/constant/binding) exactly: excludes a function-shaped declarator
+  (`as_function` already claims it) and a `require()` binding
+  (`extract_requires` already claims it), classifies an `object`/`array`
+  literal as `"table"` (by named-child count — verified against a real
+  parse that `pair`, `shorthand_property_identifier` and `spread_element`
+  all count as members, broader than Lua's own `field`-only count, and
+  correctly so for JS's richer object-literal shapes) and a `number`/
+  `string`/`true`/`false` literal as `"constant"` (JS has no single boolean
+  node type — `true`/`false` are distinct, both verified). `null`/
+  `undefined` (JS-only shapes, no Lua equivalent) fall through to
+  `"binding"`, the same as any other unlisted Lua literal would. Unlike
+  Lua, no export-table name is filtered out — JS/TS has no single
+  chunk-level "this is the module" return the way `local M = {}` /
+  `return M` is (see `ecma.lua`'s own header on module identity), so every
+  qualifying binding is reported. See `docs/ROADMAP/FEATURES.md`.
 - [ ] Class-method owning-scope: `ecma.lua` recognizes standalone functions
   only; a method inside a `class` body has no representation yet — the
   same Phase-0 owning-scope gap Python/Rust/Go will also need, not unique
