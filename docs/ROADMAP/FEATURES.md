@@ -1010,3 +1010,62 @@ layout (`documentation.nvim` + `lib.nvim` checked out exactly as
 `ci.yml` does it, `LIB_NVIM_DIR` unset) and ran all four gates —
 `stylua`, `luacheck`, `tests`, `map` — in that one reproduction,
 confirming all four now pass together before pushing.
+
+## Calls extraction for JS/TS/TSX (2026-08-03)
+
+The next item on `MULTILANG.md`'s Phase 1 checklist: `ecma.lua`'s
+`scan_file` returned `{}` for `calls_raw` since Stage 2 landed. Two new
+functions mirror `calls.lua`'s own Lua-side split exactly:
+`extract_calls` (per-file syntax: every call site, its raw callee text,
+which top-level function encloses it) and `identifier_counts` (how often
+each bare name appears, for `local_refs` — a function passed as a value
+has no call site naming it). Both are one query each
+(`(call_expression function: (_) @callee)` and `(identifier)`),
+structurally identical to `calls.lua`'s own `(function_call name: (_)
+@callee)`/`(identifier)` pair, verified against a real parse before
+writing them: a bare call's `function` field is an `identifier`
+(`helper`); a method-shaped call's is a `member_expression` whose text
+reconstructs as `obj.method`.
+
+**The genuinely interesting result: `calls.lua`'s own resolver
+(`M.build`) needed zero JS-specific changes.** It was already
+language-agnostic — it reads `node.calls_raw`/`node.requires_raw`/
+`node.functions` as plain data, never a treesitter node, so it has no Lua
+syntax baked into the *resolution* step, only the earlier *extraction*
+step did. Feeding it real `ecma.lua`-scanned `calls_raw` through a
+minimal one-node IR resolved a same-file bare call (`helper()`) into a
+real `kind="call"` edge at `confidence="exact"`, on the first try, with
+the exact same code path a same-file Lua call already takes. A
+member-expression call (`obj.method()`) is captured as raw data too, but
+correctly resolves to nothing — `obj` is neither a require alias nor a
+same-file `M.`-prefixed function (a shape JS itself has no equivalent
+of, since JS functions are declared bare), so it silently matches no
+branch in the resolver, the same honest degradation an unknown Lua
+receiver already gets.
+
+**Explicitly not attempted: cross-file call resolution.** Lua's call
+resolution works because `local fs = require("lib.nvim.fs")` binds a
+*module* to a name, and `fs.read(...)` is then an alias-plus-member
+lookup. JS's named imports (`import { helper } from "./bar"`) bind the
+*function itself* directly into scope — the call site is bare
+(`helper()`), with no alias or prefix for `calls.lua`'s existing
+resolution branches to key on at all. Making this work needs
+`ecma.lua`'s `extract_requires` to record which names an import bound
+(not just the module string), and a new resolution rule in `calls.lua`
+for "this bare name came from a specific tracked import" — a real,
+separate task, not a small extension of today's work, and recorded as
+its own open item rather than folded into "calls extraction" as if it
+were the same size.
+
+Verified end to end, not per function in isolation: a committed test
+(`TESTS/lang_js_spec.lua`) scans a small fixture with both call shapes,
+checks `calls_raw`/`local_refs` directly, then feeds the result through
+`calls.lua`'s real, unmodified `M.build` and asserts the actual edge that
+comes out — the same real grammar (built from source into a scratch
+directory, this environment untouched) used for every other verification
+this phase, exercised twice: with the parser present (real assertions)
+and absent (the existing skip path, unchanged).
+
+`docs/ROADMAP/MULTILANG.md`'s "calls/symbols extraction" checklist item
+is now two items: calls is done (with cross-file resolution split out
+as its own explicitly open task), symbols remains untouched.
