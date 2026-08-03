@@ -60,6 +60,7 @@
 ---| "types"     # `@class`/`@alias` declared by the centered node.
 ---| "history"   # Commits, and the functions each one's diff touches.
 ---| "trail"     # Pinned positions, in the order they were pinned.
+---| "endpoints" # Call-based route registrations across the whole tree, not centered on any one node — see `core/endpoints.lua`.
 
 ---One row of the list. Everything the row can *do* — navigate, open source,
 ---go into the quickfix list — is a field here rather than something re-derived

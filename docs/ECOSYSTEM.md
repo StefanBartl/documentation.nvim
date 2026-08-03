@@ -588,12 +588,28 @@ Ordered so each step is independently useful and nothing is a big-bang.
    against a hermetic `vim.uv` TCP server, no external test dependency.
    See `runtime-analysis.nvim`'s own README and `lib.nvim`'s
    `lua/lib/nvim/net/curl/README.md`.
-6. **documentation.nvim's endpoint panel gains "send a request"**, soft
-   dependency on step 5.
+6. ~~**documentation.nvim's endpoint panel gains "send a request"**, soft
+   dependency on step 5.~~ **Done (2026-08-03)** — not the *static* HTML
+   Analysis panel (a browser page cannot `pcall(require, ...)` a Neovim
+   plugin — nonsensical outside an editor), but a new **Endpoints mode in
+   `:DocBrowse`** instead, the in-editor browser this session's own
+   research found is "already mode-based" (see step 8's note below, which
+   this discovery came from first). `gs`, scoped to that mode, is the soft
+   dependency: `pcall(require, "runtime-analysis")`, absent with a clear
+   message otherwise, the same pattern already used for `progress`→fidget
+   and `check.lua`→lua-language-server. Opens a pre-filled request buffer
+   rather than sending immediately — a route's path is relative and may
+   have unfilled `:param`s, genuinely nothing static analysis could send
+   correctly on its own. See `docs/ROADMAP/FEATURES.md`.
 7. **Telemetry moves** into runtime-analysis.nvim, `wrap_lib()` staying in
    lib.nvim as a thin caller.
-8. **`:DocBrowse` Mode 7** — the static × runtime join, in-editor, per
-   `telemetry-documentation-bridge.md`'s existing design.
+8. **`:DocBrowse` gains a telemetry mode** — the static × runtime join,
+   in-editor, per `telemetry-documentation-bridge.md`'s existing design.
+   That document calls it "Mode 7", written before step 6 above claimed
+   position 7 in the actual `MODES` list for Endpoints instead — it will
+   be the 8th entry when it lands, a renumbering worth noting here so a
+   future reader is not confused by the mismatch between this document's
+   number and the array position telemetry actually gets.
 9. **Full-file previews / browser request runner / a Runtime tab under
    `serve`** — all three require the serve tier, and the runner additionally
    requires token gating.

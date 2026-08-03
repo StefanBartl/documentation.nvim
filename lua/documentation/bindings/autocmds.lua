@@ -69,7 +69,7 @@ M.usrcmds = {
   },
   {
     name = "DocBrowse",
-    args = "[live] [history|trail|module]",
+    args = "[live] [history|trail|endpoints|module]",
     why = "Navigate the same map inside the editor. Only ever reads.",
   },
 }

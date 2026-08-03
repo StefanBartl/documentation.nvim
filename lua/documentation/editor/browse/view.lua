@@ -409,6 +409,45 @@ local function trail_entries(ir, st)
   return out
 end
 
+---Every call-based route registration across the whole tree — not centered
+---on `st.id`, the same shape `trail_entries` already has for "spans
+---something other than one node's neighborhood." Straight off
+---`n.endpoints`, the same data `core/endpoints.lua` already extracted for
+---the static page's Analysis panel and `:DocMap endpoints`'s quickfix list —
+---no new extraction here, only a third reader of the same field.
+---@param ir Documentation.IR
+---@param _st table Unused: every route across the whole tree is listed unconditionally, the same reason `trail_entries` is the only other builder that does not filter by the centered node.
+---@return Documentation.Browse.Entry[]
+local function endpoints_entries(ir, _st)
+  local out = {}
+  for _, id in ipairs(ir.order) do
+    local node = ir.nodes[id]
+    for _, spec in ipairs(node.endpoints or {}) do
+      out[#out + 1] = {
+        kind = "endpoint",
+        id = id,
+        source = node.source,
+        line = spec.line,
+        spec = spec,
+        label = ("%-7s %s"):format(spec.method:upper(), spec.path),
+        detail = spec.handler or "(inline handler)",
+      }
+    end
+  end
+
+  if #out == 0 then
+    return { { kind = "message", label = "(no call-based route registrations found)" } }
+  end
+
+  table.sort(out, function(a, b)
+    if a.spec.path ~= b.spec.path then
+      return a.spec.path < b.spec.path
+    end
+    return a.spec.method < b.spec.method
+  end)
+  return out
+end
+
 ---Build the list entries for the current state.
 ---@param ir Documentation.IR
 ---@param st table
@@ -424,6 +463,8 @@ function M.entries(ir, st)
     return history_entries(ir, st)
   elseif st.mode == "trail" then
     return trail_entries(ir, st)
+  elseif st.mode == "endpoints" then
+    return endpoints_entries(ir, st)
   end
   return structure_entries(ir, st)
 end
@@ -793,6 +834,22 @@ function M.detail(ir, st, entry)
     return type_detail(ir.nodes[entry.id], entry.type_name)
   end
 
+  if entry.kind == "endpoint" then
+    local spec = entry.spec
+    local out = {
+      ("%s %s"):format(spec.method:upper(), spec.path),
+      "",
+    }
+    if spec.framework then
+      out[#out + 1] = "Framework: " .. spec.framework
+    end
+    out[#out + 1] = "Handler: " .. (spec.handler or "(inline — no name to show)")
+    out[#out + 1] = spec.documented and "Documented" or "Not documented"
+    out[#out + 1] = ""
+    out[#out + 1] = "gd source · gs send a request (needs runtime-analysis.nvim)"
+    return out
+  end
+
   local node = ir.nodes[entry.id]
   return node and node_detail(node, ir) or { "(no such node)" }
 end
@@ -868,6 +925,13 @@ function M.status(ir, st)
   -- to everything on screen.
   if st.mode == "trail" then
     return ("%d pinned   [trail]"):format(npins) .. status_tail(st)
+  end
+
+  -- Endpoints, like Trail and History, spans the whole tree rather than one
+  -- node's neighborhood — a breadcrumb here would point at whatever happens
+  -- to be centered, unrelated to the routes actually on screen.
+  if st.mode == "endpoints" then
+    return ("%d route(s)   [endpoints]"):format(#(st.entries or {})) .. status_tail(st)
   end
 
   local bits = { M.breadcrumb(ir, st.id) }

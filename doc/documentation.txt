@@ -413,6 +413,11 @@ key and then regretted.
                         unpins there, and the count rides along in every
                         other mode's status line.
 
+:DocBrowse endpoints    Open on every call-based route registration in the
+                        tree. `gs` sends the one under the cursor to
+                        runtime-analysis.nvim as a request, if it is
+                        installed.
+
                         Deliberately not the same thing as <C-o>/<C-i>. The
                         history stack answers "where was I a moment ago" --
                         automatic, ordered by time, truncated by the next
@@ -441,6 +446,17 @@ key and then regretted.
                         on the project than a jumplist has, and committing it
                         would put one reader's path into every checkout.
 
+Endpoints mode lists every call-based route registration across the whole
+tree (not centered on any one node, the same reason Trail is not) — see
+`core/endpoints.lua` for what is recognized. `gs`, in this mode only, sends
+the route under the cursor to runtime-analysis.nvim
+(https://github.com/StefanBartl/runtime-analysis.nvim) as a request, if it
+is installed — a soft dependency, absent with a clear message otherwise.
+It opens a new request buffer pre-filled with the route's method and path
+rather than sending immediately: a path is relative and may contain
+`:param`s (`/users/:id`), so the base URL and any real parameter values are
+left for you to fill in before running `:RASend` yourself.
+
 Explicitly not the HTML diagram in a terminal: boxes with connecting curves
 need pixels, and a fixed cell grid produces a worse version of a page that
 already exists. This is a navigator over the same edges — the hierarchy is a
@@ -450,7 +466,7 @@ quickfix list, and be live.
 
 Keys, once open:
 
-    1 .. 6        structure / deps / calls / types / history / trail
+    1 .. 7        structure/deps/calls/types/history/trail/endpoints
     j k           move; the detail pane follows
     <CR>          descend a level, or follow the edge
     - <BS>        up a level
@@ -462,6 +478,8 @@ Keys, once open:
     gI            impact: the transitive required_by closure
     gO            open the HTML page at this position
     gD            the opened commit's diff
+    gs            send a request to this route (Endpoints; needs
+                  runtime-analysis.nvim)
     p             pin / unpin the entry under the cursor
     d             unpin (Trail)
     S             save this trail under a name (Trail)

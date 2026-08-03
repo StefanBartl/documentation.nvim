@@ -140,7 +140,7 @@ flowchart LR
 | &nbsp;&nbsp;`lang` |  |  |  |
 | &nbsp;&nbsp;`render` |  |  |  |
 | `editor` |  |  | [README](../../lua/documentation/editor/README.md) |
-| &nbsp;&nbsp;`documentation.editor.browse` | `:DocBrowse` — the module map inside the editor. | 36 | [README](../../lua/documentation/editor/browse/README.md) · [src](../../lua/documentation/editor/browse/init.lua) |
+| &nbsp;&nbsp;`documentation.editor.browse` | `:DocBrowse` — the module map inside the editor. | 37 | [README](../../lua/documentation/editor/browse/README.md) · [src](../../lua/documentation/editor/browse/init.lua) |
 
 ## Drift
 

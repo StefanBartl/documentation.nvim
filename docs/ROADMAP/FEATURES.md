@@ -1502,3 +1502,65 @@ own step 4, a Hierarchy view, not an Analysis panel — different enough
 work to be its own future entry), and — same caveat every recognizer in
 this document carries — no real-world Express/Fastify/Koa application has
 been run through this yet, only hand-written fixtures.
+
+## "Send a request" — an Endpoints mode in `:DocBrowse`, ECOSYSTEM.md step 6 (2026-08-03)
+
+`docs/ECOSYSTEM.md`'s own step 6, worded as "documentation.nvim's endpoint
+panel gains 'send a request'" — but *panel* meant the static HTML page's
+Analysis tab (step 4's own delivery), and a browser page cannot
+`pcall(require, "runtime-analysis")` a Neovim plugin. That is not a small
+gap, it is the whole reason `docs/ECOSYSTEM.md` §7 already argues the
+static × runtime join belongs **in the editor**, not baked into a
+committed, byte-compared artifact. So step 6 is a new **Endpoints mode in
+`:DocBrowse`** instead — the first new mode added since that browser's own
+architecture was documented, and the first real exercise of
+`telemetry-documentation-bridge.md`'s claim (in `lib.nvim`) that a seventh
+mode costs "one string, one entry builder, one branch."
+
+**Confirmed exactly that cheap, not assumed.** `MODES` in `browse/init.lua`
+gained one string (`"endpoints"`); `view.lua` gained one builder
+(`endpoints_entries`, reading `n.endpoints` — the same field the static
+panel and `:DocMap endpoints` already read, a third consumer of data
+`core/endpoints.lua` already extracts, no new extraction here) and one
+branch each in the existing `M.entries`/`M.detail`/`M.status` dispatchers.
+Unlike every other mode except Trail, Endpoints spans the whole tree rather
+than centering on one node — `trail_entries` was the only existing
+precedent for that shape, and this mode follows it rather than inventing a
+second one.
+
+**`gs` is the soft dependency `docs/ECOSYSTEM.md` §7 calls for explicitly**,
+the same pattern already used twice in this ecosystem (`progress`→fidget,
+`check.lua`→lua-language-server): `pcall(require, "runtime-analysis")`
+inside the keymap's own handler, checked at call time rather than cached
+at file-load time, since whether that plugin is installed is not a fact
+about when documentation.nvim started. Absent, it notifies and stops —
+present, it hands the selected route's method and path to
+`runtime-analysis.nvim`'s own `M.open_request(lines)`, a new, small,
+explicitly public function added there for exactly this join (see that
+plugin's own README) rather than reaching into its internal file layout.
+
+**Deliberately not an immediate send.** A route's `path` (`/users/:id`) is
+relative and may contain unfilled `:param`s — genuinely nothing this
+plugin's static analysis could send correctly on its own, so `gs` opens a
+pre-filled request buffer and leaves the base URL and any real parameter
+values for the reader to complete before running runtime-analysis.nvim's
+own `:RASend` themselves.
+
+Verified with the real dependency in both states, not only the common
+one: `TESTS/run.lua` gained a `RUNTIME_ANALYSIS_DIR` environment variable,
+the same shape `DOCUMENTATION_TS_PARSERS_DIR` already has for the JS/TS
+parser tests — unset (this repository's own normal state), `gs`'s soft
+dependency degrades to a notification, verified directly; set to a real
+checkout of `runtime-analysis.nvim`, the same test exercises the real
+integration end to end and confirms a real request buffer opens with the
+right pre-filled content. A real test bug was found and fixed along the
+way: an early draft asserted the buffer *number* must change after `gs`,
+which failed — `:enew` reuses the current buffer outright when it is
+still the pristine, unmodified `[No Name]` buffer, real Vim behavior the
+test's own assumption had not accounted for; fixed by asserting on the
+resulting buffer's content instead, which is the actual requirement.
+
+`docs/ECOSYSTEM.md`'s own step 8 (a future telemetry mode) called itself
+"Mode 7" before this session's own step 6 claimed position 7 in `MODES`
+for Endpoints instead — noted there so a future reader is not confused
+when telemetry lands as the 8th entry, not the 7th.
