@@ -828,7 +828,7 @@ local JS = [[
       else if(k === "ext") s.ext = (v === "1" || v === "true");
       else if(k === "iview") s.iview = (v === "modules") ? "modules" : "functions";
       else if(k === "atool") s.atool = (v === "doc" || v === "deps" || v === "complexity" ||
-        v === "duplicates" || v === "plugins" || v === "hooks") ? v : "test";
+        v === "duplicates" || v === "plugins" || v === "hooks" || v === "docs") ? v : "test";
       // Not whitelisted against a column list here, because the valid columns
       // differ per panel and this parser does not know which panel `atool`
       // will resolve to. `anSort` looks the key up in the panel's own column
@@ -2799,6 +2799,73 @@ local JS = [[
     return parts.join("");
   }
 
+  // The documentation corpus itself (`ir.docs.files`) — every `.md` file
+  // `core/docs.lua` scanned, with how many code-span mentions it made.
+  // ECOSYSTEM.md §3.4 calls this "cheap, once the corpus scan exists": no
+  // new extraction, just the same `anFilter`/`anSort`/`anHead` plumbing
+  // every other panel already uses, over data `docs.lua` already collected.
+  //
+  // Rows carry no `data-node` and are not `.anrow`-classed: a doc file is
+  // not a `Documentation.Node`, so there is nowhere in the Tree tab for a
+  // click to land — giving these rows the hover/click affordance every
+  // other panel's clickable rows have would be a false promise. Where a
+  // reference actually resolves to a function or module is the marker
+  // beside that entity (`sigTrigger`/the docs-reference popup), not this
+  // overview.
+  //
+  // `doc-references-missing` (`ir.docs.missing`) is deliberately not
+  // repeated here — it is already a `check.lua` finding, in the Notes tab,
+  // and belongs to "what is wrong" rather than "what documentation exists".
+  function renderAnalysisDocs(){
+    var files = (IR.docs && IR.docs.files) || [];
+
+    if(files.length === 0){
+      return '<p class="ntext none">No <code>.md</code> file was found under this ' +
+        'tree (see <code>core/docs.lua</code> for what counts as the corpus), or this ' +
+        'map was generated before the docs corpus scan existed.</p>';
+    }
+
+    var rows = files.map(function(f){
+      return {
+        path: f.path, title: f.title || f.path, refs: f.refs || 0,
+        haystack: f.path + " " + (f.title || ""), sortkey: f.path
+      };
+    });
+    var totalRows = rows.length;
+    var totalRefs = 0;
+    rows.forEach(function(r){ totalRefs += r.refs; });
+
+    var cols = [
+      { label: "Path", key: "path", get: function(r){ return r.path; }, initial: "asc" },
+      { label: "Title", key: "title", get: function(r){ return r.title; }, initial: "asc" },
+      { label: "References", key: "refs", get: function(r){ return r.refs; }, initial: "desc" }
+    ];
+
+    rows = anFilter(rows);
+    anSort(rows, cols, function(a, b){
+      return a.path < b.path ? -1 : (a.path > b.path ? 1 : 0);
+    });
+
+    var parts = [];
+    parts.push('<p class="nsub">' + totalRows + ' documentation file' +
+      (totalRows === 1 ? '' : 's') + ', ' + totalRefs + ' code-span reference' +
+      (totalRefs === 1 ? '' : 's') + ' resolved in total.' +
+      anFilterNote(rows.length, totalRows) + '</p>');
+    if(rows.length === 0){
+      return parts.join("") + '<p class="ntext none">No file matches that filter.</p>';
+    }
+    parts.push('<table class="antable">' + anHead(cols) + '<tbody>');
+    rows.forEach(function(r){
+      parts.push('<tr>' +
+        '<td>' + esc(r.path) + '</td>' +
+        '<td>' + esc(r.title) + '</td>' +
+        '<td>' + r.refs + '</td>' +
+        '</tr>');
+    });
+    parts.push("</tbody></table>");
+    return parts.join("");
+  }
+
   // Rendered panels, memoised per *rendering* rather than per panel.
   //
   // One variable per panel was correct while a panel had exactly one
@@ -2806,7 +2873,7 @@ local JS = [[
   // otherwise clicking a column re-serves the previous order out of the cache
   // and the header arrow moves while the rows do not.
   //
-  // Unbounded on purpose: the key space is (7 panels x ~4 columns x 2
+  // Unbounded on purpose: the key space is (8 panels x ~4 columns x 2
   // directions x the queries actually typed), every entry is a string already
   // built once, and the alternative — evicting — would re-render on a Back
   // button press, which is the one moment the cache exists for.
@@ -2842,6 +2909,7 @@ local JS = [[
     if(atool === "complexity") return renderAnalysisComplexity();
     if(atool === "duplicates") return renderAnalysisDuplicates();
     if(atool === "hooks") return renderAnalysisHooks();
+    if(atool === "docs") return renderAnalysisDocs();
     return renderAnalysisPlugins();
   }
 
@@ -2849,7 +2917,7 @@ local JS = [[
     var host = document.getElementById("anbody");
     var atool = (state.atool === "doc" || state.atool === "deps" ||
       state.atool === "complexity" || state.atool === "duplicates" ||
-      state.atool === "plugins" || state.atool === "hooks")
+      state.atool === "plugins" || state.atool === "hooks" || state.atool === "docs")
       ? state.atool : "test";
 
     var key = anCacheKey(atool);
@@ -4288,6 +4356,7 @@ function M.render(ir, findings, opts)
     '<button class="anview-btn" data-atool="duplicates">Duplicates</button>',
     '<button class="anview-btn" data-atool="plugins">Plugins</button>',
     '<button class="anview-btn" data-atool="hooks">Hooks</button>',
+    '<button class="anview-btn" data-atool="docs">Docs</button>',
     "</div>",
     '<div id="anbody"></div>',
     "</div>",

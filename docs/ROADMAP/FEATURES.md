@@ -1324,3 +1324,38 @@ Writing that regression test exposed a third, quieter problem: the fixture IR
 had no `parent` links, so it had been exercising a fallback path rather than
 the real one. A fixture that cannot fail the way production fails is not a
 test of production.
+
+## The Docs Analysis panel — closing out ECOSYSTEM.md step 2 (2026-08-03)
+
+The one item step 2 left open: `docs/ECOSYSTEM.md` §3.4 predicted "docs-only
+overview/filter" would be cheap once the corpus scan existed — no new
+extraction, just the existing sort/filter plumbing over data `core/docs.lua`
+already collects. That prediction held exactly: an eighth Analysis panel
+(`renderAnalysisDocs`), listing every `.md` file the corpus scanned
+(`ir.docs.files`) — path, title, resolved-reference count — reusing
+`anFilter`/`anSort`/`anHead` unchanged, the same three helpers every panel
+since Plugins has used.
+
+**Rows carry no `data-node` and are not `.anrow`-classed, on purpose.** A
+`.md` file is not a `Documentation.Node` — there is nowhere in the Tree tab
+for a click on one to land. Giving these rows the same hover/click
+affordance every other panel's genuinely clickable rows have would be a
+false promise; where a reference actually resolves to a function or module
+is the marker beside that entity (the doc-reference popup from the previous
+entry), not this overview. `doc-references-missing` (`ir.docs.missing`) is
+deliberately not repeated here either — it is already a `check.lua` finding
+in the Notes tab, and belongs to "what is wrong" rather than "what
+documentation exists."
+
+Verified in an actual browser against this repository's own regenerated map
+(27 real `.md` files, 51 resolved references): the panel lists every file
+with the right title/ref count, sorting the References column flips
+ascending/descending correctly, the filter box narrows to a single matching
+file, a row click does nothing (confirmed no `anrow` class, no hash change),
+and `#atool=docs` survives a reload — the same `parseState` whitelist this
+session already had to fix once for `duplicates`/`plugins`; `docs` was added
+to it in the same edit rather than left to go stale again.
+
+This closes `docs/ECOSYSTEM.md`'s step 2 completely. Next up per its own
+sequencing: step 3 (bounded snippet previews) and step 4 (the API endpoint
+inventory).
