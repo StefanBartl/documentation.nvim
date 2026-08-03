@@ -513,8 +513,15 @@ Ordered so each step is independently useful and nothing is a big-bang.
 
 **In documentation.nvim:**
 
-1. **Signature popup.** Data already in the IR. Smallest possible proof that
-   the "surface what we already know" direction pays off.
+1. ~~**Signature popup.** Data already in the IR. Smallest possible proof
+   that the "surface what we already know" direction pays off.~~
+   **Done (2026-08-03)** — shipped as the *annotation* popup, which is what
+   the data actually supported: the signature was already every list's
+   label, so the gap was the params/returns/prose behind it, not the
+   signature itself. `fnAnnotationHTML` is now shared between the detail
+   pane and the popup, and that refactor was verified output-identical
+   across all 56 nodes with functions rather than assumed. See
+   `docs/ROADMAP/FEATURES.md`.
 2. **Docs corpus scan + reference index + `doc-references-missing`.** The
    largest genuinely-new static capability, and the one carrying the stated
    motive. The docs-only filter falls out of it.

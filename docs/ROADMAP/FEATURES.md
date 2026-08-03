@@ -1139,3 +1139,61 @@ not just an ad hoc check thrown away after confirming the shape worked.
 real gaps from this pass: cross-file call resolution (named imports
 binding a bare name directly into scope) and class-method owning-scope
 (shared with Phase 0, not unique to JS/TS).
+
+## The annotation popup (2026-08-03)
+
+Step 1 of [`docs/ECOSYSTEM.md`](../ECOSYSTEM.md)'s sequencing, and chosen to
+be first for a specific reason: **it needed no new extraction at all.** Every
+list in this map — Index, Notes, Complexity, Duplicates, Hooks — showed a
+function as its signature and nothing else, while the params, returns,
+deprecation and prose had already been parsed, already been serialised into
+`module_map.json`, and were already rendered by the Tree tab's detail pane.
+They were one navigation away. This closes that distance without the artifact
+growing by a single byte of data.
+
+Hovering (or focusing, or clicking) the `ⓘ` beside any listed function opens
+a card with the full annotation: signature with its badges, deprecation
+banner, summary, params with types and descriptions, returns, `@overload`
+alternatives, see-also links, and `@example`. Its footer links to the owning
+module at the defining line.
+
+**`fnAnnotationHTML` is shared, not copied.** The detail pane's rendering was
+extracted into one function that both it and the popup call. Two copies of
+"how a function's annotations look" is precisely the drift this plugin
+exists to detect, and shipping one inside it would have been hard to defend
+— the same argument the `?` key-hint overlay already makes for rendering
+from the same `KEYS` table it binds from. What deliberately stayed behind
+with the detail pane: the `<div class="fn">` wrapper and the Calls-view
+links, both of which need `callOut`/`callIn` and a stable per-function
+anchor that a floating card does not have.
+
+**The refactor was proven output-identical, not assumed to be.** The
+committed artifact was saved before the change, both versions were loaded
+side by side in a browser, and the detail pane's rendered HTML was compared
+for all 56 nodes that have functions. 54 were byte-identical. The two that
+differed did so in exactly one place each — the lines-of-lua stat, `4 083 →
+4 246` for `html.lua` and the same `+163` in the root total — which is the
+direct, explainable consequence of this change adding 163 lines to that
+file, and nothing else moved. Same byte-accountable standard
+`core/lang_registry.lua`'s own entry set.
+
+Behaviour was verified in a real browser rather than inferred from the
+source: the popup opens on hover and closes on leave after a grace period
+that lets the pointer travel into the card; click pins it so a long
+`@example` can actually be read; Escape, click-outside, blur, resize and
+scroll all close it, mirroring the context menu's existing lifecycle rather
+than inventing a second set of rules for a second floating thing on the same
+page; the card flips above its trigger near the bottom edge instead of
+running off-screen (checked against the last row on the page); the trigger
+is keyboard-focusable and Enter opens the same card; and the footer link
+navigates to the module and closes the popup. Trigger counts came out at 323
+in Index, 323 in Complexity and 4 in Duplicates — and **0 in Hooks, which is
+correct**: this is a Lua repository with no React hooks.
+
+**One code path could not be exercised by this repository at all.** The
+Notes tab lists `@todo`/`@bug`/`@test`/`@deprecated` functions, and nothing
+here carries any of those four — the tab renders four "nothing carries this"
+messages. Rather than ship that branch untested on the grounds that it looks
+identical to the Index one, a copy of the artifact was patched to give one
+real function a `@todo`, loaded, and checked: the trigger appears, takes
+keyboard focus, and resolves to the right annotation.
