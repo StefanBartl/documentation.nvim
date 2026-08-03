@@ -1,15 +1,23 @@
 # Ecosystem architecture — where docs, static analysis and runtime each belong
 
-**Status: architectural concept. Nothing here is implemented.** Written in
-response to a feature list (API endpoint inventory, a Postman-lite request
-runner, docs cross-references with previews, a docs-only view, file/snippet
-hover previews) plus the question it came with: *is a separate
-`runtime.nvim` / `analysis.nvim` / `runtime-analysis.nvim` worth it, working
-standalone but also with documentation.nvim and mdview.nvim, taking the
-telemetry module out of lib.nvim?*
+**Status: architectural concept, agreed. Nothing here is implemented.**
+Written in response to a feature list (API endpoint inventory, a
+Postman-lite request runner, docs cross-references with previews, a
+docs-only view, file/snippet hover previews) plus the questions that came
+with it: *is a separate plugin worth it, what form should it take, and could
+documentation.nvim gain a tab that appears when it is installed?*
 
-This answers **where each thing belongs and why**, not how to build it. An
-implementation concept comes after this one is agreed.
+This answers **where each thing belongs and why**, not how to build it. A
+per-step implementation concept follows separately, in
+`docs/ROADMAP/ECOSYSTEM.md`, the same split `MULTILANG.md` already uses
+(analysis in `docs/`, task breakdown in `docs/ROADMAP/`).
+
+**Decisions taken (§4–§8):** the plugin is worth it, named
+**`runtime-analysis.nvim`** and already created; it is a **Neovim plugin**,
+not a binary or an Electron app; the two plugins meet **in the editor
+first**, never by injecting into documentation.nvim's committed artifact;
+and the **work order is documentation.nvim first** — sequencing steps 1–4
+before the new plugin's step 5.
 
 ## Epistemic note
 
@@ -348,53 +356,195 @@ real boundary and not one invented to justify a new repository.
 
 ---
 
-## 5. Naming
+## 5. Naming — settled
 
-Not a strong opinion, but the tradeoffs are real:
+**`runtime-analysis.nvim`.** Decided and created (`E:/repos/
+runtime-analysis.nvim`, empty but for an `init` commit, pushed to GitHub).
 
-- **`analysis.nvim`** — too broad. documentation.nvim performs analysis too;
-  a reader cannot tell which plugin does what from the names.
-- **`runtime.nvim`** — clean and short, but `runtime` collides conceptually
-  with `runtimepath`/`:h runtime`, which is heavily loaded vocabulary in
-  Neovim. `require("runtime")` reads like core plumbing.
-- **`runtime-analysis.nvim`** — unambiguous, and pairs correctly with
-  documentation.nvim. Clunky, and long for a `require`.
-
-Worth considering alongside them: something naming the *act* rather than the
-domain — the plugin observes a program and pokes at it. Whatever is chosen,
-it should read as documentation.nvim's counterpart, since that is exactly
-what it is.
-
-**This is a decision to make deliberately and once** — renaming a published
-plugin is the one thing here that gets expensive later.
+Recorded for the next reader, since the alternatives were live options:
+`analysis.nvim` was rejected as too broad — documentation.nvim performs
+analysis too, and a reader could not tell the two apart by name.
+`runtime.nvim` was rejected because `runtime` is heavily loaded vocabulary
+in Neovim (`runtimepath`, `:h runtime`), so `require("runtime")` reads like
+core plumbing. `runtime-analysis.nvim` is longer, and pairs unambiguously
+with documentation.nvim — which is the property that matters, because
+naming the pair correctly is what makes the boundary legible.
 
 ---
 
-## 6. Sequencing
+## 6. What runtime-analysis.nvim actually is
+
+Raised as an open question — Neovim plugin, web app, Electron app, or a
+compiled Go/C++ program? Worth answering properly, because it is the one
+decision here that is expensive to reverse.
+
+### One hard constraint decides most of it
+
+**Telemetry cannot be anything other than in-process Lua.** It works by
+replacing entries in live Lua function tables (`registry.attach` swaps
+`container[field]`), which requires being inside the same Lua state as the
+code being measured. No external process — Go, C++, Electron, a browser —
+can do that. It is not a performance question or a preference; it is what
+the technique *is*.
+
+So a Neovim-plugin component exists necessarily. The real question is only
+whether something *else* exists beside it.
+
+### What a separate binary or app would actually buy
+
+Measured against what already exists, not in the abstract:
+
+| Hoped-for gain | Reality |
+|---|---|
+| Performance | Telemetry's hot path is **0.014 µs/call**, measured. Report building runs over a few hundred KB of JSON. Nothing here is compute-bound. |
+| A process that outlives Neovim | Already solved: counts persist to disk, `telemetry.load()` reads a namespace with no live instance, and mdview's `standalone` mode already outlives `:qa` by design. |
+| A rich browser UI | Already solved **twice in-house**: documentation.nvim generates a self-contained interactive HTML page (4 083 lines of Lua emitting HTML+JS, no CDN, no build step), and mdview.nvim ships a Go relay plus a prebuilt web client. |
+| A local HTTP server for a browser-side request runner | The one genuine case — and mdview's relay is *already* a Go binary that serves a web client behind a per-session token. Extending that beats writing a second one. |
+
+### What it would cost
+
+Not hypothetical either. mdview.nvim already pays this price and the code is
+there to read: `adapter/install.lua` is 226 lines of download,
+checksum-verify, extract and version-pin logic against GitHub Releases, plus
+a per-platform release pipeline (`windows`/`darwin`/`linux` × `amd64`/
+`arm64`), plus a capability probe because an older pinned binary rejects
+newer flags silently. Electron would be that, plus a ~150 MB runtime, plus a
+Node toolchain, to reach a browser this ecosystem can already reach.
+
+### Answer
+
+**runtime-analysis.nvim is a Neovim plugin.** Lua, lib.nvim as a runtime
+dependency, exactly the shape documentation.nvim already has.
+
+If a browser tier is ever wanted beyond what mdview already renders, the
+honest options are (a) generate a self-contained page the way
+documentation.nvim already does, or (b) reuse mdview's relay. **Not** a new
+runtime. This is a decision that can be revisited cheaply later precisely
+*because* the plugin is Lua — nothing about starting here forecloses adding
+a binary if a real need for one ever shows up, whereas starting with
+Electron forecloses being a normal Neovim plugin.
+
+---
+
+## 7. How the two plugins meet
+
+Also raised: could documentation.nvim gain a tab that appears when
+runtime-analysis.nvim is installed? **Yes — but not the obvious way, and the
+reason is a constraint this repository already enforces on itself.**
+
+### The naive integration is architecturally excluded
+
+documentation.nvim's primary output is a **committed, byte-deterministic
+artifact**. The `map` CI job regenerates it in memory and byte-compares
+(`scripts/ci.sh map` → `gen_map.lua --check`). Therefore:
+
+> The artifact's content must not depend on what happens to be installed on
+> the machine that generated it.
+
+If documentation.nvim embedded runtime data at generation time, a machine
+with runtime-analysis.nvim installed would produce a different `index.html`
+than CI — which has no such plugin — and the gate would fail. Committing the
+runtime data instead does not rescue it: telemetry counts change on every
+flush and are *personal usage*, not repository truth, so they belong in a
+cache directory, not in git.
+
+**LuaLS is the existing precedent for how optional enrichment is handled
+here**, and it confirms the rule rather than contradicting it: `opts.luals`
+is an explicit flag (`--full`), the IR distinguishes "did not run" (`nil`)
+from "ran, found nothing" (`{}`), and the *committed* artifact is the one
+generated **without** it. Optional data is allowed; optional data that
+silently changes the committed artifact is not.
+
+### The three surfaces that remain, ranked
+
+1. **In-editor, `:DocBrowse` gains a mode. ← start here.**
+   No artifact, no determinism problem — the editor-side browser renders
+   live data at view time. It is also **already designed**:
+   `telemetry-documentation-bridge.md` specifies exactly this as "Mode 7,
+   telemetry", down to the observation that `MODES` is a table the key
+   bindings, `?` panel and whichkey registration all iterate, so a seventh
+   entry costs one string plus one entry builder. Cheapest surface, full
+   join, design already written.
+
+2. **Browser, but loaded at view time under `serve`.**
+   Follows the History precedent exactly: `serve.lua` already fetches commit
+   analysis on demand rather than baking all ~90 commits in, for the same
+   reason. A Runtime tab can always be present in the artifact (so the page
+   stays byte-identical) and populate itself from an endpoint when served,
+   showing an honest empty state under `file://`. Later, and only if the
+   in-editor mode proves the join is worth looking at often.
+
+3. **runtime-analysis.nvim renders its own separate page.**
+   Zero coupling, but it discards the join — and the join *is* the value, per
+   the bridge document's entire argument. Worth it only for views that are
+   purely runtime (a request-runner history, say), never for the crossed
+   static × runtime views.
+
+### Direction of the dependency
+
+**documentation.nvim must not hard-depend on runtime-analysis.nvim.**
+`pcall(require, …)`, mode absent when unavailable — the bridge document
+already states this rule, and the ecosystem already applies it in three
+places (`progress`→fidget, `telemetry`→mdview, `check.lua`→lua-language-
+server).
+
+One consequence worth recording now: the bridge document currently names
+`pcall(require, "lib.nvim.telemetry")` as the probe. **That module path
+changes** when telemetry moves (step 7 of the sequencing below), so the join
+should be written against a small named interface from the start — "give me
+`{ [key] = calls }` for this namespace, and tell me which keys you can
+resolve to module paths" — rather than against telemetry's module layout.
+That interface already exists in substance: `telemetry.load()`,
+`Data.modules`, and `resolved_modules()` were built for exactly this
+consumer during the same week this document was written.
+
+---
+
+## 8. Sequencing
+
+**Agreed work order: documentation.nvim first, runtime-analysis.nvim after.**
+That is steps 1–4 below, all of which land in this repository and none of
+which need the new plugin to exist. `runtime-analysis.nvim` stays an empty
+repository until step 5, which is the correct state for it — an empty repo
+costs nothing, whereas a half-built one invites being wired into things
+before its shape is settled.
 
 Ordered so each step is independently useful and nothing is a big-bang.
-Steps 1–3 need no new plugin at all.
+
+**In documentation.nvim:**
 
 1. **Signature popup.** Data already in the IR. Smallest possible proof that
    the "surface what we already know" direction pays off.
 2. **Docs corpus scan + reference index + `doc-references-missing`.** The
-   largest genuinely-new static capability, and the one carrying the user's
-   stated motive. The docs-only filter falls out of it.
+   largest genuinely-new static capability, and the one carrying the stated
+   motive. The docs-only filter falls out of it.
 3. **Bounded snippet previews.** Embeddable tier only.
 4. **API endpoint inventory.** Call-based recognizer first (flat, an Analysis
    panel); file-based later (Hierarchy view, per
    `FRAMEWORK_CONVENTIONS.md`).
-5. **The new plugin, with the in-editor request runner.** First feature,
-   no browser, no server, no CORS.
+
+**Then in runtime-analysis.nvim:**
+
+5. **The plugin's first feature: the in-editor request runner.** No browser,
+   no server, no CORS. `lib.nvim.net.curl` for execution, `lib.nvim.ui.kit`
+   for the panes.
 6. **documentation.nvim's endpoint panel gains "send a request"**, soft
    dependency on step 5.
-7. **Telemetry moves** into the new plugin, `wrap_lib()` staying behind.
-8. **Full-file previews / browser request runner**, both requiring the serve
-   tier and, for the runner, token gating.
+7. **Telemetry moves** into runtime-analysis.nvim, `wrap_lib()` staying in
+   lib.nvim as a thin caller.
+8. **`:DocBrowse` Mode 7** — the static × runtime join, in-editor, per
+   `telemetry-documentation-bridge.md`'s existing design.
+9. **Full-file previews / browser request runner / a Runtime tab under
+   `serve`** — all three require the serve tier, and the runner additionally
+   requires token gating.
+
+Steps 8 and 9 are the ones that pay off the whole two-plugin split; steps
+1–4 are worth doing whether or not the split ever happens, which is the
+property that makes this order safe to commit to now.
 
 ---
 
-## 7. What not to build
+## 9. What not to build
 
 - **Do not embed file contents wholesale.** Measured: it roughly doubles an
   already-752 KB artifact, on this repository's small tree.
@@ -413,14 +563,23 @@ Steps 1–3 need no new plugin at all.
 - **Do not build React hook lint rules**, per `FRAMEWORK_CONVENTIONS.md`'s
   existing conclusion — `eslint-plugin-react-hooks` already does that half
   well.
+- **Do not let runtime data into the committed artifact.** Not at generation
+  time (breaks the byte-comparison gate) and not by committing it (personal
+  usage, high churn, belongs in a cache directory). §7 has the full argument.
+- **Do not ship a binary or an Electron runtime for runtime-analysis.nvim.**
+  §6 has the cost measured against what mdview.nvim already pays for exactly
+  that. Revisit only if a need appears that Lua genuinely cannot serve.
 
 ---
 
-## 8. Honest limits
+## 10. Honest limits
 
 - **Four first-class plugins is real, ongoing maintenance**, against a
   personal-plugin ecosystem that is already ~25 repositories. This document
-  argues the boundary is correct; it does not argue the total is free.
+  argues the boundary is correct; it does not argue the total is free. The
+  agreed work order mitigates it — steps 1–4 are worth doing on their own
+  merits, so the fourth plugin only starts costing once there is a reason
+  for it to exist.
 - **`core/plugins.lua` passed nine hand-written fixtures and then produced
   235 false positives against one real config** (`MULTILANG.md`'s own
   Considerations section). Every recognizer proposed here — endpoints
