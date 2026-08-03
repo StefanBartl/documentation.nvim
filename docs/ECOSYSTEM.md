@@ -498,6 +498,13 @@ That interface already exists in substance: `telemetry.load()`,
 `Data.modules`, and `resolved_modules()` were built for exactly this
 consumer during the same week this document was written.
 
+**Update (2026-08-03):** the predicted change happened — step 7 below is
+done, and the probe is now `pcall(require, "runtime-analysis.telemetry")`.
+`telemetry.load()`/`Data.modules`/`resolved_modules()` moved with it
+unchanged, so the interface this note called for is exactly what a future
+Mode 8 (step 8 below) would join against — nothing here needed revising,
+only the module path this paragraph itself named as an example.
+
 ---
 
 ## 8. Sequencing
@@ -601,8 +608,28 @@ Ordered so each step is independently useful and nothing is a big-bang.
    rather than sending immediately — a route's path is relative and may
    have unfilled `:param`s, genuinely nothing static analysis could send
    correctly on its own. See `docs/ROADMAP/FEATURES.md`.
-7. **Telemetry moves** into runtime-analysis.nvim, `wrap_lib()` staying in
-   lib.nvim as a thin caller.
+7. ~~**Telemetry moves** into runtime-analysis.nvim, `wrap_lib()` staying in
+   lib.nvim as a thin caller.~~ **Done (2026-08-03)** — all 13 files (2915
+   lines) moved verbatim into `runtime-analysis.telemetry`, registered as
+   `:RATelemetry` (renamed from `:LibTelemetry` for consistency with
+   `:RARequest`/`:RASend`). `wrap_lib()` itself was **not** migrated: it was
+   deleted from the moved module, and `lib.nvim` instead gained
+   `lib.strategies.telemetry_wrap`, a thin caller built entirely on the
+   already-public `inst.wrap()` — the only lib.nvim-specific piece was
+   materializing `require("lib")`'s metatable-hidden keys via `rawset`
+   first (see `lib.strategies.control`), which is now this new module's
+   whole job. Real data, not just cosmetics, had to move too: the cache
+   directory default (`stdpath("cache")/lib.nvim/cache`), the Markdown
+   report root, and the JSON export filename prefix all now resolve under
+   `runtime-analysis.nvim` instead — verified with a new test asserting an
+   instance's resolved cache dir, since nothing before this exercised that
+   default at all. lib.nvim's CI gained a second checkout step (mirroring
+   runtime-analysis.nvim's own existing checkout of lib.nvim) so the new
+   `telemetry_wrap_spec.lua` exercises the real cross-repo integration
+   rather than only its soft-`pcall` no-op branch. See
+   `runtime-analysis.nvim`'s `lua/runtime-analysis/telemetry/README.md` for
+   the full API, and lib.nvim's `docs/modules.md`/`doc/lib.nvim.txt` for the
+   pointer left behind at the old location.
 8. **`:DocBrowse` gains a telemetry mode** — the static × runtime join,
    in-editor, per `telemetry-documentation-bridge.md`'s existing design.
    That document calls it "Mode 7", written before step 6 above claimed
