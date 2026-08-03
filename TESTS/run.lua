@@ -60,6 +60,15 @@ then
   vim.opt.rtp:append(vim.env.DOCUMENTATION_TS_PARSERS_DIR)
 end
 
+-- Same shape, same reason: `browse_endpoints_spec.lua`'s `gs` (send a
+-- request) test already has a real, tested skip path for the ordinary case
+-- of `runtime-analysis.nvim` not being installed — this only lets a real
+-- checkout upgrade that one assertion block from "the soft dependency
+-- degrades correctly" to "the soft dependency actually works end to end."
+if vim.env.RUNTIME_ANALYSIS_DIR and vim.fn.isdirectory(vim.env.RUNTIME_ANALYSIS_DIR) == 1 then
+  vim.opt.rtp:append(vim.env.RUNTIME_ANALYSIS_DIR)
+end
+
 local dir = debug.getinfo(1, "S").source:sub(2):match("(.*[/\\])") or "./"
 local H = dofile(dir .. "harness.lua")
 
@@ -69,6 +78,7 @@ local specs = {
   "docs_spec.lua",
   "lang_js_spec.lua",
   "snippet_spec.lua",
+  "browse_endpoints_spec.lua",
   "docmap_browse_spec.lua",
 }
 

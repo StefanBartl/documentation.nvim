@@ -65,10 +65,23 @@ jobs:
         with:
           repository: StefanBartl/lib.nvim
           path: .deps/lib.nvim
+      # Optional, unlike lib.nvim: `TESTS/browse_endpoints_spec.lua`'s `gs`
+      # test already has a real, tested skip path for runtime-analysis.nvim
+      # not being installed (this repository's own normal state). Checking
+      # it out here upgrades that one assertion block from "the soft
+      # dependency degrades correctly" to "the soft dependency actually
+      # works end to end" — `TESTS/run.lua` reads `RUNTIME_ANALYSIS_DIR` and
+      # appends it to the rtp itself if set, the same way it already does
+      # `DOCUMENTATION_TS_PARSERS_DIR` below.
+      - uses: actions/checkout@v4
+        with:
+          repository: StefanBartl/runtime-analysis.nvim
+          path: .deps/runtime-analysis.nvim
       - uses: rhysd/action-setup-vim@v1
         with:
           neovim: true
           version: stable
+      - run: echo "RUNTIME_ANALYSIS_DIR=$(pwd)/.deps/runtime-analysis.nvim" >> "$GITHUB_ENV"
       # Builds real javascript/typescript/tsx grammars from source into
       # .deps/ts-parsers, so `TESTS/lang_js_spec.lua` runs its real
       # assertions here instead of its stated skip path — which, before this

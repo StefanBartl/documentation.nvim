@@ -11,7 +11,7 @@ actually drive the plugin — do not edit by hand. Regenerate with
 | Command | Arguments | What it is |
 |---|---|---|
 | `:DocMap` | `[check\|full\|open\|graph\|why\|dot\|diff\|impact\|churn\|plugins\|serve\|helptags]` | Generate or verify the module map. The bare form writes artifacts. |
-| `:DocBrowse` | `[live] [history\|trail\|module]` | Navigate the same map inside the editor. Only ever reads. |
+| `:DocBrowse` | `[live] [history\|trail\|endpoints\|module]` | Navigate the same map inside the editor. Only ever reads. |
 
 Both names are configurable — `opts.command_name` and
 `opts.browse_command_name` — so a second `setup()` call (a plugin
@@ -23,7 +23,7 @@ generating its own map) does not overwrite this one.
 buffer-local to the `:DocBrowse` scratch buffer and set with `nowait`,
 so it can only ever shadow a key *inside* that buffer.
 
-Modes (`1`…`6`): structure, deps, calls, types, history, trail. These are positional and deliberately not
+Modes (`1`…`7`): structure, deps, calls, types, history, trail, endpoints. These are positional and deliberately not
 rebindable — see `Documentation.Browse.KeyAction`.
 
 | Keys | Action | Modes | Does |
@@ -41,6 +41,7 @@ rebindable — see `Documentation.Browse.KeyAction`.
 | `gq` | `quickfix` | all | current list into the quickfix list (closes) |
 | `gI` | `impact` | all | blast radius into the quickfix list (closes) |
 | `gO` | `open_page` | all | open the generated page here |
+| `gs` | `send_request` | endpoints | send a request to this route (needs runtime-analysis.nvim) |
 | `gD` | `commit_diff` | history | the opened commit's diff |
 | `p` | `pin` | all | pin / unpin the entry under the cursor |
 | `d` | `unpin` | trail | unpin |

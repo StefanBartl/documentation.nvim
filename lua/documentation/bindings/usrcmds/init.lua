@@ -209,7 +209,7 @@ function M.setup(opts)
     require("documentation.bindings.usrcmds.browse").run(ctx, args.args or "")
   end, {
     nargs = "*",
-    desc = ("Browse the module map in the editor (:%s [live] [history|trail|module])"):format(
+    desc = ("Browse the module map in the editor (:%s [live] [history|trail|endpoints|module])"):format(
       browse_command_name
     ),
     complete = function(lead, line)

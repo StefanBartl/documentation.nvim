@@ -58,7 +58,7 @@ local M = {}
 ---@type table|nil
 local state = nil
 
-local MODES = { "structure", "deps", "calls", "types", "history", "trail" }
+local MODES = { "structure", "deps", "calls", "types", "history", "trail", "endpoints" }
 
 -- ── History mode: the git half ──────────────────────────────────────────────
 --
@@ -797,6 +797,43 @@ local function open_in_browser(st)
   require("lib.nvim.fs.open.url.system_opener").open(vim.uri_from_fname(target) .. hash)
 end
 
+---`gs` — send the selected route as a request via `runtime-analysis.nvim`,
+---if it is installed. A soft dependency, the same pattern this ecosystem
+---already uses for `progress`->fidget and `check.lua`->lua-language-server:
+---the keymap exists in Endpoints mode regardless, and degrades to a clear
+---message when the other plugin is absent rather than being silently
+---unreachable. Checked at call time, not cached at this file's own load
+---time — `runtime-analysis.nvim` being installed is not a fact about when
+---documentation.nvim started.
+---
+---Opens a pre-filled request buffer rather than sending immediately: a
+---route's `path` is relative (`/users/:id`), never a full URL — this plugin
+---has no base URL to guess, and a route with path params needs the reader
+---to fill in a real id before the request means anything. `runtime-
+---analysis.nvim`'s own `:RASend`, run from that buffer once it is
+---complete, is what actually sends it.
+---@param st table
+local function send_request(st)
+  local e = selected(st)
+  if not e or e.kind ~= "endpoint" then
+    notify.warn("nothing to send here")
+    return
+  end
+
+  local ok_ra, runtime_analysis = pcall(require, "runtime-analysis")
+  if not ok_ra then
+    notify.warn("runtime-analysis.nvim is not installed — see :help documentation-endpoints")
+    return
+  end
+
+  local spec = e.spec
+  M.close()
+  runtime_analysis.open_request({
+    ("%s %s"):format(spec.method:upper(), spec.path),
+    "",
+  })
+end
+
 ---`/` — fuzzy jump across every module and function in the map.
 ---@param st table
 local function search(st)
@@ -1051,6 +1088,13 @@ local KEYS = {
     keys = { "gO" },
     desc = "open the generated page here",
     run = open_in_browser,
+  },
+  {
+    id = "send_request",
+    keys = { "gs" },
+    desc = "send a request to this route (needs runtime-analysis.nvim)",
+    only = "endpoints",
+    run = send_request,
   },
   {
     id = "commit_diff",
