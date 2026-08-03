@@ -29,13 +29,22 @@ local function ensure(modname, dirname)
   if pcall(require, modname) then
     return
   end
-  local candidates = {
-    vim.env[dirname:upper():gsub("[.-]", "_") .. "_DIR"],
-    root .. "/.deps/" .. dirname,
-    vim.fs.dirname(root) .. "/" .. dirname,
-  }
+  -- Built with explicit indices, not a `{a, b, c}` literal fed to `ipairs`:
+  -- the environment-variable candidate is `nil` whenever it is unset — the
+  -- normal case for CI, which relies on the `.deps/<dirname>` candidate
+  -- below instead — and a table literal with `nil` in its first slot makes
+  -- `ipairs` stop immediately without ever inspecting the slots after it,
+  -- silently skipping every other candidate regardless of whether the
+  -- directory actually exists.
+  local candidates = {}
+  local env_dir = vim.env[dirname:upper():gsub("[.-]", "_") .. "_DIR"]
+  if env_dir and env_dir ~= "" then
+    candidates[#candidates + 1] = env_dir
+  end
+  candidates[#candidates + 1] = root .. "/.deps/" .. dirname
+  candidates[#candidates + 1] = vim.fs.dirname(root) .. "/" .. dirname
   for _, dir in ipairs(candidates) do
-    if dir and vim.fn.isdirectory(dir) == 1 then
+    if vim.fn.isdirectory(dir) == 1 then
       vim.opt.runtimepath:prepend(dir)
       if pcall(require, modname) then
         return

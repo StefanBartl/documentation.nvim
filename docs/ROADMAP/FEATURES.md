@@ -942,3 +942,71 @@ running the full suite twice — once with the built parsers on the rtp via
 the new environment variable (all real assertions ran), once without
 (the pre-existing skip path, unchanged) — rather than trusting the YAML
 would work the first time it ran in CI.
+
+## Every CI run on this repository had been failing (2026-08-03)
+
+Found while checking whether the previous change's new CI step actually
+ran, via `gh run list` — not by design. Every push to `main` in this
+repository's history, going back to the very first commit, had a failing
+`CI` check: `luacheck`, `tests`, and `map` every time; only `stylua`
+(which runs through a dedicated GitHub Action, not `scripts/ci.sh`) had
+ever gone green. Nothing about this was specific to today's changes —
+`gh run list --limit 15` showed the same three-job failure on commits
+from days before this session started.
+
+**Root cause: a single Lua footgun, duplicated in three files.**
+`have_lib_nvim()` (`scripts/ci.lua`), `add_lib_nvim()` (`TESTS/run.lua`),
+and `ensure()` (`scripts/gen_map.lua`) all built their candidate-directory
+list the same way:
+
+```lua
+local candidates = { vim.env.LIB_NVIM_DIR, root .. "/.deps/lib.nvim", ... }
+for _, d in ipairs(candidates) do ...
+```
+
+`ipairs` stops at the first `nil` it finds. `vim.env.LIB_NVIM_DIR` is
+`nil` on every run that does not set it — which is every CI job, since
+none of them set that variable; they rely entirely on the `.deps/lib.nvim`
+checkout instead. A table literal with `nil` in slot 1 has a hole there,
+so `ipairs` returned zero iterations, and the `.deps/lib.nvim` candidate —
+the one CI's own `actions/checkout@v4` step had already populated
+correctly — was never even inspected. `have_lib_nvim()` always returned
+`false`, `have_lib_nvim`'s caller always failed with "lib.nvim not
+found", and the tests/map gates never ran a single real check on GitHub
+Actions since the ci.sh/ci.lua split that introduced this pattern.
+
+Confirmed by reproducing the exact layout locally rather than reading the
+code and guessing: cloned this repository and `lib.nvim` into a scratch
+directory laid out exactly like the two `actions/checkout@v4` steps in
+`.github/workflows/ci.yml` do, then ran `scripts/ci.sh tests`/`map` with
+`LIB_NVIM_DIR` explicitly unset — reproduced the identical failure
+message from the real CI logs. A two-line probe script confirmed the
+mechanism directly: `for _, v in ipairs({nil, "x", "y"}) do end` iterates
+zero times.
+
+Fixed in all three files identically: build the candidates list with
+explicit `candidates[#candidates + 1] = ...` assignments, appending the
+environment variable only when it is actually set, so no run ever
+produces a table with a hole in it. Verified against the same
+reproduction: `tests` and `map` both now find `.deps/lib.nvim` and pass
+with `LIB_NVIM_DIR` unset.
+
+**A second, independent bug found while fixing the first, in the same
+investigation:** the `luacheck` CI job's own log showed a different
+failure — `nvim is not on PATH` — before ever reaching the actual
+luacheck run. `scripts/ci.sh` is a thin wrapper that launches
+`scripts/ci.lua` via `nvim --headless -l ...` (documented in that file's
+own header as the reason the split exists at all: Neovim as a
+cross-platform script host). That launcher requirement is real and
+applies to every gate the wrapper runs through, including `luacheck` —
+`ci.lua`'s own `GATES.luacheck()` uses `vim.system`/`vim.fn.executable`,
+Neovim-only APIs — but the `luacheck` job in `ci.yml` only ever installed
+Lua 5.4 and luarocks, never Neovim itself, so `scripts/ci.sh luacheck`
+failed before `ci.lua` was ever reached. Fixed by adding the same
+`rhysd/action-setup-vim@v1` step the `tests`/`map` jobs already have.
+
+Verified end to end, not just per file: reproduced the full checkout
+layout (`documentation.nvim` + `lib.nvim` checked out exactly as
+`ci.yml` does it, `LIB_NVIM_DIR` unset) and ran all four gates —
+`stylua`, `luacheck`, `tests`, `map` — in that one reproduction,
+confirming all four now pass together before pushing.

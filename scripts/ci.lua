@@ -79,13 +79,22 @@ end
 ---clear message instead of a Lua stack trace two stages in.
 ---@return boolean
 local function have_lib_nvim()
-  local candidates = {
-    vim.env.LIB_NVIM_DIR,
-    root .. "/.deps/lib.nvim",
-    vim.fs.dirname(root) .. "/lib.nvim",
-  }
+  -- Built with explicit indices, not a `{a, b, c}` literal fed to `ipairs`:
+  -- `vim.env.LIB_NVIM_DIR` is `nil` on every run that does not set it —
+  -- the normal case, including every CI job today — and a table literal
+  -- with `nil` in its first slot makes `ipairs` stop immediately without
+  -- ever looking at the slots after it. That silently skipped the
+  -- `.deps/lib.nvim` candidate CI actually checks the dependency out to,
+  -- so this reported "not found" on every single CI run regardless of
+  -- whether the checkout succeeded.
+  local candidates = {}
+  if vim.env.LIB_NVIM_DIR and vim.env.LIB_NVIM_DIR ~= "" then
+    candidates[#candidates + 1] = vim.env.LIB_NVIM_DIR
+  end
+  candidates[#candidates + 1] = root .. "/.deps/lib.nvim"
+  candidates[#candidates + 1] = vim.fs.dirname(root) .. "/lib.nvim"
   for _, d in ipairs(candidates) do
-    if d and d ~= "" and vim.fn.isdirectory(d) == 1 then
+    if vim.fn.isdirectory(d) == 1 then
       return true
     end
   end
