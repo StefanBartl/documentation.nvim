@@ -39,6 +39,20 @@
 --- `repeat_statement` do not exist here; `else if` is a nested
 --- `if_statement`, and JS has a `ternary_expression` and `switch_case` Lua
 --- has no equivalent of).
+---
+--- Calls (`extract_calls`) and `local_refs` (`identifier_counts`) are real
+--- too, same-file only: a bare call (`helper()`) resolves through
+--- `calls.lua`'s own language-agnostic resolver with no changes there at
+--- all — it never touched a treesitter node to begin with. Cross-file
+--- resolution is not attempted: JS's named imports bind a function
+--- directly into scope rather than through an alias-plus-member shape the
+--- way `local fs = require(...)` then `fs.read()` does in Lua, and
+--- `extract_requires` below does not yet record which names an import
+--- bound — a real, separate task, not a small extension of this one. A
+--- member-expression call (`obj.method()`) is captured too, but matches no
+--- resolver branch and is silently dropped, the same honest degradation an
+--- unknown Lua receiver already gets. Symbols (module-scope non-function
+--- bindings) remain unextracted.
 
 local M = {}
 
@@ -323,6 +337,106 @@ local function extract_requires(stmt_node, src)
   return out
 end
 
+---Parsed queries are per-grammar (`javascript`/`typescript`/`tsx` each
+---produce a distinct query object even for identical query text), so each
+---is parsed once per grammar and cached rather than reparsed per file.
+local call_query_cache = {}
+
+---@param lang string
+local function call_query(lang)
+  if not call_query_cache[lang] then
+    -- Structurally the same query `calls.lua` parses for Lua's own
+    -- `function_call name: (_) @callee`: capture every call site's callee
+    -- expression, whatever shape it is, and let the caller decide what to
+    -- do with the text. Verified against a real parse: a bare call's
+    -- `function` field is an `identifier` (`helper()`); a method-shaped
+    -- call's is a `member_expression` whose text reconstructs as
+    -- `obj.method` — both are meaningful text for `calls.lua`'s own
+    -- language-agnostic resolver to try matching, unchanged.
+    call_query_cache[lang] =
+      vim.treesitter.query.parse(lang, "(call_expression function: (_) @callee) @call")
+  end
+  return call_query_cache[lang]
+end
+
+---Every call site in the file, attributed to the top-level function
+---(`ranges`) whose span contains it — the same two-input shape
+---`calls.lua`'s own `M.extract` takes for Lua, so `calls.lua`'s
+---language-agnostic `M.build` resolves these with no JS-specific branch:
+---a bare callee resolves against this file's own declared functions the
+---same way an unqualified Lua call does, and a `head.rest`-shaped callee
+---resolves against a require alias exactly the way `fs.read(...)` does
+---for a Lua `local fs = require(...)`. A member-expression callee whose
+---head is neither — the shape a class instance's `obj.method()` is, with
+---no owning-scope model behind it yet (see this file's own header) —
+---simply matches nothing in `calls.lua`'s resolver and is silently
+---dropped, the same honest degradation an unknown Lua receiver already
+---gets there.
+---@param root TSNode
+---@param src string
+---@param lang string
+---@param ranges { name: string, srow: integer, erow: integer }[] 0-based rows, mirroring `calls.lua`'s own `defs` shape.
+---@return Documentation.RawCall[]
+local function extract_calls(root, src, lang, ranges)
+  local out = {}
+  local query = call_query(lang)
+  for id, node in query:iter_captures(root, src) do
+    if query.captures[id] == "callee" then
+      local srow = node:range()
+      local callee = vim.treesitter.get_node_text(node, src)
+      -- A multi-line callee (a chained call broken across lines) would
+      -- carry a newline into the text and never match any resolver
+      -- pattern — skipped here, the same reason `calls.lua`'s own
+      -- extraction skips one, so `calls.lua` never has to special-case it.
+      if not callee:find("\n") then
+        local from_fn
+        for _, r in ipairs(ranges) do
+          if srow >= r.srow and srow <= r.erow then
+            from_fn = r.name
+            break
+          end
+        end
+        out[#out + 1] = { callee = callee, from_fn = from_fn, line = srow + 1 }
+      end
+    end
+  end
+  return out
+end
+
+local ident_query_cache = {}
+
+---@param lang string
+local function ident_query(lang)
+  if not ident_query_cache[lang] then
+    -- `identifier` only — never `property_identifier`, the node type a
+    -- member expression's right-hand side gets (verified against the same
+    -- parse `extract_calls`'s own header describes) — so a `.length`-style
+    -- property access never inflates a same-named function's count.
+    ident_query_cache[lang] = vim.treesitter.query.parse(lang, "(identifier) @id")
+  end
+  return ident_query_cache[lang]
+end
+
+---How often each identifier appears in the file, by name — mirrors
+---`calls.lua`'s own `M.identifier_counts` for the same reason: a function
+---passed as a value (`arr.map(helper)`) is used but has no call site
+---naming it, so `extract_calls` alone would miss it.
+---@param root TSNode
+---@param src string
+---@param lang string
+---@return table<string, integer>
+local function identifier_counts(root, src, lang)
+  local counts = {}
+  local query = ident_query(lang)
+  for id, node in query:iter_captures(root, src) do
+    if query.captures[id] == "id" then
+      local text = vim.treesitter.get_node_text(node, src)
+      counts[text] = (counts[text] or 0) + 1
+    end
+  end
+  return counts
+end
+
 ---Recognize one top-level statement as a function definition, unwrapping
 ---`export`/`export default` first (both wrap the same `declaration` field,
 ---verified against a real parse — there is no separate marker node to
@@ -478,10 +592,30 @@ function M.backend(name, lang, extensions, module_file)
         return {}, {}, {}, {}, {}, lines
       end
 
-      local functions, requires = walk(trees[1]:root(), src, lang)
-      -- calls/symbols are real gaps, not silent zeros pretending to be a
-      -- resolved answer — see this file's own header.
-      return functions, {}, requires, {}, {}, lines
+      local root = trees[1]:root()
+      local functions, requires = walk(root, src, lang)
+
+      -- Ranges derived from the already-built functions rather than
+      -- collected as a separate pass: `line`/`line_end` are already the
+      -- right (1-based) span, converting is cheaper than re-walking the
+      -- tree to re-derive what `walk` already computed.
+      local ranges = {}
+      for _, fn in ipairs(functions) do
+        ranges[#ranges + 1] = { name = fn.name, srow = fn.line - 1, erow = fn.line_end - 1 }
+      end
+      local calls = extract_calls(root, src, lang, ranges)
+
+      local ident_counts = identifier_counts(root, src, lang)
+      for _, fn in ipairs(functions) do
+        -- Minus the declaration itself, which is one of the occurrences —
+        -- the same accounting `functions.lua` does for Lua.
+        fn.local_refs = math.max(0, (ident_counts[fn.name] or 1) - 1)
+      end
+
+      -- Symbols (module-scope non-function bindings) remain a real gap,
+      -- not a silent zero pretending to be a resolved answer — see this
+      -- file's own header.
+      return functions, calls, requires, {}, {}, lines
     end,
   }
 end

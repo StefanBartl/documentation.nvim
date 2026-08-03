@@ -113,6 +113,78 @@ return function(H)
 
   os.remove(fixture)
 
+  -- Calls/local_refs: `ecma.lua`'s own extraction, plus `calls.lua`'s
+  -- language-agnostic resolver consuming it unmodified — the same two-step
+  -- split Lua's own `functions.lua`/`calls.lua` pair uses.
+  do
+    local calls_fixture = H.tmpfile(".js")
+    local cf = assert(io.open(calls_fixture, "w"))
+    cf:write(table.concat({
+      "function caller(a, b) {",
+      "  const x = callee(a);",
+      "  return obj.method(x, b);",
+      "}",
+      "",
+      "function callee(y) {",
+      "  return y * 2;",
+      "}",
+    }, "\n"))
+    cf:close()
+
+    local cfns, ccalls = js_backend.scan_file(calls_fixture)
+    eq(#ccalls, 2, "lang.js: both a bare and a member-expression call site captured")
+
+    local by_callee = {}
+    for _, c in ipairs(ccalls) do
+      by_callee[c.callee] = c
+    end
+    eq(
+      by_callee["callee"].from_fn,
+      "caller",
+      "lang.js: bare call attributed to its enclosing function"
+    )
+    eq(
+      by_callee["obj.method"].from_fn,
+      "caller",
+      "lang.js: a member-expression call site is captured too, raw text and all"
+    )
+
+    for _, fn in ipairs(cfns) do
+      if fn.name == "callee" then
+        eq(fn.local_refs, 1, "lang.js: local_refs counts the one call site, minus the declaration")
+      elseif fn.name == "caller" then
+        eq(fn.local_refs, 0, "lang.js: ... and zero when nothing else mentions the name")
+      end
+    end
+
+    -- End to end: `calls.lua`'s resolver is completely unmodified for JS —
+    -- feeding it this file's own scan output through a minimal one-node IR
+    -- confirms the bare call actually becomes a real edge, and the
+    -- member-expression one — `obj` is neither a require alias nor a
+    -- same-file `M.`-style prefix, a shape JS has no equivalent of — is
+    -- silently dropped rather than mis-resolved.
+    local ir = {
+      order = { "n1" },
+      nodes = {
+        n1 = {
+          id = "n1",
+          module = "sample",
+          functions = cfns,
+          requires_raw = {},
+          calls_raw = ccalls,
+        },
+      },
+      edges = {},
+    }
+    local edges = require("documentation.core.calls").build(ir)
+    eq(#edges, 1, "lang.js: exactly the bare call resolves to a real edge")
+    eq(edges[1].from_fn, "caller", "lang.js: ... from the right caller")
+    eq(edges[1].to_fn, "callee", "lang.js: ... to the right callee")
+    eq(edges[1].confidence, "exact", "lang.js: ... at full confidence, a same-file bare name")
+
+    os.remove(calls_fixture)
+  end
+
   -- TypeScript and TSX share the same extraction; a light touch confirms
   -- the registration wiring, not a second full pass over ecma.lua's logic.
   local ok_ts, has_ts = pcall(vim.treesitter.language.add, "typescript")

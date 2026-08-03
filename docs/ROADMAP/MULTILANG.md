@@ -146,10 +146,32 @@ pays twice.
   way the other six panels are. `Documentation.FunctionInfo.is_hook` is
   now a declared, documented field on the type rather than an undeclared
   passenger. See `docs/ROADMAP/FEATURES.md`.
-- [ ] Calls/symbols extraction: `ecma.lua`'s `scan_file` currently returns
-  `{}` for both, honestly, not a placeholder pretending to be resolved —
-  needed before JS/TS gets the same call-graph/duplicate-detection
-  coverage Lua has.
+- [x] Calls extraction. **(2026-08-03)** `ecma.lua` now extracts every call
+  site (`extract_calls`, a `(call_expression function: (_) @callee)` query
+  structurally identical to `calls.lua`'s own Lua query) and per-file
+  identifier counts (`identifier_counts`, for `local_refs`), attributed to
+  the enclosing top-level function the same way Lua's `functions.lua`
+  does. `calls.lua`'s own resolver (`M.build`) needed **zero JS-specific
+  changes** — it already worked generically over `calls_raw`/
+  `requires_raw`/`functions`, so a same-file bare call (`helper()`)
+  resolves to a real `kind="call"` edge exactly like an unqualified Lua
+  call would. Verified end to end against a real parse: extraction, then
+  feeding the result through `calls.lua`'s unmodified resolver, confirming
+  a real edge comes out. See `docs/ROADMAP/FEATURES.md`.
+
+  Cross-file call resolution is explicitly **not** included: JS's named
+  imports (`import { helper } from "./bar"`) bind the function directly
+  into scope as a bare name, not through an alias-then-`.member` shape the
+  way `local fs = require(...)` then `fs.read()` works in Lua —
+  `calls.lua`'s alias/prefix resolution model has no equivalent branch for
+  "this bare name came from a specific import," and `ecma.lua`'s
+  `extract_requires` does not yet record which names an import bound.
+  Real, valuable, and a separate task from same-file resolution — tracked
+  here rather than guessed at.
+
+  Symbols extraction (module-scope non-function bindings — `const CONFIG =
+  {...}`) remains open, a separate task from calls despite the two having
+  shared one checklist item before this session.
 - [ ] Class-method owning-scope: `ecma.lua` recognizes standalone functions
   only; a method inside a `class` body has no representation yet — the
   same Phase-0 owning-scope gap Python/Rust/Go will also need, not unique
