@@ -19,11 +19,19 @@ local function add_lib_nvim()
   if pcall(require, "lib.nvim.fs.read") then
     return
   end
-  local candidates = {
-    vim.env.LIB_NVIM_DIR,
-    vim.fn.getcwd() .. "/.deps/lib.nvim",
-    vim.fs.dirname(vim.fn.getcwd()) .. "/lib.nvim",
-  }
+  -- Built with explicit indices, not a `{a, b, c}` literal fed to `ipairs`:
+  -- `vim.env.LIB_NVIM_DIR` is `nil` whenever it is unset — the normal case
+  -- for CI, which never sets it and instead relies on the `.deps/lib.nvim`
+  -- candidate below — and a table literal with `nil` in its first slot
+  -- makes `ipairs` stop immediately without ever inspecting the slots after
+  -- it, silently skipping every other candidate regardless of whether the
+  -- directory actually exists.
+  local candidates = {}
+  if vim.env.LIB_NVIM_DIR and vim.env.LIB_NVIM_DIR ~= "" then
+    candidates[#candidates + 1] = vim.env.LIB_NVIM_DIR
+  end
+  candidates[#candidates + 1] = vim.fn.getcwd() .. "/.deps/lib.nvim"
+  candidates[#candidates + 1] = vim.fs.dirname(vim.fn.getcwd()) .. "/lib.nvim"
   for _, dir in ipairs(candidates) do
     if dir and vim.fn.isdirectory(dir) == 1 then
       vim.opt.rtp:append(dir)

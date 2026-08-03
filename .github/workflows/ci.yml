@@ -40,6 +40,17 @@ jobs:
           luaVersion: "5.4"
       - uses: leafo/gh-actions-luarocks@v4
       - run: luarocks install luacheck
+      # `scripts/ci.sh` is itself a Neovim Lua script launched via `nvim -l`
+      # (see scripts/ci.lua's own header) — that launcher requirement holds
+      # for every gate, including this one, even though the luacheck gate's
+      # own logic needs nothing Lua 5.4 + luarocks does not already provide.
+      # This job never installed Neovim, so `scripts/ci.sh luacheck` failed
+      # before ever reaching the actual luacheck run — every push to this
+      # repository failed this job for exactly that reason.
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
       - run: scripts/ci.sh luacheck
 
   tests:
