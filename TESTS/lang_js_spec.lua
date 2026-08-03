@@ -54,6 +54,7 @@ return function(H)
     'import fs from "fs";',
     'import { readFile } from "fs/promises";',
     'const os = require("os");',
+    'var path = require("path");',
     "",
     "/**",
     " * A custom hook, by name alone.",
@@ -97,12 +98,19 @@ return function(H)
   ok(fns[5].internal, "lang.js: @internal recognized the same as Lua's convention")
   ok(not fns[1].internal, "lang.js: ... and not set on a function without the tag")
 
-  eq(#requires, 3, "lang.js: ESM default + named imports, and CommonJS require, all three found")
+  eq(
+    #requires,
+    4,
+    "lang.js: ESM default + named imports, and CommonJS require (const and var), all four found"
+  )
   local mods = {}
   for _, r in ipairs(requires) do
     mods[r.module] = true
   end
-  ok(mods["fs"] and mods["fs/promises"] and mods["os"], "lang.js: with the right module strings")
+  ok(
+    mods["fs"] and mods["fs/promises"] and mods["os"] and mods["path"],
+    "lang.js: with the right module strings, including the var-declared require"
+  )
 
   ok(lines > 0, "lang.js: line count computed the same way as the Lua backend")
 
