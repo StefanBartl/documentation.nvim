@@ -1197,3 +1197,90 @@ messages. Rather than ship that branch untested on the grounds that it looks
 identical to the Index one, a copy of the artifact was patched to give one
 real function a `@todo`, loaded, and checked: the trigger appears, takes
 keyboard focus, and resolves to the right annotation.
+
+## The documentation corpus — `core/docs.lua` (2026-08-03)
+
+Step 2 of [`docs/ECOSYSTEM.md`](../ECOSYSTEM.md), and the largest genuinely
+new *extraction* since the JS/TS backend. Everything else in this plugin
+reads source — annotations sitting next to the code they describe. This reads
+the other half: the `.md` files that describe the same tree from outside.
+Until now a documentation file was known to the map as a path
+(`node.readme`) and a counter (`stats.files_md`); **nothing had ever opened
+one.**
+
+Three pieces. A **corpus scan** (every `.md` outside `out_dir`, hidden
+directories and `node_modules` — `out_dir` is excluded because the generated
+`overview.md` names every module in the tree and would make everything
+"documented" by the artifact trying to measure it). A **reference index**,
+`ir.docs.refs`, keyed `nodeId` for modules and `nodeId#fnName` for functions
+— the same key shape `calls.lua` and the page already use. And
+**`doc-references-missing`**, a check for prose describing something that is
+no longer there: dead code's mirror image, and the only drift in this
+catalogue that lives entirely outside the source tree, where a rename does
+not move the two halves in one diff.
+
+**The first real run is the whole story of this entry.** It produced **25
+findings, 24 of them false**, and resolved **194 references** whose
+most-cited entity was a local function named `git` collecting documents that
+discuss the version-control tool. `MULTILANG.md`'s Considerations section
+predicted exactly this shape — `core/plugins.lua` passed nine fixtures and
+then produced 235 false positives against one real config — and the fix was
+the same: run it against something real *before* believing it. Four
+exclusions came out of that run, each one now a named case in
+`TESTS/docs_spec.lua`:
+
+- **`documentation.nvim` is a repository, not a member access.** Ten of the
+  25 findings were "module `documentation` has no member `nvim`". Any
+  `*.nvim` mention is now excluded, reading the same ecosystem convention
+  `ecma.lua` already reads for `use*` hooks.
+- **`documentation.*` is a glob**, not a claim that `*` is a member. The
+  remainder must now look like an identifier.
+- **`documentation.editor` is a real namespace** with no `init.lua` and
+  therefore no `@module` tag to be indexed by. Every dotted *prefix* of a
+  known module is now registered — derived from the module names themselves,
+  so no second path-to-module convention exists here to disagree with
+  `check.expected_module`.
+- **A ledger entry documenting a rename is correct, not stale.**
+  `FEATURES.md` itself writes `` `documentation.scan` → `documentation.core.
+  scan` ``; the old name is *supposed* to be gone. A mention whose line
+  points an arrow at another span **that resolves** is now read as a rename
+  note. Narrow on purpose: an arrow pointing at something equally missing is
+  not evidence of a rename, and is still reported.
+
+**Resolution is qualified-only by default**, and that decision has a
+measurement behind it too. `opts.docs_heuristic` (off, mirroring
+`opts.calls_heuristic` exactly) gates bare-name matching, because the bare
+names actually doing the matching here were `write`, `open`, `scan`, `add`
+and `esc` — every one a *file-local* helper and every one an ordinary
+English word. A subtler version of the same leak survived the first fix: a
+file-local `local function git` is indexed under the bare name `git`, so it
+matched *exactly*, not heuristically. Undotted mentions are now answered
+from the deduplicated bare index and never from the exact one, whatever
+index would have had them.
+
+After all of it: **25 findings → 1, and 194 references → 46, every one
+qualified and every one real.** Smaller and trustworthy beats larger and
+noisy, which is the same trade `calls_heuristic` already makes.
+
+The one surviving finding was genuine, and it was in a document written
+earlier the same day: `docs/ECOSYSTEM.md` illustrated qualified references
+with a `scan_full` qualified onto `documentation.core.scan`, when
+`scan_full` lives in `documentation` itself. The check found a real error in
+the design document proposing the check. Fixed in the same commit.
+
+**And then it found this paragraph**, because the sentence above originally
+quoted the broken reference verbatim to explain it. A document *quoting* a
+dead reference is indistinguishable, to a scanner reading code spans, from
+one *making* it — there is no marker in Markdown for "this identifier is the
+subject, not a link". Recorded in `core/docs.lua`'s header as a real limit
+rather than worked around with a magic comment: the honest fix is to write
+about a dead name without putting it in backticks, which is what the
+sentence above now does.
+
+`check_see_targets` now shares `docs.build_index` rather than building its
+own boolean copy of the same name set — two answers to "what names does this
+tree export" would drift, and noticing that is this plugin's whole job.
+
+Two bugs were caught by `TESTS/docs_spec.lua` while writing it, both real:
+the ambiguity leak above, and a double-backtick pattern using `[^`]+` for
+content whose entire purpose is to *contain* backticks.

@@ -207,7 +207,7 @@ in prose means `documentation.core.scan#scan_full`? Exactly as `calls.lua`
 resolves a callee and as `lib.nvim.telemetry` resolves a wrapped key to a
 module path:
 
-- a **qualified** name in a code span (`documentation.core.scan.scan_full`) →
+- a **qualified** name in a code span (`documentation.core.deps.build`) →
   exact;
 - a **bare** name that is unique in the whole tree → heuristic, marked as
   such;
@@ -522,9 +522,17 @@ Ordered so each step is independently useful and nothing is a big-bang.
    pane and the popup, and that refactor was verified output-identical
    across all 56 nodes with functions rather than assumed. See
    `docs/ROADMAP/FEATURES.md`.
-2. **Docs corpus scan + reference index + `doc-references-missing`.** The
+2. ~~**Docs corpus scan + reference index + `doc-references-missing`.** The
    largest genuinely-new static capability, and the one carrying the stated
-   motive. The docs-only filter falls out of it.
+   motive.~~ **Data layer done (2026-08-03)** — `core/docs.lua`, `ir.docs`,
+   and the check. Resolution is qualified-only by default
+   (`opts.docs_heuristic` mirrors `opts.calls_heuristic`) after a first real
+   run showed the bare-name path matching `write`/`open`/`scan`/`esc`. Four
+   false-positive classes were found and excluded by running it against this
+   repository rather than against fixtures; see
+   `docs/ROADMAP/FEATURES.md`. **Still open from this step:** the UI (an
+   affordance per entity showing which docs mention it), and the docs-only
+   filter that falls out of it.
 3. **Bounded snippet previews.** Embeddable tier only.
 4. **API endpoint inventory.** Call-based recognizer first (flat, an Analysis
    panel); file-based later (Hierarchy view, per

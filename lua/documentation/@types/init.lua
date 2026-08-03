@@ -15,6 +15,7 @@
 ---@field branch? string Branch used in source links. Default "main".
 ---@field extra_checks? Documentation.Check[] Repo-specific drift checks appended to the generic ones.
 ---@field calls_heuristic? boolean Also emit call edges whose target was guessed by unique-name match rather than resolved through a require alias. Off by default — a wrong call graph is worse than an incomplete one. Default false.
+---@field docs_heuristic? boolean Also resolve documentation references written as a bare, tree-unique function name rather than a qualified one. Off by default, same posture as `calls_heuristic` and for the same reason — measured on this repository, the bare names doing the matching were `write`/`open`/`scan`/`add`/`esc`, all file-local helpers and all ordinary English words. Default false.
 ---@field dead_code? boolean Also report *published* functions with no caller in the tree as dead-code candidates. Off by default, and that is not timidity: a library consists of functions with no internal caller by design, so this reports much of the public API on any tree that is a library. The always-on half of the check — file-local and `@internal` functions — needs no flag because there the statement holds. Default false.
 ---@field layers? Documentation.LayerRule[] Module-prefix layering rules for the `layer-violation` check. Empty/absent disables the check.
 ---@field luals? boolean Merge `lua-language-server --doc` output into the IR (class/alias/field detail, type-reference edges). Off by default — a full-tree run costs real seconds. Default false.
@@ -353,6 +354,63 @@
 ---@field approximate boolean True when at least one attribution came from an artifact without `line_end`, so function spans had to be approximated from the next function's start. Over-attributes rather than under-attributes; a UI should say so.
 
 ---The intermediate representation every renderer and check reads.
+--- One entry in the name -> entity index `docs.lua` resolves mentions
+--- against. `fn` is set only for `kind = "function"`.
+---@class Documentation.Docs.Entity
+---@field kind "module"|"function"
+---@field node string Node id.
+---@field fn string? Declared function name, e.g. "M.scan_full".
+
+--- A resolved mention: an entity plus how confidently it was placed. Same
+--- vocabulary as `Documentation.Confidence` on a call edge, for the same
+--- reason — `"heuristic"` here means a bare name that exactly one module in
+--- the tree owns, and nothing else pinned it down.
+---@class Documentation.Docs.Target : Documentation.Docs.Entity
+---@field confidence Documentation.Confidence
+
+--- Built once per scan by `docs.build_index`. `bare` deliberately holds only
+--- names owned by exactly one function in the whole tree; a name owned twice
+--- is removed rather than resolved to a winner.
+---@class Documentation.Docs.Index
+---@field exact table<string, Documentation.Docs.Entity> Module paths, declared function names, and qualified `module.bare` forms.
+---@field bare table<string, Documentation.Docs.Entity> Unqualified function names that are unique tree-wide.
+---@field modules table<string, string> Module path -> node id.
+---@field fns_by_module table<string, table<string, string>> Module path -> bare name -> declared name.
+
+--- One documentation file in the corpus.
+---@class Documentation.Docs.File
+---@field path string Repo-relative.
+---@field title string First `#` heading, or the filename when there is none.
+---@field refs integer Mentions in this file that resolved to something.
+
+--- One place a doc mentions an entity.
+---@class Documentation.Docs.Ref
+---@field doc string Repo-relative path of the mentioning file.
+---@field line integer 1-based line of the mention.
+---@field text string The code span exactly as written.
+---@field context string The surrounding line, whitespace-collapsed and length-bounded.
+---@field confidence Documentation.Confidence
+
+--- A code span whose longest dotted prefix is a real module but whose
+--- remainder names nothing in it — prose describing a function that has been
+--- renamed or removed. See `docs.lua`'s header for why the rule is this
+--- narrow.
+---@class Documentation.Docs.Missing
+---@field doc string
+---@field line integer
+---@field text string The span as written.
+---@field module string The module path that did resolve.
+---@field node string? Node id of that module, so a finding can be attributed without rebuilding the index.
+---@field missing string The remainder that did not.
+
+--- `ir.docs`. Keys of `refs` are node ids for modules and `nodeId#fnName`
+--- for functions — the same key shape `calls.lua` and the rendered page
+--- already use.
+---@class Documentation.Docs.Result
+---@field files Documentation.Docs.File[] Sorted by path.
+---@field refs table<string, Documentation.Docs.Ref[]> Each list sorted by doc then line, capped, with a `more` count when it overflowed.
+---@field missing Documentation.Docs.Missing[] Sorted by doc, line, text.
+
 ---@class Documentation.IR
 ---@field meta Documentation.Meta
 ---@field root string Root node id.
@@ -360,6 +418,7 @@
 ---@field nodes table<string, Documentation.Node>
 ---@field edges Documentation.Edge[] Type-reference edges from LuaLS enrichment. Always an array, empty when `opts.luals` did not run.
 ---@field duplicates Documentation.Duplicates.Result Functions grouped by structural shape — see `duplicates.lua`. Set by `scan_full`, so a bare `scan()` leaves it nil; serialised into the artifact because the grouping needs `fn.shape`, and a page reading the artifact has no parse tree to redo it with.
+---@field docs Documentation.Docs.Result? Which prose file mentions which module or function — see `docs.lua`. Set by `scan_full`, so a bare `scan()` leaves it nil.
 ---@field tag_links table<string, Documentation.TagLink> `requires_external` modules resolved through `opts.tag_files`. Always a table, empty when `opts.tag_files` is unset or nothing resolved — unlike `types_detail`, resolving is local and cheap, so there is no "did this run" question worth a nil.
 ---@field timing Documentation.Timing? Per-stage durations, set by `scan_full` when `opts.debug` is on. Deliberately **not** serialised into the artifact: a duration differs on every machine and `--check` byte-compares, so embedding one would make the map invalidate itself.
 
