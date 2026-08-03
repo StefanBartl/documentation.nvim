@@ -185,6 +185,68 @@ return function(H)
     os.remove(calls_fixture)
   end
 
+  -- Symbols: module-scope non-function, non-require bindings, mirroring
+  -- `documentation.core.symbols`'s own Lua scope and classification.
+  do
+    local symbols_fixture = H.tmpfile(".js")
+    local sf = assert(io.open(symbols_fixture, "w"))
+    sf:write(table.concat({
+      "/**",
+      " * The cache config.",
+      " */",
+      "const CONFIG = {",
+      "  a: 1,",
+      "  b: 2,",
+      "};",
+      "",
+      "const MAX_RETRIES = 3;",
+      "",
+      'let greeting = "hello";',
+      "",
+      "export const EXPORTED = { x: 1 };",
+      "",
+      "function realFunction() {",
+      "  return 1;",
+      "}",
+      "",
+      "const arrowFn = (x) => x * 2;",
+      "",
+      'const fromRequire = require("something");',
+      "",
+      "const computed = 1 + 2;",
+    }, "\n"))
+    sf:close()
+
+    local sfns, _, sreqs, syms = js_backend.scan_file(symbols_fixture)
+    eq(#sfns, 2, "lang.js: symbols fixture's two real functions still recognized as functions")
+    eq(#sreqs, 1, "lang.js: the require() binding is a dependency, not a symbol")
+
+    eq(#syms, 5, "lang.js: five module-scope bindings, functions and require excluded")
+    local by_name = {}
+    for _, s in ipairs(syms) do
+      by_name[s.name] = s
+    end
+
+    eq(by_name.CONFIG.kind, "table", "lang.js: an object literal classified as a table")
+    eq(by_name.CONFIG.detail, "2 fields", "lang.js: ... with a field count")
+    eq(by_name.CONFIG.summary, "The cache config.", "lang.js: ... and its leading JSDoc summary")
+
+    eq(by_name.MAX_RETRIES.kind, "constant", "lang.js: a number literal classified as a constant")
+    eq(by_name.MAX_RETRIES.detail, "3", "lang.js: ... with the literal as its detail")
+
+    eq(by_name.greeting.kind, "constant", "lang.js: a string literal classified as a constant too")
+
+    eq(by_name.EXPORTED.kind, "table", "lang.js: export-wrapped const still recognized")
+    eq(by_name.EXPORTED.detail, "1 field", "lang.js: ... unwrapped correctly, one field")
+
+    eq(by_name.computed.kind, "binding", "lang.js: a computed expression falls to binding")
+
+    ok(by_name.arrowFn == nil, "lang.js: a function-shaped declarator is not also a symbol")
+    ok(by_name.fromRequire == nil, "lang.js: a require() binding is not also a symbol")
+
+    os.remove(symbols_fixture)
+  end
+
   -- TypeScript and TSX share the same extraction; a light touch confirms
   -- the registration wiring, not a second full pass over ecma.lua's logic.
   local ok_ts, has_ts = pcall(vim.treesitter.language.add, "typescript")
