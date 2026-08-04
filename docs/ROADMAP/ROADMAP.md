@@ -21,57 +21,6 @@ lib.nvim's git history if it is ever needed.
 > search-and-replaced, because several of them are *decisions* whose wording
 > is the record.
 
-## Shipped since this file was last written
-
-- **O2 — extract into its own plugin.** Done, 2026-07-28. The rejection below
-  said "revisit if the size/coupling actually starts hurting"; what tipped it
-  was neither, it was simply the decision to stop treating a 12k-line
-  generator as one of lib.nvim's small utilities. Cost roughly what the
-  rejection predicted it would: a rename, not a rewrite, because
-  `opts.root`/`opts.source`/`opts.extra_checks` already meant nothing in it
-  knew lib.nvim's layout. Naming resolved to `documentation.nvim` (not on the
-  survey list below — the repo name states the domain, and the module path
-  `documentation` follows the repo-basename convention every sibling plugin
-  uses). See `docs/PIPELINE.md` § "Why this is its own plugin".
-- **Trail** (wayfinder item 2). Done. A pin records a *view* — the mode and
-  the axes it was taken in — not just a subject, because half-restoring is
-  what makes bookmarks feel unreliable. Identity is deliberately narrower
-  than the record: `dir`/`depth` travel on the pin but are not part of its
-  key, so the same node at two depths is one bookmark rather than two
-  near-duplicates. Keyed by repository root, so pins outlive the window;
-  `browse/trail.lua` is pure, which is what lets the whole model be driven
-  from a headless spec. Persisting across Neovim sessions is item 3, below.
-- **Saved Trails** (wayfinder item 3). Done. Both halves, because they are
-  the same file: the working trail persists on its own, and `S`/`L`/`X`
-  name, reload and forget copies of it. It did *not* land in `trail.lua` as
-  predicted above — that would have cost the purity the entry before it
-  argues for. `trail_store.lua` subscribes to a new `trail.on_change`
-  instead, which is also the more robust arrangement: a mutation added later
-  cannot forget to persist. Loading **adds** rather than replaces (a
-  bookmark tool that can silently lose bookmarks stops being trusted), and
-  the store lives in `stdpath("state")`, never the repository — a trail has
-  no more claim on the project than a jumplist has, and committing it would
-  give `--check` an opinion about where one person happened to look.
-- **`?` key-hint overlay** (wayfinder item 1a). Done. Rendered from the same
-  `KEYS` table `bind()` installs from, so it cannot drift from the actual
-  bindings; keys the current mode ignores are marked rather than hidden. The
-  spec asserts every bound key appears in the panel.
-- **`:checkhealth documentation`** (wayfinder item 1b). Done. Dependencies,
-  the treesitter Lua parser and the optional tools, plus the section it exists
-  for: the resolved configuration a `:DocMap` issued right now would act on.
-  `:DocMap` defaults its root to the cwd, so "it mapped the wrong repository"
-  is invisible from the command's own output.
-
-- **Local list filter** (wayfinder item 4). Done, as `f`. The decision worth
-  keeping is what it is *not*: `/` stays a fuzzy jump across the whole tree,
-  and this matches plain substrings, because the point of typing `-spec` is
-  that nothing containing "spec" survives it and fuzzy matching is forgiving
-  in exactly the wrong direction. Terms AND; no `OR`, since every `OR` makes
-  the list longer and narrowing exists to make it shorter. It belongs to the
-  list it was typed against — changing subject drops it, changing an axis
-  keeps it — and it travels with positions in the visit history without
-  being a history stop itself.
-
 ## Genuinely open
 
 ### `undocumented-param` should credit `@overload`-only signatures
