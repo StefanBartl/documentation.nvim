@@ -64,12 +64,13 @@
 ---| "trail"     # Pinned positions, in the order they were pinned.
 ---| "endpoints" # Call-based route registrations across the whole tree, not centered on any one node — see `core/endpoints.lua`.
 ---| "telemetry" # The static x runtime join against `runtime-analysis.telemetry` — not centered on any one node — see `core/telemetry_join.lua`.
+---| "loaded"    # Diff loaded-vs-declared against `runtime-analysis.loaded` — not centered on any one node — see `core/loaded_diff.lua`.
 
 ---One row of the list. Everything the row can *do* — navigate, open source,
 ---go into the quickfix list — is a field here rather than something re-derived
 ---from the rendered text, so the label stays purely presentational.
 ---@class Documentation.Browse.Entry
----@field kind "node"|"function"|"type"|"external"|"message"|"commit"|"endpoint"|"telemetry"
+---@field kind "node"|"function"|"type"|"external"|"message"|"commit"|"endpoint"|"telemetry"|"loaded_diff"
 ---@field sha string? Full commit hash, for `kind="commit"`.
 ---@field commit table? The `{ sha, short, author, date, subject }` record behind a `kind="commit"` row.
 ---@field callers Documentation.History.Caller[]? Direct callers of a touched function, in History mode — carried on the entry so the detail pane needs no second lookup against an IR that may not describe that revision.
@@ -86,6 +87,7 @@
 ---@field detail string? One-line hint shown when the row has no richer detail.
 ---@field telemetry_row Documentation.TelemetryJoin.Row? The join row behind a `kind="telemetry"` entry — `nil` for a function `runtime-analysis.telemetry` has no data for, distinct from a row with `calls = 0`.
 ---@field endpoint_sends RA.History.Entry[]? The static x runtime join behind a `kind="endpoint"` entry (`runtime-analysis.nvim`'s own docs/ROADMAP.md §6.2) — `nil` when no history data exists for this project at all, an empty list when history exists but never matched this route.
+---@field loaded_diff_row Documentation.LoadedDiff.Row? The join row behind a `kind="loaded_diff"` entry (`runtime-analysis.nvim`'s own docs/ROADMAP.md §5.3).
 
 ---@class Documentation.Browse
 ---@field open fun(opts: Documentation.Browse.Opts): boolean

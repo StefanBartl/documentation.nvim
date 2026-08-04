@@ -1,6 +1,6 @@
 ---@module 'documentation.bindings.usrcmds.browse'
---- `:DocBrowse [live] [history|trail|endpoints|telemetry|module]` — the same
---- map, navigated inside the editor.
+--- `:DocBrowse [live] [history|trail|endpoints|telemetry|loaded|module]` —
+--- the same map, navigated inside the editor.
 ---
 --- Its own command rather than a `:DocMap browse` subcommand: `:DocMap` is a
 --- *generator* (every action of it writes or verifies artifacts), while this
@@ -30,10 +30,16 @@ function M.parse(rest)
     target = tail
     head, tail = target:match("^(%S+)%s*(.-)$")
   end
-  -- `history`, `trail`, `endpoints` and `telemetry` open straight into their
-  -- own list. None takes a module, so anything after them would be
-  -- meaningless.
-  if head == "history" or head == "trail" or head == "endpoints" or head == "telemetry" then
+  -- `history`, `trail`, `endpoints`, `telemetry` and `loaded` open straight
+  -- into their own list. None takes a module, so anything after them would
+  -- be meaningless.
+  if
+    head == "history"
+    or head == "trail"
+    or head == "endpoints"
+    or head == "telemetry"
+    or head == "loaded"
+  then
     mode = head
     target = tail or ""
   end
