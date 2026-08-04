@@ -115,6 +115,32 @@ already gate themselves, and leaving the key unbound would let it fall through
 to Vim's own meaning, where `+` moves the cursor down a line. Nothing
 happening is the better wrong answer.
 
+## Endpoints mode
+
+Every call-based route registration (Express/Fastify/Koa/Connect/Restify/
+Hapi) across the whole tree, not centered on any one node — the same
+"spans something other than one node's neighborhood" shape Trail/History
+already have. `gs` sends the selected route as a request via
+`runtime-analysis.nvim`, a soft dependency: absent, it degrades to a clear
+message rather than being silently unreachable.
+
+**Enriched with endpoint coverage** when `runtime-analysis.nvim` is
+installed and this project has request history (`runtime-analysis.nvim`'s
+own `docs/ROADMAP.md` §6.2) — a leading `○` marks a declared route this
+project's own history has never matched, the same reading the `telemetry`
+mode's own `○` gives a cold function: reachable, but nothing exercised it.
+The join (`documentation.core.endpoint_coverage`) matches a declared route
+path (`/users/:id`, or `/users/{id}` for Hapi) against a recorded URL's
+own path — scheme, host and query stripped, an unresolved `{{var}}`
+template prefix (`runtime-analysis.env`'s own trap: history records the
+template, never the resolved value) treated the same way a real host
+would be. Optional params, wildcards and regex routes are outside what
+this pattern can express, and a route using one of those is simply never
+matched rather than matched wrong — the same "record it, don't guess it"
+discipline the `telemetry` join already states for its own key matching.
+Absence of a match is never claimed as certainty, only "nothing recorded
+a send to it yet".
+
 ## Telemetry mode
 
 The static x runtime join — ECOSYSTEM.md step 8, `docs/ROADMAP/telemetry-

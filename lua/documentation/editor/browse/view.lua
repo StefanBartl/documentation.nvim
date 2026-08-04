@@ -415,22 +415,47 @@ end
 ---`n.endpoints`, the same data `core/endpoints.lua` already extracted for
 ---the static page's Analysis panel and `:DocMap endpoints`'s quickfix list —
 ---no new extraction here, only a third reader of the same field.
+---
+---Enriched with the static x runtime join (`runtime-analysis.nvim`'s own
+---docs/ROADMAP.md §6.2) when that plugin is installed and this project has
+---request history: a leading `○` marks a declared route history has never
+---matched — a real, actionable "this is dead weight or untested", the
+---same reading the `telemetry` mode's own `○` gives a cold function.
+---Absence of a match is never claimed as certainty, only as "nothing
+---recorded a send to it yet" — the identical honest-limits posture the
+---telemetry join already states for its own "no data" case.
 ---@param ir Documentation.IR
----@param _st table Unused: every route across the whole tree is listed unconditionally, the same reason `trail_entries` is the only other builder that does not filter by the centered node.
+---@param st table
 ---@return Documentation.Browse.Entry[]
-local function endpoints_entries(ir, _st)
+local function endpoints_entries(ir, st)
+  local coverage = require("documentation.core.endpoint_coverage")
+  local history = st.opts and st.opts.root and coverage.load(st.opts.root)
+
   local out = {}
   for _, id in ipairs(ir.order) do
     local node = ir.nodes[id]
     for _, spec in ipairs(node.endpoints or {}) do
+      local sends = history and coverage.matches(spec, history) or nil
+      local badge = ""
+      local detail = spec.handler or "(inline handler)"
+      if history then
+        if sends and #sends > 0 then
+          detail = ("%s · sent %d time%s"):format(detail, #sends, #sends == 1 and "" or "s")
+        else
+          badge = "○ "
+          detail = detail .. " · never sent"
+        end
+      end
+
       out[#out + 1] = {
         kind = "endpoint",
         id = id,
         source = node.source,
         line = spec.line,
         spec = spec,
-        label = ("%-7s %s"):format(spec.method:upper(), spec.path),
-        detail = spec.handler or "(inline handler)",
+        endpoint_sends = sends,
+        label = ("%s%-7s %s"):format(badge, spec.method:upper(), spec.path),
+        detail = detail,
       }
     end
   end
@@ -945,6 +970,33 @@ function M.detail(ir, st, entry)
     end
     out[#out + 1] = "Handler: " .. (spec.handler or "(inline — no name to show)")
     out[#out + 1] = spec.documented and "Documented" or "Not documented"
+
+    -- docs/ROADMAP.md §6.2 (runtime-analysis.nvim) — `endpoint_sends` is
+    -- `nil` when no history data was available at all (plugin absent, or
+    -- nothing recorded for this project yet), an empty list when history
+    -- exists but never matched this route, and a real list otherwise. The
+    -- three render differently on purpose: only the middle case is the
+    -- "this looks untested" finding.
+    if entry.endpoint_sends then
+      out[#out + 1] = ""
+      if #entry.endpoint_sends == 0 then
+        out[#out + 1] = "Never sent — no matching request in this project's history."
+      else
+        out[#out + 1] = ("Sent %d time%s (newest first):"):format(
+          #entry.endpoint_sends,
+          #entry.endpoint_sends == 1 and "" or "s"
+        )
+        for i, e in ipairs(entry.endpoint_sends) do
+          if i > 5 then
+            out[#out + 1] = ("  … and %d more"):format(#entry.endpoint_sends - 5)
+            break
+          end
+          local outcome = e.status and tostring(e.status) or (e.note or "?")
+          out[#out + 1] = ("  %s  %s"):format(os.date("%Y-%m-%d %H:%M", e.at), outcome)
+        end
+      end
+    end
+
     out[#out + 1] = ""
     out[#out + 1] = "gd source · gs send a request (needs runtime-analysis.nvim)"
     return out

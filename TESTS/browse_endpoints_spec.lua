@@ -204,4 +204,115 @@ return function(H)
       )
     end
   end
+
+  -- Endpoint coverage join (runtime-analysis.nvim's own docs/ROADMAP.md
+  -- §6.2): pure logic first, no plugin needed.
+  do
+    local coverage = require("documentation.core.endpoint_coverage")
+
+    eq(
+      coverage.path_of("https://api.example.com/users/123?x=1"),
+      "/users/123",
+      "path_of: scheme+host+query stripped from a real absolute URL"
+    )
+    eq(
+      coverage.path_of("{{baseUrl}}/users/123"),
+      "/users/123",
+      "path_of: an unresolved {{var}} prefix stripped the same way a real host is"
+    )
+    eq(coverage.path_of("/users/123"), "/users/123", "path_of: a bare path passes through")
+    eq(coverage.path_of("https://x.test"), "/", "path_of: no path at all normalizes to /")
+
+    ok(
+      ("/users/123"):match(coverage.route_pattern("/users/:id")) ~= nil,
+      "route_pattern: Express-style :param matches a real segment"
+    )
+    ok(
+      ("/users/123/extra"):match(coverage.route_pattern("/users/:id")) == nil,
+      "route_pattern: :param matches exactly one segment, not the rest of the path"
+    )
+    ok(
+      ("/users/123"):match(coverage.route_pattern("/users/{id}")) ~= nil,
+      "route_pattern: Hapi-style {param} matches too"
+    )
+    ok(
+      ("/users"):match(coverage.route_pattern("/users/:id")) == nil,
+      "route_pattern: a missing segment does not match"
+    )
+
+    local entries = {
+      { method = "GET", url = "https://api.example.com/users/1", status = 200, at = 1 },
+      { method = "POST", url = "https://api.example.com/users", status = 201, at = 2 },
+      { method = "GET", url = "https://api.example.com/other", status = 200, at = 3 },
+    }
+    local get_user = coverage.matches({ method = "get", path = "/users/:id" }, entries)
+    eq(#get_user, 1, "matches: exactly the one entry matching both method and path pattern")
+    eq(get_user[1].url, "https://api.example.com/users/1", "matches: the real matching entry")
+    eq(
+      #coverage.matches({ method = "delete", path = "/users/:id" }, entries),
+      0,
+      "matches: a method with no matching entries returns empty, not nil"
+    )
+  end
+
+  -- Endpoint coverage, wired through view.entries: badge + detail, both
+  -- the "never sent" and "sent" cases, without needing a real plugin --
+  -- `coverage.load` is exercised directly above; this only has to prove
+  -- `endpoints_entries` reads its result correctly.
+  do
+    local ir = fake_ir()
+    -- Stand in for `coverage.load` by monkey-patching `runtime-analysis.
+    -- history` itself (the real soft dependency `coverage.load` requires)
+    -- rather than the join module -- so this exercises the exact same
+    -- `pcall(require, "runtime-analysis.history")` path production code
+    -- takes, not a mocked-out join.
+    package.loaded["runtime-analysis.history"] = {
+      list = function(_opts)
+        return {
+          { method = "GET", url = "https://api.example.com/users/1", status = 200, at = 1 },
+        }
+      end,
+    }
+
+    local entries = view.entries(ir, { mode = "endpoints", opts = { root = "/fake/root" } })
+    local by_path = {}
+    for _, e in ipairs(entries) do
+      by_path[e.spec.path .. " " .. e.spec.method] = e
+    end
+
+    local sent = by_path["/users/:id get"]
+    ok(sent ~= nil, "coverage: the GET /users/:id entry is present")
+    eq(#sent.endpoint_sends, 1, "coverage: matched exactly the one real send")
+    ok(sent.label:find("^GET", 1) ~= nil, "coverage: a sent route carries no leading badge")
+
+    local unsent = by_path["/users post"]
+    ok(unsent ~= nil, "coverage: the POST /users entry is present")
+    eq(#unsent.endpoint_sends, 0, "coverage: no history entry ever matched this route")
+    eq(
+      unsent.label:find("○", 1, true),
+      1,
+      "coverage: an unsent route carries the ○ badge, at the start"
+    )
+    ok(
+      unsent.detail:find("never sent", 1, true) ~= nil,
+      "coverage: the detail line names it explicitly"
+    )
+
+    package.loaded["runtime-analysis.history"] = nil
+  end
+
+  -- No opts.root at all (the shape every pre-existing call in this spec
+  -- above already uses): coverage is silently skipped, not an error --
+  -- `endpoint_sends` stays nil, no badge.
+  do
+    local ir = fake_ir()
+    local entries = view.entries(ir, { mode = "endpoints" })
+    for _, e in ipairs(entries) do
+      eq(
+        e.endpoint_sends,
+        nil,
+        "coverage: nil with no opts.root, exactly like before this join existed"
+      )
+    end
+  end
 end
