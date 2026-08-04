@@ -34,6 +34,18 @@ Grew inside [`lib.nvim`](https://github.com/StefanBartl/lib.nvim) as
 lib.nvim. See [docs/PIPELINE.md § Why this is its own
 plugin](docs/PIPELINE.md#why-this-is-its-own-plugin).
 
+## Table of Contents
+
+- [What it produces](#what-it-produces)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Commands](#commands)
+- [Health](#health)
+- [Headless / CI](#headless--ci)
+- [Live handle instead of files](#live-handle-instead-of-files)
+- [Drift checks](#drift-checks)
+- [Documentation](#documentation)
+
 ## What it produces
 
 | Artifact | What it is |
