@@ -62,8 +62,18 @@ local state = nil
 -- (`docs/ROADMAP/telemetry-documentation-bridge.md` in lib.nvim) calls it
 -- "Mode 7", written before "endpoints" above claimed position 7 in this
 -- actual list; see ECOSYSTEM.md step 8 for that renumbering note.
-local MODES =
-  { "structure", "deps", "calls", "types", "history", "trail", "endpoints", "telemetry" }
+-- "loaded" (§5.3, runtime-analysis.nvim's own docs/ROADMAP.md) is 9th.
+local MODES = {
+  "structure",
+  "deps",
+  "calls",
+  "types",
+  "history",
+  "trail",
+  "endpoints",
+  "telemetry",
+  "loaded",
+}
 
 -- ── History mode: the git half ──────────────────────────────────────────────
 --

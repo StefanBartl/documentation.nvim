@@ -78,7 +78,7 @@ place, keeping its subscribers.
 
 | Key | Effect |
 | --- | --- |
-| `1` … `8` | Structure / Deps / Calls / Types / History / Trail / Endpoints / Telemetry |
+| `1` … `9` | Structure / Deps / Calls / Types / History / Trail / Endpoints / Telemetry / Loaded |
 | `j` `k` | Move; the detail pane follows |
 | `<CR>` | Descend a level (Structure) or follow the edge (Deps/Calls) |
 | `-` / `<BS>` | Up a level |
@@ -195,6 +195,35 @@ mode, center, direction, depth and function; the page's whole state lives in
 its URL fragment. So it is a `format()` and the existing opener, and it
 answers "actually, I want to see that as a picture" without having to find the
 place again.
+
+## Loaded mode
+
+Diff loaded-vs-declared — `runtime-analysis.nvim`'s own `docs/ROADMAP.md`
+§5.3, "the sharpest form of the static x runtime join" that document names.
+One row per discrepancy between what this tree's own static analysis
+*declares* a module exports and what is actually on that module's table in
+*this* Neovim process, right now (`runtime-analysis.loaded`'s
+`package.loaded` walk): `✕` declared but not loaded (a dead file, or
+genuinely lazy — this session simply never required it), `!` loaded but not
+declared (generated, wrapped with an extra key, a typo'd export). Like
+`endpoints`/`telemetry`, spans the whole tree rather than one node's
+neighborhood, and carries the same honest-limits framing: a module never
+loaded at all in this session is not evidence of anything wrong with it,
+only that `package.loaded` has nothing to compare against right now.
+
+Scope is deliberately narrow, "record it, don't guess it": only
+`"<table>.<field>"`-shaped declared names (exactly one dot, e.g. `M.foo`)
+are compared — the one shape a single-level `package.loaded` walk can ever
+see as a direct field. A file-local declaration (`local function foo`,
+never exported) is excluded outright rather than flagged as "not loaded" —
+it was never going to be a field of the module table regardless of whether
+the file loaded. A colon-declared method (`Class:method`) on a nested table
+the module happens to export is excluded too, for the same reason
+`endpoint_coverage.lua`'s route matching already states for what it
+deliberately does not attempt. Soft dependency throughout: `pcall(require,
+"runtime-analysis.loaded")`, a plain "no data" message when the plugin is
+absent, distinct from "no discrepancies" when it is present and genuinely
+found none.
 
 ## Filtering a list
 

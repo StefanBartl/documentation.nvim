@@ -571,6 +571,66 @@ local function telemetry_entries(ir, st)
   return out
 end
 
+---Diff loaded-vs-declared — `runtime-analysis.nvim`'s own docs/ROADMAP.md
+---§5.3. One row per discrepancy `documentation.core.loaded_diff` finds:
+---`✕` a declared, exported function `package.loaded` does not have right
+---now (dead file, or genuinely lazy — this session simply never required
+---it); `!` the reverse, a function-valued key present on the module table
+---with no matching declaration (generated, wrapped with an extra key, a
+---typo'd export). Like `telemetry`/`endpoints`, spans the whole tree
+---rather than one node's neighborhood.
+---@param ir Documentation.IR
+---@param _st table Unused — the join reads `package.loaded` directly, not anything centered on `st.id`.
+---@return Documentation.Browse.Entry[]
+local function loaded_entries(ir, _st)
+  local loaded_diff = require("documentation.core.loaded_diff")
+  local rows = loaded_diff.rows(ir)
+  if not rows then
+    return {
+      {
+        kind = "message",
+        label = "(no data — install/enable runtime-analysis.nvim to diff loaded-vs-declared)",
+      },
+    }
+  end
+  if #rows == 0 then
+    return {
+      {
+        kind = "message",
+        label = "(no discrepancies — everything declared is loaded, and vice versa)",
+      },
+    }
+  end
+
+  local out = {}
+  for _, row in ipairs(rows) do
+    local node = ir.nodes[row.id]
+    local mod = (node and node.module) or row.id
+    if row.kind == "declared_only" then
+      out[#out + 1] = {
+        kind = "loaded_diff",
+        id = row.id,
+        fn = row.declared_name,
+        source = node and node.source,
+        line = row.line,
+        loaded_diff_row = row,
+        label = ("✕ %s#%s"):format(mod, row.name),
+        detail = "declared, not loaded in this session",
+      }
+    else
+      out[#out + 1] = {
+        kind = "loaded_diff",
+        id = row.id,
+        source = node and node.source,
+        loaded_diff_row = row,
+        label = ("! %s#%s"):format(mod, row.name),
+        detail = "loaded, not declared anywhere in the source",
+      }
+    end
+  end
+  return out
+end
+
 ---Build the list entries for the current state.
 ---@param ir Documentation.IR
 ---@param st table
@@ -590,6 +650,8 @@ function M.entries(ir, st)
     return endpoints_entries(ir, st)
   elseif st.mode == "telemetry" then
     return telemetry_entries(ir, st)
+  elseif st.mode == "loaded" then
+    return loaded_entries(ir, st)
   end
   return structure_entries(ir, st)
 end
@@ -1031,6 +1093,33 @@ function M.detail(ir, st, entry)
     return out
   end
 
+  if entry.kind == "loaded_diff" then
+    local row = entry.loaded_diff_row
+    local node = ir.nodes[entry.id]
+    local mod = (node and node.module) or entry.id
+    local out = { ("%s#%s"):format(mod, row.name), "" }
+    if row.kind == "declared_only" then
+      out[#out + 1] = ("Declared as `%s`, not on package.loaded[%q] right now."):format(
+        row.declared_name,
+        mod
+      )
+      out[#out + 1] = ""
+      out[#out + 1] = "Either this file was never required this session, or it is"
+      out[#out + 1] = "genuinely lazy-loaded and simply hasn't fired yet — package.loaded"
+      out[#out + 1] = "reflects THIS process, not every process that ever ran this tree."
+    else
+      out[#out + 1] = ("A function-valued key on package.loaded[%q], no matching"):format(mod)
+      out[#out + 1] = "declaration anywhere in the source."
+      out[#out + 1] = ""
+      out[#out + 1] = "Generated at runtime, wrapped with an extra key (see :RA provenance"
+      out[#out + 1] = "if runtime-analysis.nvim is installed), or a typo'd export name."
+    end
+    out[#out + 1] = ""
+    out[#out + 1] = row.kind == "declared_only" and "gd source · gq quickfix"
+      or "gq quickfix (no static declaration to jump to)"
+    return out
+  end
+
   local node = ir.nodes[entry.id]
   return node and node_detail(node, ir) or { "(no such node)" }
 end
@@ -1130,6 +1219,24 @@ function M.status(ir, st)
     end
     return ("%d function(s), %d with telemetry data   [telemetry]"):format(n, with_data)
       .. status_tail(st)
+  end
+
+  -- Loaded-vs-declared, like Telemetry/Endpoints, spans the whole tree.
+  if st.mode == "loaded" then
+    local declared_only, loaded_only = 0, 0
+    for _, e in ipairs(st.entries or {}) do
+      if e.kind == "loaded_diff" then
+        if e.loaded_diff_row.kind == "declared_only" then
+          declared_only = declared_only + 1
+        else
+          loaded_only = loaded_only + 1
+        end
+      end
+    end
+    return ("%d declared-not-loaded, %d loaded-not-declared   [loaded]"):format(
+      declared_only,
+      loaded_only
+    ) .. status_tail(st)
   end
 
   local bits = { M.breadcrumb(ir, st.id) }
