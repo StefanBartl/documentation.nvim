@@ -23,7 +23,7 @@ generating its own map) does not overwrite this one.
 buffer-local to the `:DocBrowse` scratch buffer and set with `nowait`,
 so it can only ever shadow a key *inside* that buffer.
 
-Modes (`1`…`7`): structure, deps, calls, types, history, trail, endpoints. These are positional and deliberately not
+Modes (`1`…`8`): structure, deps, calls, types, history, trail, endpoints, telemetry. These are positional and deliberately not
 rebindable — see `Documentation.Browse.KeyAction`.
 
 | Keys | Action | Modes | Does |

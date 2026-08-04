@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**4 modules** · 5 namespaces · 62 helper files
+**4 modules** · 5 namespaces · 63 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -68,6 +68,7 @@ flowchart LR
   nlua_documentation_core_snippet_lua["documentation.core.snippet"]
   nlua_documentation_core_symbols_lua["documentation.core.symbols"]
   nlua_documentation_core_tagfiles_lua["documentation.core.tagfiles"]
+  nlua_documentation_core_telemetry_join_lua["documentation.core.telemetry_join"]
   nlua_documentation_core_timing_lua["documentation.core.timing"]
   nlua_documentation_editor_browse["documentation.editor.browse"]
   nlua_documentation_editor_command_lua["documentation.editor.command"]
@@ -91,8 +92,10 @@ flowchart LR
   nlua_documentation_core_check_lua --> nlua_documentation_core_deps_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_docs_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_lang_registry_lua
+  nlua_documentation_core_check_lua --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_coverage_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_doccoverage_lua
+  nlua_documentation_core_cli_lua --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_core_diff_lua --> nlua_documentation_core_check_lua
   nlua_documentation_core_diff_lua --> nlua_documentation_core_deps_lua
   nlua_documentation_core_doccoverage_lua --> nlua_documentation_core_check_lua
@@ -116,9 +119,13 @@ flowchart LR
   nlua_documentation_core_scan_lua --> nlua_documentation_core_lang_registry_lua
   nlua_documentation_core_symbols_lua --> nlua_documentation_core_scan_lua
   nlua_documentation_core_tagfiles_lua --> nlua_documentation_core_find_lua
+  nlua_documentation_core_telemetry_join_lua --> nlua_documentation_core_check_lua
+  nlua_documentation_core_telemetry_join_lua --> nlua_documentation_core_doccoverage_lua
   nlua_documentation_editor_browse --> nlua_documentation_bindings_keymaps_lua
+  nlua_documentation_editor_browse --> nlua_documentation_core_check_lua
   nlua_documentation_editor_browse --> nlua_documentation_core_deps_lua
   nlua_documentation_editor_browse --> nlua_documentation_core_history_lua
+  nlua_documentation_editor_browse --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_editor_browse --> nlua_documentation_editor_command_lua
   nlua_documentation_editor_browse --> nlua_documentation_editor_registry_lua
   nlua_documentation_editor_command_lua --> nlua_documentation_bindings_usrcmds
@@ -144,10 +151,11 @@ flowchart LR
 
 ## Drift
 
-0 errors · 0 warnings · 8 info
+0 errors · 1 warnings · 8 info
 
-No errors or warnings.
-
+| Severity | Check | Message |
+|---|---|---|
+| warn | `doc-references-missing` | docs/ROADMAP/IDEAS.md:52 references 'documentation.core.scan.something', but documentation.core.scan has no 'something' |
 
 <details>
 <summary>8 informational findings</summary>

@@ -31,6 +31,7 @@
 ---@field tag_files? table<string, string> Doxygen `TAGFILES` equivalent: module-prefix -> another project's `docs/map`-shaped directory (must contain a committed `module_map.json`). A `requires_external` module matching the prefix resolves against that project's own artifact instead of staying an inert box. Local paths only — read synchronously during `scan_full()`, same as `opts.root` itself, so `--check` stays deterministic and offline. See `tagfiles.lua`.
 ---@field tests_dir? string Directory (relative to `root`) scanned for auto-derived test coverage — see `coverage.lua`. Default "TESTS". A missing directory is not an error: every function is simply left `tested = false`.
 ---@field badge? boolean Write `coverage.svg` (a shields.io-shaped doc-coverage badge, see `doccoverage.lua`/`render/badge.lua`) alongside the other artifacts. Off by default — most consumers of `generate()` do not want an extra committed file they never asked for. Default false.
+---@field telemetry_namespace? string The `runtime-analysis.telemetry` namespace to join against for the `telemetry` browse mode and dead-function suppression (ECOSYSTEM.md step 8). Default `title` — every telemetry instance in this ecosystem is namespaced by the plugin's own display name, so a caller who already sets `title` needs nothing extra; set this only when the two genuinely differ.
 
 ---A repo-specific drift check.
 ---@alias Documentation.Check fun(ir: Documentation.IR, opts: Documentation.Opts): Documentation.Finding[]

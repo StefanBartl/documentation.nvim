@@ -58,7 +58,12 @@ local M = {}
 ---@type table|nil
 local state = nil
 
-local MODES = { "structure", "deps", "calls", "types", "history", "trail", "endpoints" }
+-- "telemetry" is 8th, not 7th — the design doc it implements
+-- (`docs/ROADMAP/telemetry-documentation-bridge.md` in lib.nvim) calls it
+-- "Mode 7", written before "endpoints" above claimed position 7 in this
+-- actual list; see ECOSYSTEM.md step 8 for that renumbering note.
+local MODES =
+  { "structure", "deps", "calls", "types", "history", "trail", "endpoints", "telemetry" }
 
 -- ── History mode: the git half ──────────────────────────────────────────────
 --

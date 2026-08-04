@@ -448,6 +448,104 @@ local function endpoints_entries(ir, _st)
   return out
 end
 
+---Static x runtime join — ECOSYSTEM.md step 8. Every function `check.
+---used_keys(ir)` and `runtime-analysis.telemetry`'s join together have an
+---opinion about, one row per function, badge-prefixed by which of the four
+---cells `docs/ROADMAP/telemetry-documentation-bridge.md` (lib.nvim) names it
+---falls in:
+---
+---  ✕  high-confidence dead — no static caller *and* never called
+---  !  dead-function false positive — telemetry proves it alive; static
+---     analysis alone would have flagged it (callback, dynamic dispatch, a
+---     cross-repo consumer)
+---  ○  cold path — a real static caller, but nothing exercised it
+---  (blank)  normal, healthy — called, and statically reachable
+---
+---A function with no telemetry data at all (unmatched key, or telemetry
+---never enabled here) is listed too, undecorated except a trailing "no
+---telemetry data" — the Honest Limits section this join's own module is
+---built around is explicit that absence of data must never render as if it
+---were evidence.
+---
+---Like `trail`/`history`/`endpoints`, this spans the whole tree rather than
+---one node's neighborhood: the badge is a cross-module question, not
+---something a single centered node's subtree could answer on its own.
+---@param ir Documentation.IR
+---@param st table
+---@return Documentation.Browse.Entry[]
+local function telemetry_entries(ir, st)
+  local telemetry_join = require("documentation.core.telemetry_join")
+  local namespace = telemetry_join.namespace(st.opts)
+  local data = namespace and telemetry_join.load(namespace)
+  if not data then
+    return {
+      {
+        kind = "message",
+        label = namespace
+            and ("(no telemetry data for %q — install/enable runtime-analysis.nvim, or :RATelemetry start there)"):format(
+              namespace
+            )
+          or "(no telemetry namespace configured — set opts.title or opts.telemetry_namespace)",
+      },
+    }
+  end
+
+  local used = require("documentation.core.check").used_keys(ir)
+  local by_key = telemetry_join.by_key(ir, data)
+
+  local out = {}
+  for _, id in ipairs(ir.order) do
+    local node = ir.nodes[id]
+    for _, fn in ipairs(node.functions) do
+      local key = id .. "#" .. fn.name
+      local row = by_key[key]
+      local has_static_caller = used[key] == true
+
+      local badge, note
+      if not row then
+        badge, note = " ", "no telemetry data"
+      elseif row.calls > 0 and not has_static_caller then
+        badge, note = "!", "no static caller"
+      elseif row.calls == 0 and has_static_caller then
+        badge, note = "○", "0 calls"
+      elseif row.calls == 0 and not has_static_caller then
+        badge, note = "✕", "0 calls · no static caller"
+      else
+        badge, note = " ", nil
+      end
+
+      out[#out + 1] = {
+        kind = "telemetry",
+        id = id,
+        fn = fn.name,
+        source = node.source,
+        line = fn.line,
+        telemetry_row = row,
+        label = ("%s %-46s %s"):format(
+          badge,
+          ("%s#%s"):format(node.module or id, fn.name),
+          row and ("%d call%s"):format(row.calls, row.calls == 1 and "" or "s") or "·"
+        ),
+        detail = note,
+      }
+    end
+  end
+
+  table.sort(out, function(a, b)
+    local ca = a.telemetry_row and a.telemetry_row.calls or -1
+    local cb = b.telemetry_row and b.telemetry_row.calls or -1
+    if ca ~= cb then
+      return ca > cb
+    end
+    return a.label < b.label
+  end)
+
+  if #out == 0 then
+    return { { kind = "message", label = "(no functions in this tree)" } }
+  end
+  return out
+end
+
 ---Build the list entries for the current state.
 ---@param ir Documentation.IR
 ---@param st table
@@ -465,6 +563,8 @@ function M.entries(ir, st)
     return trail_entries(ir, st)
   elseif st.mode == "endpoints" then
     return endpoints_entries(ir, st)
+  elseif st.mode == "telemetry" then
+    return telemetry_entries(ir, st)
   end
   return structure_entries(ir, st)
 end
@@ -850,6 +950,35 @@ function M.detail(ir, st, entry)
     return out
   end
 
+  if entry.kind == "telemetry" then
+    local row = entry.telemetry_row
+    local out = {
+      ("%s#%s"):format(ir.nodes[entry.id] and ir.nodes[entry.id].module or entry.id, entry.fn),
+      "",
+    }
+    if not row then
+      out[#out + 1] = "No telemetry data for this function."
+      out[#out + 1] = "Neither a matched telemetry key nor a live call count —"
+      out[#out + 1] = "not evidence of anything, just nothing recorded yet."
+    else
+      out[#out + 1] = ("Calls: %d"):format(row.calls)
+      out[#out + 1] = "Static caller: " .. (row.has_static_caller and "yes" or "no")
+      out[#out + 1] = ""
+      if row.calls > 0 and not row.has_static_caller then
+        out[#out + 1] = "dead-function false positive — telemetry proves this is alive"
+        out[#out + 1] = "(a callback, dynamic dispatch, or a cross-repo consumer)."
+      elseif row.calls == 0 and row.has_static_caller then
+        out[#out + 1] = "Cold path: reachable, but nothing exercised it recently."
+      elseif row.calls == 0 and not row.has_static_caller then
+        out[#out + 1] = "High-confidence dead: no static caller and never called."
+        out[#out + 1] = "A prompt to look, not a delete list."
+      end
+    end
+    out[#out + 1] = ""
+    out[#out + 1] = "gd source · gq quickfix"
+    return out
+  end
+
   local node = ir.nodes[entry.id]
   return node and node_detail(node, ir) or { "(no such node)" }
 end
@@ -932,6 +1061,23 @@ function M.status(ir, st)
   -- to be centered, unrelated to the routes actually on screen.
   if st.mode == "endpoints" then
     return ("%d route(s)   [endpoints]"):format(#(st.entries or {})) .. status_tail(st)
+  end
+
+  -- Telemetry, like Endpoints, spans the whole tree — a breadcrumb here
+  -- would point at whatever happens to be centered, unrelated to the join
+  -- actually on screen.
+  if st.mode == "telemetry" then
+    local n, with_data = 0, 0
+    for _, e in ipairs(st.entries or {}) do
+      if e.kind == "telemetry" then
+        n = n + 1
+        if e.telemetry_row then
+          with_data = with_data + 1
+        end
+      end
+    end
+    return ("%d function(s), %d with telemetry data   [telemetry]"):format(n, with_data)
+      .. status_tail(st)
   end
 
   local bits = { M.breadcrumb(ir, st.id) }

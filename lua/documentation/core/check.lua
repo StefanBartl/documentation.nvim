@@ -741,10 +741,19 @@ end
 --- dispatch is invisible to the scanner (`lib.nvim.require`'s metatable and
 --- lazy strategies call things that appear nowhere in the source), so a
 --- confident verdict here is not available at any severity.
+---Every function `key` (`id .. "#" .. fn.name`) this tree's own static
+---analysis considers "used" — a real call edge, a `@see` reference, or a
+---non-zero `local_refs` count (a function passed as a *value*, which never
+---gets a call edge no matter how public its name is). Exactly the definition
+---`check_dead_functions` below is built around, extracted so a second
+---consumer — `documentation.core.telemetry_join`'s static x runtime join,
+---ECOSYSTEM.md step 8 — reads the identical "has a static caller" set rather
+---than a second, potentially-drifting reimplementation of it. See that
+---check's own doc-comment for the full reasoning behind each of the three
+---signals folded in here.
 ---@param ir Documentation.IR
----@param findings Documentation.Finding[]
----@param opts Documentation.Opts
-local function check_dead_functions(ir, findings, opts)
+---@return table<string, true> used key -> true for every function this analysis considers used
+function M.used_keys(ir)
   local called = {}
   for _, e in ipairs(ir.edges or {}) do
     if e.kind == "call" and e.to and e.to_fn then
@@ -763,26 +772,59 @@ local function check_dead_functions(ir, findings, opts)
     end
   end
 
+  local used = {}
   for _, id in ipairs(ir.order) do
     local node = ir.nodes[id]
     for _, fn in ipairs(node.functions) do
       local key = id .. "#" .. fn.name
       local bare = fn.name:match("([%w_]+)$") or fn.name
-      local file_local = not fn.name:find("[.:]")
-      -- `local_refs` has to count as "used" here, not only inside the
-      -- file-local branch below: a function bound as a callback
-      -- (`vim.system(cmd, on_exit)`) never gets a call edge no matter how
-      -- public its name is, and with `opts.dead_code` on, the third tier
-      -- below fires on *any* unused function — it would have reported every
-      -- callback in the tree passed by value, which is precisely the
-      -- confident-wrong-answer this check exists to avoid.
-      local used = called[key]
+      if
+        called[key]
         or seen_by_see[fn.name]
         or seen_by_see[bare]
         or (node.module and seen_by_see[node.module .. "." .. bare])
         or (fn.local_refs or 0) > 0
+      then
+        used[key] = true
+      end
+    end
+  end
+  return used
+end
 
-      if not used then
+---@param ir Documentation.IR
+---@param findings Documentation.Finding[]
+---@param opts Documentation.Opts
+local function check_dead_functions(ir, findings, opts)
+  local used = M.used_keys(ir)
+
+  -- ECOSYSTEM.md step 8: a runtime call is stronger evidence than this
+  -- check's own static analysis can ever produce for the exact case it is
+  -- weakest at — a callback bound as a value, or dynamic dispatch, both
+  -- structurally invisible to a call-edge scan. `by_key` is `nil` whenever
+  -- `runtime-analysis.nvim` is not installed or telemetry was never enabled
+  -- for this tree, in which case every lookup below is simply absent and
+  -- this check behaves exactly as it always has — telemetry only ever
+  -- *suppresses* a finding here, never manufactures one, matching the design
+  -- doc's own "never above info, never a reason for --check to fail" rule
+  -- for this check applying equally to what evidence can silence it.
+  local telemetry_join = require("documentation.core.telemetry_join")
+  local namespace = telemetry_join.namespace(opts)
+  local data = namespace and telemetry_join.load(namespace)
+  local by_key = data and telemetry_join.by_key(ir, data)
+
+  for _, id in ipairs(ir.order) do
+    local node = ir.nodes[id]
+    for _, fn in ipairs(node.functions) do
+      local key = id .. "#" .. fn.name
+      local file_local = not fn.name:find("[.:]")
+
+      if not used[key] then
+        local row = by_key and by_key[key]
+        if row and row.calls > 0 then
+          goto continue
+        end
+
         local why
         if file_local then
           why = "is file-local and nothing in its own file mentions it"
@@ -796,6 +838,7 @@ local function check_dead_functions(ir, findings, opts)
           add(findings, "info", "dead-function", id, ("%s %s"):format(fn.name, why))
         end
       end
+      ::continue::
     end
   end
 end

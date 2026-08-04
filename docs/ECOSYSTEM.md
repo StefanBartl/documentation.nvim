@@ -642,13 +642,46 @@ Ordered so each step is independently useful and nothing is a big-bang.
    shape, extracted out of what had been hand-rolled entirely in personal
    config, with the plugin-manager hook and per-plugin policy deliberately
    left to the caller (see that module's own README section).
-8. **`:DocBrowse` gains a telemetry mode** — the static × runtime join,
+8. ~~**`:DocBrowse` gains a telemetry mode** — the static × runtime join,
    in-editor, per `telemetry-documentation-bridge.md`'s existing design.
    That document calls it "Mode 7", written before step 6 above claimed
    position 7 in the actual `MODES` list for Endpoints instead — it will
    be the 8th entry when it lands, a renumbering worth noting here so a
    future reader is not confused by the mismatch between this document's
-   number and the array position telemetry actually gets.
+   number and the array position telemetry actually gets.~~ **Done
+   (2026-08-04)** — landed as the design doc specified, at position 8 as
+   predicted. `documentation.core.check.used_keys(ir)` (extracted from
+   `check_dead_functions`'s own body, unchanged logic, so the check and the
+   mode can never quietly disagree about what "has a static caller" means)
+   crossed against `runtime-analysis.telemetry.load(namespace)` in a new
+   `documentation.core.telemetry_join` module — soft dependency throughout,
+   `nil` treated as "no data" at every call site, never as evidence.
+   `opts.telemetry_namespace` (new, `opts.title` by default — every
+   telemetry instance in this ecosystem is already namespaced by the
+   plugin's own display name) is what both the mode and dead-function
+   suppression join against.
+
+   Both aggregate lines shipped too, printed by `:DocMap`'s own CLI
+   alongside the existing doc-coverage line, silently absent (not zero) when
+   no telemetry data exists for the run: documented-but-never-called (the
+   maintenance-cost set) and undocumented-but-called (a documentation
+   backlog prioritized by evidence of actual use, the line the design doc's
+   own text called "the most immediately useful number in this whole
+   document"). `dead-function` itself gained one line of real behavior
+   change: a finding is suppressed once telemetry proves the *exact*
+   function alive, exactly the design's ⚠️/`!` cell and nowhere else —
+   never escalated to a higher severity, matching the design doc's own
+   explicit "a prompt to look, never a delete list" instruction for this
+   check.
+
+   Verified in `TESTS/browse_telemetry_spec.lua` against a real
+   `runtime-analysis.telemetry` instance when one is reachable
+   (`RUNTIME_ANALYSIS_DIR`, the same rtp wiring `browse_endpoints_spec.lua`'s
+   own `gs` test already established) — a real wrap, real calls, a real
+   flush to disk, read back with no live instance the same way a fresh
+   `:DocMap check` run would — not only the join's pure-data-in-pure-data-out
+   half. See `runtime-analysis.nvim`'s `docs/FINISHED.md` for that
+   repository's own side of this entry.
 9. **Full-file previews / browser request runner / a Runtime tab under
    `serve`** — all three require the serve tier, and the runner additionally
    requires token gating.
