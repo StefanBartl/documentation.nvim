@@ -12,6 +12,8 @@
 ---@field live? boolean Install a watching `docmap.install()` handle instead of reading the artifact — costs a full scan up front, but the view then updates on write. Default false.
 ---@field center? string Node id or `@module` path to open centered on. Default: the map's root.
 ---@field mode? Documentation.Browse.Mode Which list to open on. Default "structure".
+---@field title? string Display name for the root node — the same field `Documentation.Opts.title` is, forwarded here because `telemetry` mode's join (ECOSYSTEM.md step 8) needs it as the default `runtime-analysis.telemetry` namespace. Not needed for anything else the browser does.
+---@field telemetry_namespace? string Overrides `title` as the namespace `telemetry` mode joins against — see `Documentation.Opts.telemetry_namespace`'s own doc-comment for when the two genuinely differ.
 ---@field depth? integer Initial Deps walk depth. Default 2.
 ---@field theme? Lib.UI.Kit.ThemeArg Passed through to the kit layout.
 ---@field width? number Fraction of the editor the whole layout uses. Default 0.86.
@@ -61,12 +63,13 @@
 ---| "history"   # Commits, and the functions each one's diff touches.
 ---| "trail"     # Pinned positions, in the order they were pinned.
 ---| "endpoints" # Call-based route registrations across the whole tree, not centered on any one node — see `core/endpoints.lua`.
+---| "telemetry" # The static x runtime join against `runtime-analysis.telemetry` — not centered on any one node — see `core/telemetry_join.lua`.
 
 ---One row of the list. Everything the row can *do* — navigate, open source,
 ---go into the quickfix list — is a field here rather than something re-derived
 ---from the rendered text, so the label stays purely presentational.
 ---@class Documentation.Browse.Entry
----@field kind "node"|"function"|"type"|"external"|"message"|"commit"
+---@field kind "node"|"function"|"type"|"external"|"message"|"commit"|"endpoint"|"telemetry"
 ---@field sha string? Full commit hash, for `kind="commit"`.
 ---@field commit table? The `{ sha, short, author, date, subject }` record behind a `kind="commit"` row.
 ---@field callers Documentation.History.Caller[]? Direct callers of a touched function, in History mode — carried on the entry so the detail pane needs no second lookup against an IR that may not describe that revision.
@@ -81,6 +84,7 @@
 ---@field pin Documentation.Browse.Pin? The pin behind a Trail row. Its presence is what makes `<CR>` restore a whole view (mode and axes) rather than just re-center — see `browse.enter`.
 ---@field pin_index integer? 1-based position in the trail, for `d`.
 ---@field detail string? One-line hint shown when the row has no richer detail.
+---@field telemetry_row Documentation.TelemetryJoin.Row? The join row behind a `kind="telemetry"` entry — `nil` for a function `runtime-analysis.telemetry` has no data for, distinct from a row with `calls = 0`.
 
 ---@class Documentation.Browse
 ---@field open fun(opts: Documentation.Browse.Opts): boolean

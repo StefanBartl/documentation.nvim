@@ -1,6 +1,6 @@
 ---@module 'documentation.bindings.usrcmds.browse'
---- `:DocBrowse [live] [history|trail|endpoints|module]` — the same map,
---- navigated inside the editor.
+--- `:DocBrowse [live] [history|trail|endpoints|telemetry|module]` — the same
+--- map, navigated inside the editor.
 ---
 --- Its own command rather than a `:DocMap browse` subcommand: `:DocMap` is a
 --- *generator* (every action of it writes or verifies artifacts), while this
@@ -30,9 +30,10 @@ function M.parse(rest)
     target = tail
     head, tail = target:match("^(%S+)%s*(.-)$")
   end
-  -- `history`, `trail` and `endpoints` open straight into their own list.
-  -- None takes a module, so anything after them would be meaningless.
-  if head == "history" or head == "trail" or head == "endpoints" then
+  -- `history`, `trail`, `endpoints` and `telemetry` open straight into their
+  -- own list. None takes a module, so anything after them would be
+  -- meaningless.
+  if head == "history" or head == "trail" or head == "endpoints" or head == "telemetry" then
     mode = head
     target = tail or ""
   end
@@ -56,6 +57,12 @@ function M.run(ctx, arg)
     -- copy of them that only this entry point gets.
     keys = cfg.keys,
     which_key = cfg.which_key,
+    -- `telemetry` mode's own join (ECOSYSTEM.md step 8) needs a namespace to
+    -- read `runtime-analysis.telemetry` data by — see `Documentation.Browse.
+    -- Opts.title`'s own doc-comment for why this is the same `title` every
+    -- other command already has, not a second thing to configure.
+    title = cfg.title,
+    telemetry_namespace = cfg.telemetry_namespace,
     live = parsed.live,
     mode = parsed.mode,
     center = parsed.center,

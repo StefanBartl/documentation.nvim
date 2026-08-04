@@ -7,6 +7,8 @@
 :DocBrowse live             " install a watching handle instead (~0.65s once)
 :DocBrowse lib.nvim.fs      " open centered on a module
 :DocBrowse history          " open on the commit list
+:DocBrowse endpoints        " open on the whole tree's route registrations
+:DocBrowse telemetry        " open on the static x runtime join
 :DocBrowse live lib.nvim.fs
 ```
 
@@ -76,7 +78,7 @@ place, keeping its subscribers.
 
 | Key | Effect |
 | --- | --- |
-| `1` … `6` | Structure / Deps / Calls / Types / History / Trail |
+| `1` … `8` | Structure / Deps / Calls / Types / History / Trail / Endpoints / Telemetry |
 | `j` `k` | Move; the detail pane follows |
 | `<CR>` | Descend a level (Structure) or follow the edge (Deps/Calls) |
 | `-` / `<BS>` | Up a level |
@@ -88,6 +90,7 @@ place, keeping its subscribers.
 | `gI` | Blast radius of the selected node into the quickfix list |
 | `gO` | Open the generated page at this exact position |
 | `gD` | The opened commit's diff in a scratch buffer (History) |
+| `gs` | Send the selected route as a request via `runtime-analysis.nvim` (Endpoints) |
 | `p` | Pin / unpin the entry under the cursor |
 | `d` | Unpin (Trail) |
 | `S` | Save this trail under a name (Trail) |
@@ -111,6 +114,26 @@ that was never there. They stay *bound* in every mode too — the handlers
 already gate themselves, and leaving the key unbound would let it fall through
 to Vim's own meaning, where `+` moves the cursor down a line. Nothing
 happening is the better wrong answer.
+
+## Telemetry mode
+
+The static x runtime join — ECOSYSTEM.md step 8, `docs/ROADMAP/telemetry-
+documentation-bridge.md` (in the `lib.nvim` repo) for the full design. One
+row per function this tree's own static analysis and a `runtime-analysis.
+telemetry` namespace (`opts.title` by default, `opts.telemetry_namespace`
+to override) both have an opinion about, badge-prefixed by which of four
+cells it falls in: `✕` no static caller and never called, `!` called but no
+static caller (a `dead-function` false positive — a callback, dynamic
+dispatch, or a cross-repo consumer — telemetry proves it alive), `○` has a
+static caller but nothing exercised it, blank when both agree the function
+is healthy. A function with no telemetry data at all is listed too,
+undecorated except a trailing note — absence of data is never rendered as
+if it were evidence, in this mode or in `dead-function`'s own suppression
+(the same join silences a `dead-function` finding once telemetry proves the
+exact function alive, never the reverse). Soft dependency throughout:
+`pcall(require, "runtime-analysis.telemetry")`, a plain message when the
+plugin is absent or nothing was ever recorded for the namespace, exactly
+like `gs` degrades in Endpoints mode.
 
 The history stack is the counterpart to the browser's Back/Forward, and it
 matters *more* here: without an address bar there is no other answer to "where

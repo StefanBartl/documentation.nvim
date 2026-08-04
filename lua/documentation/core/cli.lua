@@ -137,6 +137,22 @@ function M.run(opts, argv)
       )
     )
   end
+  -- ECOSYSTEM.md step 8's two aggregate lines — silently absent, not zero,
+  -- when no telemetry data exists for this run: see telemetry_join.lua's own
+  -- doc-comment for why "no data" and "zero" must never be the same message.
+  local telemetry_summary = require("documentation.core.telemetry_join").doc_usage_summary(ir, opts)
+  if telemetry_summary then
+    io.stdout:write(
+      ("%d documented function(s) never called — maintenance cost\n"):format(
+        telemetry_summary.documented_unused
+      )
+    )
+    io.stdout:write(
+      ("%d undocumented function(s) actually called — prioritized backlog\n"):format(
+        telemetry_summary.undocumented_used
+      )
+    )
+  end
   local tally = report(findings)
   return (strict and tally.error > 0) and 1 or 0
 end
