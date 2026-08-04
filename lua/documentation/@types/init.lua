@@ -462,3 +462,5 @@
 ---@field install fun(opts: Documentation.Opts): Documentation.Handle
 ---@field uninstall fun(handle: Documentation.Handle|string): boolean Accepts a handle or a root path.
 ---@field render table
+
+return {}
