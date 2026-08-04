@@ -643,6 +643,83 @@ Cost, for the record: 45 files rewritten, 19 `dead-readme-link` findings from
 the module READMEs pointing at moved files — every one of them raised by this
 plugin's own check against its own tree, which is the argument for the check.
 
+## Generated page — four interaction gaps closed (2026-07-29)
+
+All four requests of 2026-07-28 built. Two produced decisions worth keeping.
+
+**1. Sortable Analysis panels.** Every column header in Test coverage,
+Documentation, Dependencies and Complexity sorts; clicking the active column
+flips direction, clicking a new one starts at that column's natural direction
+(descending for a number, ascending for a name). The sort is in the URL
+fragment, so a sorted panel is linkable and survives Back.
+
+The decision the entry asked for — shared sort state or per-subtab — resolved
+to **shared**, and that fell out of the implementation rather than being
+chosen up front: the columns differ per panel, so `anSort` looks the key up in
+the panel's own column spec and silently falls back to that panel's default
+order when it does not match. A `asort=fanIn` carried into the Complexity
+panel therefore degrades to the normal view instead of breaking it, which is
+what makes one shared axis safe.
+
+Each panel's **default** order survives untouched, and that mattered more than
+it looks: "worst coverage first, then most functions affected, then id" is an
+editorial judgement about where to look, and collapsing it to "sorted by pct
+descending" would have quietly changed what the panel recommends.
+
+**2. Middle-mouse panning.** Hold the middle button anywhere in the graph
+and drag in both axes. Left-drag deliberately still selects text — the boxes
+carry module names people copy. Three things had to be suppressed: the
+browser's own autoscroll (`preventDefault` on `mousedown` button 1),
+`auxclick` (which would open a link in a new tab if the drag ended over one),
+and text selection while dragging. The listeners are on `window`, not the
+element, so a drag that leaves the graph keeps working and a release outside
+it still ends the drag.
+
+**3. The search box works per tab.** Analysis gained a real filter,
+including the Duplicates panel — which filters by *group*, not by member: a
+duplicate group with its matching members removed is no longer a duplicate
+group, so a group survives if any member matches and is then shown whole.
+
+The general shape resolved as the entry predicted: one contract per tab, not
+one matcher over the page. What is shared is the placeholder, which now names
+what the current tab will match, and the box is **disabled** on the three tabs
+that do not filter — a box that invites typing and then ignores it is what
+made this read as broken in the first place.
+
+**4. The header counts are links.** modules → the Hierarchy Modules view,
+files → the Tree tab, namespaces → the Index tab's Modules view, errors and
+warnings → the findings disclosure at the foot of the page, opened and
+scrolled to the first row of that severity, which then flashes. A count of
+zero renders disabled rather than as a live link.
+
+Two things in the original entry were **wrong**, corrected here so the next
+reader does not inherit them:
+
+- *"Errors and warnings have no home on the page at all."* They do — a
+  collapsed `<details>` at the page foot, present on every tab. It was never
+  linked to, which is a different and much cheaper problem than the new panel
+  the entry proposed. No panel was built.
+- *"Namespaces need a view."* They did not. The Index tab's Modules view
+  already lists "every module and namespace filed under the last segment of
+  the module path". A sixth tab would have been a third rendering of a set
+  that already had two.
+
+**And one real bug, found by testing this.** The Duplicates panel had *never
+worked*. `render/html.lua` builds its own embedded payload
+(`meta`/`root`/`nodes`/`edges`/`tag_links`) rather than reusing `to_json`, and
+`duplicates` was never added to it — so the panel read `IR.duplicates`, found
+nothing, and showed "This map was generated before duplicate detection
+existed. Regenerate it to see this panel." on *every* map, including one
+generated a second earlier. The advice was impossible to follow: regenerating
+produced the same payload again. Confirmed against the committed artifact at
+`HEAD`, so it shipped that way. Fixed by adding `duplicates` to the payload,
+with the empty shape rather than `nil` when absent so the panel can still tell
+"ran, found nothing" from "this artifact predates the feature".
+
+The lesson worth keeping: the two serialisations were allowed to drift because
+only one of them is byte-compared by `--check`. Any field added to `to_json`
+from now on needs a deliberate answer about whether the page needs it too.
+
 ## `:DocMap plugins` and the Plugins Analysis panel — lazy.nvim spec inventory (2026-08-03)
 
 The map's first feature aimed specifically at a Neovim *config* rather than

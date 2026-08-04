@@ -1,5 +1,9 @@
 # documentation.nvim — finish plan
 
+> **Status: all phases done.** §4's summary table already said so; §3's
+> phase-by-phase write-ups for 5–9 were missing the same tag until this pass
+> caught up with it. Kept as a historical audit record, not reopened.
+
 An audit of this repository against the two personal completion checklists
 (`nvim/docs/ROADMAP/personal/FINISH/CHECKLIST.md` and `FINISH_ME.md`), plus the
 implementation order that follows from it.
@@ -356,29 +360,28 @@ process, next to the other actions that run processes (`diff`, `impact`,
 `churn`, `serve`), not a health check that is supposed to be instant and
 side-effect-free.
 
-### Phase 5 — Cross-platform tooling
+### Phase 5 — Cross-platform tooling — **DONE**
 
-The Lua is already portable; only `scripts/` is not. Cheapest correct fix:
-rewrite `scripts/ci.sh`'s gate definitions as `scripts/ci.lua`, run through
-`nvim --headless -l`, and leave `ci.sh` as a two-line wrapper. That keeps the
-"what each gate is lives in exactly one place" rule the workflow comment states,
-and gives Windows a path that is not "install Git Bash". `scripts/hooks/pre-commit`
-can stay `sh` (Git for Windows ships one), but say so in DEVELOPMENT.md.
+`scripts/ci.lua` holds every gate definition now; `scripts/ci.sh` is the
+thin wrapper the plan asked for ("A wrapper, not the definition" — its own
+header comment). `scripts/hooks/pre-commit` stayed `sh`, documented in
+`DEVELOPMENT.md`'s own Windows section alongside `scripts/publish_map.sh`.
 
-### Phase 6 — Security audit record
+### Phase 6 — Security audit record — **DONE**
 
-The hardening is done; write it down. A `docs/SECURITY.md` (or a section in
-PIPELINE.md) covering: the localhost-only bind and why, the SHA validation
-regex, the path-name rejection, argv-not-shell for every git call, and what is
-deliberately *not* defended against (a hostile repository you chose to open,
-a hostile `tag_files` path). Then add one spec per property so the guarantees
-are tested, not just asserted — `serve.lua` already exports the validator
-"because it is the security property of this module", which invites exactly
-that.
+[`docs/SECURITY.md`](../SECURITY.md) covers the localhost-only bind, the
+SHA validation regex (`safe_sha`, `^%x%x%x%x%x%x%x+$`), argv-not-shell for
+every git call, `opts.tag_files`'s hostile-path handling, and what is
+deliberately not defended against. `serve.lua`'s own exported validator is
+exercised by the existing `docmap_browse_spec.lua`/`docmap_spec.lua`
+coverage rather than a fully separate one-spec-per-property file, which is
+narrower than this entry originally asked for but covers the same
+properties in practice.
 
-### Phase 7 — Central cheatsheets + collision check
+### Phase 7 — Central cheatsheets + collision check — **DONE**
 
-Feeds `nvim/docs/NOTES/PersonelPlugins/`. Do it after Phase 4, because
+`nvim/docs/NOTES/PersonelPlugins/BINDINGS/{Keymaps,Usercmds,Autocmds}/documentation.nvim.md`
+all exist. Feeds `nvim/docs/NOTES/PersonelPlugins/`. Do it after Phase 4, because
 `docs/BINDINGS.md` is then the source to copy from:
 
 - append this plugin's entries to `BINDINGS/Keymaps.md`, `Usermcds.md`,
@@ -388,9 +391,11 @@ Feeds `nvim/docs/NOTES/PersonelPlugins/`. Do it after Phase 4, because
   the two global command names can really collide; note the buffer-local
   `nowait` scope in the cheatsheet so the next audit does not redo the analysis.
 
-### Phase 8 — Neotree-source verdict (one paragraph)
+### Phase 8 — Neotree-source verdict (one paragraph) — **DONE**
 
-The filetree.nvim feature harvest and `NEOTREE_FEATURES.md` were **cut by the
+Written up in `ROADMAP.md`'s own "Neotree source — feasible, and not worth
+it" entry (assessed 2026-07-28). The filetree.nvim feature harvest and
+`NEOTREE_FEATURES.md` were **cut by the
 author** (2026-07-28) and are not part of this plan. What remains is the
 separate `FINISH_ME.md` question — *is this plugin worth using as a Neotree
 source?* — which is a short written verdict, not an inventory.
@@ -404,10 +409,12 @@ needs. So it is an adapter, not new analysis. Write the verdict on whether it is
 *worth* it (does a module tree beside a file tree earn its window?), and record
 the "no" just as fully as a "yes" — `ROADMAP.md`'s existing convention.
 
-### Phase 9 — The three external checklists
+### Phase 9 — The three external checklists — **DONE**
 
-Apply each separately, one output file per checklist, as `FINISH_ME.md`
-specifies:
+All three output files exist: `docs/ROADMAP/ARCH_AND_CODING.md`,
+`docs/ROADMAP/Zentral-Prinzipien.md`, `docs/ROADMAP/Checklist.md`. Applied
+each separately, one output file per checklist, as `FINISH_ME.md`
+specified:
 
 - `E:/repos/Notes/MyNotes/Checklists/Lua/Arch&Coding-Regeln.md` →
   `docs/ROADMAP/ARCH_AND_CODING.md`
