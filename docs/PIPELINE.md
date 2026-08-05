@@ -1348,8 +1348,14 @@ library's own submodule:
 - **Root resolution.** `command.setup()` used to walk up from its own source
   file, because the tree it mapped was always the one it lived in. A plugin
   installed under a plugin manager resolving that way would map its own
-  checkout, so the default is now `vim.fn.getcwd()` — with `opts.root` as the
+  checkout, so the default became `vim.fn.getcwd()` — with `opts.root` as the
   explicit answer whenever "wherever the user is" is not good enough.
+  (`getcwd()` itself did not survive contact with real use, either: it answers
+  "where was Neovim started", not "which repository is the user looking at",
+  and does not move when a buffer in another checkout is opened. `:DocMap`/
+  `:DocBrowse` now resolve per invocation from the current buffer's file
+  instead — see |documentation-root|. `install()`'s own `opts.root` is
+  unaffected; it was always the caller's to set.)
 - **The repo-specific check moved out.** `type-not-exported` (lib.nvim's
   aggregate-`Lib`-class check) was in `config.lua`; it was never generic and
   belongs to the repository that needs it, passed in through
