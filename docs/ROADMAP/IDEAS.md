@@ -340,6 +340,103 @@ workspace-symbol request answers. Whether this is worth building depends
 entirely on whether it beats `lua-language-server`, which most people
 already have. **Probably not**; noted so the question is not re-asked.
 
+### 6.6 A generic CLI entry, no per-repo copy
+
+[REUSE.md](../REUSE.md)'s CI path is "copy `scripts/gen_map.lua`, edit five
+lines". That is the right shape for a repository that maps *itself* on every
+CI run — the options are fixed, so hardcoding them in a committed file is
+honest. It is the wrong shape for mapping an arbitrary repository once, from
+wherever you happen to be, which is what came up sketching CLI support for a
+config that keeps several dozen personal plugins as sibling checkouts: nobody
+wants a `gen_map.lua` copy sitting in each one just to run `--check` by hand
+occasionally.
+
+`core/cli.lua`'s `M.run(opts, argv)` already does not care where `opts` came
+from — the sketch below only replaces "how the options table gets built",
+same dependency-probing `gen_map.lua` already has, flags instead of a literal
+table:
+
+```lua
+-- scripts/cli.lua — sketched, not wired into ci.lua or REUSE.md.
+--   nvim --headless -l scripts/cli.lua -- --root /path/to/repo [flags]
+local args = _G.arg or {}
+local flags = {}
+for _, a in ipairs(args) do
+  local key, val = a:match("^%-%-([%w_]+)=(.*)$")
+  if key then
+    flags[key] = val
+  elseif a:match("^%-%-[%w_]+$") then
+    flags[a:sub(3)] = true
+  end
+end
+
+if not flags.root or flags.root == true then
+  io.stderr:write("cli.lua: --root <path> is required.\n")
+  os.exit(1)
+end
+
+local root = tostring(flags.root):gsub("\\", "/"):gsub("/+$", "")
+vim.opt.runtimepath:prepend(root)
+-- ... same ensure()-shaped dependency probing gen_map.lua already has ...
+
+local opts = require("documentation.config").build(root, {
+  source = flags.source,   -- nil is fine: auto-detected
+  title = flags.title,
+  repo_url = flags.repo_url,
+  branch = flags.branch,
+  out_dir = flags.out_dir,
+  tests_dir = flags.tests_dir,
+})
+
+local code = require("documentation.core.cli").run(opts, args)
+vim.cmd("cq " .. code)
+```
+
+Open questions before this is worth building for real: whether flag parsing
+belongs in this plugin at all versus staying a "here is the fifteen-line
+pattern, adapt it" REUSE.md recipe (the file already has two of those); and
+whether an *optional* `.docmap.lua` config file in the target repo — read
+when present, flags overriding it — is worth the extra surface over "just
+pass flags every time" for a repo visited more than once. Neither has an
+answer yet, which is the whole reason this is here and not in `scripts/`.
+
+### 6.7 A REUSE.md recipe for "many repos, one config"
+
+The companion to 6.6: a config that clones several dozen personal plugins as
+siblings under one directory (this plugin's own author's setup is the
+motivating case) wants "map every checkout that exists locally" as one
+command, not one invocation per repo typed by hand.
+
+The shape only exists because such a config already has to answer "which
+repos, and where are they on disk" for its own plugin manager — a generic
+version of this belongs in *that* config's own tooling, not in
+documentation.nvim, which correctly knows nothing about any particular
+config's plugin-list format. What documentation.nvim *can* own is a REUSE.md
+recipe showing the pattern, so the next person solving this problem starts
+from a sketch instead of from nothing:
+
+```lua
+-- Sketched against one real config's shape (a `{ repo, name }` list reader
+-- plus a `local_dev(name) -> path|nil` resolver over a REPOS_DIR env var) --
+-- the specific readers are config-local, the loop over them is not.
+for _, entry in ipairs(personal_plugin_list()) do
+  local dir = local_checkout_path(entry.name)   -- nil: not cloned, skip
+  if dir then
+    local opts = require("documentation.config").build(dir, { title = entry.name })
+    local argv = checking and { "--check", "--lenient" } or {}
+    local code = require("documentation.core.cli").run(opts, argv)
+    io.stdout:write(("[%s] exit %d\n"):format(entry.name, code))
+  end
+end
+```
+
+Same open question as 6.6 about where flag/config parsing should live, plus
+one specific to this shape: `core.cli.run` writes straight to stdout/stderr
+per repo with no repo-name prefix on its own output (only the wrapper's own
+`io.stdout:write` line here adds one) — fine for one repo, a little hard to
+scan across thirty. Worth a `label` option on `run()` if this ever gets
+built for real, rather than every caller re-solving it.
+
 ---
 
 ## 7. Scale and performance
