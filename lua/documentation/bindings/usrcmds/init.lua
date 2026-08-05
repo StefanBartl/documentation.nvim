@@ -117,21 +117,52 @@ local function starting_with(candidates, lead)
   end, candidates)
 end
 
----Resolve the repository root the map should be generated for.
----
----The **current working directory**, not this file's own location. As
----`lib.nvim.docmap` the answer was the opposite — the map being generated was
----always lib.nvim's own, so walking up from this file was the correct root and
----`getcwd()` was the wrong one. A standalone plugin maps whatever repository
----the user is in; walking up from here would resolve to documentation.nvim's
----own checkout inside the plugin manager's directory, which is never the tree
----anyone typed `:DocMap` to see.
----
----Pass `opts.root` explicitly (from a lazy spec, from `install()`) whenever
----the answer must not depend on where the user happens to be.
+---@param p string
 ---@return string
-local function default_root()
-  return (vim.fn.getcwd():gsub("\\", "/"):gsub("/+$", ""))
+local function norm(p)
+  return (tostring(p):gsub("\\", "/"):gsub("/+$", ""))
+end
+
+---Resolve the repository root the map should be generated for, **at the
+---moment the command runs** — from the current buffer's file, not from this
+---file's own location and not from the process's startup directory.
+---
+---WHY THE BUFFER AND NOT `getcwd()`
+---This resolved `getcwd()` once, in `setup()`, and closed the answer into the
+---command. Because the plugin is `cmd`-lazy, "once" meant *the first `:DocMap`
+---of the session*, and every later invocation regenerated that first
+---repository no matter which one the user was looking at — silently, since the
+---report said "Wrote 3 artifacts" without naming a tree. Verified the ugly
+---way: a `:DocMap full` in one checkout, then the same command with another
+---project's file open, rewrote the first project's artifact a second time and
+---reported success.
+---
+---`getcwd()` is the wrong question even asked per invocation: `:e` a file in a
+---sibling repository and the working directory does not follow. "Which project
+---am I looking at" is a buffer question, which is how every other plugin that
+---has to answer it (LSP roots, git signs, pickers) answers it.
+---
+---`vim.fs.root` rather than lib.nvim's `polymorphic_rootresolver`, which
+---otherwise fits exactly: that helper collapses any root under
+---`stdpath("config")` to the config directory itself. Correct for an LSP, wrong
+---here — a git worktree checked out *inside* the config tree is its own
+---repository with its own `docs/map`, and collapsing it would reintroduce the
+---exact "wrote to the wrong tree" bug this function exists to fix. A `.git`
+---file (worktrees) matches the marker the same as a `.git` directory.
+---@param markers string[]
+---@return string
+local function buffer_root(markers)
+  local name = vim.api.nvim_buf_get_name(0)
+  -- No file behind the buffer (`:DocBrowse`'s own scratch buffer, a dashboard,
+  -- a fresh `nvim`): there is nothing to walk up from, and the working
+  -- directory is the only remaining statement about where the user is.
+  if name ~= "" then
+    local found = vim.fs.root(name, markers)
+    if found then
+      return norm(found)
+    end
+  end
+  return norm(vim.fn.getcwd())
 end
 
 ---@param opts Documentation.Opts?
@@ -141,30 +172,101 @@ function M.setup(opts)
   local notify = require("lib.nvim.notify").create("[documentation]")
   local registry = require("documentation.editor.registry")
 
-  -- Always through `config.build`: a caller passing a partial table (the
-  -- common case from a plugin spec's `opts`) would otherwise arrive here with
-  -- no `out_dir`, no `command_name` and no `source`, and every downstream
-  -- `cfg.x or default` would have to repeat the default list.
-  local cfg = require("documentation.config").build((opts and opts.root) or default_root(), opts)
-  local command_name = cfg.command_name or "DocMap"
-  local browse_command_name = cfg.browse_command_name or "DocBrowse"
+  -- An explicit `root` pins, exactly as before: a caller who names a tree in
+  -- their spec means "always this one", and a command that wandered off it
+  -- would be a different bug of the same family. Only its *absence* — the
+  -- `:DocMap`-in-whatever-repo-I-am-in case — resolves per invocation.
+  local pinned_root = opts and opts.root and norm(opts.root) or nil
+  local markers = (opts and opts.root_markers) or { ".git" }
 
-  local handle = registry.get(cfg.root) or registry.install(cfg)
+  ---@return string
+  local function resolve_root()
+    return pinned_root or buffer_root(markers)
+  end
 
-  ---@type Documentation.Bindings.Ctx
-  local ctx = {
-    cfg = cfg,
-    handle = handle,
-    notify = notify,
-    command_name = command_name,
-    open_map = require("documentation.bindings.usrcmds.open").opener(cfg, notify, command_name),
-    find_node = function(ir, name, lua_root)
-      return require("documentation.core.find").node(ir, name, lua_root)
-    end,
-  }
+  ---Everything the actions read, for one repository.
+  ---
+  ---Rebuilt per invocation rather than closed over once. Cheap: `config.build`
+  ---is a table merge plus one `vim.fs.dir` probe for `source`, and
+  ---`registry.get` makes the handle a hash lookup for every root already
+  ---scanned this session. Only a root seen for the first time pays for a scan,
+  ---which is the work the user asked for by naming a new tree.
+  ---@param root string
+  ---@return Documentation.Bindings.Ctx
+  local function ctx_for(root)
+    -- Always through `config.build`: a caller passing a partial table (the
+    -- common case from a plugin spec's `opts`) would otherwise arrive here with
+    -- no `out_dir`, no `command_name` and no `source`, and every downstream
+    -- `cfg.x or default` would have to repeat the default list.
+    local cfg = require("documentation.config").build(root, opts)
+    local handle = registry.get(cfg.root) or registry.install(cfg)
+    ---@type Documentation.Bindings.Ctx
+    return {
+      cfg = cfg,
+      handle = handle,
+      notify = notify,
+      command_name = cfg.command_name or "DocMap",
+      open_map = require("documentation.bindings.usrcmds.open").opener(
+        cfg,
+        notify,
+        cfg.command_name or "DocMap"
+      ),
+      find_node = function(ir, name, lua_root)
+        return require("documentation.core.find").node(ir, name, lua_root)
+      end,
+    }
+  end
+
+  ---Module names for completion, from the current root — but **only if that
+  ---root is already installed**.
+  ---
+  ---`registry.get`, never `ctx_for`. Completion runs on every keystroke of an
+  ---argument, and `ctx_for` installs on a miss: pressing Tab in a repository
+  ---this session has not scanned would otherwise block the editor on a full
+  ---scan (`full`-sized, with LuaLS, if that is how the tree was configured)
+  ---for a list of candidates. An unscanned root simply offers no module names
+  ---— the same thing it offered before any of this was dynamic, and the very
+  ---next `:DocMap` installs the handle that makes them appear.
+  ---@return string[]
+  local function completion_names()
+    local entry = registry.get(resolve_root())
+    if not entry then
+      return {}
+    end
+    local cfg = require("documentation.config").build(resolve_root(), opts)
+    return module_names(entry.ir(), cfg.lua_root or "lua")
+  end
+
+  -- The command *names* cannot be per-invocation — they are registered once —
+  -- so they come from a config built for whichever root is current at setup
+  -- time. Neither name depends on the tree, so this is a read of `opts`, not
+  -- an early binding of a root.
+  local setup_cfg = require("documentation.config").build(resolve_root(), opts)
+  local command_name = setup_cfg.command_name or "DocMap"
+  local browse_command_name = setup_cfg.browse_command_name or "DocBrowse"
+
+  local handle = registry.get(setup_cfg.root) or registry.install(setup_cfg)
 
   usercmd.create(command_name, function(args)
     local action = vim.trim(args.args or "")
+
+    local verb, rest
+    if action ~= "" then
+      verb, rest = action:match("^(%S+)%s*(.-)$")
+      -- Validate *before* resolving a root: an unknown verb must not install a
+      -- handle (a full scan) for a tree the user never got to act on.
+      if not (verb and ACTIONS[verb]) then
+        notify.warn(
+          ("Unknown action '%s'. Expected one of: %s  (or no argument to regenerate)."):format(
+            verb or action,
+            table.concat(action_names(), ", ")
+          )
+        )
+        return
+      end
+    end
+
+    local ctx = ctx_for(resolve_root())
 
     -- Empty, and only empty, is the generate action. Anything typed that is
     -- not a known verb is a mistake, and saying so beats writing files.
@@ -173,19 +275,7 @@ function M.setup(opts)
       return
     end
 
-    local verb, rest = action:match("^(%S+)%s*(.-)$")
-    local handler = verb and ACTIONS[verb]
-    if not handler then
-      notify.warn(
-        ("Unknown action '%s'. Expected one of: %s  (or no argument to regenerate)."):format(
-          verb or action,
-          table.concat(action_names(), ", ")
-        )
-      )
-      return
-    end
-
-    handler(ctx, rest or "")
+    ACTIONS[verb](ctx, rest or "")
   end, {
     nargs = "*",
     desc = "Regenerate the module map (:"
@@ -197,7 +287,7 @@ function M.setup(opts)
       -- the argument nobody wants to type by hand.
       local after_graph = line:match("graph%s+%a*%s+(.*)$") or line:match("graph%s+(%a*)$")
       if line:match("graph%s+%a+%s") or line:match("why%s") or line:match("dot%s+%a+%s") then
-        return starting_with(module_names(handle.ir(), cfg.lua_root or "lua"), lead)
+        return starting_with(completion_names(), lead)
       elseif after_graph or line:match("dot%s+%a*$") then
         return starting_with({ "deps", "calls" }, lead)
       end
@@ -206,7 +296,7 @@ function M.setup(opts)
   })
 
   usercmd.create(browse_command_name, function(args)
-    require("documentation.bindings.usrcmds.browse").run(ctx, args.args or "")
+    require("documentation.bindings.usrcmds.browse").run(ctx_for(resolve_root()), args.args or "")
   end, {
     nargs = "*",
     desc = ("Browse the module map in the editor (:%s [live] [history|trail|endpoints|module])"):format(
@@ -221,7 +311,7 @@ function M.setup(opts)
       if not line:match("%s%S+%s") then
         candidates[#candidates + 1] = "live"
       end
-      vim.list_extend(candidates, module_names(handle.ir(), cfg.lua_root or "lua"))
+      vim.list_extend(candidates, completion_names())
       table.sort(candidates)
       return starting_with(candidates, lead)
     end,

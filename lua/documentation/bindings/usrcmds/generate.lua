@@ -68,9 +68,20 @@ function M.run(ctx, opts)
 
   report_timing(ctx, ir)
 
+  -- Naming the tree is not decoration. `:DocMap` resolves its root per
+  -- invocation (see `usrcmds/init.lua`'s `buffer_root`), so "Wrote 3
+  -- artifacts" without a subject is a report the reader cannot check — and
+  -- back when the root was resolved once per session, that missing subject is
+  -- precisely what let a `:DocMap` regenerate the *previous* repository twice
+  -- and look like it had worked. The label is the repo directory name
+  -- (`cfg.title`, derived from `root`), not the whole path: it is the word the
+  -- user would use for the project.
+  local where = ctx.cfg.title or vim.fn.fnamemodify(ctx.cfg.root, ":t")
+
   if luals then
     ctx.notify.info(
-      ("Wrote %d artifacts with LuaLS enrichment (%d modules, %d edges, %d errors)"):format(
+      ("%s: wrote %d artifacts with LuaLS enrichment (%d modules, %d edges, %d errors)"):format(
+        where,
         #written,
         ir.meta.counts.module,
         #(ir.edges or {}),
@@ -79,7 +90,8 @@ function M.run(ctx, opts)
     )
   else
     ctx.notify.info(
-      ("Wrote %d artifacts (%d modules, %d errors)"):format(
+      ("%s: wrote %d artifacts (%d modules, %d errors)"):format(
+        where,
         #written,
         ir.meta.counts.module,
         tally.error
@@ -100,10 +112,15 @@ function M.check(ctx)
     tally.info
   )
 
+  -- Named for the same reason `run` names it, and it matters more here: the
+  -- pre-commit hook runs this, and "0 errors" about the wrong tree is a green
+  -- light nobody earned.
+  local where = ctx.cfg.title or vim.fn.fnamemodify(ctx.cfg.root, ":t")
+
   if tally.error > 0 then
-    ctx.notify.warn("Module map drift: " .. summary)
+    ctx.notify.warn(("%s: module map drift — %s"):format(where, summary))
   else
-    ctx.notify.info("Module map: " .. summary)
+    ctx.notify.info(("%s: module map — %s"):format(where, summary))
   end
 
   -- Route the detail through the quickfix list rather than a notification so

@@ -50,7 +50,7 @@ plugin](docs/PIPELINE.md#why-this-is-its-own-plugin).
 
 | Artifact | What it is |
 |---|---|
-| `docs/map/index.html` | The interactive map: **Tree**, **Hierarchy**, **Notes**, **Index**, **History** and **Analysis** tabs. Self-contained — no CDN, no build step. |
+| `docs/map/index.html` | The interactive map: **Quicks**, **Tree**, **Hierarchy**, **Notes**, **Index**, **History**, **Analysis** and **Compare** tabs. Self-contained — no CDN, no build step. |
 | `docs/map/overview.md` | The same tree as Markdown, so it renders on GitHub. |
 | `docs/map/module_map.json` | The IR, byte-deterministic. What `--check` compares and what `:DocMap diff` reads out of old commits. |
 | `docs/map/coverage.svg` | Optional (`opts.badge`): a doc-coverage badge, hand-rolled, no network call. |
@@ -70,6 +70,24 @@ hierarchy), **Types** (`@class`/`@alias` collaboration), **Inheritance**,
 **Deps** (the require graph) and **Calls** (function-level caller/callee) —
 with direction and depth controls, semantic zoom, right-click navigation and
 real browser Back/Forward.
+
+The **Quicks** tab states the same tree in sentences instead of tables — *"Most
+of your published API is never named in a spec — 12% — 9 of 72"* — negatives
+first, five of each polarity. Every verdict carries a line saying what was
+actually measured, including its blind spot, and links to the panel holding the
+rows it came from; a number that sounds this confident has to be checkable, or
+it breaks the same rule `calls_heuristic` and `dead_code` are off by default to
+keep. A verdict appears only when it passes one of two cut points, so an empty
+Quicks tab means every measure landed in the unremarkable band — a good
+reading, not a broken one. Purity is deliberately *not* among them: nothing in
+the IR records side effects, and the cheap approximations would be exactly the
+confident guess this plugin refuses elsewhere.
+
+The **Compare** tab holds whatever you marked with the `+` beside any function
+or module. Its Matrix layout puts attributes down the side and marked objects
+across, highlighting every row where they disagree — *"where do these four
+differ"* has no other answer on the page. Marks travel in the URL and survive a
+reload; a negative Quicks verdict offers **Mark all N** straight into it.
 
 ## Installation
 
@@ -156,10 +174,14 @@ require("documentation").setup({})
 ```
 </details>
 
-`opts = {}` (or a bare `setup({})`) is enough: with no `root`, the commands map
-the current working directory and `documentation.config` derives `source` from
-it (`lua/<name>` when `lua/` holds exactly one candidate directory, `lua`
-otherwise).
+`opts = {}` (or a bare `setup({})`) is enough: with no `root`, the commands
+resolve one **per invocation** from the file behind the current buffer — up to
+the nearest `.git` — and `documentation.config` derives `source` from it
+(`lua/<name>` when `lua/` holds exactly one candidate directory, `lua`
+otherwise). Open a file in a sibling checkout and the next `:DocMap` maps that
+checkout; both commands name the repository they acted on in their report. Set
+`root` explicitly to pin every invocation to one tree instead, which is what a
+plugin generating its own map wants.
 
 Whichever manager you use, load it **lazily on the two commands**. `setup()`
 scans the tree, and a session that never opens a map should not pay for one.
@@ -180,7 +202,9 @@ per-field documentation is in
   dependencies = { "StefanBartl/lib.nvim" },
   cmd = { "DocMap", "DocBrowse" },
   opts = {
-    root = "/path/to/my-plugin",       -- default: vim.fn.getcwd()
+    root = "/path/to/my-plugin",       -- default: resolved per invocation
+                                       -- from the current buffer's repository
+    root_markers = { ".git" },         -- how that resolution finds it
     source = "lua/myplugin",           -- default: auto-detected under lua/
     title = "myplugin.nvim",           -- default: the root directory's name
     out_dir = "docs/map",
@@ -299,9 +323,10 @@ running it for: the configuration a `:DocMap` issued right now would act on —
 the resolved root, the auto-detected `source`, how many `.lua` files are
 actually under it, and whether the committed map has fallen behind the sources.
 
-`:DocMap` defaults its root to the current working directory, so "it mapped the
-wrong repository" and "it says my tree has one module" are the same mistake
-seen from two angles, and neither is visible from the command's own output.
+With no `root` set, `:DocMap` resolves one from the current buffer, so "it
+mapped the wrong repository" and "it says my tree has one module" are the same
+mistake seen from two angles. The command's report names the repository it
+acted on; this check shows the same answer before anything is written.
 
 ## Headless / CI
 

@@ -5,7 +5,8 @@
 ---particular repo's layout is an option, so other plugins can point docmap at
 ---their own tree.
 ---@class Documentation.Opts
----@field root string Absolute path to the repository root.
+---@field root string Absolute path to the repository root. Omitted in a `usrcmds.setup()` call, `:DocMap`/`:DocBrowse` resolve it **per invocation** from the current buffer's file (see `root_markers`); set it to pin every invocation to one tree, which is what a consuming plugin generating its own map wants.
+---@field root_markers? string[] `usrcmds.setup()` only, and only when `root` is absent: marker names `vim.fs.root` walks up for to find the repository containing the current buffer's file. Default `{ ".git" }` — matches a worktree's `.git` *file* as well as a normal `.git` directory. Falls back to the working directory for a buffer with no file behind it.
 ---@field source? string Directory to scan, relative to `root`. Default "lua".
 ---@field lua_root? string Directory the Lua module path is relative to. Default "lua".
 ---@field title? string Display name for the root node. Default: the source directory name.
@@ -30,6 +31,7 @@
 ---@field watch_ms? integer `install()` only: debounce interval for `watch`. Default 500.
 ---@field tag_files? table<string, string> Doxygen `TAGFILES` equivalent: module-prefix -> another project's `docs/map`-shaped directory (must contain a committed `module_map.json`). A `requires_external` module matching the prefix resolves against that project's own artifact instead of staying an inert box. Local paths only — read synchronously during `scan_full()`, same as `opts.root` itself, so `--check` stays deterministic and offline. See `tagfiles.lua`.
 ---@field tests_dir? string Directory (relative to `root`) scanned for auto-derived test coverage — see `coverage.lua`. Default "TESTS". A missing directory is not an error: every function is simply left `tested = false`.
+---@field quicks? Documentation.Quicks.Opts Tuning for the Quicks verdicts — thresholds and how many of each polarity to keep. Absent means the defaults in `core/quicks.lua`.
 ---@field badge? boolean Write `coverage.svg` (a shields.io-shaped doc-coverage badge, see `doccoverage.lua`/`render/badge.lua`) alongside the other artifacts. Off by default — most consumers of `generate()` do not want an extra committed file they never asked for. Default false.
 ---@field telemetry_namespace? string The `runtime-analysis.telemetry` namespace to join against for the `telemetry` browse mode and dead-function suppression (ECOSYSTEM.md step 8). Default `title` — every telemetry instance in this ecosystem is namespaced by the plugin's own display name, so a caller who already sets `title` needs nothing extra; set this only when the two genuinely differ.
 
@@ -427,8 +429,36 @@
 ---@field refs table<string, Documentation.Docs.Ref[]> Each list sorted by doc then line, capped, with a `more` count when it overflowed.
 ---@field missing Documentation.Docs.Missing[] Sorted by doc, line, text.
 
+---One verdict about the tree — see `core/quicks.lua`.
+---@class Documentation.Quick
+---@field id string Stable identifier, e.g. "test-coverage". What a threshold override is keyed by (underscores for hyphens).
+---@field polarity "good"|"bad"
+---@field value number The measured number itself.
+---@field unit "percent"|"count"
+---@field detail string The number rendered for display, e.g. "62.5% — 45 of 72".
+---@field headline string The sentence. Phrased for the polarity it landed on.
+---@field basis string What the number actually measured, including its blind spots. Required, not optional — see the module header for why.
+---@field weight integer Ranking weight within a polarity.
+---@field distance number How far past its own threshold the value sits; the tie-break under `weight`.
+---@field tab string Page tab holding the rows behind this number.
+---@field atool string? Analysis panel within `tab`, when the rows live in one.
+---@field evidence string[]? Bounded list of `"<node id>#<fn>"` keys behind a negative verdict, in the same key scheme the page's compare marks use. Absent on a positive verdict and whenever the number has no per-function evidence.
+
+---@class Documentation.Quicks.Result
+---@field good Documentation.Quick[] Capped at `limit_good`, best first.
+---@field bad Documentation.Quick[] Capped at `limit_bad`, worst first.
+---@field total_good integer Before the cap.
+---@field total_bad integer Before the cap.
+
+---Tuning for `core/quicks.lua`.
+---@class Documentation.Quicks.Opts
+---@field thresholds? table<string, { good: number, bad: number }> Per-verdict cut points, merged over `quicks.DEFAULT_THRESHOLDS`. Keyed by the verdict `id` with hyphens written as underscores (`test_coverage`).
+---@field limit_good? integer How many positive verdicts to keep. Default 5.
+---@field limit_bad? integer How many negative verdicts to keep. Default 5.
+
 ---@class Documentation.IR
 ---@field meta Documentation.Meta
+---@field quicks Documentation.Quicks.Result? Verdicts over this tree — see `quicks.lua`. Set by `scan_full`, so a bare `scan()` leaves it nil.
 ---@field root string Root node id.
 ---@field order string[] All node ids in deterministic walk order.
 ---@field nodes table<string, Documentation.Node>

@@ -11,15 +11,19 @@ CONTENTS                                                *documentation-contents*
     2. Requirements .................... |documentation-requirements|
     3. Installation .................... |documentation-installation|
     4. Configuration ................... |documentation-configuration|
+       4.1 Which repository? ........... |documentation-root|
     5. Commands ........................ |documentation-commands|
        5.1 :DocMap ..................... |:DocMap|
        5.2 :DocBrowse .................. |:DocBrowse|
-    6. Drift checks .................... |documentation-checks|
-    7. Lua API ......................... |documentation-api|
-    8. Headless / CI ................... |documentation-headless|
-    9. Reuse in your own plugin ........ |documentation-reuse|
-   10. Annotations .................... |documentation-annotations|
-   11. Credits ........................ |documentation-credits|
+    6. The generated page .............. |documentation-page|
+       6.1 Quicks ...................... |documentation-quicks|
+       6.2 Compare ..................... |documentation-compare|
+    7. Drift checks .................... |documentation-checks|
+    8. Lua API ......................... |documentation-api|
+    9. Headless / CI ................... |documentation-headless|
+   10. Reuse in your own plugin ........ |documentation-reuse|
+   11. Annotations .................... |documentation-annotations|
+   12. Credits ........................ |documentation-credits|
 
 ==============================================================================
 1. INTRODUCTION                                     *documentation-introduction*
@@ -27,17 +31,20 @@ CONTENTS                                                *documentation-contents*
 documentation.nvim generates a module map from an annotated Lua tree. Point it
 at a repository whose files carry `---@module` and it produces:
 
-    docs/map/index.html        interactive: Tree, Hierarchy, Notes, Index,
-                               History and Analysis tabs. Self-contained —
-                               no CDN, no build step. The Analysis tab ranks
-                               test coverage, documentation coverage,
-                               fan-in/fan-out, cyclomatic complexity,
-                               structural duplicates, lazy.nvim plugin specs,
-                               React hooks (functions named like
-                               `^use[A-Z]`), the documentation corpus (which
-                               `.md` files exist and how much they
-                               reference), and call-based API routes
-                               (Express/Fastify/Koa-shaped).
+    docs/map/index.html        interactive: Quicks, Tree, Hierarchy, Notes,
+                               Index, History, Analysis and Compare tabs.
+                               Self-contained — no CDN, no build step. The
+                               Analysis tab ranks test coverage,
+                               documentation coverage, fan-in/fan-out,
+                               cyclomatic complexity, structural duplicates,
+                               lazy.nvim plugin specs, React hooks (functions
+                               named like `^use[A-Z]`), the documentation
+                               corpus (which `.md` files exist and how much
+                               they reference), and call-based API routes
+                               (Express/Fastify/Koa-shaped). Quicks and
+                               Compare have sections of their own below —
+                               see |documentation-quicks| and
+                               |documentation-compare|.
     docs/map/overview.md       the same tree as Markdown, renders on GitHub
     docs/map/module_map.json   the IR, byte-deterministic
     docs/map/coverage.svg      optional documentation-coverage badge
@@ -72,12 +79,13 @@ resolved root, the auto-detected source directory, how many `.lua` files are
 actually under it, and whether the committed map is older than the newest
 source file.
 
-That last part is what the check is really for. `:DocMap` defaults its root to
-the current working directory, so "it mapped the wrong repository" and "it
-says my tree has one module" are the same mistake seen from two angles, and
-neither is visible from the command's own output. The staleness answer there
-is an mtime comparison, not a regeneration -- `:DocMap check` is the
-authoritative one and costs a full scan.
+That last part is what the check is really for. With no `root` set, `:DocMap`
+resolves one from the current buffer (see |documentation-root|), so "it mapped
+the wrong repository" and "it says my tree has one module" are the same
+mistake seen from two angles. The command's own report names the repository it
+acted on, and this check shows the same answer before anything is written. The
+staleness answer here is an mtime comparison, not a regeneration -- `:DocMap
+check` is the authoritative one and costs a full scan.
 
 ==============================================================================
 3. INSTALLATION                                     *documentation-installation*
@@ -136,8 +144,10 @@ hooks, so call `setup()` yourself: >lua
     require("documentation").setup({})
 <
 `opts = {}` (or a bare `setup({})`) is enough. With no `root`, the commands map
-the current working directory, and `source` is derived from it: `lua/<name>`
-when `lua/` holds exactly one candidate directory, `lua` otherwise.
+whichever repository the current buffer's file lives in, resolved fresh on
+every invocation (|documentation-root|), and `source` is derived from it:
+`lua/<name>` when `lua/` holds exactly one candidate directory, `lua`
+otherwise.
 
 Whichever manager you use, load it lazily on the two commands. `setup()` scans
 the tree, and a session that never opens a map should not pay for one.
@@ -153,7 +163,8 @@ without also taking the commands.
 All options, with their defaults: >lua
 
     require("documentation").setup({
-      root = vim.fn.getcwd(),   -- absolute repository root
+      root = nil,               -- absent: resolved per invocation, see below
+      root_markers = { ".git" },-- how that resolution finds the repository
       source = nil,             -- scanned dir, relative to root; auto-detected
       lua_root = "lua",         -- what the Lua module path is relative to
       title = nil,              -- default: the root directory's name
@@ -182,12 +193,40 @@ All options, with their defaults: >lua
       keys = {},                -- rebind/disable them, by action
 
       progress_style = "auto",  -- indicator while a long :DocMap runs
+
+      quicks = {},              -- thresholds/limits for the Quicks tab
     })
 <
 Per-field documentation lives on the LuaCATS class itself, in
 `lua/documentation/@types/init.lua` — so a `lua_ls` setup completes and
 documents these inline.
 
+                                                    *documentation-root*
+WHICH REPOSITORY DOES :DocMap ACT ON?
+
+With no `root` set, `:DocMap` and `:DocBrowse` resolve one **per invocation**,
+from the file behind the current buffer: they walk up to the nearest ancestor
+containing a `root_markers` entry (`.git` by default, matching a worktree's
+`.git` file as well as a normal directory). A buffer with no file behind it —
+a dashboard, a scratch buffer — falls back to the working directory.
+
+So the question the commands answer is "which project am I looking at", not
+"where was this Neovim started". Open a file in a sibling checkout and the next
+`:DocMap` maps that checkout.
+
+Setting `root` explicitly pins every invocation to one tree instead. That is
+what a plugin generating *its own* map from its own spec wants, and it is
+unaffected by which buffer is open.
+
+Both commands name the repository they acted on in their report — "lib.nvim:
+wrote 3 artifacts (…)" — so the answer is always visible rather than inferred.
+
+Note >
+    Before v-next this was resolved once, at setup(). Because the plugin is
+    usually `cmd`-lazy, "once" meant the first :DocMap of the session, and
+    every later one regenerated that first repository regardless of which
+    tree the user was in — silently, since the report named no repository.
+<
 Two options that need a word of warning:
 
 `luals`         Off by default. A full-tree `lua-language-server --doc` run
@@ -519,7 +558,97 @@ travels with positions in the visit history. `gq` exports what is on screen,
 so `f` then `gq` sends a subset of a call graph to the |quickfix| list.
 
 ==============================================================================
-6. DRIFT CHECKS                                           *documentation-checks*
+6. THE GENERATED PAGE                                       *documentation-page*
+
+`docs/map/index.html` is one self-contained file — no CDN, no build step — with
+eight tabs. Tree, Hierarchy, Notes, Index, History and Analysis are covered
+where they come up elsewhere in this document; the two below are worth their
+own words.
+
+Every view is addressable. The tab, the selected node, the graph's center and
+direction, an Analysis panel's sort column and any active filter all live in
+the URL fragment, so a link to what you are looking at is just the address bar.
+
+------------------------------------------------------------------------------
+6.1 QUICKS                                                *documentation-quicks*
+
+The tree's own state, in sentences rather than tables: "Most of your published
+API is never named in a spec — 12% — 9 of 72". Negatives first, positives
+after; five of each by default.
+
+Nothing here is new extraction — every number is read off fields the scan
+already produced. What Quicks adds is a threshold and a sentence.
+
+                                                    *documentation-quicks-basis*
+Each verdict carries a `basis` line stating what was actually measured,
+including the blind spot. That is not politeness. A verdict is confident-
+sounding prose, and this plugin elsewhere refuses to state more than it knows
+-- `calls_heuristic`, `docs_heuristic` and `dead_code` are all off by default
+for exactly that reason. "12% test coverage" printed without saying that
+`tested` means "this function's bare name appears somewhere under `tests_dir`"
+would quietly break the rule those three flags exist to keep. Every verdict
+also links to the panel holding the rows it came from.
+
+A verdict is emitted only when its value passes one of two cut points. Between
+them it says nothing, which is where most measures on a healthy tree land — so
+an empty Quicks tab is a good reading, not a broken one.
+
+Two things are deliberately absent. **Purity** ("N% of your functions are
+pure") is not derivable: nothing in the IR records side effects, and the cheap
+approximations are exactly the confident guess the paragraph above rules out.
+**Orphan modules** would headline a number that is not a problem — a library
+consists of modules with no internal caller by design, the same argument
+`dead_code` makes.
+
+Thresholds and list lengths are configurable: >lua
+
+    require("documentation").setup({
+      quicks = {
+        limit_good = 5,
+        limit_bad = 5,
+        thresholds = {
+          -- keyed by verdict id, hyphens written as underscores
+          test_coverage = { good = 90, bad = 60 },
+        },
+      },
+    })
+<
+See `lua/documentation/core/quicks.lua` for the full default table. A verdict's
+id is stable and is what a threshold override is keyed by.
+
+------------------------------------------------------------------------------
+6.2 COMPARE                                              *documentation-compare*
+
+Any function or module can be *marked* — the `+` beside the `ⓘ` annotation
+trigger, present in every list that shows a function, and beside the module
+path in the Tree tab's detail pane. The Compare tab then shows everything
+marked, next to each other.
+
+The `+` is its own control rather than a new meaning for clicking the `ⓘ`:
+that click already pins the annotation popup open, which is what makes a long
+`@example` readable.
+
+Three layouts:
+
+    Matrix      attributes down the side, marked objects across, and every row
+                where they disagree highlighted. This is the one that earns the
+                tab -- "where do these four differ" has no other answer here.
+    Columns     the full annotation card per object, side by side, scrolling
+                horizontally.
+    Stacked     the same cards at full width, for long source snippets.
+
+Marks live in the URL fragment, so a comparison set is shareable, and are
+mirrored into `localStorage`, so they survive the reload after a regenerate. A
+link that carries marks wins over the stored set — a shared comparison shows
+what the sender marked, not what the recipient had lying around. Keys naming
+something that no longer exists (a renamed module, an old link) are dropped
+silently rather than rendered as empty cards.
+
+A negative Quicks verdict that carries evidence offers "Mark all N", which
+puts the functions behind that number straight into this tab.
+
+==============================================================================
+7. DRIFT CHECKS                                           *documentation-checks*
 
 Generic checks, run against any annotated Lua tree:
 
@@ -568,7 +697,7 @@ Repository-specific checks go in `opts.extra_checks`, each a
 `fun(ir, opts): Documentation.Finding[]`.
 
 ==============================================================================
-7. LUA API                                                   *documentation-api*
+8. LUA API                                                   *documentation-api*
 
                                                       *documentation.generate()*
 generate({opts})        Scan, check, render and write into `opts.out_dir`.
@@ -621,7 +750,7 @@ captured earlier, precisely so they answer against whatever the handle
 currently holds — including after a watch-triggered rescan.
 
 ==============================================================================
-8. HEADLESS / CI                                         *documentation-headless*
+9. HEADLESS / CI                                         *documentation-headless*
 >bash
     nvim --headless -l scripts/gen_map.lua
     nvim --headless -l scripts/gen_map.lua --check
@@ -640,7 +769,7 @@ output produces diffs the author never intended and interacts badly with
 |:amend| and rebase, so regeneration stays explicit.
 
 ==============================================================================
-9. REUSE IN YOUR OWN PLUGIN                                *documentation-reuse*
+10. REUSE IN YOUR OWN PLUGIN                                *documentation-reuse*
 
 Nothing here knows about any particular repository's layout. Two files to copy
 and five lines to edit — see `docs/REUSE.md` in the repository for the full
@@ -671,7 +800,7 @@ error. Local paths only: a network fetch during `scan_full()` would make
 `--check` depend on availability and timing.
 
 ==============================================================================
-10. ANNOTATIONS                                      *documentation-annotations*
+11. ANNOTATIONS                                      *documentation-annotations*
 
 The scanner reads each file's leading comment block — everything before the
 first non-comment line — and stops. It does not parse Lua. The only hard
@@ -710,7 +839,7 @@ that do not exist yet. `docs/ANNOTATIONS.md` is the counted inventory of what
 this tree itself uses.
 
 ==============================================================================
-11. CREDITS                                              *documentation-credits*
+12. CREDITS                                              *documentation-credits*
 
 Author:   Stefan Bartl
 Repo:     https://github.com/StefanBartl/documentation.nvim
