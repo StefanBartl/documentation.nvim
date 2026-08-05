@@ -24,10 +24,12 @@ Nothing beyond the plugin spec:
 }
 ```
 
-`root` defaults to `vim.fn.getcwd()`, so with the spec above `:DocMap` maps
-whichever repository you are working in — which is right when you maintain
-several, and wrong when you want one fixed target. Set `root` explicitly for
-the latter.
+With no `root` set, `:DocMap`/`:DocBrowse` resolve one **per invocation** from
+the current buffer's file (up to the nearest `.git`, see
+|documentation-root|) — right when you maintain several repositories side by
+side, and wrong when you want one fixed target. Set `root` explicitly for the
+latter, which is what the CLI path below does — a headless run has no buffer
+to resolve from in the first place.
 
 If you want the commands under different names (because another plugin in the
 same config also calls `setup()`), set `command_name` and
