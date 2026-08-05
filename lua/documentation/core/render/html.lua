@@ -342,6 +342,58 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .bd.sk-binding{color:var(--ns)}
 #findings tbody tr[data-node]{cursor:pointer}
 #findings tbody tr[data-node]:hover{background:var(--accent-soft)}
+/* --- Quicks ------------------------------------------------------------- */
+.qk-wrap{padding:18px 24px;max-width:1100px}
+.qk-col{margin-bottom:22px}
+.qk-h{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+  margin-bottom:9px}
+.qk{border:1px solid var(--line);border-left-width:3px;border-radius:8px;background:var(--panel);
+  padding:11px 14px;margin-bottom:8px}
+.qk.good{border-left-color:var(--ok,#3f9142)}
+.qk.bad{border-left-color:var(--error)}
+.qk-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.qk-line{font-size:14px;font-weight:600;color:var(--ink)}
+.qk-val{font-family:var(--mono);font-size:12.5px;color:var(--muted);white-space:nowrap}
+/* The reason a verdict is allowed to be a sentence at all — see quicks.lua's
+   header. Quieter than the sentence, never hidden behind a disclosure. */
+.qk-basis{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.45}
+.qk-acts{margin-top:8px;display:flex;gap:7px;flex-wrap:wrap}
+.qk-acts button{font-size:11.5px;padding:3px 9px}
+.qk-none{color:var(--muted);font-size:13px;padding:6px 0}
+/* --- Compare marks ------------------------------------------------------ */
+/* Sits beside `.sigi` rather than replacing its click: that click already
+   pins the annotation popup open, which is what makes a long `@example`
+   readable, and taking it over would trade one affordance for another. */
+.marki{display:inline-block;margin-left:3px;padding:0 4px;border-radius:4px;cursor:pointer;
+  font-size:10.5px;line-height:15px;color:var(--muted);border:1px solid var(--line);
+  opacity:.45;transition:opacity .12s,color .12s,background .12s;user-select:none}
+.marki:hover,.marki:focus{opacity:1;color:var(--accent);border-color:var(--accent);outline:none}
+li:hover>.marki,tr:hover .marki{opacity:.8}
+.marki.on{opacity:1;color:var(--bg);background:var(--accent);border-color:var(--accent)}
+.markbar{white-space:nowrap}
+.markbar.has{color:var(--accent);border-color:var(--accent);font-weight:600}
+/* --- Compare tab -------------------------------------------------------- */
+#cmpbody{padding:14px 24px}
+.cmp-cols{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;align-items:flex-start}
+.cmp-cols .cmp-card{flex:0 0 340px}
+.cmp-stack .cmp-card{margin-bottom:12px}
+.cmp-card{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:12px 14px}
+.cmp-card-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+  margin-bottom:6px}
+.cmp-where{font-family:var(--mono);font-size:11px;color:var(--accent)}
+.cmp-drop{border:none;background:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0 3px}
+.cmp-drop:hover{color:var(--error)}
+.cmptable{width:100%;border-collapse:collapse;font-size:12.5px}
+.cmptable th,.cmptable td{border:1px solid var(--line);padding:6px 9px;text-align:left;
+  vertical-align:top}
+.cmptable thead th{background:var(--panel);position:sticky;top:0;font-size:11.5px}
+.cmptable tbody th{background:var(--panel);font-weight:600;color:var(--muted);
+  font-size:11.5px;white-space:nowrap}
+/* The point of the matrix: a row where every marked object agrees is not what
+   the reader came for, so the ones that differ are the ones that are lit. */
+.cmptable tr.differs td{background:var(--accent-soft)}
+.cmptable tr.differs th{color:var(--ink)}
+.cmp-scroll{overflow-x:auto}
 
 /* --- Function rows in the tree ------------------------------------------ */
 .row.k-fn .nm{color:var(--fn)}
@@ -463,6 +515,105 @@ local JS = [[
     });
   });
 
+  // =====================================================================
+  // Compare marks
+  //
+  // A mark is a key — a node id, or `fnKey(nodeId, name)` — the reader has
+  // set aside to look at next to others. Deliberately the *same* key scheme
+  // `sigTrigger`, the context menu and `quicks.evidence` already speak, which
+  // is what makes "mark every function behind this verdict" a one-liner
+  // instead of a translation layer.
+  //
+  // The trigger is its own control beside the `ⓘ`, not a new meaning for
+  // clicking it. That click already pins the annotation popup open, which is
+  // the thing that makes a long `@example` readable at all; taking it over
+  // would have traded one affordance for another and called it a feature.
+  // =====================================================================
+  function markExists(key){ return !!(fnByKey[key] || byId[key]); }
+
+  // Scoped to this artifact's own path. Two projects' maps open in the same
+  // browser are two different trees, and a shared key would leak one's marks
+  // into the other's page.
+  var MARKS_LS_KEY = "docmap:marks:" + location.pathname;
+
+  function loadMarks(){
+    try {
+      var raw = localStorage.getItem(MARKS_LS_KEY);
+      if(!raw) return [];
+      return JSON.parse(raw).filter(markExists);
+    } catch(e){
+      // Private-mode localStorage throws on read in some browsers, and a
+      // corrupt value is not worth a broken page over a convenience feature.
+      return [];
+    }
+  }
+
+  function saveMarks(list){
+    try { localStorage.setItem(MARKS_LS_KEY, JSON.stringify(list)); } catch(e){ void 0; }
+  }
+
+  function isMarked(key){ return state.marks.indexOf(key) !== -1; }
+
+  // Marks do not go through `navigate`: toggling one is not a navigation, and
+  // pushing a history entry per mark would bury the actual navigation the
+  // reader wants Back to return to under a stack of selection noise. The hash
+  // is still updated — in place — so the link in the address bar is always
+  // shareable and always current.
+  function toggleMark(key){
+    if(!markExists(key)) return;
+    var i = state.marks.indexOf(key);
+    if(i === -1) state.marks.push(key); else state.marks.splice(i, 1);
+    state.marks.sort();
+    saveMarks(state.marks);
+    syncMarks();
+    history.replaceState(state, "", serializeState(state));
+    if(state.tab === "compare") drawCompare();
+  }
+
+  function addMarks(keys){
+    var changed = false;
+    keys.forEach(function(k){
+      if(markExists(k) && state.marks.indexOf(k) === -1){ state.marks.push(k); changed = true; }
+    });
+    if(!changed) return;
+    state.marks.sort();
+    saveMarks(state.marks);
+    syncMarks();
+    history.replaceState(state, "", serializeState(state));
+  }
+
+  function clearMarks(){
+    if(!state.marks.length) return;
+    state.marks = [];
+    saveMarks(state.marks);
+    syncMarks();
+    history.replaceState(state, "", serializeState(state));
+    if(state.tab === "compare") drawCompare();
+  }
+
+  // The affordance itself. Rendered beside every `sigTrigger`, and on its own
+  // for a module (which has annotations but no signature to hang a `ⓘ` off).
+  function markTrigger(key){
+    return '<span class="marki" tabindex="0" role="button" data-mark="' + esc(key) +
+      '" aria-label="Mark for comparison" title="Mark for comparison">&#43;</span>';
+  }
+
+  // Paints mark state onto whatever is currently in the DOM, and keeps the
+  // toolbar counter honest. Called after every redraw rather than having each
+  // renderer remember to emit an `on` class — one place to be right.
+  function syncMarks(){
+    document.querySelectorAll("[data-mark]").forEach(function(el){
+      el.classList.toggle("on", isMarked(el.dataset.mark));
+    });
+    var bar = document.getElementById("markbar");
+    if(!bar) return;
+    var n = state.marks.length;
+    bar.hidden = n === 0;
+    bar.classList.toggle("has", n > 0);
+    bar.textContent = "Compare (" + n + ")";
+    bar.title = n + " marked object" + (n === 1 ? "" : "s") + " — open the Compare tab";
+  }
+
   // Blast radius: the transitive closure of `required_by`. Already implied
   // by the edges and visible nowhere, and it is the number that says how
   // risky a change to a module is — the same measurement before and after a
@@ -550,9 +701,14 @@ local JS = [[
   // a function. `tabindex` because a keyboard reader must be able to reach
   // it; `aria-label` rather than `title` because a native tooltip would open
   // *beside* the card this control exists to open, saying less.
+  // Emits the mark trigger alongside, rather than making six call sites
+  // remember to render both. The two controls are a pair — "tell me about
+  // this" and "set this aside" — and a list that grew one without the other
+  // would be a list the compare tab silently cannot reach.
   function sigTrigger(nodeId, fnName){
+    var key = fnKey(nodeId, fnName);
     return '<span class="sigi" tabindex="0" role="button" aria-label="Annotations"' +
-      ' data-sig="' + esc(fnKey(nodeId, fnName)) + '">&#9432;</span>';
+      ' data-sig="' + esc(key) + '">&#9432;</span>' + markTrigger(key);
   }
 
   var DOCREFS = (IR.docs && IR.docs.refs) || {};
@@ -764,9 +920,23 @@ local JS = [[
     asort: null, adir: null,
     // Per-tab text filter. One field, but the *contract* is per tab — see
     // `filterFor`.
-    q: null
+    q: null,
+    // Compare layout. "matrix" is the default because it is the layout that
+    // earns the feature: two annotation cards side by side is something two
+    // browser windows already do, whereas "which of these four differ, and
+    // where" has no other answer on this page.
+    cview: "matrix",
+    // Marked objects, as `"<node id>"` or `"<node id>#<fn>"` — the same key
+    // scheme `fnKey` and `quicks.evidence` use. In the hash so a comparison
+    // set is shareable, which is the same promise every other view on this
+    // page makes; also mirrored into localStorage, because a mark collected
+    // while reading should survive the regenerate that follows.
+    marks: []
   };
-  function freshState(){ return Object.assign({}, DEFAULT_STATE); }
+  // `marks` is an array, so a shared reference would let one state's edits
+  // reach every other state object built from the same default — including the
+  // one `parseState` starts from on every popstate.
+  function freshState(){ var s = Object.assign({}, DEFAULT_STATE); s.marks = []; return s; }
 
   var state = freshState();
   // Tracks only the hash of the last *pushed* entry — deliberately never
@@ -815,6 +985,12 @@ local JS = [[
       // way back in — the server validates it again before it reaches git,
       // but a hash is user input and the fetch URL is built from it here.
       if(s.sha) parts.push("sha=" + encodeURIComponent(s.sha));
+    } else if(s.tab === "quicks"){
+      // Nothing to carry: one flat verdict list over the whole map, same as
+      // Notes.
+      void 0;
+    } else if(s.tab === "compare"){
+      if(s.cview !== "matrix") parts.push("cview=" + encodeURIComponent(s.cview));
     } else {
       if(s.center) parts.push("center=" + encodeURIComponent(s.center));
       parts.push("view=" + encodeURIComponent(s.view || "modules"));
@@ -827,6 +1003,11 @@ local JS = [[
       if(s.view === "deps" && s.ext) parts.push("ext=1");
       if(s.view === "calls" && s.fn) parts.push("fn=" + encodeURIComponent(s.fn));
     }
+    // Outside the per-tab branches, unlike every other axis: marks are
+    // collected while reading any tab and belong to the reader, not to a view.
+    // Only when non-empty, so the common case is not a link with a trailing
+    // `&marks=` in it.
+    if(s.marks && s.marks.length) parts.push("marks=" + encodeURIComponent(s.marks.join(",")));
     return "#" + parts.join("&");
   }
 
@@ -873,6 +1054,16 @@ local JS = [[
       // reaches git is the right shape to demand of a hash too. Anything else
       // is dropped rather than sanitized.
       else if(k === "sha") s.sha = /^[0-9a-f]{7,40}$/.test(v) ? v : null;
+      else if(k === "cview") s.cview = (v === "columns" || v === "stacked") ? v : "matrix";
+      // Filtered against what this map actually contains, not taken on trust.
+      // A shared link outlives the tree it was made from: rename a module and
+      // yesterday's comparison URL names keys that no longer resolve. Dropping
+      // them here means the surviving ones still open, instead of the page
+      // rendering a row of "unknown" cards — the same tolerance `fnByKey`
+      // already extends to a stale `data-sig`.
+      else if(k === "marks"){
+        s.marks = v.split(",").filter(function(key){ return key && markExists(key); });
+      }
     });
     return s;
   }
@@ -895,6 +1086,8 @@ local JS = [[
     document.getElementById("view-index").classList.toggle("active", s.tab === "index");
     document.getElementById("view-analysis").classList.toggle("active", s.tab === "analysis");
     document.getElementById("view-history").classList.toggle("active", s.tab === "history");
+    document.getElementById("view-quicks").classList.toggle("active", s.tab === "quicks");
+    document.getElementById("view-compare").classList.toggle("active", s.tab === "compare");
 
     if(s.tab === "tree" && s.id && byId[s.id]) selectRow(s.id);
     if(s.tab === "hierarchy") drawHierarchy(s.center || IR.root, s.view || "modules");
@@ -902,6 +1095,12 @@ local JS = [[
     if(s.tab === "index") drawIndex();
     if(s.tab === "analysis") drawAnalysis();
     if(s.tab === "history") drawHistory(s.sha || null);
+    if(s.tab === "quicks") drawQuicks();
+    if(s.tab === "compare") drawCompare();
+    // After the draw, not before: a redraw rebuilds the rows that carry the
+    // mark triggers, so painting them first would paint elements about to be
+    // replaced.
+    syncMarks();
     syncGraphControls(s);
     syncSearchBox(s);
 
@@ -1037,7 +1236,11 @@ local JS = [[
   function renderDetail(n){
     var h = [];
     h.push('<h2>'+esc(n.name)+'</h2>');
-    h.push('<div class="mp">'+esc(n.module || n.path)+docTrigger(n.id)+'</div>');
+    // A module has annotations but no signature, so there is no `sigTrigger`
+    // here to carry the mark control along — it is rendered on its own. Marks
+    // are not a function-only idea: "how do these three modules differ" is the
+    // same question one scale up.
+    h.push('<div class="mp">'+esc(n.module || n.path)+docTrigger(n.id)+markTrigger(n.id)+'</div>');
 
     var links = [];
     if(n.readme) links.push('<a href="'+esc(rel(n.readme))+'">README</a>');
@@ -4261,6 +4464,268 @@ local JS = [[
   document.addEventListener("scroll", sigClose, true);
 
   // =====================================================================
+  // Quicks — the tree's own state, in sentences.
+  //
+  // No computation here: `core/quicks.lua` produced the verdicts, including
+  // the `basis` line under each one. That split is deliberate rather than
+  // tidy — the same verdicts have to be reachable from the CLI and from a
+  // spec, and a rule that lives in this file is a rule only the browser can
+  // check.
+  // =====================================================================
+  var QUICKS = IR.quicks || { good: [], bad: [], total_good: 0, total_bad: 0 };
+
+  function quickHTML(q){
+    var h = ['<div class="qk ' + (q.polarity === "good" ? "good" : "bad") + '">'];
+    h.push('<div class="qk-head"><span class="qk-line">' + esc(q.headline) + '</span>' +
+      '<span class="qk-val">' + esc(q.detail) + '</span></div>');
+    h.push('<div class="qk-basis">' + esc(q.basis) + '</div>');
+
+    var acts = [];
+    if(q.tab){
+      acts.push('<button data-qgoto="' + esc(q.id) + '">Show the rows</button>');
+    }
+    // Only where the verdict actually carried evidence — an offer to mark
+    // "the functions behind this" that silently marks nothing is worse than
+    // no button. `quicks.lua` attaches evidence to negative verdicts only,
+    // and caps the list, so this is bounded by construction.
+    if(q.evidence && q.evidence.length){
+      acts.push('<button data-qmark="' + esc(q.id) + '">Mark all ' +
+        q.evidence.length + '</button>');
+    }
+    if(acts.length) h.push('<div class="qk-acts">' + acts.join("") + '</div>');
+    h.push("</div>");
+    return h.join("");
+  }
+
+  function quickById(id){
+    var all = QUICKS.good.concat(QUICKS.bad);
+    for(var i = 0; i < all.length; i++){ if(all[i].id === id) return all[i]; }
+    return null;
+  }
+
+  function drawQuicks(){
+    var el = document.getElementById("view-quicks");
+    var h = ['<div class="qk-wrap">'];
+
+    if(!QUICKS.good.length && !QUICKS.bad.length){
+      // Three different situations, and telling them apart matters: an old
+      // artifact, a tree too small to say anything about, or a genuinely
+      // unremarkable one. Only the last is good news, so do not phrase all
+      // three as if they were.
+      h.push('<p class="ntext none">Nothing crossed a threshold in either direction. ' +
+        'That is the normal reading for a tree that is doing fine — every measure ' +
+        'landed in the unremarkable band between its two cut points. An artifact ' +
+        'generated before Quicks existed also lands here; regenerate with ' +
+        '<code>:DocMap</code> if this map is old.</p>');
+      h.push("</div>");
+      el.innerHTML = h.join("");
+      return;
+    }
+
+    // Negatives first. The positives are the reward for reading, not the
+    // headline — a page that opens with praise buries the one thing the
+    // reader could act on today.
+    if(QUICKS.bad.length){
+      h.push('<div class="qk-col"><div class="qk-h">Worth fixing' +
+        (QUICKS.total_bad > QUICKS.bad.length
+          ? ' — ' + QUICKS.bad.length + ' of ' + QUICKS.total_bad + ' shown'
+          : '') + '</div>');
+      QUICKS.bad.forEach(function(q){ h.push(quickHTML(q)); });
+      h.push("</div>");
+    }
+    if(QUICKS.good.length){
+      h.push('<div class="qk-col"><div class="qk-h">Going well' +
+        (QUICKS.total_good > QUICKS.good.length
+          ? ' — ' + QUICKS.good.length + ' of ' + QUICKS.total_good + ' shown'
+          : '') + '</div>');
+      QUICKS.good.forEach(function(q){ h.push(quickHTML(q)); });
+      h.push("</div>");
+    }
+    h.push("</div>");
+    el.innerHTML = h.join("");
+  }
+
+  document.addEventListener("click", function(ev){
+    var goto = ev.target.closest && ev.target.closest("[data-qgoto]");
+    if(goto){
+      var q = quickById(goto.dataset.qgoto);
+      if(q) navigate(q.atool ? { tab: q.tab, atool: q.atool } : { tab: q.tab });
+      return;
+    }
+    var mk = ev.target.closest && ev.target.closest("[data-qmark]");
+    if(mk){
+      var qq = quickById(mk.dataset.qmark);
+      if(qq && qq.evidence) addMarks(qq.evidence);
+      return;
+    }
+  });
+
+  // =====================================================================
+  // Compare — the marked objects, next to each other.
+  //
+  // Three layouts, and they are not three skins of one thing. Columns and
+  // Stacked render the annotation card this page already has, which is worth
+  // having but is also roughly what two browser windows do. Matrix is the
+  // layout that earns the tab: attributes down the side, marked objects
+  // across, and every row where they disagree lit up. "Where do these four
+  // differ" has no other answer here.
+  // =====================================================================
+  function markEntry(key){
+    var fn = fnByKey[key];
+    if(fn) return { kind: "fn", key: key, fn: fn.fn, node: fn.node };
+    var n = byId[key];
+    if(n) return { kind: "node", key: key, node: n };
+    return null;
+  }
+
+  function markTitle(e){
+    if(e.kind === "fn") return e.fn.name;
+    return e.node.module || e.node.name;
+  }
+
+  function markWhere(e){
+    if(e.kind === "fn") return (e.node.module || e.node.path) + ":" + e.fn.line;
+    return e.node.path;
+  }
+
+  // One row of the matrix. `get` returns a display string; rows where every
+  // marked object returns the same string are not what the reader came for.
+  var CMP_ROWS = [
+    { label: "Kind", get: function(e){ return e.kind === "fn" ? "function" : e.node.kind; } },
+    { label: "Where", get: function(e){ return markWhere(e); } },
+    { label: "Summary", get: function(e){
+      return (e.kind === "fn" ? e.fn.summary : e.node.summary) || "—"; } },
+    { label: "Signature", get: function(e){
+      return e.kind === "fn" ? (e.fn.signature || "—") : "—"; } },
+    { label: "Params", get: function(e){
+      return e.kind === "fn" ? String((e.fn.params || []).length) : "—"; } },
+    { label: "Returns", get: function(e){
+      return e.kind === "fn" ? String((e.fn.returns || []).length) : "—"; } },
+    { label: "Complexity", get: function(e){
+      return e.kind === "fn" ? String(e.fn.complexity || 1) : "—"; } },
+    { label: "Lines", get: function(e){
+      if(e.kind !== "fn") return String((e.node.stats && e.node.stats.lines) || 0);
+      return (e.fn.line_end && e.fn.line) ? String(e.fn.line_end - e.fn.line + 1) : "—"; } },
+    { label: "Tested", get: function(e){
+      return e.kind === "fn" ? (e.fn.tested ? "yes" : "no") : "—"; } },
+    { label: "Documented", get: function(e){
+      return e.kind === "fn" ? (e.fn.documented ? "yes" : "no") : "—"; } },
+    { label: "Internal", get: function(e){
+      return e.kind === "fn" ? (e.fn.internal ? "yes" : "no") : "—"; } },
+    { label: "Deprecated", get: function(e){
+      if(e.kind !== "fn") return "—";
+      return e.fn.deprecated !== undefined ? (e.fn.deprecated || "yes") : "no"; } },
+    { label: "Example", get: function(e){
+      return e.kind === "fn" ? (e.fn.example ? "yes" : "no") : "—"; } },
+    { label: "Requires", get: function(e){
+      return String(((e.kind === "fn" ? e.node : e.node).requires || []).length); } },
+    { label: "Required by", get: function(e){
+      return String(((e.kind === "fn" ? e.node : e.node).required_by || []).length); } }
+  ];
+
+  function cmpMatrixHTML(entries){
+    var h = ['<div class="cmp-scroll"><table class="cmptable"><thead><tr><th></th>'];
+    entries.forEach(function(e){
+      h.push('<th>' + esc(markTitle(e)) +
+        '<button class="cmp-drop" data-unmark="' + esc(e.key) +
+        '" title="Drop this one">&times;</button></th>');
+    });
+    h.push("</tr></thead><tbody>");
+    CMP_ROWS.forEach(function(row){
+      var vals = entries.map(row.get);
+      var differs = false;
+      for(var i = 1; i < vals.length; i++){ if(vals[i] !== vals[0]){ differs = true; break; } }
+      h.push('<tr class="' + (differs ? "differs" : "") + '"><th>' + esc(row.label) + '</th>');
+      vals.forEach(function(v){ h.push('<td>' + esc(v) + '</td>'); });
+      h.push("</tr>");
+    });
+    h.push("</tbody></table></div>");
+    return h.join("");
+  }
+
+  function cmpCardHTML(e){
+    var h = ['<div class="cmp-card">'];
+    h.push('<div class="cmp-card-h"><span class="cmp-where">' + esc(markWhere(e)) + '</span>' +
+      '<button class="cmp-drop" data-unmark="' + esc(e.key) + '" title="Drop this one">&times;</button></div>');
+    if(e.kind === "fn"){
+      // The same renderer the detail pane and the popup use. A third copy of
+      // "how a function's annotations look" is exactly the drift this plugin
+      // exists to detect.
+      h.push(fnAnnotationHTML(e.fn) + snippetHTML(e.fn));
+    } else {
+      h.push('<div class="fn-sig">' + esc(e.node.module || e.node.name) + '</div>');
+      if(e.node.summary) h.push('<div class="fn-desc">' + esc(e.node.summary) + '</div>');
+    }
+    h.push("</div>");
+    return h.join("");
+  }
+
+  function drawCompare(){
+    var body = document.getElementById("cmpbody");
+    var view = state.cview || "matrix";
+    document.querySelectorAll("#cmptoggle .cmpview-btn").forEach(function(b){
+      b.classList.toggle("active", b.dataset.cview === view);
+    });
+
+    var entries = state.marks.map(markEntry).filter(Boolean);
+
+    if(!entries.length){
+      body.innerHTML = '<p class="ntext none">Nothing marked yet. The <code>+</code> ' +
+        'beside any function or module adds it here — mark two or more and this tab ' +
+        'shows them next to each other. Marks survive a reload and travel in the URL, ' +
+        'so a comparison is shareable.</p>';
+      return;
+    }
+    if(view === "matrix" && entries.length === 1){
+      body.innerHTML = '<p class="nsub">One object marked — a matrix needs a second ' +
+        'to compare against. Shown as a card until then.</p>' +
+        '<div class="cmp-stack">' + cmpCardHTML(entries[0]) + '</div>';
+      return;
+    }
+
+    if(view === "matrix"){ body.innerHTML = cmpMatrixHTML(entries); return; }
+
+    var cls = view === "columns" ? "cmp-cols" : "cmp-stack";
+    body.innerHTML = '<div class="' + cls + '">' +
+      entries.map(cmpCardHTML).join("") + "</div>";
+  }
+
+  document.querySelectorAll("#cmptoggle .cmpview-btn").forEach(function(b){
+    b.addEventListener("click", function(){
+      navigate({ tab: "compare", cview: b.dataset.cview });
+    });
+  });
+  document.getElementById("cmpclear").addEventListener("click", clearMarks);
+  document.getElementById("markbar").addEventListener("click", function(){
+    navigate({ tab: "compare" });
+  });
+
+  document.addEventListener("click", function(ev){
+    var un = ev.target.closest && ev.target.closest("[data-unmark]");
+    if(un){ toggleMark(un.dataset.unmark); return; }
+    var mk = ev.target.closest && ev.target.closest("[data-mark]");
+    if(mk){
+      // Stops the row's own click handler from also firing: every list that
+      // renders a mark trigger renders it inside a row that navigates when
+      // clicked, and marking something must not also move the page away from
+      // the list being scanned.
+      ev.preventDefault();
+      ev.stopPropagation();
+      toggleMark(mk.dataset.mark);
+      return;
+    }
+  }, true);
+
+  // Keyboard parity, same as the `ⓘ` trigger has.
+  document.addEventListener("keydown", function(ev){
+    if(ev.key !== "Enter" && ev.key !== " ") return;
+    var el = document.activeElement;
+    if(!el || !el.dataset || !el.dataset.mark) return;
+    ev.preventDefault();
+    toggleMark(el.dataset.mark);
+  });
+
+  // =====================================================================
   // Initial load: parse whatever hash the page was opened with (a bare
   // #<id> from an old-style/shared link, a full serialized state from
   // Back/Forward, or nothing) and apply it as a *replace*, not a push — the
@@ -4268,6 +4733,12 @@ local JS = [[
   // =====================================================================
   var initial = parseState(location.hash);
   if(!initial.id && !initial.center) initial.id = IR.root;
+  // A link that carries marks wins — it is an explicit statement about which
+  // set to look at, and silently unioning it with whatever this browser had
+  // lying around would make a shared comparison show things the sender never
+  // marked. Only a hash with no `marks` at all falls back to the stored set,
+  // which is the "I marked these yesterday, then regenerated" case.
+  if(!initial.marks.length) initial.marks = loadMarks();
   applyState(initial, false);
 })();
 ]]
@@ -4315,6 +4786,12 @@ function M.render(ir, findings, opts)
     -- the trap, and it has now cost two features, so it is worth stating
     -- plainly rather than leaving for a third.
     docs = ir.docs or { files = {}, refs = {}, missing = {} },
+    -- Third time this field list has had to be extended by hand, and the
+    -- comment above is the reason it went right the first try here. Same empty
+    -- shape rather than `nil`, so the tab can tell "computed, nothing crossed a
+    -- threshold" (a real and quite good answer for a healthy tree) apart from
+    -- "this artifact predates Quicks".
+    quicks = ir.quicks or { good = {}, bad = {}, total_good = 0, total_bad = 0 },
   })
   -- `</script>` inside JSON would terminate the block early.
   payload = payload:gsub("</", "<\\/")
@@ -4396,18 +4873,28 @@ function M.render(ir, findings, opts)
     ),
     "</div></header>",
 
+    -- Quicks leads the tab bar because it is the one tab that answers a
+    -- question the reader has before they have a question. It is deliberately
+    -- *not* the default tab: `state.tab` still starts on "tree", so every link
+    -- ever shared and every habit ever formed lands where it always did.
     '<div class="tabs">',
+    '<button class="tab-btn" data-tab="quicks">Quicks</button>',
     '<button class="tab-btn active" data-tab="tree">Tree</button>',
     '<button class="tab-btn" data-tab="hierarchy">Hierarchy</button>',
     '<button class="tab-btn" data-tab="notes">Notes</button>',
     '<button class="tab-btn" data-tab="index">Index</button>',
     '<button class="tab-btn" data-tab="history">History</button>',
     '<button class="tab-btn" data-tab="analysis">Analysis</button>',
+    '<button class="tab-btn" data-tab="compare">Compare</button>',
     "</div>",
 
     '<div class="toolbar">',
     '<input id="q" type="search" placeholder="Filter modules, paths, descriptions…" autocomplete="off">',
     '<button id="expand">Expand all</button><button id="collapse">Collapse</button>',
+    -- Sits with the filter rather than inside any one tab: marks are collected
+    -- while reading *any* list, so the control that says how many there are and
+    -- opens them has to be visible from all of them.
+    '<button id="markbar" class="markbar" hidden></button>',
     "</div>",
 
     '<main id="view-tree" class="view active"><div id="tree"></div><div id="detail"></div></main>',
@@ -4446,6 +4933,18 @@ function M.render(ir, findings, opts)
     "</div>",
     '<div id="hgraph-wrap"><div id="hgraph"><div id="hstage"></div></div></div>',
     '<div class="hlegend" id="hlegend"></div>',
+    "</div>",
+
+    '<div id="view-quicks" class="view"></div>',
+
+    '<div id="view-compare" class="view">',
+    '<div class="hview-toggle" id="cmptoggle">',
+    '<button class="cmpview-btn active" data-cview="matrix">Matrix</button>',
+    '<button class="cmpview-btn" data-cview="columns">Columns</button>',
+    '<button class="cmpview-btn" data-cview="stacked">Stacked</button>',
+    '<button id="cmpclear" title="Drop every mark">Clear all</button>',
+    "</div>",
+    '<div id="cmpbody"></div>',
     "</div>",
 
     '<div id="view-notes" class="view"></div>',

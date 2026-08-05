@@ -12,6 +12,34 @@ map coexist with this one instead of silently overwriting its command
 (`usercmd.create` defaults to `force = true`, so a collision is not an error,
 just a bug).
 
+## Which repository do they act on?
+
+With no `opts.root`, **both commands resolve one per invocation** from the file
+behind the current buffer: up to the nearest ancestor holding a `root_markers`
+entry (`.git` by default, matching a worktree's `.git` *file* too), falling back
+to the working directory for a buffer with no file. So the question they answer
+is "which project am I looking at", not "where was this Neovim started".
+
+Every report names the repository it acted on — `lib.nvim: wrote 3 artifacts
+(…)`. That is not decoration: without a subject, "Wrote 3 artifacts" is a claim
+the reader cannot check.
+
+Setting `root` pins every invocation to one tree, which is what a consuming
+plugin generating its own map wants.
+
+> Before this, the root was resolved once in `setup()`. Because the plugin is
+> usually `cmd`-lazy, "once" meant *the first `:DocMap` of the session* — and
+> every later invocation regenerated that first repository regardless of which
+> tree the user was in. Silently, because the report named no repository. Both
+> halves of that bug are fixed above, and either alone would have been enough
+> to notice it.
+
+A handle is installed per root and reused, so switching between repositories
+costs a scan only the first time each is seen. Completion never installs one:
+pressing `<Tab>` in a repository this session has not scanned offers the action
+names and no module names, rather than blocking the editor on a full scan for a
+candidate list.
+
 ---
 
 ## `:DocMap`
@@ -19,8 +47,9 @@ just a bug).
 ### `:DocMap`
 
 Regenerate `module_map.json`, `index.html`, `overview.md` (and `coverage.svg`
-with `opts.badge`) into `out_dir`. Prints what it wrote, the node counts, test
-coverage and documentation coverage, then the drift findings.
+with `opts.badge`) into `out_dir`. Prints the repository it acted on, what it
+wrote, the node counts, test coverage and documentation coverage, then the
+drift findings.
 
 ### `:DocMap check`
 

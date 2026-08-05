@@ -168,6 +168,17 @@ function M.scan_full(opts)
       message = "opts.luals was set but enrichment did not run: " .. tostring(luals_err),
     })
   end
+
+  -- Last, and it has to be: alone among the derived tables, this one reads the
+  -- *findings* as well as the IR — "the map has drifted" is one of the
+  -- verdicts, and drift is not knowable until `check` has run. Attached to the
+  -- IR rather than returned as a third value, for the same reason `timing` is:
+  -- every caller would otherwise thread a value most of them ignore, and
+  -- `install()`'s rescan would need somewhere to put it.
+  ir.quicks = timing.measure(t, "quicks", function()
+    return require("documentation.core.quicks").compute(ir, findings, opts)
+  end)
+
   return ir, findings
 end
 
@@ -297,6 +308,13 @@ function M.to_json(ir)
   -- are the same data.
   put(',\n  "docs": ')
   put(json.encode(ir.docs or { files = {}, refs = {}, missing = {} }))
+  -- Carried rather than left for a consumer to recompute, and here the reason
+  -- is not "the page cannot rebuild it" — it could — but that `quicks` reads
+  -- the *findings*, which this artifact does not carry. Recomputed from
+  -- `module_map.json` alone it would silently lose the drift verdicts and
+  -- report a cleaner tree than the one that was scanned.
+  put(',\n  "quicks": ')
+  put(json.encode(ir.quicks or { good = {}, bad = {}, total_good = 0, total_bad = 0 }))
   put("\n}\n")
   return table.concat(out)
 end
