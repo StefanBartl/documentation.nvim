@@ -83,6 +83,7 @@ local specs = {
   "browse_telemetry_spec.lua",
   "browse_loaded_spec.lua",
   "docmap_browse_spec.lua",
+  "pdf_artifact_spec.lua",
 }
 
 --- Straight to stdout rather than through `print`.

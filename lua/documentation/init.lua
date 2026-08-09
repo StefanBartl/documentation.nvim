@@ -380,6 +380,51 @@ function M.write_artifacts(ir, findings, opts)
   return written
 end
 
+---Writes `overview.pdf` via pdfport.nvim (github.com/StefanBartl/
+---pdfport.nvim, optional dependency, soft-required) -- byte-for-byte the
+---same content `overview.md` gets, just handed to pdfport as text instead of
+---read back from disk. Unlike `write_artifacts`, this is asynchronous
+---(pdfport's markdown producer shells out to pandoc) and reports through
+---`callback` rather than a return value, so it is not folded into
+---`write_artifacts`'s synchronous `written` list -- call it separately, after
+---`write_artifacts`, when `opts.pdf` is set (see `bindings/usrcmds/generate.lua`).
+---@param ir Documentation.IR
+---@param findings Documentation.Finding[]
+---@param opts Documentation.Opts
+---@param callback fun(ok: boolean, path_or_err: string) `path_or_err` is the
+---repo-relative written path on success, an error message otherwise.
+---@return nil
+function M.write_pdf_artifact(ir, findings, opts, callback)
+  local ok_pp, pdfport = pcall(require, "pdfport")
+  if not ok_pp or type(pdfport.create) ~= "function" then
+    callback(false, "pdfport.nvim not installed -- PDF export unavailable")
+    return
+  end
+  if type(pdfport.can_create) ~= "function" or not pdfport.can_create("markdown") then
+    callback(false, "pdfport.nvim has no available markdown producer (needs pandoc + a PDF engine)")
+    return
+  end
+
+  assert_opts(opts, "documentation.write_pdf_artifact")
+  local root = opts.root:gsub("\\", "/"):gsub("/+$", "")
+  local out_dir = opts.out_dir or "docs/map"
+  local rel = out_dir .. "/overview.pdf"
+
+  pdfport.create({
+    text = M.render.markdown(ir, findings, opts),
+    from = "markdown",
+    output = root .. "/" .. rel,
+    on_conflict = "overwrite",
+    __callback = function(result)
+      if result.status == "ok" then
+        callback(true, rel)
+      else
+        callback(false, result.error or "pdfport export failed")
+      end
+    end,
+  })
+end
+
 ---Scan, check and render everything into `opts.out_dir`.
 ---@param opts Documentation.Opts
 ---@return Documentation.IR
