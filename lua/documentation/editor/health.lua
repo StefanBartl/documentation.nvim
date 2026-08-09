@@ -156,6 +156,21 @@ function M.check()
     })
   end
 
+  local ok_pp, pdfport = pcall(require, "pdfport")
+  if ok_pp and type(pdfport.can_create) == "function" and pdfport.can_create("markdown") then
+    h_ok("pdfport.nvim — overview.pdf (opts.pdf = true) can be written")
+  elseif ok_pp then
+    h_info("pdfport.nvim installed, but no markdown producer is available", {
+      "opts.pdf = true would fail until pandoc + a PDF engine are installed.",
+      "See pdfport.nvim's :checkhealth for which producer is missing.",
+    })
+  else
+    h_info("pdfport.nvim not installed", {
+      "Only opts.pdf = true (overview.pdf, alongside overview.md) needs it.",
+      "https://github.com/StefanBartl/pdfport.nvim",
+    })
+  end
+
   -- Commands ---------------------------------------------------------------
   h_start("documentation.nvim: commands")
 

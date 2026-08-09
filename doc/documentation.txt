@@ -48,6 +48,8 @@ at a repository whose files carry `---@module` and it produces:
     docs/map/overview.md       the same tree as Markdown, renders on GitHub
     docs/map/module_map.json   the IR, byte-deterministic
     docs/map/coverage.svg      optional documentation-coverage badge
+    docs/map/overview.pdf      optional, same content as overview.md, via
+                               pdfport.nvim (optional dependency)
 
 The rendered map is the visible half. The other half is a set of drift checks
 that fail CI when the documentation and the code stop agreeing — see
@@ -176,6 +178,10 @@ All options, with their defaults: >lua
       luals = false,            -- LuaLS enrichment; costs several seconds
       luals_timeout_ms = 60000,
       badge = false,            -- also write coverage.svg
+      pdf = false,              -- also write overview.pdf (needs pdfport.nvim,
+                                -- optional dependency; async, reported
+                                -- separately from the "wrote N artifacts"
+                                -- notification)
       tests_dir = "TESTS",      -- scanned to derive fn.tested
       dead_code = false,        -- widen `dead-function` to published functions
       calls_heuristic = false,  -- guessed call edges, drawn dashed

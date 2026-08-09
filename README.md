@@ -54,6 +54,7 @@ plugin](docs/PIPELINE.md#why-this-is-its-own-plugin).
 | `docs/map/overview.md` | The same tree as Markdown, so it renders on GitHub. |
 | `docs/map/module_map.json` | The IR, byte-deterministic. What `--check` compares and what `:DocMap diff` reads out of old commits. |
 | `docs/map/coverage.svg` | Optional (`opts.badge`): a doc-coverage badge, hand-rolled, no network call. |
+| `docs/map/overview.pdf` | Optional (`opts.pdf`): the same content as `overview.md`, via [pdfport.nvim](https://github.com/StefanBartl/pdfport.nvim) (optional dependency). |
 
 The Analysis tab ranks the tree six ways over the same IR — test coverage,
 documentation coverage, fan-in/fan-out, cyclomatic complexity, structural
@@ -214,6 +215,8 @@ per-field documentation is in
     luals = false,        -- opt-in LuaLS enrichment: @class/@alias detail,
                           -- type and inheritance edges. Costs seconds.
     badge = false,        -- also write coverage.svg
+    pdf = false,           -- also write overview.pdf (needs pdfport.nvim,
+                           -- optional dependency; async, reported separately)
     tests_dir = "TESTS",  -- auto-derived `fn.tested`
     dead_code = false,    -- widen `dead-function` to published functions too
     calls_heuristic = false,           -- guessed call edges, drawn dashed

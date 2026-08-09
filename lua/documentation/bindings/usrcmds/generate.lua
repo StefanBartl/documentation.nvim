@@ -68,6 +68,20 @@ function M.run(ctx, opts)
 
   report_timing(ctx, ir)
 
+  -- Asynchronous (pandoc, via pdfport.nvim) and opt-in, so it is reported
+  -- separately from the "wrote N artifacts" notification above rather than
+  -- folded into it -- write_artifacts() stays a synchronous, dependency-free
+  -- path even with opts.pdf set.
+  if ctx.cfg.pdf then
+    docmap.write_pdf_artifact(ir, findings, ctx.cfg, function(ok, path_or_err)
+      if ok then
+        ctx.notify.info(("wrote %s"):format(path_or_err))
+      else
+        ctx.notify.warn(("overview.pdf not written: %s"):format(path_or_err))
+      end
+    end)
+  end
+
   -- Naming the tree is not decoration. `:DocMap` resolves its root per
   -- invocation (see `usrcmds/init.lua`'s `buffer_root`), so "Wrote 3
   -- artifacts" without a subject is a report the reader cannot check — and
