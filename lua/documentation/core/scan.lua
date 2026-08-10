@@ -265,6 +265,19 @@ function M.scan(opts)
   local abs_source = root .. "/" .. source
   local types_dir = opts.types_dir or "@types"
 
+  -- Resolved once per scan, not threaded through every language backend's
+  -- shared `scan_file(path)` signature — that interface is common to five
+  -- backends (`lua`/`js`/`ts`/`tsx`/`ecma`) and adding a parameter to it for
+  -- one policy value would touch all five for something that only ever
+  -- needs to be current *before* the walk below starts, never per file.
+  -- Safe against leaking one repo's override into a later scan of a
+  -- different one in the same process (`:DocBrowse` bouncing between repos,
+  -- multiple `:DocMap` calls in one session): every `M.scan` explicitly
+  -- resets it, so a scan with no `opts.snippet_max_lines` always gets the
+  -- real default back, never a previous call's override.
+  require("documentation.core.snippet").MAX_LINES = opts.snippet_max_lines
+    or require("documentation.core.snippet").DEFAULT_MAX_LINES
+
   assert(is_dir(abs_source), "docmap: source directory not found: " .. abs_source)
 
   local index = {} ---@type table<string, Documentation.Node>

@@ -13,11 +13,22 @@
 
 local M = {}
 
+---The real default, never mutated — `M.scan`'s own header explains why a
+---fixed default has to exist separately from the currently-active
+---`M.MAX_LINES` below: a scan with no `opts.snippet_max_lines` has to be
+---able to get back to this value even after a previous scan (a different
+---repo, a different `opts`) overrode `M.MAX_LINES` for itself.
+M.DEFAULT_MAX_LINES = 40
+
 ---Lines kept per function before the rest becomes a count — the same shape
 ---`docs.lua`'s `REFS_PER_ENTITY` caps a reference list, for the same reason:
 ---this ships in an artifact already measured at 750KB+ (`docs/ECOSYSTEM.md`
 ---§1), and one large function is not entitled to blow that up on its own.
-M.MAX_LINES = 40
+---
+---Overridable per scan via `opts.snippet_max_lines` — `core/scan.lua`'s
+---`M.scan` resolves it into this field once, before any file is scanned;
+---nothing past that point reads `opts` directly.
+M.MAX_LINES = M.DEFAULT_MAX_LINES
 
 ---One function's own source, bounded to `M.MAX_LINES` lines.
 ---@param src string Whole-file source text.
