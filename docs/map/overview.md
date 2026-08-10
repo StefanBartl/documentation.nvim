@@ -97,6 +97,7 @@ flowchart LR
   nlua_documentation_core_check_lua --> nlua_documentation_core_deps_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_docs_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_lang_registry_lua
+  nlua_documentation_core_check_lua --> nlua_documentation_core_scan_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_coverage_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_doccoverage_lua

@@ -64,9 +64,10 @@ which the IR models as one thing.
 
 This plugin's checks are not "is this parseable". They are **"do the docs and
 the code still agree"**, and that only means something where the docs make
-*checkable claims*. Of its fourteen checks, six read LuaCATS tags directly —
+*checkable claims*. Of its fifteen checks, seven read LuaCATS tags directly —
 `missing-module-tag`, `module-path-mismatch`, `missing-summary`,
-`undocumented-param`, `param-name-mismatch`, `dead-see-target`.
+`undocumented-param`, `param-name-mismatch`, `dead-see-target`,
+`type-vs-class`.
 
 How well those port varies more than anything else in this document:
 
@@ -97,7 +98,7 @@ what language produced it:
   `diff`, `history`. `duplicates` is worth singling out: it groups by
   treesitter node-type sequence, so it works on *any* grammar the moment the
   scanner produces shapes, with no per-language code at all.
-- **Eight of the fourteen checks** — the require graph ones (`require-cycle`,
+- **Eight of the fifteen checks** — the require graph ones (`require-cycle`,
   `require-not-declared`, `layer-violation`), the README ones, and
   `dead-function`.
 
