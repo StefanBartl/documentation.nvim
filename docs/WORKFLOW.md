@@ -31,10 +31,11 @@ the wrong one wastes the trip:
   controls. Use it when you already know *what* you're looking at and
   need to understand its neighborhood.
 - **Analysis** answers "what across the *whole tree* deserves attention
-  right now" — nine sortable/filterable panels (Test coverage,
+  right now" — eleven sortable/filterable panels (Test coverage,
   Documentation, Dependencies, Complexity, Duplicates, Plugins, Hooks,
-  Docs, Endpoints). Use it when you don't yet know what you're looking
-  for, only that something in this category is probably worth finding.
+  Docs, Endpoints, Tools, Telemetry). Use it when you don't yet know what
+  you're looking for, only that something in this category is probably
+  worth finding.
 
 A concrete combination: **Complexity panel → pick the worst offender →
 jump straight to its Hierarchy neighborhood** (click through, or `gd` in
@@ -84,6 +85,49 @@ this repo) for the fuller interpretation framework, if you have it.
 Same shape applies to the **Endpoints** mode's own `○` badge (a
 declared route runtime-analysis.nvim's request history has never sent) —
 read as "untested", not "broken".
+
+## Snapshot before a refactor, not just after
+
+The Analysis tab's **Telemetry** panel (`:DocMap serve` running) reads the
+*live* aggregate by default — good for "what does usage look like right
+now", useless for "did this refactor actually change how these functions
+get called". `runtime-analysis.nvim`'s named snapshots close that gap, and
+the habit worth building is **snapshotting before you start, not only
+comparing after**:
+
+```
+:RATelemetry snapshot my-plugin pre-refactor
+```
+
+Do the refactor, let real usage accumulate for a while, then open the
+Telemetry panel, pick `pre-refactor` in the "Snapshot:" select and
+`Latest` in "Compare vs:" — the resulting Δ column is the actual answer to
+"did this change what gets called and how often", not a guess from
+reading the diff. A snapshot taken *after* the fact can only ever be
+compared against another snapshot taken after, which answers "did usage
+change since I remembered to start tracking it" — a weaker, later
+question than the one a `pre-` snapshot answers for free.
+
+Retention is LRU (`telemetry.SNAPSHOT_RETENTION`, default 20, `opts.
+snapshot_retention` per namespace) — a snapshot worth keeping past that
+window needs a name that will still make sense a dozen snapshots later
+(`pre-refactor`, not `test`), since eviction has no idea which ones you
+actually meant to keep.
+
+## `opts.callhierarchy` + `opts.diagnostics`: never leave the editor for the common questions
+
+Both are `install()`-only and off by default, and together they cover the
+two questions a reader reaches for `:DocBrowse` for most often, without
+actually opening it: "what calls this" (`opts.callhierarchy` — native
+`vim.lsp.buf.incoming_calls()`/`outgoing_calls()`, plus a caller/callee
+count injected into hover) and "is this file clean" (`opts.diagnostics` —
+`:DocMap check`'s own findings as native `vim.diagnostic` entries, so
+`[d`/`]d` and a diagnostics float work exactly like they do for LSP
+warnings). Turning both on costs nothing until a buffer under `source/` is
+opened — no scan runs, no LSP client attaches, until then. Worth enabling
+by default in a personal config once the combination has earned its
+keep; the two are unrelated to each other (one is call graphs, one is
+findings), so either is useful alone too.
 
 ## Trail is a session tool, not a bookmark you'll remember weeks later
 

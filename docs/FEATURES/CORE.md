@@ -53,6 +53,43 @@ here" probe, since a static page has no host to ask.
   [BINDINGS.md](../BINDINGS.md#user-commands))
 - **Docs:** [`docs/COMMANDS.md`](../COMMANDS.md) "`:DocMap tools`" section.
 
+## Telemetry Analysis panel
+
+`runtime-analysis.telemetry`'s call counts for this project's own
+functions, joined against the tree and shown as a sortable table — plus,
+once `runtime-analysis.nvim` has any named snapshots saved
+(`:RATelemetry snapshot`), a picker to view an older capture and a
+"Compare vs:" select for a Function/A/B/Δ diff table between any two.
+Unlike every other Analysis panel, not computed from the embedded IR: call
+counts change between runs, so `:DocMap serve` fetches this one live on
+every open (`GET /api/telemetry[?snapshot=name]`) instead of baking it
+into the committed artifact, the same reasoning the History tab's own
+on-demand `git` reads already established.
+
+- **Module:** `core/telemetry_join.lua`, `editor/serve.lua`
+  (`route_telemetry`, `route_telemetry_snapshots`), `core/render/html.lua`
+  (`drawAnalysisTelemetry`, `telPickerHTML`)
+- **Config:** none to turn the panel on — it degrades to an explanatory
+  message when `runtime-analysis.nvim` is not installed or nothing has
+  been recorded yet, the same posture Tools takes toward a missing
+  manifest. Needs `:DocMap serve` running (or `:DocMap open` while it
+  runs); opened from `file://` it explains why rather than doing nothing.
+- **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Telemetry" and
+  "Telemetry snapshot picker" sections.
+
+## Plugin-gated badge
+
+A small `🔌` badge plus an accent tint marks any tab-bar button whose
+usefulness depends on something optional being present — Tools (a
+`docs/install.json` manifest) and Telemetry (`runtime-analysis.nvim`)
+today, applied via one shared `.plugin-gated` CSS class rather than a
+one-off style per button, so the next panel in this shape needs no new
+styling work, only the class.
+
+- **Module:** `core/render/html.lua` (`.plugin-gated` CSS, applied to the
+  `data-atool="tools"`/`data-atool="telemetry"` buttons)
+- **Config:** none — a styling convention, not a feature to switch on.
+
 ## Features tab
 
 A repo's own `docs/FEATURES/` folder, when it has one, as a ninth top-level
