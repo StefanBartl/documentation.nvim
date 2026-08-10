@@ -201,6 +201,8 @@ All options, with their defaults: >lua
                                 -- LSP support, alongside LuaLS
       diagnostics = false,      -- install() only: findings as vim.diagnostic,
                                 -- not only :DocMap check
+      mdview = false,           -- install() only: live IR push to a running
+                                -- mdview.nvim session, soft dependency
       godbolt = false,          -- EXPERIMENTAL, generate()-time: a Compiler
                                 -- Explorer link next to every module/function
 
@@ -794,6 +796,7 @@ to_json({ir})           Serialize the IR deterministically: nodes in
       watch = true,          -- rescan on BufWritePost, debounced
       callhierarchy = true,  -- native in/outgoing-calls LSP, alongside LuaLS
       diagnostics = true,    -- findings as vim.diagnostic, not only :DocMap check
+      mdview = true,         -- live push to a running mdview.nvim session
     })
 
     handle.ir()                                -- current IR
