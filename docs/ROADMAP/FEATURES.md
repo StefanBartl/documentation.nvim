@@ -1694,3 +1694,58 @@ says so plainly instead of rendering an empty table, and `:DocMap tools`
 notifies rather than opening an empty quickfix list — the same "a missing
 thing is a real answer, not a broken one" posture `docs`/`quicks` already
 take when a tree has nothing for them to find.
+
+## Hierarchy: hide/dim individual boxes (2026-08-10)
+
+A right-click "Dim this box" / "Show this box" on any Hierarchy box, plus a
+"Hidden (N) — show all" toolbar pill to clear all of them at once — pure
+client-side JS in `core/render/html.lua`, no Lua-side change to the IR or
+the pipeline at all, since the whole feature is about how already-rendered
+boxes are painted, never about what data feeds them.
+
+**Dims, never removes from the layout.** The alternative — actually
+excluding a hidden node from `layoutModules`/friends — was considered and
+rejected: a Modules-view box has children whose position is computed
+relative to it, so removing it mid-tree means either reparenting its
+children or leaving a gap, real complexity the stated goal ("make a large
+tree less noisy") does not need. Instead a dimmed box keeps its computed
+position in `hboxes`/`positions` and gets `opacity: .08` +
+`pointer-events: none` — the exact mechanism hover-focus already used
+(`#hgraph.focusing .hnode{opacity:.22}`), just made persistent and per-box
+instead of transient and neighbour-based. The genuinely structural version
+of this idea — re-rooting the whole diagram, hiding an entire level — is a
+separate, larger roadmap item ("Hierarchie: Root-Level aus-/einblenden mit
+Zoom-Slider") left open on purpose; conflating the two would have turned a
+Mittel-effort readability fix into the Hoch-effort re-layout feature.
+
+**State design copied deliberately from Compare marks**, not invented fresh:
+`state.hidden`, an array of the same keys `hboxes`/`boxSpec` already use (a
+node id, a class name, or an `fnKey`), with its own `localStorage` key
+(`docmap:hidden:<pathname>`) and its own hash serialization — but, unlike
+`marks`, scoped *inside* `serializeState`'s Hierarchy branch rather than
+global, since a dimmed box has no meaning outside that one tab (matching
+`dir`/`depth`/`ext`/`fn`, not `marks`). On load, a hash that names a
+`hidden` set wins outright over whatever `localStorage` had — the same "an
+explicit link is a statement about what to look at, not a suggestion to
+union with what this browser had lying around" rule `marks` already
+enforces, verified directly (a link naming one box wins over a different
+box previously dimmed and stored).
+
+`describeTarget()` gained one field, `hkey` — set only in the branch that
+resolves an actual Hierarchy `.hnode` element, so `buildMenu()` can gate the
+new entry on "was this menu opened on a graph box" without a second target
+type. Right-clicking the same node's tree row or a reference to it in a
+detail pane offers no hide/dim entry, correctly: neither has a box on
+screen to dim.
+
+No Lua-side test coverage, matching every other piece of Hierarchy
+interactivity (`reconcile`, zoom, hover-dim, the context menu itself) —
+`html.lua`'s embedded JS has none, by established precedent, not an
+oversight here. Verified instead by driving the generated
+`docs/map/index.html` in a real browser: dispatched a real `contextmenu`
+event on a box, confirmed "Dim this box" appears and toggles the box's
+class/the toolbar pill/the URL hash/`localStorage`, confirmed the label
+flips to "Show this box" on a second right-click, confirmed the toolbar
+pill's "show all" clears everything, and confirmed the hash-wins-over-
+localStorage precedence with two different boxes across three separate
+fresh page loads.

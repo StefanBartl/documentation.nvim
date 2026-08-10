@@ -709,6 +709,39 @@ menu. `preventDefault` fires only when the target actually resolves, so
 selecting a paragraph of prose and reaching for the browser's own Copy still
 works.
 
+### Hide/dim
+
+"Dim this box" / "Show this box" in the context menu — reachable only from an
+actual Hierarchy box (`describeTarget`'s `hkey` field, set in that one
+branch), never from a tree row or a detail-pane reference, since neither has
+a box on screen to dim. A "Hidden (N) — show all" pill next to the toolbar's
+zoom controls (hidden itself when nothing is dimmed) clears all of them in
+one click, mirroring `#markbar`'s own role for Compare marks.
+
+**Dims, never removes.** A dimmed box keeps its computed position and stays
+in `hboxes`/`positions` — `opacity: .08` plus `pointer-events: none`, the
+same mechanism hover-focus already uses (`#hgraph.focusing .hnode{opacity:
+.22}`), just persistent and per-box instead of transient and neighbour-based.
+Actually removing a node from the layout was considered and rejected: a
+Modules-view box has children whose position depends on it being there, and
+removing it mid-tree would mean either reparenting them or leaving a gap —
+real work with real edge cases (what happens to a hidden namespace's own
+children?) that the "make a large tree less noisy" goal does not need.
+Structural removal is a **separate, larger** idea, tracked on its own as the
+roadmap's "Hierarchie: Root-Level aus-/einblenden mit Zoom-Slider" item —
+re-rooting the whole diagram, not toggling one box.
+
+State (`state.hidden`, an array of the same keys `hboxes`/`boxSpec` already
+use — a node id, a class name, or an `fnKey`) is a second, independent
+instance of the same pattern Compare marks established: hash-serialized
+*inside* the Hierarchy branch of `serializeState` (unlike `marks`, which is
+global — a dimmed box only exists in this tab, so a Tree-tab link carrying
+`hidden=` would name a control that link's view does not have), mirrored into
+its own `localStorage` key (`docmap:hidden:<pathname>`), and on load a hash
+that names a `hidden` set wins outright over whatever was stored — the same
+"an explicit link is a statement, not a suggestion to union with" rule
+`marks` already follows.
+
 ### Movement
 
 Boxes are held in a keyed map and **reused across redraws**, so a box present
