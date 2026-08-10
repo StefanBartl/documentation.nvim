@@ -177,3 +177,25 @@ uninteresting clicks.
   (`maxRootDepth()`), not a config value.
 - **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Hiding root levels
   (Modules view)" section.
+
+## Call hierarchy in native LSP UI
+
+`opts.callhierarchy` attaches a second, narrow LSP client to Lua buffers
+under `source`, alongside whatever real language server is already
+there — LuaLS, typically. Answers `textDocument/prepareCallHierarchy`,
+`callHierarchy/incomingCalls`/`outgoingCalls`, and injects a
+caller/callee count into `textDocument/hover`, all backed by
+`Documentation.Handle.callers`/`callees` with no new scan. Built because
+LuaLS has no call-hierarchy support of its own — checked against its
+source (zero hits for `callHierarchy`) and its own long-open, unstaffed
+feature request, not assumed. Neovim's own native `vim.lsp.buf.
+incoming_calls()`/`outgoing_calls()`/`hover()` already query and merge
+every attached client, so this sits beside LuaLS rather than replacing
+any part of it.
+
+- **Module:** `editor/callhierarchy.lua`, `editor/registry.lua`
+  (`ensure_callhierarchy`)
+- **Config:** `opts.callhierarchy` (`install()` only, boolean, default
+  `false`).
+- **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Call hierarchy in
+  native LSP UI" section.

@@ -275,7 +275,8 @@ reaches for directly, instead of parsing `module_map.json` off disk:
 local handle = require("documentation").install({
   root = vim.fn.getcwd(),
   source = "lua/myplugin",
-  watch = true,      -- rescan on BufWritePost under source/**.lua, debounced
+  watch = true,          -- rescan on BufWritePost under source/**.lua, debounced
+  callhierarchy = true,  -- attach in/outgoing-calls LSP support alongside LuaLS
 })
 
 handle.ir()                          -- current Documentation.IR, in memory
@@ -329,6 +330,71 @@ run too. `opts.command_name` (default `"DocMap"`) exists so two independent
 `setup()` calls — this repo's own map and a consuming plugin's — don't
 register the same command name (`usercmd.create` defaults to `force = true`,
 so that collision would silently overwrite one of them, not error).
+
+## Call hierarchy in native LSP UI (`opts.callhierarchy`)
+
+Session 2026-08-10. `install()`-only, off by default, same posture as
+`watch`: a second, narrow LSP client attaches to Lua buffers under
+`source` alongside whatever real language server is already there
+(LuaLS, typically) and answers exactly one thing that server can't —
+`textDocument/prepareCallHierarchy`, `callHierarchy/incomingCalls`/
+`outgoingCalls`, plus a caller/callee count injected into
+`textDocument/hover`. `vim.lsp.buf.incoming_calls()`/`outgoing_calls()`/
+`hover()` — the ordinary, native ones, no new keybinding — already query
+every attached client and merge the results, which is the whole reason
+this can sit beside LuaLS rather than needing to replace any part of it.
+
+**Why LuaLS itself isn't the answer.** Checked before writing a line of
+this: `callHierarchy`/`incomingCalls`/`outgoingCalls`/
+`prepareCallHierarchy` appear nowhere in LuaLS's own source (a full
+GitHub code search across the repo, zero hits), and its own feature
+request for exactly this (LuaLS/lua-language-server#2832) has sat open,
+unstaffed, with no branch or milestone, since August 2024. This is not a
+stopgap for something LuaLS is about to ship — nothing suggests it will.
+
+**The extension point is Neovim's own LSP client, verified against its
+source, not assumed.** A client config's `cmd` may be a Lua function
+returning a `vim.lsp.rpc.Client`-shaped table instead of a shell command —
+no external process starts at all. One real, sharp edge sat here, found
+empirically (no worked example of this in-process shape turned up
+anywhere searched, so a probe against a real headless session was the
+only way to be sure): the client table's own methods
+(`request`/`notify`/`is_closing`/`terminate`) are called *without* an
+implicit `self` — `client.request(method, params, callback, ...)`, not
+`client:request(...)`. Getting this wrong doesn't error loudly; it just
+shifts every argument by one and every request silently returns nothing,
+which is exactly the failure mode `editor/callhierarchy.lua`'s own header
+comment now documents ahead of the next person who touches this file.
+
+**Costs no new scan.** Every answer comes straight off
+`Documentation.Handle.callers`/`callees`, already built for the HTML map's
+own Calls view — position resolution is a lookup against
+`Documentation.FunctionInfo.line`/`line_end`, the function's real
+declared span, so a cursor resting anywhere in a function's body resolves
+correctly, not only on its declaration line.
+
+**Heuristic-confidence edges are shown, flagged, not dropped.** LSP's
+`CallHierarchyItem`/`*Call` shapes have no field for "this one's a guess"
+the way the HTML map's `weak`-classed dashed edges do — the one place left
+to say it is `detail`, where a heuristic match gets `" (heuristic match)"`
+appended to the callee/caller's own signature rather than being silently
+included at the same confidence as an exact one, or dropped and losing
+real information `opts.calls_heuristic` was turned on to surface.
+
+**Scoped the same way `watch` already is**: `registry.ensure_callhierarchy`
+attaches on `BufReadPost`/`BufNewFile`, gated by the identical `is_subpath`
+check against `source` that `ensure_watch`'s own `BufWritePost` autocmd
+uses — a file outside the scanned tree never gets this client, watch or
+no watch. Covered end to end in
+[`TESTS/callhierarchy_spec.lua`](../TESTS/callhierarchy_spec.lua): a real
+`vim.cmd.edit()` fires the real autocmd, `vim.wait()` for the client to
+actually attach, then real `vim.lsp.buf_request_all()` calls through
+Neovim's own dispatch — not a direct call into the module's internals.
+Verified a second time against this repo's own real codebase, not only
+the test fixture: `M.ensure_watch` in `registry.lua` came back with two
+real incoming callers (`M.install`, and `browse/source.lua`'s own
+`M.acquire` — a call site not manually checked beforehand), correctly
+named, correctly keyed, correctly line-numbered.
 
 ## LuaLS enrichment (`opts.luals`)
 

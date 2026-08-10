@@ -19,7 +19,7 @@ local autocmd = require("lib.nvim.autocmd")
 
 local M = {}
 
----@type table<string, { opts: Documentation.Opts, ir: Documentation.IR, findings: Documentation.Finding[], watchers: fun(ir: Documentation.IR, findings: Documentation.Finding[])[], augroup: integer?, debounce: Lib.Debounce.Handle?, handle: Documentation.Handle, rescan_fn: fun(opts?: table): Documentation.IR, Documentation.Finding[] }>
+---@type table<string, { opts: Documentation.Opts, ir: Documentation.IR, findings: Documentation.Finding[], watchers: fun(ir: Documentation.IR, findings: Documentation.Finding[])[], augroup: integer?, debounce: Lib.Debounce.Handle?, ch_augroup: integer?, handle: Documentation.Handle, rescan_fn: fun(opts?: table): Documentation.IR, Documentation.Finding[] }>
 local registry = {}
 
 ---@param root string
@@ -107,6 +107,60 @@ function M.ensure_watch(root)
   return true
 end
 
+---Attach the second, narrow LSP client `documentation.editor.callhierarchy`
+---implements — `textDocument/prepareCallHierarchy`, `callHierarchy/
+---incomingCalls`/`outgoingCalls`, and a hover-injected caller/callee count —
+---to Lua buffers under this root's own source dir, if not attached already.
+---
+---Split out of `install()` the same way `ensure_watch` is above, for the
+---identical reason: a handle installed without `callhierarchy` can be
+---upgraded later without being replaced or losing its `on_change`
+---subscribers.
+---
+---Idempotent: called on a root already wired for this, or one that was
+---never installed, it does nothing.
+---@param root string
+---@return boolean wired True if call-hierarchy attachment is wired when this returns.
+function M.ensure_callhierarchy(root)
+  root = norm_root(root)
+  local entry = registry[root]
+  if not entry then
+    return false
+  end
+  if entry.ch_augroup then
+    return true
+  end
+
+  local opts = entry.opts
+  local source_dir = root .. "/" .. (opts.source or "lua")
+  local is_subpath = require("lib.nvim.fs.is_subpath")
+  local callhierarchy = require("documentation.editor.callhierarchy")
+
+  local group = vim.api.nvim_create_augroup("LibDocmapCallHierarchy:" .. root, { clear = true })
+  -- BufReadPost/BufNewFile, not FileType: a buffer can be `lua`-filetyped
+  -- before its name is set (a `:enew` later saved as `.lua`), and the path
+  -- check below needs a real name to compare against `source_dir`. Both
+  -- events fire with the buffer name already in place for the cases that
+  -- matter here — an existing file being opened, or a new one being
+  -- written for the first time.
+  autocmd.create({ "BufReadPost", "BufNewFile" }, function(args)
+    local buf_path = vim.api.nvim_buf_get_name(args.buf)
+    if buf_path ~= "" and is_subpath(buf_path, source_dir) then
+      -- `entry.handle` is read here, not captured — at the time this
+      -- function is *defined* (inside `install()`, before the handle table
+      -- exists yet), it would be nil; by the time an autocmd actually
+      -- *fires*, `install()` has long since returned and set it.
+      callhierarchy.attach(args.buf, entry.handle)
+    end
+  end, {
+    group = group,
+    pattern = "*.lua",
+  })
+
+  entry.ch_augroup = group
+  return true
+end
+
 ---Install a live handle for `opts.root`. Runs an initial scan immediately
 ---(synchronously — including the LuaLS shell-out if `opts.luals` is set, so
 ---a caller passing `luals = true` here is opting into that cost up front,
@@ -145,6 +199,9 @@ function M.install(opts)
 
   if opts.watch then
     M.ensure_watch(root)
+  end
+  if opts.callhierarchy then
+    M.ensure_callhierarchy(root)
   end
 
   ---Filter the current IR's edges. The graph queries below all reduce to
@@ -269,6 +326,16 @@ function M.uninstall(handle_or_root)
   if entry.augroup then
     pcall(vim.api.nvim_del_augroup_by_id, entry.augroup)
   end
+  if entry.ch_augroup then
+    pcall(vim.api.nvim_del_augroup_by_id, entry.ch_augroup)
+  end
+  -- Stops *future* attachments only, same posture as `watch`'s own teardown
+  -- above (which cancels the debounce but does not chase down an in-flight
+  -- rescan): a buffer the call-hierarchy client already attached to keeps
+  -- it running, now answering off a frozen `entry.ir` that will never
+  -- update again. Rare in practice — uninstalling a handle a buffer was
+  -- actively using is not the common shutdown path — and the worst case is
+  -- stale results, not a crash, the same tradeoff `watch` already accepts.
   entry.watchers = {}
   registry[root] = nil
   return true
