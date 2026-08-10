@@ -286,6 +286,8 @@ Full reference: [docs/COMMANDS.md](docs/COMMANDS.md).
 ```vim
 :DocMap                          " regenerate
 :DocMap check                    " verify without writing -> quickfix
+:DocMap annotate                 " preview a ---@module header for every undocumented file
+:DocMap annotate --write         " …and write it in place
 :DocMap full                     " regenerate WITH LuaLS enrichment
 :DocMap open                     " open the HTML in the system browser
 :DocMap graph deps               " …opened on the dependency graph

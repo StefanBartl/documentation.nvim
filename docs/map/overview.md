@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**4 modules** · 5 namespaces · 67 helper files
+**4 modules** · 5 namespaces · 69 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -46,6 +46,7 @@ flowchart LR
   nlua_documentation_bindings_keymaps_lua["documentation.bindings.keymaps"]
   nlua_documentation_bindings_progress_lua["documentation.bindings.progress"]
   nlua_documentation_bindings_usrcmds["documentation.bindings.usrcmds"]
+  nlua_documentation_core_annotate_lua["documentation.core.annotate"]
   nlua_documentation_core_calls_lua["documentation.core.calls"]
   nlua_documentation_core_check_lua["documentation.core.check"]
   nlua_documentation_core_churn_lua["documentation.core.churn"]
@@ -82,6 +83,7 @@ flowchart LR
   nlua_documentation_bindings_docs_lua --> nlua_documentation_bindings_autocmds_lua
   nlua_documentation_bindings_docs_lua --> nlua_documentation_editor_browse
   nlua_documentation_bindings_usrcmds --> nlua_documentation_bindings_progress_lua
+  nlua_documentation_bindings_usrcmds --> nlua_documentation_core_annotate_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_check_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_churn_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_deps_lua
@@ -93,6 +95,7 @@ flowchart LR
   nlua_documentation_bindings_usrcmds --> nlua_documentation_editor_browse
   nlua_documentation_bindings_usrcmds --> nlua_documentation_editor_registry_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_editor_serve_lua
+  nlua_documentation_core_annotate_lua --> nlua_documentation_core_check_lua
   nlua_documentation_core_calls_lua --> nlua_documentation_core_deps_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_deps_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_docs_lua
