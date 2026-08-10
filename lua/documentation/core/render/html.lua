@@ -933,6 +933,60 @@ local JS = [[
       (refs.length > 1 ? '<span class="docn">' + refs.length + '</span>' : '') + '</span>';
   }
 
+  // =====================================================================
+  // Compiler Explorer (opts.godbolt, experimental, session 2026-08-10) —
+  // a genuine `luac -l -l -p` bytecode disassembly for Lua, not a
+  // workaround: verified against Compiler Explorer's own `/api/languages`
+  // (lua is a real language id there) and its compiler source (the "lua"
+  // compiler class runs exactly that), after an earlier version of this
+  // roadmap item wrongly assumed Lua had no meaningful compiled output to
+  // show. `godbolt.org/clientstate/<base64 JSON>` is Compiler Explorer's
+  // own documented, fully client-side link format — no API call needed to
+  // build one, so opening it is the only network access this feature ever
+  // causes, the same posture every other external link on this page
+  // (`srcUrl`, `tag_links`) already has.
+  //
+  // No new IR field: built lazily, on click, from `fn.snippet` — already
+  // serialized for the existing hover-preview feature, already bounded the
+  // same way `core/snippet.lua` bounds it. A very long function's snippet
+  // may be truncated (`snippet_omitted` says by how much); the bytecode
+  // Compiler Explorer shows for it is correspondingly a compile of that
+  // same truncated fragment — the same honesty the in-page preview already
+  // has, not a new limitation this feature introduces. A module's own link
+  // concatenates its functions' snippets in declaration order — an
+  // approximation of the file, not the file itself (comments/requires/
+  // symbols outside a function are not part of any `fn.snippet`), which is
+  // why this is marked experimental rather than a byte-perfect "whole
+  // project" view — Compiler Explorer's own Lua compiler (`luac`) takes
+  // exactly one file per compile in any case; there is no project mode for
+  // it the way CMake/C++ has.
+  function godboltUrl(source){
+    var state = { sessions: [{ id: 1, language: "lua", source: source,
+      compilers: [{ id: "lua547", options: "" }] }] };
+    // btoa is Latin1-only; encodeURIComponent/unescape is the standard
+    // UTF-8-safe detour around that (Lua source can carry UTF-8 in
+    // comments/strings). The result then needs the url-safe substitution
+    // Compiler Explorer's own clientstate format documents.
+    var b64 = btoa(unescape(encodeURIComponent(JSON.stringify(state))))
+      .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    return "https://godbolt.org/clientstate/" + b64;
+  }
+
+  // Emits nothing at all unless `opts.godbolt` was set at generation time
+  // — same "render nothing when not applicable" shape `docTrigger` above
+  // already has, just gated by a build-time flag instead of runtime data.
+  // The URL itself is *not* built here: constructing and base64-encoding a
+  // clientstate JSON for every function/module on a large tree, on every
+  // page load, for a link most readers will never click, would be
+  // needless work — `kind`/`key` are carried on the element instead, and
+  // the real URL is built once, lazily, in the click handler below.
+  function godboltTrigger(kind, key){
+    if(!IR.meta.godbolt) return "";
+    return '<a href="#" class="godi" data-godbolt="' + kind + '" data-godbolt-key="' +
+      esc(key) + '" title="Open in Compiler Explorer (experimental) — real Lua bytecode, compiled on their servers, not this map’s own data">' +
+      '⚙ Compiler Explorer ↗</a>';
+  }
+
   // Where a mention lives, and the line it sits on. Rendered into the same
   // card the annotation popup uses rather than a second floating thing with
   // its own lifecycle — one set of rules for one page.
@@ -1544,6 +1598,11 @@ local JS = [[
     }
     if((n.functions||[]).length){
       links.push('<a href="#" data-goto="calls">Calls ↳</a>');
+      // A module's own link, not one per function — that one is rendered
+      // beside each function's own block below instead, where "this one
+      // function" is unambiguous. Both read the same `fn.snippet` data.
+      var godboltNode = godboltTrigger("node", n.id);
+      if(godboltNode) links.push(godboltNode);
     }
     if(links.length) h.push('<div class="links">'+links.join("")+'</div>');
 
@@ -1640,6 +1699,8 @@ local JS = [[
           if(inN) cl.push('<a href="#" data-calls="'+esc(key)+'" data-dir="in">callers '+inN+' ↑</a>');
           h.push('<div class="fn-desc fn-see">'+cl.join(" · ")+'</div>');
         }
+        var godboltFn = godboltTrigger("fn", key);
+        if(godboltFn) h.push('<div class="fn-desc fn-see">'+godboltFn+'</div>');
         h.push('</div>');
       });
     }
@@ -5402,6 +5463,32 @@ local JS = [[
     if(sigAnchor && !(ev.target.closest && ev.target.closest("#sigpop"))) sigClose();
   });
 
+  // A separate listener rather than folded into the one above: this one
+  // never opens an in-page popup, only ever a new tab, so it has none of
+  // sigOpen/sigClose's own state to coordinate with.
+  document.addEventListener("click", function(ev){
+    var el = ev.target.closest && ev.target.closest("[data-godbolt]");
+    if(!el) return;
+    ev.preventDefault();
+    var key = el.dataset.godboltKey;
+    var source = null;
+    if(el.dataset.godbolt === "fn"){
+      var entry = fnByKey[key];
+      source = entry && entry.fn.snippet;
+    } else {
+      var node = byId[key];
+      if(node){
+        var parts = [];
+        (node.functions || []).forEach(function(fn){
+          if(fn.snippet) parts.push(fn.snippet);
+        });
+        if(parts.length) source = parts.join("\n\n");
+      }
+    }
+    if(!source) return; // no snippet to show — a trigger with nothing behind it is inert, not a dead link to godbolt.org with an empty editor
+    window.open(godboltUrl(source), "_blank");
+  });
+
   // Keyboard parity: the trigger is focusable, so tabbing a list reaches it
   // and Enter/Space opens the same card the pointer would.
   document.addEventListener("keydown", function(ev){
@@ -5718,6 +5805,11 @@ function M.render(ir, findings, opts)
 
   local meta = vim.deepcopy(ir.meta)
   meta.out_depth = depth
+  -- Render-time-only, same as `out_depth` above: `opts.godbolt` needs no new
+  -- IR field and touches no scan step, only whether the client-side
+  -- Compiler Explorer trigger renders anything at all — see that code's own
+  -- header comment.
+  meta.godbolt = not not opts.godbolt
 
   local nodes = {}
   for _, id in ipairs(ir.order) do
