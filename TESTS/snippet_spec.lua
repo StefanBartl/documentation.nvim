@@ -93,4 +93,55 @@ return function(H)
 
     os.remove(fixture)
   end
+
+  -- opts.snippet_max_lines: a real config option, not just the module
+  -- global directly — confirmed with the user 2026-08-10 after finding
+  -- MAX_LINES was a real feature with no way to configure it. Goes through
+  -- `M.scan(opts)` (`core/scan.lua`), the actual resolution point, not
+  -- `snippet.MAX_LINES` set by hand.
+  do
+    local scan = require("documentation.core.scan")
+
+    local dr = H.tmpfile("_snippet_opt")
+    local lines = { "local M = {}", "", "function M.long()" }
+    for i = 1, 30 do
+      lines[#lines + 1] = "  local x" .. i .. " = " .. i
+    end
+    lines[#lines + 1] = "end"
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "return M"
+    local abs = dr .. "/lua/t/init.lua"
+    vim.fn.mkdir(vim.fn.fnamemodify(abs, ":h"), "p")
+    local fw = assert(io.open(abs, "w"))
+    fw:write(table.concat(lines, "\n"))
+    fw:close()
+
+    local ir_capped =
+      scan.scan({ root = dr, source = "lua/t", lua_root = "lua", snippet_max_lines = 10 })
+    eq(
+      ir_capped.nodes["lua/t"].functions[1].snippet_omitted,
+      22,
+      "opts.snippet_max_lines=10: 32-line function omits 22"
+    )
+    eq(
+      snippet.MAX_LINES,
+      10,
+      "opts.snippet_max_lines resolved into snippet.MAX_LINES for this scan"
+    )
+
+    -- The very next scan, no override: back to the real default, not stuck
+    -- at 10 from the call above — the whole reason this is reset per scan
+    -- rather than left as a permanent mutation.
+    local ir_default = scan.scan({ root = dr, source = "lua/t", lua_root = "lua" })
+    eq(
+      snippet.MAX_LINES,
+      snippet.DEFAULT_MAX_LINES,
+      "a scan with no override resets MAX_LINES, does not inherit the previous scan's"
+    )
+    eq(
+      ir_default.nodes["lua/t"].functions[1].snippet_omitted,
+      0,
+      "same function, no override: nothing omitted (32 lines, cap is 40)"
+    )
+  end
 end

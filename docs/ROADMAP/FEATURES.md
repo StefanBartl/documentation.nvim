@@ -2465,3 +2465,28 @@ the compare-mode diff table, the not-found message for a name that does
 not resolve, and the URL round-trip on a fresh navigation. The test
 snapshot was deleted from the real cache directory afterward rather than
 left behind as debris in a live environment.
+
+## `opts.snippet_max_lines` (2026-08-10)
+
+Found during a doc-currency audit prompted directly by the user: `core/
+snippet.lua`'s `MAX_LINES` (bounds `fn.snippet`, the hover-preview payload
+and — since `opts.godbolt` shipped — the Compiler Explorer link's own
+source) was a real, user-relevant feature implemented as a hardcoded
+module constant with no `opts` field, confirmed worth fixing alongside a
+matching gap in `runtime-analysis.nvim` (its own `SNAPSHOT_RETENTION`). A
+second candidate found the same pass, `core/duplicates.lua`'s `MIN_SIZE`,
+was confirmed to stay as is — its own code comment already argues callers
+should not need to override it, and the user agreed that reasoning holds.
+
+Resolved once per `scan()`/`scan_full()` call, in `core/scan.lua`, into
+`core/snippet.lua`'s `M.MAX_LINES` — not threaded as a parameter through
+the shared `scan_file(path)` interface all five language backends
+(`lua`/`js`/`ts`/`tsx`/`ecma`) implement, which would have meant touching
+that contract for one policy value only the outer scan loop needs current
+before it starts. Explicitly reset on every `M.scan` call (`opts.
+snippet_max_lines or snippet.DEFAULT_MAX_LINES`, a new field split out
+from the old `MAX_LINES` specifically so a real, permanent default still
+exists to reset to) rather than left as a one-way mutation — a scan with
+no override must never inherit a previous scan's, since `:DocBrowse`
+bouncing between repos (or several `:DocMap` calls in one session) can
+scan more than one repo's `opts` in the same process.

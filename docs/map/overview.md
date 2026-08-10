@@ -129,6 +129,7 @@ flowchart LR
   nlua_documentation_core_scan_lua --> nlua_documentation_core_calls_lua
   nlua_documentation_core_scan_lua --> nlua_documentation_core_deps_lua
   nlua_documentation_core_scan_lua --> nlua_documentation_core_lang_registry_lua
+  nlua_documentation_core_scan_lua --> nlua_documentation_core_snippet_lua
   nlua_documentation_core_symbols_lua --> nlua_documentation_core_scan_lua
   nlua_documentation_core_tagfiles_lua --> nlua_documentation_core_find_lua
   nlua_documentation_core_telemetry_join_lua --> nlua_documentation_core_check_lua
