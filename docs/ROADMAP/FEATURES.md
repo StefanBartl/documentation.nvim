@@ -2176,3 +2176,73 @@ this repo's own real codebase, not only the fixture: `M.ensure_watch` in
 `registry.lua` came back with two real incoming callers (`M.install`, and
 `browse/source.lua`'s own `M.acquire` — a call site not manually checked
 beforehand), correctly named, correctly keyed, correctly line-numbered.
+
+## Findings as native diagnostics — `opts.diagnostics` (2026-08-10)
+
+The last remaining Hoch item from the "generell" cluster this session
+worked through: "Eigene Findings als `vim.diagnostic` statt nur
+Quickfix" — `Documentation.Finding[]`, until now reachable only through
+the `:DocMap check` quickfix list, also published as native
+`vim.diagnostic` entries on every open buffer that has one.
+
+**Simpler than the call-hierarchy item shipped just before it, on
+purpose.** No LSP client needed at all — `vim.diagnostic.set(ns, bufnr,
+diagnostics)` works directly on any already-open, loaded buffer.
+`bindings/diagnostics.lua`'s `publish(root, handle)` groups
+`handle.findings()` by `node`, resolves each to a real open buffer via
+`vim.fn.bufnr()` (never opens or loads one itself), and sets diagnostics
+once per touched buffer — no request/response cycle, no in-process fake
+server, none of `opts.callhierarchy`'s own architecture.
+
+**File-level granularity confirmed as the right v1 scope, not assumed.**
+Checked before writing anything: `Documentation.Finding` carries no
+`line` field, only `node` (a whole file) — and the existing quickfix
+publisher (`bindings/usrcmds/generate.lua`'s `M.check`) has the exact
+same limitation, setting `filename` but never `lnum` either. Put to the
+user directly: extend `Documentation.Finding` with an optional `line`
+now (real per-line precision for the ~5-6 checks that already compute
+one internally, at the cost of also touching `core/check.lua`), or ship
+the simpler, `bindings/`-only version first. Chosen: file-level first: no
+`core/` change, matches what quickfix already does, and per-line
+precision stays a real, separately-scoped future step rather than
+scope-creeping into this pass.
+
+**`info`-severity findings are shown, not filtered, on the user's own
+call** — mapped to `vim.diagnostic.severity.HINT`, a fourth,
+deliberately unobtrusive tier the quickfix list's own `M.check` has no
+equivalent for and explicitly excludes them from
+(`if f.severity ~= "info"`). Confirmed rather than assumed to just
+mirror quickfix's own filter: using a capability quickfix never had
+beats reproducing its narrower one for no real reason.
+
+**Clearing a fixed finding needed to be earned, not assumed for
+free** — `vim.diagnostic.set()` replaces the whole set for a
+buffer/namespace pair, but a buffer whose last finding just got fixed
+drops out of the current pass's `by_node` grouping entirely, so nothing
+would tell it to clear on its own without extra bookkeeping. `publish`
+tracks every buffer it has ever diagnosed, per root, and explicitly
+zeroes any that fell out of the current findings. Verified precisely,
+not just by count: `TESTS/diagnostics_spec.lua` fixes two of four real
+findings in a fixture (`missing-summary`, `dead-function`) and rescans,
+then asserts the *other* two specific findings
+(`missing-readme`, `unreferenced-module`) survive rather than merely
+checking the count dropped — a bug that cleared everything and reset it
+wrong would also shrink the count, which is exactly what a looser
+assertion would have missed.
+
+Wired via `registry.ensure_diagnostics`, a sibling of `ensure_watch`/
+`ensure_callhierarchy` using the identical `is_subpath`-against-`source`
+scoping, plus one `handle.on_change` subscription for live refresh on a
+watch-triggered or manual rescan. One real ordering difference from its
+two siblings, worth stating plainly: this needs `entry.handle` to exist
+*synchronously* at call time (`on_change` is subscribed once, not read
+lazily from inside a later autocmd callback the way
+`ensure_callhierarchy`'s is), so `install()` calls it only after
+`entry.handle` is fully built — after, not alongside, `watch`/
+`callhierarchy` above it.
+
+Verified a second time against this repo's own real codebase, not only
+the fixture: opening `editor/health.lua` (flagged `unreferenced-module`
+by the real scan — required by no other file in this tree) produced
+exactly one real `HINT`-severity diagnostic, correct check name, correct
+message, on line 1.

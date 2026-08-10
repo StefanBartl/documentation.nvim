@@ -199,3 +199,22 @@ any part of it.
   `false`).
 - **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Call hierarchy in
   native LSP UI" section.
+
+## Findings as native diagnostics
+
+`opts.diagnostics` publishes `Documentation.Finding[]` — until now
+reachable only through the `:DocMap check` quickfix list — as native
+`vim.diagnostic` entries on every open buffer that has one. No LSP
+client needed, unlike call hierarchy above: `vim.diagnostic.set()` works
+directly on an already-open buffer. File-level granularity, matching the
+quickfix list's own existing precedent (`Documentation.Finding` carries
+no line number); `info`-severity findings map to
+`vim.diagnostic.severity.HINT` and are shown, where the quickfix list
+drops them.
+
+- **Module:** `bindings/diagnostics.lua`, `editor/registry.lua`
+  (`ensure_diagnostics`)
+- **Config:** `opts.diagnostics` (`install()` only, boolean, default
+  `false`).
+- **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Findings as native
+  diagnostics" section.

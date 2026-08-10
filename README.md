@@ -417,6 +417,7 @@ local handle = require("documentation").install({
   source = "lua/myplugin",
   watch = true,          -- rescan on BufWritePost under source/**.lua, debounced
   callhierarchy = true,  -- native in/outgoing-calls LSP support, alongside LuaLS
+  diagnostics = true,    -- drift findings as vim.diagnostic, not only :DocMap check
 })
 
 handle.ir()                                -- current IR, in memory
@@ -434,6 +435,15 @@ because LuaLS itself has no call-hierarchy support at all (verified against
 its source, and its own two-years-open feature request); Neovim's own
 `vim.lsp.buf.incoming_calls()`/`hover()` already merge results from every
 attached client, no new keybinding needed.
+
+`diagnostics = true` publishes the same drift findings `:DocMap check`
+already computes as native `vim.diagnostic` entries — a wavy underline and
+sign-column mark while reading, not a separate list to open. No new LSP
+client needed here at all, unlike `callhierarchy`: `vim.diagnostic.set()`
+works directly on any already-open buffer. File-level granularity, the
+same the quickfix list already has (`Documentation.Finding` carries no
+line number); `info`-severity findings map to `vim.diagnostic.severity.HINT`
+and are shown, where the quickfix list drops them.
 
 ## Drift checks
 

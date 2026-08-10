@@ -396,6 +396,81 @@ real incoming callers (`M.install`, and `browse/source.lua`'s own
 `M.acquire` — a call site not manually checked beforehand), correctly
 named, correctly keyed, correctly line-numbered.
 
+## Findings as native diagnostics (`opts.diagnostics`)
+
+Session 2026-08-10. `install()`-only, off by default, same posture as
+`watch`/`callhierarchy`: `Documentation.Finding[]` — until now reachable
+only through the `:DocMap check` quickfix list — is also published as
+native `vim.diagnostic` entries on every already-open buffer under
+`source` that has a finding. A wavy underline and a sign-column mark while
+reading, not a separate command and a list to open; `]d`/`[d`, hover
+floats, statusline counts, trouble.nvim/lspsaga if installed — everything
+already wired to `vim.diagnostic` picks it up for free.
+
+**File-level granularity, matching the quickfix list's own existing
+precedent, not a new limitation.** `Documentation.Finding` carries no
+`line` field at all — only `node` (a whole file) and free-text `message`.
+Checked before writing a line of this: `bindings/usrcmds/generate.lua`'s
+own `M.check` sets `filename` for its quickfix items but never `lnum`
+either, so a diagnostic here lands on the buffer's first line exactly the
+way an existing quickfix jump already does. Real per-line precision for
+the handful of checks that already know one internally
+(`dead-function`, `param-name-mismatch`, ...) would mean adding a `line`
+field to `Documentation.Finding` and touching `core/check.lua` — a real,
+separate future step, deliberately kept out of this one: confirmed with
+the user to ship the simpler, `bindings/`-only version first rather than
+bundle a `core/` change into the same pass.
+
+**`info`-severity findings are shown, not dropped**, mapped to
+`vim.diagnostic.severity.HINT` — the quickfix list's own `M.check`
+explicitly filters them out (`if f.severity ~= "info"`), but `vim.diagnostic`
+has a fourth, deliberately unobtrusive tier quickfix had no equivalent for.
+Confirmed with the user rather than assumed: showing everything uses a
+capability quickfix never had, instead of reproducing quickfix's own
+narrower filter for no reason beyond consistency.
+
+**Simpler to build than call hierarchy, on purpose — no LSP client at
+all.** `vim.diagnostic.set(ns, bufnr, diagnostics)` works directly on any
+buffer; nothing here needs `vim.lsp.start()`, a request/response cycle, or
+an in-process fake server the way `opts.callhierarchy` does.
+`bindings/diagnostics.lua`'s `publish(root, handle)` walks
+`handle.findings()`, groups by `node`, resolves each node's `source` to an
+already-open **and loaded** buffer via `vim.fn.bufnr()` (never opens or
+loads one itself — a diagnostic on a buffer nobody has open is invisible,
+not worth the cost), and calls `vim.diagnostic.set()` once per touched
+buffer.
+
+**Clearing a fixed finding is not "leave it out of this pass" — it needs
+an explicit empty `set()` call.** `vim.diagnostic.set()` *replaces* the
+whole set for a buffer/namespace pair rather than merging into it, but a
+buffer whose last finding just got fixed will not appear in this pass's
+`by_node` grouping at all, so nothing would ever tell it to clear on its
+own. `publish` tracks every buffer it has ever set a diagnostic on, per
+root, and explicitly zeroes out any that dropped out of the current
+findings — verified directly in
+[`TESTS/diagnostics_spec.lua`](../TESTS/diagnostics_spec.lua): fixing two
+of four real findings in a fixture and rescanning leaves exactly the two
+untouched ones, not zero (a bug that cleared everything and reset it
+wrong would also produce a smaller count, which is why the test checks
+*which* findings survive, not only how many).
+
+`registry.ensure_diagnostics` wires this up: an initial publish plus a
+`BufReadPost`/`BufNewFile` autocmd for buffers opened later, both scoped
+by the same `is_subpath`-against-`source` check `ensure_watch`/
+`ensure_callhierarchy` already use, and one `handle.on_change` subscription
+so a watch-triggered (or manual) rescan refreshes every currently-tracked
+buffer live. Unlike `ensure_watch`/`ensure_callhierarchy`, this needs the
+handle to exist *synchronously* at call time (`handle.on_change` is
+subscribed once, not read lazily from inside a later callback), so
+`install()` calls it only after `entry.handle` is fully built, not
+alongside the other two options above.
+
+Verified a second time against this repo's own real codebase, not only
+the test fixture: opening `editor/health.lua` (which the real scan already
+flags `unreferenced-module` — required by no other file in this tree)
+produced exactly one real `HINT`-severity diagnostic, correct check name,
+correct message, on line 1.
+
 ## LuaLS enrichment (`opts.luals`)
 
 Off by default — a full-repo `lua-language-server --doc` run costs several
