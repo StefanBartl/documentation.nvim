@@ -153,6 +153,14 @@ function M.scan_full(opts)
     return require("documentation.core.tools").resolve(opts.root)
   end)
 
+  -- This repo's own docs/FEATURES/ folder, same posture as docs/tools above:
+  -- one directory listing plus a handful of file reads, a repo with none
+  -- simply leaves ir.features nil. See core/features.lua and
+  -- docs/FEATURES_FORMAT.md.
+  ir.features = timing.measure(t, "features", function()
+    return require("documentation.core.features").resolve(opts.root)
+  end)
+
   local luals_err
   if opts.luals then
     local luals = require("documentation.core.luals")
@@ -326,6 +334,18 @@ function M.to_json(ir)
   -- report a cleaner tree than the one that was scanned.
   put(',\n  "quicks": ')
   put(json.encode(ir.quicks or { good = {}, bad = {}, total_good = 0, total_bad = 0 }))
+  -- Unlike duplicates/docs/quicks above, `nil` here is not "scan_full didn't
+  -- run yet" — it is the real, common answer "this repo ships no
+  -- lib.nvim.deps manifest" / "no docs/FEATURES/ folder", and `json.encode`
+  -- turns a bare Lua `nil` into JSON `null` on its own, which is exactly
+  -- the falsy value the Tools/Features renderers already check for. No
+  -- default-shape fallback, unlike the three above, because there is no
+  -- "ran but found nothing" shape to distinguish from "did not run" here —
+  -- both core/tools.lua and core/features.lua always run, unconditionally.
+  put(',\n  "tools": ')
+  put(json.encode(ir.tools))
+  put(',\n  "features": ')
+  put(json.encode(ir.features))
   put("\n}\n")
   return table.concat(out)
 end

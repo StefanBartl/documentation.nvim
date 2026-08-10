@@ -50,7 +50,7 @@ plugin](docs/PIPELINE.md#why-this-is-its-own-plugin).
 
 | Artifact | What it is |
 |---|---|
-| `docs/map/index.html` | The interactive map: **Quicks**, **Tree**, **Hierarchy**, **Notes**, **Index**, **History**, **Analysis** and **Compare** tabs. Self-contained — no CDN, no build step. |
+| `docs/map/index.html` | The interactive map: **Quicks**, **Tree**, **Hierarchy**, **Notes**, **Index**, **History**, **Analysis**, **Compare** and **Features** tabs. Self-contained — no CDN, no build step. |
 | `docs/map/overview.md` | The same tree as Markdown, so it renders on GitHub. |
 | `docs/map/module_map.json` | The IR, byte-deterministic. What `--check` compares and what `:DocMap diff` reads out of old commits. |
 | `docs/map/coverage.svg` | Optional (`opts.badge`): a doc-coverage badge, hand-rolled, no network call. |
@@ -100,6 +100,17 @@ or module. Its Matrix layout puts attributes down the side and marked objects
 across, highlighting every row where they disagree — *"where do these four
 differ"* has no other answer on the page. Marks travel in the URL and survive a
 reload; a negative Quicks verdict offers **Mark all N** straight into it.
+
+The **Features** tab reads a repo's own `docs/FEATURES/` folder, when it has
+one — one card per `## Feature` section, its summary and whatever
+`- **Key:** value` metadata the author wrote (`Module`, `Keymaps`, `Config`,
+or anything else; there is no fixed vocabulary). An index over hand-written
+prose, not a Markdown viewer — a `Module:` bullet that resolves to a real
+node links straight into the Tree tab, the rest of the file stays exactly
+where the author put it. See
+[`docs/FEATURES_FORMAT.md`](docs/FEATURES_FORMAT.md) for the format this
+tab reads, and this repository's own [`docs/FEATURES/`](docs/FEATURES) for
+a real (if deliberately small) example.
 
 ## Installation
 
