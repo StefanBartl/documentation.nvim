@@ -2309,3 +2309,23 @@ detour, since `btoa` alone is Latin1-only) client-side, then open the
 result. Fully deterministic from the same source, so this puts nothing
 non-reproducible into a committed artifact — checked against `--check`'s
 own byte-for-byte comparison before building, not after.
+
+## `.plugin-gated` badge/accent styling (2026-08-10)
+
+A small `🔌` badge (`::after` on the button) plus a `var(--ext)` text tint
+— the same colour the Hierarchy graphs already use for "connects outside
+this map", reused here for "depends on something outside this plugin" —
+for a tab-bar/panel button whose usefulness depends on something optional
+being present. Applied first to the existing Analysis → Tools button
+(`data-atool="tools"`, populated from `docs/install.json` when the
+scanned repo declares one), with a `title` tooltip spelling out exactly
+what it's conditional on.
+
+Deliberately a CSS class (`.plugin-gated`), not a one-off style on the
+Tools button specifically: raised alongside a concept for a future
+Telemetry Analysis panel (`docs/ROADMAP/ROADMAP.md`'s "Genuinely open"
+section) that will need the identical treatment once built, gated on a
+soft dependency (`runtime-analysis.nvim`) rather than a manifest file —
+same visual signal, two different kinds of "optional" underneath it.
+Confirmed with the user which visual treatment (badge + tint, vs. badge
+alone, vs. tint alone) before building.

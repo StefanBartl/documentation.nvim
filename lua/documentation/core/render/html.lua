@@ -392,6 +392,15 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .hview-toggle button{border:none;border-radius:0;padding:4px 10px;font-size:12px}
 .hview-toggle button+button{border-left:1px solid var(--line)}
 .hview-toggle button.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
+/* Marks a panel/mode that only does anything when a soft-dependency plugin
+   (or, for Tools, a project-level manifest file) is present -- same signal
+   `--ext` already carries for "connects outside this map" in the Hierarchy
+   graphs, reused here for "depends on something outside this plugin". The
+   badge is the primary cue (readable even without color); the tint is a
+   second one for a quick scan of the tab bar. */
+.hview-toggle button.plugin-gated{color:var(--ext)}
+.hview-toggle button.plugin-gated::after{content:"\1F50C";font-size:9px;margin-left:3px;opacity:.85}
+.hview-toggle button.plugin-gated.active{background:var(--ext);color:var(--bg);font-weight:600}
 .hnode.t-class .hnm{color:var(--mod)}
 .hnode.t-alias .hnm{color:var(--ns)}
 .hnode .hkind{font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-top:1px}
@@ -6055,7 +6064,7 @@ function M.render(ir, findings, opts)
     '<button class="anview-btn" data-atool="complexity">Complexity</button>',
     '<button class="anview-btn" data-atool="duplicates">Duplicates</button>',
     '<button class="anview-btn" data-atool="plugins">Plugins</button>',
-    '<button class="anview-btn" data-atool="tools">Tools</button>',
+    '<button class="anview-btn plugin-gated" data-atool="tools" title="Populated from docs/install.json (lib.nvim.deps manifest) when the scanned repo declares one">Tools</button>',
     '<button class="anview-btn" data-atool="hooks">Hooks</button>',
     '<button class="anview-btn" data-atool="docs">Docs</button>',
     '<button class="anview-btn" data-atool="endpoints">Endpoints</button>',
