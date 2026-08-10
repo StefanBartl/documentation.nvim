@@ -197,6 +197,12 @@ All options, with their defaults: >lua
 
       watch = false,            -- install() only: rescan on BufWritePost
       watch_ms = 500,
+      callhierarchy = false,    -- install() only: native in/outgoing-calls
+                                -- LSP support, alongside LuaLS
+      diagnostics = false,      -- install() only: findings as vim.diagnostic,
+                                -- not only :DocMap check
+      godbolt = false,          -- EXPERIMENTAL, generate()-time: a Compiler
+                                -- Explorer link next to every module/function
 
       command_name = "DocMap",
       browse_command_name = "DocBrowse",

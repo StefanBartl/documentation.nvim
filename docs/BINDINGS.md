@@ -10,7 +10,7 @@ actually drive the plugin — do not edit by hand. Regenerate with
 
 | Command | Arguments | What it is |
 |---|---|---|
-| `:DocMap` | `[check\|full\|open\|graph\|why\|dot\|diff\|impact\|churn\|plugins\|tools\|serve\|helptags]` | Generate or verify the module map. The bare form writes artifacts. |
+| `:DocMap` | `[check\|full\|open\|graph\|why\|dot\|diff\|impact\|churn\|plugins\|tools\|endpoints\|serve\|helptags\|annotate]` | Generate or verify the module map. The bare form writes artifacts. |
 | `:DocBrowse` | `[live] [history\|trail\|endpoints\|module]` | Navigate the same map inside the editor. Only ever reads. |
 
 Both names are configurable — `opts.command_name` and
@@ -68,6 +68,20 @@ All created lazily. Requiring `documentation` installs none of them.
 **Lifetime:** Created by `install()` when `opts.watch` is set; removed by `uninstall()`.
 
 Rescan the tree after a write under `source/`, debounced by `opts.watch_ms`, so a live handle's IR and every `on_change` subscriber stay current. Filtered by `fs.is_subpath` rather than by an autocmd glob pattern — a pattern would have to match the user's path spelling exactly, and a mismatch fails silently.
+
+### `BufReadPost`, `BufNewFile` — global
+
+**Owner:** `documentation.editor.registry`  
+**Lifetime:** Created by `install()` when `opts.callhierarchy` is set (`ensure_callhierarchy`); removed by `uninstall()`.
+
+Attach the second, narrow in-process LSP client (`editor/callhierarchy.lua`) to a Lua buffer opened under `source/` — answers `textDocument/prepareCallHierarchy`/`callHierarchy/incomingCalls`/`outgoingCalls` and injects a caller/callee count into hover, alongside whatever real language server (LuaLS) is already attached. Same `fs.is_subpath` scoping as the watch autocmd above.
+
+### `BufReadPost`, `BufNewFile` — global
+
+**Owner:** `documentation.editor.registry`  
+**Lifetime:** Created by `install()` when `opts.diagnostics` is set (`ensure_diagnostics`); removed by `uninstall()`.
+
+Publish `Documentation.Finding[]` as native `vim.diagnostic` entries (`bindings/diagnostics.lua`) on a Lua buffer opened under `source/`, plus one `handle.on_change` subscription for live refresh on a watch-triggered or manual rescan. Same `fs.is_subpath` scoping as the watch autocmd above.
 
 ### `CursorMoved` — buffer
 

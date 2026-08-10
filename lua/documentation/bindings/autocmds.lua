@@ -34,6 +34,20 @@ M.list = {
     why = "Rescan the tree after a write under `source/`, debounced by `opts.watch_ms`, so a live handle's IR and every `on_change` subscriber stay current. Filtered by `fs.is_subpath` rather than by an autocmd glob pattern — a pattern would have to match the user's path spelling exactly, and a mismatch fails silently.",
   },
   {
+    events = { "BufReadPost", "BufNewFile" },
+    owner = "documentation.editor.registry",
+    scope = "global",
+    lifetime = "Created by `install()` when `opts.callhierarchy` is set (`ensure_callhierarchy`); removed by `uninstall()`.",
+    why = "Attach the second, narrow in-process LSP client (`editor/callhierarchy.lua`) to a Lua buffer opened under `source/` — answers `textDocument/prepareCallHierarchy`/`callHierarchy/incomingCalls`/`outgoingCalls` and injects a caller/callee count into hover, alongside whatever real language server (LuaLS) is already attached. Same `fs.is_subpath` scoping as the watch autocmd above.",
+  },
+  {
+    events = { "BufReadPost", "BufNewFile" },
+    owner = "documentation.editor.registry",
+    scope = "global",
+    lifetime = "Created by `install()` when `opts.diagnostics` is set (`ensure_diagnostics`); removed by `uninstall()`.",
+    why = "Publish `Documentation.Finding[]` as native `vim.diagnostic` entries (`bindings/diagnostics.lua`) on a Lua buffer opened under `source/`, plus one `handle.on_change` subscription for live refresh on a watch-triggered or manual rescan. Same `fs.is_subpath` scoping as the watch autocmd above.",
+  },
+  {
     events = { "CursorMoved" },
     owner = "documentation.editor.browse",
     scope = "buffer",
@@ -64,7 +78,7 @@ M.list = {
 M.usrcmds = {
   {
     name = "DocMap",
-    args = "[check|full|open|graph|why|dot|diff|impact|churn|plugins|tools|serve|helptags]",
+    args = "[check|full|open|graph|why|dot|diff|impact|churn|plugins|tools|endpoints|serve|helptags|annotate]",
     why = "Generate or verify the module map. The bare form writes artifacts.",
   },
   {
