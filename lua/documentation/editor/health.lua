@@ -171,6 +171,17 @@ function M.check()
     })
   end
 
+  -- No external dependency to probe, unlike pdfport above — call hierarchy
+  -- is built entirely on Neovim's own LSP client (`vim.lsp.start()` with a
+  -- function `cmd`, no external process) and `handle.callers`/`callees`,
+  -- which already exist on every installed handle regardless of this
+  -- option. Informational only: states how to turn it on, since there is
+  -- nothing here that can be missing or broken the way a soft dependency
+  -- can.
+  h_ok(
+    "Call hierarchy (opts.callhierarchy) — no external dependency, set true on install() to attach it"
+  )
+
   local ok_self, telemetry_self = pcall(require, "documentation.core.telemetry_self")
   local self_instance = ok_self and telemetry_self.instance()
   if self_instance then

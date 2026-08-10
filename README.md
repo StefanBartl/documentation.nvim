@@ -415,7 +415,8 @@ parsing `module_map.json` off disk:
 local handle = require("documentation").install({
   root = vim.fn.getcwd(),
   source = "lua/myplugin",
-  watch = true,      -- rescan on BufWritePost under source/**.lua, debounced
+  watch = true,          -- rescan on BufWritePost under source/**.lua, debounced
+  callhierarchy = true,  -- native in/outgoing-calls LSP support, alongside LuaLS
 })
 
 handle.ir()                                -- current IR, in memory
@@ -424,6 +425,15 @@ handle.callers("lua/myplugin/fs#M.read")   -- call edges in
 handle.on_change(function(ir, findings) end)
 handle.uninstall()
 ```
+
+`callhierarchy = true` attaches a second, narrow LSP client alongside
+whatever real language server is already there — off by default, costs no
+new scan, answers only `textDocument/prepareCallHierarchy`/`callHierarchy/
+incomingCalls`/`outgoingCalls` and a caller/callee count on hover. Built
+because LuaLS itself has no call-hierarchy support at all (verified against
+its source, and its own two-years-open feature request); Neovim's own
+`vim.lsp.buf.incoming_calls()`/`hover()` already merge results from every
+attached client, no new keybinding needed.
 
 ## Drift checks
 
