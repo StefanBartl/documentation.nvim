@@ -55,7 +55,7 @@ comparison of the nth `@param` against the nth real parameter — not a set
 comparison, which would silently pass two swapped parameters), plus the
 pre-existing `missing-summary`/`undocumented-param`/`missing-readme`.
 
-## Hierarchy tab — five views
+## Hierarchy tab — six views
 
 `Modules` (children edges) / `Types` (collaboration, `kind="type"`) / `Deps`
 (`kind="require"`) / `Calls` (`kind="call"`, per-*function* boxes, not
@@ -63,7 +63,21 @@ per-module) / `Inheritance` (`kind="extends"`, its own layout — doesn't use
 the shared `walk()`, since a module typically declares a base class *and*
 its subclasses together, which `walk()`'s per-seed-layer-0 model would
 otherwise collapse onto one row; depth here is longest-path-from-a-
-parentless-class instead, verified correct on a 3-level diamond fixture).
+parentless-class instead, verified correct on a 3-level diamond fixture) /
+**Module Calls** (Session 2026-08-10 — same `kind="call"` edges as Calls,
+collapsed module-to-module and weighted by call count: five call sites
+between two modules draw one arrow labelled "5 calls", visually thicker via
+`stroke-width = min(1.5 + log2(weight)*1.1, 7)`, not five overlapping
+lines). The roadmap item that requested this
+("Gewichtete Alternativ-Ansicht des Call-Graphen") asked for its own tab;
+shipped instead as a sixth Hierarchy view reusing the existing
+zoom/pan/hide-dim/context-menu/SVG-export machinery — decided with the user
+on the grounds that the view is exactly as centered-on-a-node/directed/
+depth-limited as Deps already is, and a new tab would mean either
+duplicating that machinery or generalizing it for one caller. `+ external`
+(off `node.calls_external`, summed per (node, module) pair since a module
+can call several distinct external functions where `requires_external` is
+already a deduplicated name list) works the same way it does on Deps.
 
 - **Direction** (`in`/`out`/`both`) and **depth** (1/2/3/∞, `MAX_HNODES=90`
   hard cap) as orthogonal toolbar axes for Deps/Calls, not separate views.
