@@ -228,6 +228,33 @@ local function check_doc_references(ir, findings)
   end
 end
 
+--- A malformed `docs/install.json`/`docs/INSTALL.md` entry — missing `bin`,
+--- empty `why`, no `pkg` map — fails validation in `lib.nvim.deps.spec`
+--- silently as far as this plugin is concerned: the entry is simply dropped
+--- from `ir.tools.tools`, and nothing before this check ever looked at
+--- `ir.tools.errors`. Surfacing it here is what makes a typo'd manifest
+--- visible instead of a tool quietly never showing up in the Tools panel.
+---
+--- `node` is nil on every finding here, same as `luals-unavailable` in
+--- `init.lua`: a manifest error belongs to the repo, not to any one scanned
+--- module.
+---
+--- `warn`, matching `doc-references-missing`: a real defect a reader (or
+--- `:Lib deps show`) will hit, but nothing at runtime breaks from it.
+---@param ir Documentation.IR
+---@param findings Documentation.Finding[]
+local function check_tools_spec(ir, findings)
+  for _, e in ipairs((ir.tools or {}).errors or {}) do
+    add(
+      findings,
+      "warn",
+      "tools-spec-invalid",
+      nil,
+      ("%s: entry #%d is invalid — %s"):format(ir.tools.source, e.index, e.message)
+    )
+  end
+end
+
 --- A module that exists on disk but is required by nothing above it was
 --- either written and never wired up, or orphaned by a refactor.
 ---
@@ -904,6 +931,7 @@ function M.run(ir, opts)
   check_readmes(ir, findings)
   check_readme_links(ir, findings, opts)
   check_doc_references(ir, findings)
+  check_tools_spec(ir, findings)
   check_orphans(ir, findings)
   check_require_cycles(ir, findings)
   check_require_not_declared(ir, findings, opts)

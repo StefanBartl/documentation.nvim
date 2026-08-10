@@ -142,6 +142,17 @@ function M.scan_full(opts)
     require("documentation.core.docs").resolve_all(ir, opts)
   end)
 
+  -- This repo's own `lib.nvim.deps` manifest, as declared — never as probed.
+  -- Runs unconditionally, same reasoning as `docs` above: one file read (two
+  -- at most), and a repo with neither `docs/install.json` nor
+  -- `docs/INSTALL.md` simply leaves `ir.tools` nil, same as `ir.quicks`
+  -- leaving fields nil is itself a real answer. Presence on this host is
+  -- deliberately never resolved here — see `core/tools.lua`'s header for why
+  -- that would break `--check`.
+  ir.tools = timing.measure(t, "tools", function()
+    return require("documentation.core.tools").resolve(opts.root)
+  end)
+
   local luals_err
   if opts.luals then
     local luals = require("documentation.core.luals")

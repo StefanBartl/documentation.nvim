@@ -1,0 +1,55 @@
+---@module 'documentation.core.tools'
+--- Reads a repo's own `lib.nvim.deps` manifest (`docs/install.json`, falling
+--- back to `docs/INSTALL.md`) into `Documentation.Tools.Result` for the
+--- `:DocMap tools` panel.
+---
+--- `lib.nvim` is an optional dependency here, the same posture
+--- `bindings/progress.lua` takes toward `lib.nvim.progress`: even though this
+--- plugin hard-requires lib.nvim elsewhere, a pinned or older install may not
+--- ship the `deps` submodule yet, and this feature should degrade to "not
+--- available" rather than error the whole scan.
+---
+--- Deliberately **not** `spec.find`/`spec.plugins` — those search
+--- `runtimepath` and lazy.nvim's registry for *other* plugins' manifests,
+--- which is the wrong shape here: this repo's own `docs/` is exactly one of
+--- two known paths away, no search needed.
+---
+--- Declaration-only. Whether a declared tool is actually present on this
+--- host is never resolved here and never lands on the result — that answer
+--- differs by machine, and baking it into the IR would make `--check`'s
+--- byte-compare depend on who last ran it, the same reason `ir.timing` stays
+--- out of the artifact. `bin`/`required`/`why`/`pkg` as declared in the file
+--- are deterministic, and that is exactly what this module returns.
+
+local M = {}
+
+local ok_spec, spec = pcall(require, "lib.nvim.deps.spec")
+
+--- Resolution order matches `lib.nvim.deps.spec`'s own `SPEC_FILES`: JSON
+--- preferred when a repo ships both, since it has no line-oriented parsing
+--- limits.
+local SPEC_FILES = { "install.json", "INSTALL.md" }
+
+---@param root string Repo root (`ctx.cfg.root` / `opts.root`).
+---@return Documentation.Tools.Result|nil result `nil` when lib.nvim.deps is unavailable, or this repo ships neither spec file.
+function M.resolve(root)
+  if not ok_spec then
+    return nil
+  end
+
+  local normalized = (root:gsub("\\", "/"):gsub("/+$", ""))
+  for _, file in ipairs(SPEC_FILES) do
+    local path = normalized .. "/docs/" .. file
+    local result = spec.load(path)
+    if result then
+      return {
+        source = "docs/" .. file,
+        tools = result.tools,
+        errors = result.errors,
+      }
+    end
+  end
+  return nil
+end
+
+return M

@@ -87,6 +87,7 @@ local specs = {
   "pdf_artifact_spec.lua",
   "check_type_vs_class_spec.lua",
   "annotate_spec.lua",
+  "tools_spec.lua",
 }
 
 --- Straight to stdout rather than through `print`.

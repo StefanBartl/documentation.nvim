@@ -458,6 +458,21 @@
 ---@field limit_good? integer How many positive verdicts to keep. Default 5.
 ---@field limit_bad? integer How many negative verdicts to keep. Default 5.
 
+--- One declared external tool, straight off `lib.nvim.deps.spec`'s own
+--- `Lib.Deps.Tool` shape (`bin`/`why`/`pkg` required, `required`/`see`
+--- optional) — not redefined here, since lib.nvim is already what parses it.
+---@alias Documentation.Tools.Tool Lib.Deps.Tool
+
+--- One malformed manifest entry — same shape as `Lib.Deps.Error`.
+---@alias Documentation.Tools.Error Lib.Deps.Error
+
+--- `ir.tools` — this repo's own `docs/install.json`/`docs/INSTALL.md`, as
+--- declared, never as probed. See `core/tools.lua`.
+---@class Documentation.Tools.Result
+---@field source string Repo-relative path of the spec file that was read, e.g. "docs/install.json".
+---@field tools Documentation.Tools.Tool[] Validated entries.
+---@field errors Documentation.Tools.Error[] Malformed entries, never nil — a manifest can be partly valid.
+
 ---@class Documentation.IR
 ---@field meta Documentation.Meta
 ---@field quicks Documentation.Quicks.Result? Verdicts over this tree — see `quicks.lua`. Set by `scan_full`, so a bare `scan()` leaves it nil.
@@ -467,6 +482,7 @@
 ---@field edges Documentation.Edge[] Type-reference edges from LuaLS enrichment. Always an array, empty when `opts.luals` did not run.
 ---@field duplicates Documentation.Duplicates.Result Functions grouped by structural shape — see `duplicates.lua`. Set by `scan_full`, so a bare `scan()` leaves it nil; serialised into the artifact because the grouping needs `fn.shape`, and a page reading the artifact has no parse tree to redo it with.
 ---@field docs Documentation.Docs.Result? Which prose file mentions which module or function — see `docs.lua`. Set by `scan_full`, so a bare `scan()` leaves it nil.
+---@field tools Documentation.Tools.Result? This repo's declared `lib.nvim.deps` tools — see `core/tools.lua`. Set by `scan_full`; nil when lib.nvim.deps is unavailable or this repo ships no manifest.
 ---@field tag_links table<string, Documentation.TagLink> `requires_external` modules resolved through `opts.tag_files`. Always a table, empty when `opts.tag_files` is unset or nothing resolved — unlike `types_detail`, resolving is local and cheap, so there is no "did this run" question worth a nil.
 ---@field timing Documentation.Timing? Per-stage durations, set by `scan_full` when `opts.debug` is on. Deliberately **not** serialised into the artifact: a duration differs on every machine and `--check` byte-compares, so embedding one would make the map invalidate itself.
 

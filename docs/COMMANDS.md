@@ -234,6 +234,27 @@ plugin) is read correctly as one entry, not as several with `event`'s value
 mistaken for a second repo, and a bare-string list is only accepted as
 plugins when every string is shaped like `owner/repo`.
 
+### `:DocMap tools`
+
+This repo's own **`lib.nvim.deps` manifest** (`docs/install.json`, falling
+back to `docs/INSTALL.md`) → quickfix list. Same shape as `plugins`: the
+manifest is read once, during the scan that produced the live handle
+(`ir.tools`), no second pass.
+
+A different ecosystem convention from `plugins` — not "what does this repo
+depend on", but "what external CLI tools does it optionally lean on, and
+why". Each row carries the tool's binary name, `[required]` when set, the
+`why` the manifest declares, and which package managers ship it. A malformed
+entry (missing `bin`, empty `why`, no `pkg` map) is listed too, and also
+raises a `tools-spec-invalid` finding — see
+[`core/tools.lua`](../lua/documentation/core/tools.lua).
+
+Declared only, deliberately: whether a tool is actually installed on *this*
+host is never checked here, or baked into the map at all — that answer
+differs by machine and would make `--check`'s byte-compare depend on who
+last regenerated it. lib.nvim's own `:Lib deps show <plugin>` already
+answers "is it installed", live.
+
 ### `:DocMap serve` / `:DocMap serve stop`
 
 Start (or stop) the local map server, which is what enables the **History tab**

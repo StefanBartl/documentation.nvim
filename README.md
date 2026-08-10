@@ -62,15 +62,18 @@ richer interactive version — open it locally, or see
 [docs/REUSE.md § Linking to your own map from your README](docs/REUSE.md#linking-to-your-own-map-from-your-readme)
 for the same pointer in a plugin that depends on this one.
 
-The Analysis tab ranks the tree six ways over the same IR — test coverage,
+The Analysis tab ranks the tree seven ways over the same IR — test coverage,
 documentation coverage, fan-in/fan-out, cyclomatic complexity, structural
 **duplicates** (functions whose parse-tree shape is identical, which is the one
 kind of drift the require graph is blind to by construction — two modules that
-each grew their own `read(path)` do not require each other), and **plugins**:
+each grew their own `read(path)` do not require each other), **plugins**:
 every lazy.nvim spec in the tree, which matters when `documentation.nvim` is
 pointed at a Neovim *config* rather than a plugin — `lua/plugins/*.lua` is
 mostly `return { { "author/repo", event = "…" } }` with no function in sight,
-invisible to every other panel.
+invisible to every other panel — and **tools**: this repo's own
+[`lib.nvim.deps`](https://github.com/StefanBartl/lib.nvim) manifest
+(`docs/install.json`/`docs/INSTALL.md`), declared only — never a live
+"is this installed here" probe, since a static page has no host to ask.
 
 The Hierarchy tab draws five graphs over the same IR — **Modules** (directory
 hierarchy), **Types** (`@class`/`@alias` collaboration), **Inheritance**,
@@ -299,6 +302,7 @@ Full reference: [docs/COMMANDS.md](docs/COMMANDS.md).
 :DocMap churn                    " churn x complexity, hottest first -> quickfix
 :DocMap churn HEAD~200..         " …over one range instead of all history
 :DocMap plugins                  " every lazy.nvim spec in the tree -> quickfix
+:DocMap tools                    " this repo's own lib.nvim.deps manifest -> quickfix
 :DocMap serve                    " local map server (enables the History tab)
 :DocMap helptags                 " regenerate this plugin's own doc/tags
 
