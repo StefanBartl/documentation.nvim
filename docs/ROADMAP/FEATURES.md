@@ -1641,3 +1641,56 @@ resulting buffer's content instead, which is the actual requirement.
 "Mode 7" before this session's own step 6 claimed position 7 in `MODES`
 for Endpoints instead — noted there so a future reader is not confused
 when telemetry lands as the 8th entry, not the 7th.
+
+## `:DocMap tools` and the Tools Analysis panel — `lib.nvim.deps` manifest inventory (2026-08-10)
+
+A repo-level counterpart to `:DocMap plugins`, for a different declaration
+entirely: not lazy.nvim's `dependencies = {...}`, but
+[`lib.nvim.deps`](https://github.com/StefanBartl/lib.nvim)'s own
+`docs/install.json`/`docs/INSTALL.md` — the manifest a plugin ships for its
+*optional external CLI tools* (pandoc, poppler-utils, curl, …). Blocked on
+the data existing at all until `runtime-analysis.nvim` shipped its own
+`feat(deps): show declared tools on first setup()`, proving the manifest
+format was real and worth reading, not speculative.
+
+`core/tools.lua` reads exactly this repo's own two known paths
+(`<root>/docs/install.json`, falling back to `<root>/docs/INSTALL.md`) via
+`lib.nvim.deps.spec.load` — deliberately **not** `spec.find`/`spec.plugins`,
+which search `runtimepath` and lazy.nvim's plugin registry for *other*
+plugins' manifests. That is the wrong shape here: `documentation.nvim` maps
+one repo per invocation (see `docs/COMMANDS.md` § "Which repository do they
+act on?"), never enumerates installed siblings, and `core/tools.lua` keeps
+that same scoping rather than reintroducing multi-repo discovery through
+the back door.
+
+**Declaration only, never presence.** Whether a declared tool is actually on
+`$PATH` differs by machine, and `ir.tools` is serialised into the committed
+artifact — baking a live `vim.fn.executable` result into it would make
+`--check`'s byte-compare depend on who last regenerated the map, exactly the
+reason `ir.timing` already stays out of the artifact (see `init.lua`). What
+`docs/install.json` actually declares (`bin`/`required`/`why`/`pkg`) is
+deterministic and is exactly what `core/tools.lua` returns. "Is it installed
+here" stays lib.nvim's own live `:Lib deps show <plugin>` command's job, on
+purpose, not duplicated into a static page that might be read on GitHub
+Pages days later on a different machine entirely.
+
+`lib.nvim.deps.spec` is treated as an optional submodule even though
+lib.nvim itself is a hard dependency of this whole plugin — same posture
+`bindings/progress.lua` already takes toward `lib.nvim.progress`: a pinned
+or older lib.nvim checkout might not ship the `deps` submodule yet, and this
+one feature should degrade to "not available" rather than error the whole
+scan. `pcall(require, "lib.nvim.deps.spec")` at module load, once, not
+per-call.
+
+A malformed manifest entry (missing `bin`, empty `why`, no `pkg` map) does
+not just silently vanish from the list the way an unrecognized lazy.nvim
+spec shape would — `tools-spec-invalid` (warn) surfaces it as a drift
+finding, reusing `lib.nvim.deps.spec`'s own validation (`errors`, never
+nil) rather than re-validating a second time in this tree.
+
+Verified against this repository's own tree, which ships neither
+`docs/install.json` nor `docs/INSTALL.md`: `ir.tools` is `nil`, the panel
+says so plainly instead of rendering an empty table, and `:DocMap tools`
+notifies rather than opening an empty quickfix list — the same "a missing
+thing is a real answer, not a broken one" posture `docs`/`quicks` already
+take when a tree has nothing for them to find.

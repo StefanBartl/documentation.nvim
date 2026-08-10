@@ -1039,8 +1039,8 @@ local JS = [[
       else if(k === "ext") s.ext = (v === "1" || v === "true");
       else if(k === "iview") s.iview = (v === "modules") ? "modules" : "functions";
       else if(k === "atool") s.atool = (v === "doc" || v === "deps" || v === "complexity" ||
-        v === "duplicates" || v === "plugins" || v === "hooks" || v === "docs" ||
-        v === "endpoints") ? v : "test";
+        v === "duplicates" || v === "plugins" || v === "tools" || v === "hooks" ||
+        v === "docs" || v === "endpoints") ? v : "test";
       // Not whitelisted against a column list here, because the valid columns
       // differ per panel and this parser does not know which panel `atool`
       // will resolve to. `anSort` looks the key up in the panel's own column
@@ -3182,6 +3182,74 @@ local JS = [[
     return parts.join("");
   }
 
+  // This repo's own `lib.nvim.deps` manifest — `IR.tools`, a repo-level
+  // object rather than a per-node array (there is exactly one
+  // docs/install.json or docs/INSTALL.md per repo, not one per file), same
+  // shape `IR.docs`/`IR.duplicates` already are. Declared tools only: never
+  // a live "is this installed on my machine" check, which a static page
+  // read on GitHub Pages has no host to ask anyway — see `core/tools.lua`'s
+  // header for why that stays out of the artifact entirely, not just this
+  // panel.
+  function renderAnalysisTools(){
+    var spec = IR.tools;
+    var tools = (spec && spec.tools) || [];
+    var errors = (spec && spec.errors) || [];
+
+    if(!spec){
+      return '<p class="ntext none">No <code>docs/install.json</code> or ' +
+        '<code>docs/INSTALL.md</code> found in this repo (or lib.nvim.deps was not ' +
+        'available when this map was generated) — see <code>core/tools.lua</code>, or ' +
+        'lib.nvim\'s <code>:help lib.nvim-deps-declaring</code>.</p>';
+    }
+    if(tools.length === 0 && errors.length === 0){
+      return '<p class="ntext none">' + esc(spec.source) + ' declares no tools.</p>';
+    }
+
+    var rows = tools.map(function(t){
+      var pkgs = Object.keys(t.pkg || {}).sort();
+      return {
+        bin: t.bin, required: !!t.required, why: t.why, pkg: pkgs.join(", "),
+        haystack: t.bin + " " + t.why + " " + pkgs.join(" "), sortkey: t.bin
+      };
+    });
+    var totalRows = rows.length;
+    var nrequired = 0;
+    rows.forEach(function(r){ if(r.required) nrequired++; });
+
+    var cols = [
+      { label: "Tool", key: "bin", get: function(r){ return r.bin; }, initial: "asc" },
+      { label: "Required", key: "required", get: function(r){ return r.required ? 1 : 0; }, initial: "desc" },
+      { label: "Why", key: "why", get: function(r){ return r.why; }, initial: "asc" },
+      { label: "Packages", key: "pkg", get: function(r){ return r.pkg; }, initial: "asc" }
+    ];
+
+    rows = anFilter(rows);
+    anSort(rows, cols, function(a, b){
+      return a.bin < b.bin ? -1 : (a.bin > b.bin ? 1 : 0);
+    });
+
+    var parts = [];
+    parts.push('<p class="nsub">' + totalRows + ' tool' + (totalRows === 1 ? '' : 's') +
+      ' declared in ' + esc(spec.source) + ', ' + nrequired + ' required.' +
+      (errors.length > 0 ? ' <strong>' + errors.length + '</strong> invalid entr' +
+        (errors.length === 1 ? 'y' : 'ies') + ' — see the drift findings below.' : '') +
+      anFilterNote(rows.length, totalRows) + '</p>');
+    if(rows.length === 0){
+      return parts.join("") + '<p class="ntext none">No tool matches that filter.</p>';
+    }
+    parts.push('<table class="antable">' + anHead(cols) + '<tbody>');
+    rows.forEach(function(r){
+      parts.push('<tr>' +
+        '<td><code>' + esc(r.bin) + '</code></td>' +
+        '<td>' + (r.required ? 'required' : 'optional') + '</td>' +
+        '<td>' + esc(r.why) + '</td>' +
+        '<td>' + esc(r.pkg) + '</td>' +
+        '</tr>');
+    });
+    parts.push("</tbody></table>");
+    return parts.join("");
+  }
+
   // Rendered panels, memoised per *rendering* rather than per panel.
   //
   // One variable per panel was correct while a panel had exactly one
@@ -3227,6 +3295,7 @@ local JS = [[
     if(atool === "hooks") return renderAnalysisHooks();
     if(atool === "docs") return renderAnalysisDocs();
     if(atool === "endpoints") return renderAnalysisEndpoints();
+    if(atool === "tools") return renderAnalysisTools();
     return renderAnalysisPlugins();
   }
 
@@ -3234,8 +3303,8 @@ local JS = [[
     var host = document.getElementById("anbody");
     var atool = (state.atool === "doc" || state.atool === "deps" ||
       state.atool === "complexity" || state.atool === "duplicates" ||
-      state.atool === "plugins" || state.atool === "hooks" || state.atool === "docs" ||
-      state.atool === "endpoints")
+      state.atool === "plugins" || state.atool === "tools" || state.atool === "hooks" ||
+      state.atool === "docs" || state.atool === "endpoints")
       ? state.atool : "test";
 
     var key = anCacheKey(atool);
@@ -4969,6 +5038,7 @@ function M.render(ir, findings, opts)
     '<button class="anview-btn" data-atool="complexity">Complexity</button>',
     '<button class="anview-btn" data-atool="duplicates">Duplicates</button>',
     '<button class="anview-btn" data-atool="plugins">Plugins</button>',
+    '<button class="anview-btn" data-atool="tools">Tools</button>',
     '<button class="anview-btn" data-atool="hooks">Hooks</button>',
     '<button class="anview-btn" data-atool="docs">Docs</button>',
     '<button class="anview-btn" data-atool="endpoints">Endpoints</button>',

@@ -64,7 +64,7 @@ M.list = {
 M.usrcmds = {
   {
     name = "DocMap",
-    args = "[check|full|open|graph|why|dot|diff|impact|churn|plugins|serve|helptags]",
+    args = "[check|full|open|graph|why|dot|diff|impact|churn|plugins|tools|serve|helptags]",
     why = "Generate or verify the module map. The bare form writes artifacts.",
   },
   {

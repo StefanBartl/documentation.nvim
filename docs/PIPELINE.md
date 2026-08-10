@@ -1023,6 +1023,7 @@ aggregate numbers instead of boxes. Six tools today:
 - **Complexity** — `fn.complexity` (cyclomatic/McCabe, [`functions.lua`](../lua/documentation/core/functions.lua))
 - **Duplicates** — `ir.duplicates` (structural copy-paste detection, [`duplicates.lua`](../lua/documentation/core/duplicates.lua))
 - **Plugins** — `n.plugins` (lazy.nvim spec inventory, [`plugins.lua`](../lua/documentation/core/plugins.lua))
+- **Tools** — `ir.tools` (this repo's own `lib.nvim.deps` manifest, [`tools.lua`](../lua/documentation/core/tools.lua))
 
 The first two are per-module breakdowns over data `scan_full()` already
 stamped into the IR: a table, one row per module/namespace/file that owns
@@ -1175,6 +1176,30 @@ Also flags a repo declared in more than one file — a real footgun in a
 config split across files, where the last one lazy.nvim imports silently
 wins and nothing else in this map could ever have surfaced it.
 
+**Tools** is shaped like Plugins (a repo-level inventory, not a per-function
+score) but reads a different declaration entirely:
+[`lib.nvim.deps`](https://github.com/StefanBartl/lib.nvim)'s
+`docs/install.json`/`docs/INSTALL.md`, the manifest a plugin ships for its
+*optional external CLI tools* (`pandoc`, `poppler-utils`, …), not for its
+Lua dependencies. `core/tools.lua` reads exactly this repo's own two known
+paths — never `lib.nvim.deps.spec`'s `find`/`plugins`, which search
+`runtimepath` for *other* plugins' manifests, the wrong shape for a tool
+scoped to one repo at a time (see `core/tools.lua`'s header, same posture
+`config/init.lua` already takes toward "which repo am I looking at").
+
+Declared only, same discipline `duplicates`/`plugins` already follow for
+different reasons: whether a tool is actually on `$PATH` differs by machine,
+and baking that into `ir.tools` would make `--check`'s byte-compare depend
+on who last regenerated the map — the same reasoning that keeps `ir.timing`
+out of the artifact. What `docs/install.json` declares (`bin`/`required`/
+`why`/`pkg`) is deterministic and is exactly what `ir.tools` holds; "is it
+installed here" stays lib.nvim's own live `:Lib deps show` command's job, on
+purpose, not duplicated into a static page.
+
+A malformed entry doesn't just vanish from the panel — `tools-spec-invalid`
+(§ Drift checks) surfaces it as a finding, so a typo'd manifest fails loud
+instead of a tool quietly never showing up.
+
 ## Drift checks
 
 The rendered map is the visible half; the checks are the half that catches
@@ -1191,6 +1216,7 @@ bugs. Generic checks (any annotated Lua tree):
 | `dead-see-target` | warn | A function's `@see` target resolves to no known module or function. |
 | `type-vs-class` | warn | A module's own table is annotated `---@type Foo` and later has real fields assigned to it — LuaLS reports `missing-fields`/"fields cannot be injected" for this exact shape; `---@class M : Foo` is the annotation that actually means it. |
 | `doc-references-missing` | warn | A `.md` file names `mod.member` where `mod` is a real module in this tree and `member` is not one of its functions — prose describing something renamed or removed. Deliberately narrow: an unknown prefix (`vim.fn.expand`), a plugin name (`x.nvim`), a glob (`mod.*`) and a documented rename (`` `old` → `new` ``) are all excluded. See `core/docs.lua`. |
+| `tools-spec-invalid` | warn | This repo's own `docs/install.json`/`docs/INSTALL.md` has a malformed entry — missing `bin`, empty `why`, or no `pkg` map. See `core/tools.lua`. |
 | `undocumented-param` | info | A function has more parameters than `@param` lines (text-based heuristic, can be wrong on complex signatures — never fails `--check`). |
 | `param-name-mismatch` | info | R5: at a shared position, a `@param` name and the signature's declared name differ — usually a renamed parameter whose doc line was never updated. Same heuristic caveats as `undocumented-param`. |
 | `require-cycle` | warn | A cycle among **load-time** requires. |

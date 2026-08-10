@@ -37,7 +37,8 @@ at a repository whose files carry `---@module` and it produces:
                                Analysis tab ranks test coverage,
                                documentation coverage, fan-in/fan-out,
                                cyclomatic complexity, structural duplicates,
-                               lazy.nvim plugin specs, React hooks (functions
+                               lazy.nvim plugin specs, declared external
+                               tools (lib.nvim.deps), React hooks (functions
                                named like `^use[A-Z]`), the documentation
                                corpus (which `.md` files exist and how much
                                they reference), and call-based API routes
@@ -424,6 +425,27 @@ key and then regretted.
                         Scoped to lazy.nvim's spec shape specifically;
                         packer.nvim and vim-plug are not recognized.
 
+:DocMap tools           This repo's own |lib.nvim-deps| manifest
+                        (`docs/install.json`, falling back to
+                        `docs/INSTALL.md`), into the |quickfix| list. Same
+                        shape as `:DocMap plugins` -- read once during the
+                        scan (`ir.tools`), no second pass -- but a different
+                        ecosystem convention: not "what does this repo
+                        depend on", but "what external CLI tools does it
+                        optionally lean on, and why". Each row shows the
+                        tool's binary name, `[required]` when set, the `why`
+                        the manifest declares, and which package managers
+                        ship it. A malformed entry is listed too, and also
+                        raises a `tools-spec-invalid` finding.
+
+                        Declared only: whether a tool is actually installed
+                        on this host is never checked here, or baked into
+                        the map at all -- that answer differs by machine
+                        and would make `--check`'s byte-compare depend on
+                        who last regenerated it. lib.nvim's own `:Lib deps
+                        show <plugin>` already answers "is it installed",
+                        live.
+
 :DocMap endpoints       Every recognized call-based route registration in the
                         tree, into the |quickfix| list, sorted by path.
                         Instant, same reason as `:DocMap plugins` -- the
@@ -697,6 +719,10 @@ Generic checks, run against any annotated Lua tree:
                                  into a layer it must not.
     missing-readme        info   Module without a README.
     unreferenced-module   info   Required by no other file in the tree.
+    tools-spec-invalid    warn   This repo's own docs/install.json or
+                                 docs/INSTALL.md (lib.nvim.deps) has a
+                                 malformed entry — missing bin, empty why, or
+                                 no pkg map.
     undocumented-param    info   More parameters than @param lines. A
                                  text-based heuristic; never fails --check.
     param-name-mismatch   info   At a shared position, a @param name and the
