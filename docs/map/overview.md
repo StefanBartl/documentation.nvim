@@ -160,11 +160,10 @@ flowchart LR
 
 ## Drift
 
-0 errors · 1 warnings · 8 info
+0 errors · 0 warnings · 8 info
 
-| Severity | Check | Message |
-|---|---|---|
-| warn | `doc-references-missing` | docs/ROADMAP/IDEAS.md:52 references 'documentation.core.scan.something', but documentation.core.scan has no 'something' |
+No errors or warnings.
+
 
 <details>
 <summary>8 informational findings</summary>

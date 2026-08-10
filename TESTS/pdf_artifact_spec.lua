@@ -73,7 +73,7 @@ return function(H)
 
     ok(got.ok, "pdfport available -> reports success: " .. tostring(got.msg))
     eq(got.msg, "docs/map/overview.pdf", "reports the repo-relative overview.pdf path")
-    eq(create_opts.from, "markdown", "pdfport.create() gets from = \"markdown\"")
+    eq(create_opts.from, "markdown", 'pdfport.create() gets from = "markdown"')
     eq(
       create_opts.output,
       (tmp:gsub("\\", "/")) .. "/docs/map/overview.pdf",
