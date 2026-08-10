@@ -785,7 +785,9 @@ to_json({ir})           Serialize the IR deterministically: nodes in
     local handle = require("documentation").install({
       root = vim.fn.getcwd(),
       source = "lua/myplugin",
-      watch = true,
+      watch = true,          -- rescan on BufWritePost, debounced
+      callhierarchy = true,  -- native in/outgoing-calls LSP, alongside LuaLS
+      diagnostics = true,    -- findings as vim.diagnostic, not only :DocMap check
     })
 
     handle.ir()                                -- current IR
