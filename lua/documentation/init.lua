@@ -111,6 +111,15 @@ function M.scan_full(opts)
     require("documentation.core.tagfiles").resolve(ir, opts)
   end)
 
+  -- Must run after tagfiles above: it extends the same ir.tag_links table
+  -- and deliberately never overwrites an entry tagfiles already set — see
+  -- core/external_repos.lua's own header for why a local project's own map
+  -- wins over a guessed GitHub URL for the same module. Same "always runs,
+  -- no-op when unconfigured" shape as tagfiles.
+  timing.measure(t, "external_repos", function()
+    require("documentation.core.external_repos").resolve(ir, opts)
+  end)
+
   -- Same reasoning: cheap, local, no reason to gate behind a flag. A
   -- missing opts.tests_dir just leaves every fn.tested false, same as a
   -- tree with no tag_files leaves every requires_external unresolved.
@@ -303,6 +312,12 @@ function M.to_json(ir)
       '"required_by": ' .. (#n.required_by > 0 and json.encode(n.required_by) or "[]"),
       '"requires_external": '
         .. (#n.requires_external > 0 and json.encode(n.requires_external) or "[]"),
+      -- Same "empty array, not left off" rule as requires_external right
+      -- above it, for the same reason: this is a per-node field the
+      -- generated page's own Deps view reads directly, and an absent key
+      -- reads as "never computed" where an empty array correctly reads as
+      -- "computed, nothing found".
+      '"calls_external": ' .. (#n.calls_external > 0 and json.encode(n.calls_external) or "[]"),
       '"symbols": ' .. json.encode(n.symbols),
       '"stats": ' .. json.encode(n.stats),
     }

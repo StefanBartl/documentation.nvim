@@ -754,6 +754,26 @@ local JS = [[
     return out;
   }
 
+  // Tree-wide, not scoped to whatever subgraph the Deps view currently has
+  // centered — an external box means the same thing regardless of which
+  // node you walked in from, and a count that changed as you re-centered
+  // would read as a bug, not a feature. Computed once, lazily, off
+  // `n.calls_external` (per-node, from `core/calls.lua`) rather than a
+  // second pass over anything — the counting already happened in Lua.
+  var externalCallTotals = null;
+  function getExternalCallTotals(){
+    if(externalCallTotals) return externalCallTotals;
+    externalCallTotals = {};
+    IR.nodes.forEach(function(n){
+      (n.calls_external || []).forEach(function(c){
+        var byMember = externalCallTotals[c.module] || (externalCallTotals[c.module] = {});
+        var mkey = c.member || "";
+        byMember[mkey] = (byMember[mkey] || 0) + c.count;
+      });
+    });
+    return externalCallTotals;
+  }
+
   // Edges arrive as one array with a `kind` discriminator; every consumer
   // wants one kind at a time, and both directions of it. Built once here
   // rather than filtered per redraw — a re-center at depth 3 would otherwise
@@ -2146,17 +2166,47 @@ local JS = [[
   function boxSpec(key, view){
     if(key.indexOf("ext:") === 0){
       var mod = key.slice(4);
-      // Resolved through opts.tag_files (Doxygen TAGFILES equivalent): a box
-      // that isn't part of *this* map but is part of another project's own
-      // generated one stops being an inert dead end and opens that page.
+      // Resolved through opts.tag_files (Doxygen TAGFILES equivalent) or
+      // opts.external_repos (a guessed/verified GitHub link) — either way a
+      // box that isn't part of *this* map stops being an inert dead end and
+      // opens somewhere real.
       var link = (IR.tag_links || {})[mod];
+
+      // "Why is this here" — every function of `mod` this tree actually
+      // calls, not just the bare "X is required" fact `requires_external`
+      // already drew before this existed. Absent (not empty) when nothing
+      // resolved: a require kept purely for side effects, or a call shape
+      // `core/calls.lua`'s four resolvable forms cannot see — a real
+      // difference from "resolved and found zero calls", which cannot
+      // happen (a module with a resolved call is why this entry exists).
+      var byMember = getExternalCallTotals()[mod];
+      var callTotal = 0;
+      var callLines = [];
+      if(byMember){
+        var members = Object.keys(byMember);
+        members.sort(function(a, b){
+          if(byMember[a] !== byMember[b]) return byMember[b] - byMember[a];
+          return a < b ? -1 : (a > b ? 1 : 0);
+        });
+        members.forEach(function(m){
+          var n = byMember[m];
+          callTotal += n;
+          callLines.push((m ? mod + "." + m : mod) + " (" + n + "×)");
+        });
+      }
+
+      var baseTitle = link
+        ? mod + " — open " + link.title + " in its own map"
+        : mod + " — required here but not part of this map";
+      var title = callLines.length ? baseTitle + "\n" + callLines.join("\n") : baseTitle;
+
       return {
         cls: "hnode k-external" + (link ? " linked" : ""),
-        title: link
-          ? mod + " — open " + link.title + " in its own map"
-          : mod + " — required here but not part of this map",
+        title: title,
         html: '<div class="hnm">' + esc(mod) + '</div>' +
-              '<div class="hkind">external' + (link ? " ↗" : "") + '</div>',
+              '<div class="hkind">external' + (link ? " ↗" : "") +
+              (callTotal ? "  ·  " + callTotal + " call" + (callTotal === 1 ? "" : "s") : "") +
+              '</div>',
         nodeId: null, recenter: null, externalHtml: link && link.html
       };
     }

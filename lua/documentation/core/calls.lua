@@ -156,9 +156,34 @@ local function index_functions(node)
   return by_name, prefixes
 end
 
+---Last dot-separated segment stays in `member` whole, deliberately: the
+---roadmap example this exists for (`plenary.job.new`) is itself two dotted
+---segments past the module, and splitting further would just have to be
+---rejoined by every renderer that wants to show "what was actually called".
+---@param acc table<string, table<string, integer>> Per-node accumulator, `acc[module][member or ""]`.
+---@param module string
+---@param member string?
+local function record_external_call(acc, module, member)
+  local by_member = acc[module]
+  if not by_member then
+    by_member = {}
+    acc[module] = by_member
+  end
+  local key = member or ""
+  by_member[key] = (by_member[key] or 0) + 1
+end
+
 ---Resolve every node's `calls_raw` into `kind="call"` edges appended to
 ---`ir.edges`. Mutates `ir` in place; `deps.build` must have run first, since
 ---resolution reads the require aliases it collected.
+---
+---Also stamps `node.calls_external` — counted the same pass, over the same
+---`aliases`/`inline_mod` shapes an internal call resolves through, just for
+---the case `by_module` has no entry: not a second traversal, because an
+---external call is exactly an internal one that failed the one lookup that
+---makes it internal. See `core/deps.lua`'s own header for why the module
+---string itself (not a node) is what represents "outside this map" — this
+---is the same call, made about calls instead of requires.
 ---@param ir Documentation.IR
 ---@param opts Documentation.Opts?
 ---@return Documentation.Edge[] added
@@ -202,11 +227,25 @@ function M.build(ir, opts)
     local node = ir.nodes[id]
 
     local aliases = {}
+    -- Every alias whose module `by_module` cannot place in this tree — the
+    -- exact negative of `aliases` above, built from the same
+    -- `node.requires_raw` pass. `deps.build` already decided these modules
+    -- are external (they are what fills `node.requires_external`); this is
+    -- the same decision, read again here because `deps.lua` keeps only the
+    -- module string and throws the alias away once it has.
+    local external_aliases = {}
     for _, req in ipairs(node.requires_raw or {}) do
-      if req.alias and by_module[req.module] then
-        aliases[req.alias] = { node = by_module[req.module], member = req.member }
+      if req.alias then
+        if by_module[req.module] then
+          aliases[req.alias] = { node = by_module[req.module], member = req.member }
+        else
+          external_aliases[req.alias] = req.module
+        end
       end
     end
+
+    ---@type table<string, table<string, integer>>
+    local calls_external_acc = {}
 
     for _, call in ipairs(node.calls_raw or {}) do
       if call.from_fn then
@@ -227,11 +266,15 @@ function M.build(ir, opts)
           to_fn = index[target].by_name[inline_fn] or index[target].by_name[bare(inline_fn)]
           to_id = to_fn and target or nil
           confidence = "exact"
+        elseif inline_mod then
+          record_external_call(calls_external_acc, inline_mod, inline_fn)
         elseif head and aliases[head] then
           local target = aliases[head].node
           to_fn = index[target].by_name[rest] or index[target].by_name[bare(rest)]
           to_id = to_fn and target or nil
           confidence = "exact"
+        elseif head and external_aliases[head] then
+          record_external_call(calls_external_acc, external_aliases[head], rest)
         elseif head and index[id].prefixes[head] then
           to_fn = index[id].by_name[call.callee] or index[id].by_name[bare(rest)]
           to_id = to_fn and id or nil
@@ -268,6 +311,27 @@ function M.build(ir, opts)
         end
       end
     end
+
+    -- Flattened and sorted here, once per node, rather than left as the
+    -- nested accumulator table `record_external_call` built — a stable
+    -- array is what every consumer (the Deps-view external box, `to_json`'s
+    -- hand-picked node fields) actually wants, and table iteration order in
+    -- Lua is unspecified, which `--check`'s byte-compare cannot tolerate.
+    ---@type Documentation.ExternalCall[]
+    local calls_external = {}
+    for module, by_member in pairs(calls_external_acc) do
+      for member, count in pairs(by_member) do
+        calls_external[#calls_external + 1] =
+          { module = module, member = member ~= "" and member or nil, count = count }
+      end
+    end
+    table.sort(calls_external, function(a, b)
+      if a.module ~= b.module then
+        return a.module < b.module
+      end
+      return (a.member or "") < (b.member or "")
+    end)
+    node.calls_external = calls_external
   end
 
   -- Same reasoning as `deps.build`: each producer sorts its own block and

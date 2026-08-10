@@ -400,6 +400,7 @@ else — module prefix, directory layout, types directory name — is an option.
 | Live | [`registry.lua`](../lua/documentation/editor/registry.lua) | `install()`/`uninstall()` — an in-memory `Handle` instead of files |
 | CLI | [`cli.lua`](../lua/documentation/core/cli.lua) | `--check`/`--full` entry point, reused verbatim by `scripts/gen_map.lua` and any consuming plugin's equivalent |
 | Tag files | [`tagfiles.lua`](../lua/documentation/core/tagfiles.lua) | `ir.tag_links` — `requires_external` modules resolved against another project's own committed artifact (`opts.tag_files`) |
+| External repos | [`external_repos.lua`](../lua/documentation/core/external_repos.lua) | `ir.tag_links` (same table, sibling resolver) — a `requires_external` module resolved to a GitHub blob link instead, for a third-party plugin with no `docmap` artifact of its own (`opts.external_repos`) |
 | Coverage | [`coverage.lua`](../lua/documentation/core/coverage.lua) | `fn.tested` — auto-derived, no manual `@test` tagging required |
 | Doc coverage | [`doccoverage.lua`](../lua/documentation/core/doccoverage.lua), [`render/badge.lua`](../lua/documentation/core/render/badge.lua) | documented/total function count, optional `coverage.svg` badge (`opts.badge`) |
 
@@ -662,7 +663,15 @@ source, no summary and no functions behind it would break that. One box per
 module however many nodes reach for it, since "these four all pull in plenary"
 is the thing worth seeing. The boxes are inert by default — no navigation, no
 context menu, because there is nothing to navigate to — unless `opts.tag_files`
-resolves one; see "Cross-project links" below.
+or `opts.external_repos` resolves one; see "Cross-project links" and
+"External call/plugin visibility" below.
+
+Since Session 2026-08-10: hovering the box answers *why* it's there, not
+just that it is — its tooltip breaks down `node.calls_external` (every
+external function call this tree's own call-resolution pass actually
+matched, e.g. `plenary.async.run (2×)`), and the box's own second line
+shows the total. See "External call/plugin visibility" below for where
+that data comes from.
 
 A prerequisite fell out of building it: `require("lib.lua." .. key)`, which is
 how this tree's aggregators dispatch, puts a string literal exactly where the
@@ -860,6 +869,72 @@ would turn a deterministic `--check` into one that depends on network
 availability and timing, the same reasoning that keeps `dot` unwired to a
 `dot` binary. Point it at a sibling checkout's `docs/map/` directory, the
 same one `--check` already compares its own artifacts against.
+
+### External call/plugin visibility (`opts.external_repos`)
+
+Two problems the roadmap named together, because they're the same box seen
+from two angles: *why* is this dependency here (which functions of it does
+the tree actually call), and *where* is its source, since it's outside the
+scan entirely.
+
+**Why**, first — [`core/calls.lua`](../lua/documentation/core/calls.lua)
+resolves `node.calls_external` in the exact same pass that resolves internal
+call edges, not a second traversal: every alias `deps.lua` bound to an
+external module (kept, where an earlier version threw it away the moment it
+decided the module was external) is joined against the same `calls_raw`
+callee text that already resolves `fs.read(x)`-shaped internal calls. Two
+call sites through the same alias count as 2. The Deps view's external box
+reads this straight off the already-serialized per-node field — client-side
+aggregation, the same "the counting already happened in Lua" pattern the
+Plugins Analysis panel uses.
+
+**Where**, second — `opts.tag_files` (above) only resolves a module against
+*another `docmap`-shaped project's own committed artifact*. The far more
+common case — the external module is a third-party plugin
+(`plenary.nvim`, ...) that ships no `docmap` artifact of its own at all — has
+no such thing to resolve against. `opts.external_repos` fills that gap with
+a **GitHub link** instead, into the same `ir.tag_links` table (never
+overwriting an entry `tag_files` already set — a local project's own map
+beats a guessed URL for the same module):
+
+```lua
+require("documentation").generate({
+  ...,
+  external_repos = {
+    plenary = "nvim-lua/plenary.nvim",
+    -- Verified against a real checkout when one is named — worth it
+    -- whenever one already exists, which in a sibling-repos-under-one-
+    -- directory setup (this ecosystem's own) is often.
+    ["lib.nvim"] = { repo = "StefanBartl/lib.nvim", local_path = "/path/to/lib.nvim" },
+  },
+})
+```
+
+**The link is a guess unless `local_path` says otherwise.** A Lua module
+`a.b` lives at either `<lua_root>/a/b.lua` (flat) or `<lua_root>/a/b/init.lua`
+(directory) — both real, common conventions. Measured against this exact
+repo's own `require("lib.nvim...")` calls while building this: a flat-only
+guess was wrong for nearly every one of them, because `lib.nvim` uses the
+directory shape almost everywhere (`autocmd/init.lua`, `fs/read/init.lua`,
+...). With `local_path`, both shapes are checked against the real checkout
+on disk — a local `uv.fs_stat`, not a network call, so `scan_full()`/
+`--check` stay exactly as offline and deterministic as `tag_files`'s own
+local-path resolution already is. **Do not point `local_path` at a checkout
+whose location varies between where you regenerate and where `--check` runs
+(CI, most likely)** — the resolved path shape becomes part of the committed
+artifact, and a `local_path` only one of those environments has makes the
+committed map irreproducible elsewhere, the one thing `--check` exists to
+catch. `gen_map.lua`'s own `ensure()` pattern (an env var, then `.deps/`,
+then a sibling checkout) is the shape to copy if both environments need to
+agree on where a checkout lives.
+
+No mapping from a bare namespace (`"plenary"`) to a GitHub repo exists
+anywhere this plugin can already see — `core/plugins.lua`'s lazy.nvim spec
+extraction only fires when scanning a Neovim *config* repo that declares the
+dependency, not the dependency's own plugin repo, which is the shape this
+feature is actually for. `opts.external_repos` is the only way in, the same
+"declare it, because there is nothing here to derive it from" posture
+`opts.tag_files` already takes for the local case.
 
 ### Auto-derived test coverage (`fn.tested`)
 

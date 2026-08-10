@@ -30,6 +30,7 @@
 ---@field watch? boolean `install()` only: rescan on `BufWritePost` under `source/**.lua`, debounced. Default false.
 ---@field watch_ms? integer `install()` only: debounce interval for `watch`. Default 500.
 ---@field tag_files? table<string, string> Doxygen `TAGFILES` equivalent: module-prefix -> another project's `docs/map`-shaped directory (must contain a committed `module_map.json`). A `requires_external` module matching the prefix resolves against that project's own artifact instead of staying an inert box. Local paths only — read synchronously during `scan_full()`, same as `opts.root` itself, so `--check` stays deterministic and offline. See `tagfiles.lua`.
+---@field external_repos? table<string, string|Documentation.ExternalRepo> `tag_files`'s sibling for the far more common case: the external module is a third-party plugin with no `docmap` artifact of its own to resolve against. module-prefix -> `"owner/repo"` (branch/lua_root default to "main"/"lua") or a full `Documentation.ExternalRepo` table. Builds a *guessed* GitHub blob URL — never verified, since that would mean a network call during `scan_full()`; see `external_repos.lua`'s header for the layout assumption behind the guess. Never overwrites an entry `tag_files` already resolved.
 ---@field tests_dir? string Directory (relative to `root`) scanned for auto-derived test coverage — see `coverage.lua`. Default "TESTS". A missing directory is not an error: every function is simply left `tested = false`.
 ---@field quicks? Documentation.Quicks.Opts Tuning for the Quicks verdicts — thresholds and how many of each polarity to keep. Absent means the defaults in `core/quicks.lua`.
 ---@field badge? boolean Write `coverage.svg` (a shields.io-shaped doc-coverage badge, see `doccoverage.lua`/`render/badge.lua`) alongside the other artifacts. Off by default — most consumers of `generate()` do not want an extra committed file they never asked for. Default false.
@@ -101,6 +102,7 @@
 ---@field requires string[] Node ids this node requires, sorted. Derived from `ir.edges`; an index for convenience, not a second source of truth.
 ---@field required_by string[] Node ids that require this node, sorted. Same derivation.
 ---@field requires_external string[] Module paths this node requires that resolve to nothing in the scanned tree — other plugins, or anything outside `source`. Plain strings, not invented nodes: the map only claims to describe what it scanned. The Deps view can draw them on request.
+---@field calls_external Documentation.ExternalCall[] Which functions of an external module (from `requires_external`) this node actually calls, and how often — see `core/calls.lua`. Always an array, sorted by module then member; empty when this node requires external modules but never calls into them (a require for its side effects alone, or one this parser's four resolvable call shapes cannot see — see that module's header for what is genuinely invisible to it).
 ---@field requires_raw Documentation.RawRequire[] Unresolved `require` occurrences. Internal to the scan pipeline (`deps`/`calls` consume it); deliberately not serialized into `module_map.json`.
 ---@field calls_raw Documentation.RawCall[] Unresolved call sites. Internal, same as `requires_raw`.
 ---@field symbols Documentation.SymbolInfo[] Module-scope tables, constants and bindings in this node's own source. Always an array; runs unconditionally as part of `scan()`.
@@ -294,6 +296,17 @@
 ---@field from_fn string?
 ---@field line integer
 
+---One resolved call into a module outside the scanned tree — the same
+---question `requires_external` answers about *requiring* a module, asked
+---about actually *calling into* it: not just "plenary is a dependency" but
+---"because of `plenary.async.run` (2×)". See `core/calls.lua`'s header for
+---how this is counted in the same pass that resolves internal call edges,
+---never a second traversal.
+---@class Documentation.ExternalCall
+---@field module string The required module path, exactly as `requires_external` already reports it, e.g. "plenary.async".
+---@field member string? The dotted member actually called, e.g. "run"; `nil` when the module itself was called with no member access at all (rare, but not impossible — a callable-table require).
+---@field count integer How many call sites in this node resolved to this exact `module`/`member` pair.
+
 ---One added or removed require edge in a `Documentation.Diff`.
 ---@class Documentation.DiffEdge
 ---@field edge string `"<from id> -> <to id>"`.
@@ -333,13 +346,29 @@
 ---@field schema integer IR schema version.
 ---@field counts table<string, integer> Node counts per kind.
 
----A `requires_external` module resolved against another project's own
----committed docmap artifact (`opts.tag_files`) — Doxygen `TAGFILES`
----equivalent. `html` is a path to that project's generated page with a bare
----`#<node id>` fragment, the same shorthand a hand-typed or shared link uses.
+---A `requires_external` module resolved to somewhere a reader can actually
+---go — from either of two independent resolvers into the same `ir.tag_links`
+---table. `tagfiles.lua` (Doxygen `TAGFILES` equivalent, `opts.tag_files`)
+---sets `html` to a **local path** into another checked-out project's own
+---generated page, a bare `#<node id>` fragment, the same shorthand a
+---hand-typed or shared link uses. `external_repos.lua` (`opts.external_repos`)
+---sets it to a **guessed absolute GitHub blob URL** instead, for a
+---third-party plugin with no `docmap` artifact of its own. Both shapes reach
+---the same consumer unchanged (`window.open(link.html, "_blank")` in the
+---generated page), so nothing downstream needs to know which resolver an
+---entry came from.
 ---@class Documentation.TagLink
----@field title string The resolved node's `module` (or `name` if declared none).
----@field html string Path to the external project's `index.html`, with a `#<node id>` fragment.
+---@field title string The link's display title — the resolved node's `module`/`name` for a `tag_files` entry, the bare required module string for an `external_repos` one.
+---@field html string Either shape described above.
+
+---One `opts.external_repos` entry, full form — a bare `"owner/repo"` string
+---is shorthand for this with `branch = "main"`, `lua_root = "lua"`, no
+---`local_path`.
+---@class Documentation.ExternalRepo
+---@field repo string `"owner/repo"` GitHub shorthand.
+---@field branch? string Default "main".
+---@field lua_root? string The target repo's own Lua root, for the guessed path — `<lua_root>/<module, dots as slashes>.lua`. Default "lua".
+---@field local_path? string Absolute path to a local checkout of the same repo, when one happens to exist (this ecosystem's own sibling-repos-under-one-directory layout, for instance). When set, the path is *verified* against the checkout on disk — both the flat `<module>.lua` and the directory `<module>/init.lua` shape are real, common conventions (lib.nvim itself uses the directory shape almost everywhere), and guessing wrong produces a working link to a 404. Absent, the flat shape is assumed unverified — see `external_repos.lua`'s header.
 
 ---One file's changed line ranges, parsed out of `git diff --unified=0` by
 ---`docmap.history`. `old_path`/`new_path` are nil on the `/dev/null` side of

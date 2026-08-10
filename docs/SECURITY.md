@@ -85,6 +85,13 @@ is worse than none:
 - **`opts.tag_files`.** Cross-project links read another project's
   `module_map.json` from a local path you configured. It is parsed as JSON, not
   executed, but the path is trusted because you wrote it.
+- **`opts.external_repos`.** Never a network call and never reads anything
+  outside `opts.external_repos.*.local_path` (a local `uv.fs_stat`, same
+  trust boundary as `opts.tag_files` above) — the GitHub URL it builds is a
+  plain string, only ever opened by the reader's own click in the generated
+  page, at view time, in their own browser. `owner`/`repo`/`branch` are
+  interpolated into that string unescaped; they come from your own config,
+  not from anything scanned.
 - **`opts.extra_checks`.** Arbitrary Lua you supply, run against the IR. That
   is the feature.
 - **Anything your plugin manager does.** Installation, updates and their hooks

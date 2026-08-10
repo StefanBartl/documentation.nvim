@@ -83,6 +83,14 @@ real browser Back/Forward. Right-click any box to dim it (a "Hidden (N) —
 show all" pill clears them), shareable via the URL the same way marks are —
 noise-reduction for a large tree, not a structural re-layout.
 
+The Deps view's `+ external` toggle answers *why* a dependency is there, not
+just that it is: each external box's tooltip breaks down exactly which
+functions were actually called and how often (`plenary.async.run (2×)`),
+counted from the same call-resolution pass as the internal call graph — no
+second traversal. `opts.external_repos` turns the box into a working GitHub
+link too, verified against a local checkout when you name one (`opts.tag_files`
+does the same for another `docmap`-shaped project's own committed map).
+
 The **Quicks** tab states the same tree in sentences instead of tables — *"Most
 of your published API is never named in a spec — 12% — 9 of 72"* — negatives
 first, five of each polarity. Every verdict carries a line saying what was
@@ -244,6 +252,9 @@ per-field documentation is in
     calls_heuristic = false,           -- guessed call edges, drawn dashed
     layers = {},          -- module-prefix layering rules
     tag_files = {},       -- cross-project links, Doxygen TAGFILES-style
+    external_repos = {},  -- GitHub links for third-party deps (module-prefix
+                           -- -> "owner/repo", verified against a local
+                           -- checkout when you name one)
     extra_checks = {},    -- your own drift checks
     command_name = "DocMap",
     browse_command_name = "DocBrowse",

@@ -89,6 +89,8 @@ local specs = {
   "annotate_spec.lua",
   "tools_spec.lua",
   "features_spec.lua",
+  "calls_external_spec.lua",
+  "external_repos_spec.lua",
 }
 
 --- Straight to stdout rather than through `print`.
