@@ -229,6 +229,12 @@ per-field documentation is in
     which_key = true,     -- register :DocBrowse's keys with which-key when
                           -- it is installed; a no-op when it is not
     keys = {},            -- rebind or disable :DocBrowse's keys, by action
+
+    telemetry = true,      -- self-instrument this tree with runtime-
+                            -- analysis.telemetry when it is installed; a
+                            -- no-op when it is not. Set false to opt out.
+    telemetry_namespace = nil,  -- default: opts.title -- the namespace both
+                                -- this and :DocBrowse's telemetry mode use
   },
 }
 ```

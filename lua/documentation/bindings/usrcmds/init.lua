@@ -247,6 +247,14 @@ function M.setup(opts)
 
   local handle = registry.get(setup_cfg.root) or registry.install(setup_cfg)
 
+  -- Self-instrumentation: on by default, `opts.telemetry = false` to opt
+  -- out, a no-op without runtime-analysis.nvim installed — see
+  -- `documentation.core.telemetry_self`'s own doc-comment for the full
+  -- reasoning and its honest limits. After `registry`/`config` above have
+  -- already required their own dependencies, so this catches more of the
+  -- tree than calling it first would.
+  require("documentation.core.telemetry_self").setup(setup_cfg)
+
   usercmd.create(command_name, function(args)
     local action = vim.trim(args.args or "")
 

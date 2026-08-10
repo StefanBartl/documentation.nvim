@@ -171,6 +171,23 @@ function M.check()
     })
   end
 
+  local ok_self, telemetry_self = pcall(require, "documentation.core.telemetry_self")
+  local self_instance = ok_self and telemetry_self.instance()
+  if self_instance then
+    h_ok(("runtime-analysis.nvim — self-instrumented as %q"):format(self_instance.namespace))
+  elseif pcall(require, "runtime-analysis.telemetry") then
+    h_info("runtime-analysis.nvim installed, but not yet self-instrumented", {
+      "documentation.setup() starts this automatically unless opts.telemetry = false.",
+      "Feeds :DocBrowse's telemetry mode and dead-function suppression.",
+    })
+  else
+    h_info("runtime-analysis.nvim not installed", {
+      "Optional: self-instrumentation for :DocBrowse's telemetry mode and",
+      "dead-function suppression (opts.telemetry, default true when present).",
+      "https://github.com/StefanBartl/runtime-analysis.nvim",
+    })
+  end
+
   -- Commands ---------------------------------------------------------------
   h_start("documentation.nvim: commands")
 
