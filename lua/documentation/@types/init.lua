@@ -515,7 +515,9 @@
 ---@field name string As written after `## ` — free text, not an identifier.
 ---@field line integer 1-based line of the `## ` heading, in its own file.
 ---@field summary string? The leading run of prose before the first metadata bullet. Absent when a feature is metadata-only or intro-only — see the format doc for why that is a valid state, not a parse failure.
----@field meta Documentation.Features.Meta[] In writing order; empty when the feature has none.
+---@field meta Documentation.Features.Meta[] In writing order; empty when the feature has none. Never includes a `Tab` bullet — that one is a control directive, consumed into `tab` below, not descriptive metadata to display.
+---@field tab boolean True when the feature carries a `- **Tab:** true` bullet — promoted to its own top-level tab instead of a card in the Features list. See `docs/FEATURES_FORMAT.md` "Promoting a feature to its own tab".
+---@field body string? Raw Markdown of everything after the metadata block, up to the next `## ` (or end of file) — only captured when `tab` is true, since a card never renders it. `nil` when nothing follows the metadata block (a promoted feature can be title+summary+metadata only, same as an ordinary card).
 
 --- One theme file under `docs/FEATURES/` (or `docs/features/`).
 ---@class Documentation.Features.File

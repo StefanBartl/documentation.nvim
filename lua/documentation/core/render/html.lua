@@ -244,6 +244,31 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .feat-src a{font-size:10.5px;color:var(--muted);font-family:var(--mono);text-decoration:none;
   cursor:pointer}
 .feat-src a:hover{color:var(--accent);text-decoration:underline}
+/* A promoted feature's own tab (`Tab: true` — see docs/FEATURES_FORMAT.md).
+   Dynamically created, one `[id^="view-feature-"]` panel per promoted
+   feature — `.view`/`.view.active` above already govern its visibility,
+   nothing feature-tab-specific needed there. */
+[id^="view-feature-"]{padding:22px 26px 60px}
+.feat-tab-wrap{max-width:760px}
+.feat-tab-theme{font-size:11px;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.05em}
+.feat-tab-name{margin:2px 0 0;font-size:19px;font-weight:600;color:var(--ink)}
+.feat-tab-name[data-node]{cursor:pointer;color:var(--accent)}
+.feat-tab-name[data-node]:hover{text-decoration:underline}
+.feat-tab-summary{font-size:13.5px;color:var(--ink);margin-top:6px;line-height:1.5}
+.feat-tab-body{margin-top:16px;font-size:13px;color:var(--ink);line-height:1.55}
+.feat-tab-body h4,.feat-tab-body h5,.feat-tab-body h6{margin:18px 0 4px;font-weight:600;
+  color:var(--ink)}
+.feat-tab-body h4:first-child,.feat-tab-body h5:first-child,
+.feat-tab-body h6:first-child{margin-top:0}
+.feat-tab-body p{margin:8px 0}
+.feat-tab-body ul{margin:8px 0;padding-left:22px}
+.feat-tab-body li{margin:2px 0}
+.feat-tab-body pre{font-family:var(--mono);font-size:11.5px;white-space:pre-wrap;
+  background:var(--accent-soft);border-radius:6px;padding:8px 10px;margin:10px 0;
+  overflow-x:auto}
+.feat-tab-body pre code{background:none;padding:0}
+.feat-tab-body a{color:var(--accent)}
 #hist-list{padding:12px 8px 60px 16px;border-right:1px solid var(--line);
   max-height:calc(100vh - 132px);overflow:auto}
 @media (max-width:860px){#hist-list{max-height:none;border-right:0;
@@ -1166,6 +1191,13 @@ local JS = [[
       void 0;
     } else if(s.tab === "compare"){
       if(s.cview !== "matrix") parts.push("cview=" + encodeURIComponent(s.cview));
+    } else if(s.tab && s.tab.indexOf("feature-") === 0){
+      // A promoted feature's own tab: same reasoning as Features itself —
+      // one flat page over one feature, no axis of its own to carry. Caught
+      // here rather than falling into the hierarchy branch below, which
+      // would otherwise stamp a meaningless `view=modules` onto every link
+      // to one of these tabs.
+      void 0;
     } else {
       if(s.center) parts.push("center=" + encodeURIComponent(s.center));
       parts.push("view=" + encodeURIComponent(s.view || "modules"));
@@ -1258,6 +1290,15 @@ local JS = [[
   // directly outside this function, so `state` always reflects exactly what
   // is on screen.
   function applyState(s, push){
+    // A promoted feature's tab id is content-derived and can disappear
+    // across a regenerate (renamed, un-promoted, its theme file deleted) —
+    // unlike the other nine, permanent tabs. A bookmarked or shared link to
+    // one that no longer resolves falls back to the Features catalog rather
+    // than leaving every `.view` panel inactive and the page blank.
+    if(s.tab && s.tab.indexOf("feature-") === 0 &&
+       !collectPromotedFeatures().some(function(p){ return p.slug === s.tab; })){
+      s.tab = "features";
+    }
     state = s;
 
     document.querySelectorAll(".tab-btn").forEach(function(b){
@@ -1272,6 +1313,9 @@ local JS = [[
     document.getElementById("view-quicks").classList.toggle("active", s.tab === "quicks");
     document.getElementById("view-compare").classList.toggle("active", s.tab === "compare");
     document.getElementById("view-features").classList.toggle("active", s.tab === "features");
+    document.querySelectorAll('[id^="view-feature-"]').forEach(function(v){
+      v.classList.toggle("active", v.id === "view-" + s.tab);
+    });
 
     if(s.tab === "tree" && s.id && byId[s.id]) selectRow(s.id);
     if(s.tab === "hierarchy") drawHierarchy(s.center || IR.root, s.view || "modules");
@@ -1282,6 +1326,7 @@ local JS = [[
     if(s.tab === "quicks") drawQuicks();
     if(s.tab === "compare") drawCompare();
     if(s.tab === "features") drawFeatures();
+    if(s.tab && s.tab.indexOf("feature-") === 0) drawFeatureTab(s.tab);
     // After the draw, not before: a redraw rebuilds the rows that carry the
     // mark triggers, so painting them first would paint elements about to be
     // replaced.
@@ -1714,6 +1759,11 @@ local JS = [[
   // =====================================================================
   // Tabs
   // =====================================================================
+  // Promoted-feature tabs are inserted before the generic .tab-btn wiring
+  // below runs, so a click on one goes through the exact same navigate()
+  // path every static tab already uses — no separate listener to keep in
+  // sync with the rest of the tab bar.
+  buildPromotedTabs();
   document.querySelectorAll(".tab-btn").forEach(function(b){
     b.addEventListener("click", function(){ navigate({ tab: b.dataset.tab }); });
   });
@@ -2674,15 +2724,24 @@ local JS = [[
       parts.push('<div class="feat-intro">' + esc(feats.intro) + '</div>');
     }
 
+    // A `Tab: true` feature has its own top-level tab (see
+    // collectPromotedFeatures/drawFeatureTab below) and is left out of this
+    // catalog entirely, counts included — showing it as both a card here
+    // and a tab of its own would be the same feature listed twice for no
+    // reason, and the whole point of promoting one is that it no longer
+    // needs the card.
     var totalFeatures = 0;
-    feats.files.forEach(function(f){ totalFeatures += f.entries.length; });
+    feats.files.forEach(function(f){
+      f.entries.forEach(function(e){ if(!e.tab) totalFeatures++; });
+    });
     parts.push('<p class="nsub">' + totalFeatures + ' feature' +
       (totalFeatures === 1 ? '' : 's') + ' across ' + feats.files.length + ' file' +
       (feats.files.length === 1 ? '' : 's') + ' in <code>' + esc(feats.folder) + '</code>.</p>');
 
     feats.files.forEach(function(f){
+      var visible = f.entries.filter(function(e){ return !e.tab; });
       parts.push('<h3 class="nhead">' + esc(themeTitle(f.theme)) +
-        '<span class="ncount">' + f.entries.length + '</span></h3>');
+        '<span class="ncount">' + visible.length + '</span></h3>');
       if(f.intro){
         parts.push('<p class="nsub">' + esc(f.intro) + '</p>');
       }
@@ -2690,7 +2749,12 @@ local JS = [[
         parts.push('<p class="ntext none">No <code>##</code> sections in this file.</p>');
         return;
       }
-      f.entries.forEach(function(e){
+      if(visible.length === 0){
+        parts.push('<p class="ntext none">Every feature in this file is promoted to its ' +
+          'own tab — see the tab bar.</p>');
+        return;
+      }
+      visible.forEach(function(e){
         var nodeId = resolveModuleNode(e.meta);
         parts.push('<div class="feat-card">');
         parts.push('<div class="feat-name"' +
@@ -2721,6 +2785,210 @@ local JS = [[
         navigate({ tab: "tree", id: el.dataset.node });
       });
     });
+    host.querySelectorAll(".feat-src a[data-src]").forEach(function(a){
+      a.addEventListener("click", function(ev){
+        ev.preventDefault();
+        var u = srcUrl(a.dataset.src);
+        window.open(u || rel(a.dataset.src), u ? "_blank" : "_self");
+      });
+    });
+  }
+
+  // =====================================================================
+  // Promoted features: a `- **Tab:** true` bullet gets a feature its own
+  // top-level tab instead of a card in the Features catalog above — see
+  // docs/FEATURES_FORMAT.md "Promoting a feature to its own tab".
+  // =====================================================================
+
+  // Slugified once and cached, not recomputed per navigation: the tab
+  // bar/view panels are built once at page load (buildPromotedTabs, called
+  // from the boot sequence below), and every later lookup (applyState,
+  // click handlers) needs the exact same slug that build produced.
+  function featureSlug(name){
+    return "feature-" + name.toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
+
+  var promotedFeatures = null;
+  function collectPromotedFeatures(){
+    if(promotedFeatures) return promotedFeatures;
+    promotedFeatures = [];
+    if(!IR.features) return promotedFeatures;
+    // Two features can slugify to the same string (same name in different
+    // theme files, or names differing only in punctuation) — disambiguated
+    // with a numeric suffix rather than silently letting the second one's
+    // tab button overwrite the first's in the DOM.
+    var seen = {};
+    IR.features.files.forEach(function(f){
+      f.entries.forEach(function(e){
+        if(!e.tab) return;
+        var base = featureSlug(e.name);
+        var slug = base, n = 2;
+        while(seen[slug]){ slug = base + "-" + n; n++; }
+        seen[slug] = true;
+        promotedFeatures.push({ entry: e, file: f, slug: slug });
+      });
+    });
+    return promotedFeatures;
+  }
+
+  // Inserted right after the static "Features" tab button/panel, each
+  // subsequent one after the last — deterministic order (file order, then
+  // entry order within a file, the same order `IR.features` already
+  // carries), not something later re-sorts. Runs once at boot, before the
+  // generic .tab-btn click-handler wiring picks up every button currently
+  // in the DOM.
+  function buildPromotedTabs(){
+    var promoted = collectPromotedFeatures();
+    if(!promoted.length) return;
+    var afterBtn = document.querySelector('.tab-btn[data-tab="features"]');
+    var afterView = document.getElementById("view-features");
+    promoted.forEach(function(p){
+      var btn = document.createElement("button");
+      btn.className = "tab-btn";
+      btn.dataset.tab = p.slug;
+      btn.title = "Promoted feature (docs/FEATURES_FORMAT.md \"Tab: true\")";
+      btn.textContent = p.entry.name;
+      afterBtn.insertAdjacentElement("afterend", btn);
+      afterBtn = btn;
+
+      var view = document.createElement("div");
+      view.id = "view-" + p.slug;
+      view.className = "view";
+      afterView.insertAdjacentElement("afterend", view);
+      afterView = view;
+    });
+  }
+
+  // Cheap Markdown-subset renderer for a promoted feature's body — the same
+  // "cheap reliable reading beats a general one" discipline
+  // core/features.lua's own parser follows, not a CommonMark
+  // implementation. Understood: `#`.."######" headings, fenced ``` code
+  // blocks, `-`/`*` bullet lists, paragraphs, and inline `` `code` ``/
+  // **bold**/*italic*/[text](url). Not understood: tables, blockquotes,
+  // images, nested/ordered lists, or raw HTML passthrough — anything else
+  // renders as plain escaped text rather than being interpreted.
+  function inlineMd(s){
+    s = esc(s);
+    s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+    s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    s = s.replace(/(^|[^*_])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
+    // A hex escape for the closing bracket, not a backslash-escaped literal
+    // one: two adjacent close-brackets anywhere in this file's embedded JS
+    // would end the Lua long string this whole block lives inside early —
+    // a sharp edge no other function here hit, since none needed a bracket
+    // right next to the closing one of its own character class.
+    s = s.replace(/\[([^\x5d]+)\]\(([^)]+)\)/g, function(m, text, url){
+      // Only http(s)/relative-looking targets get linked — never a
+      // `javascript:` URL smuggled through a docs/FEATURES/ file this
+      // parser otherwise trusts as plain prose.
+      if(/^(https?:)?\/\//.test(url) || /^[.\w#]/.test(url)){
+        return '<a href="' + url + '" target="_blank" rel="noopener">' + text + '</a>';
+      }
+      return text;
+    });
+    return s;
+  }
+
+  function renderFeatureBody(raw){
+    var lines = raw.split("\n");
+    var out = [], para = [], list = null;
+
+    function flushPara(){
+      if(para.length){ out.push("<p>" + inlineMd(para.join(" ")) + "</p>"); para = []; }
+    }
+    function flushList(){
+      if(list){ out.push("<ul>" + list.join("") + "</ul>"); list = null; }
+    }
+
+    var i = 0;
+    while(i < lines.length){
+      var trimmed = lines[i].replace(/^\s+|\s+$/g, "");
+
+      if(/^```/.test(trimmed)){
+        flushPara(); flushList();
+        var code = [];
+        i++;
+        while(i < lines.length && !/^```/.test(lines[i].replace(/^\s+|\s+$/g, ""))){
+          code.push(lines[i]); i++;
+        }
+        i++; // skip the closing fence (or run off the end if one is missing)
+        out.push("<pre><code>" + esc(code.join("\n")) + "</code></pre>");
+        continue;
+      }
+
+      var heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
+      if(heading){
+        flushPara(); flushList();
+        // A body's own headings sit under the tab's H2 (feature name) and
+        // the theme label above it — h4 is the highest an author's `#`
+        // should reach, capped at h6 so `######` doesn't overshoot into
+        // nothing.
+        var level = Math.min(heading[1].length + 3, 6);
+        out.push("<h" + level + ">" + inlineMd(heading[2]) + "</h" + level + ">");
+        i++; continue;
+      }
+
+      var item = trimmed.match(/^[-*]\s+(.+)$/);
+      if(item){
+        flushPara();
+        list = list || [];
+        list.push("<li>" + inlineMd(item[1]) + "</li>");
+        i++; continue;
+      }
+
+      if(trimmed === ""){
+        flushPara(); flushList();
+        i++; continue;
+      }
+
+      flushList();
+      para.push(trimmed);
+      i++;
+    }
+    flushPara(); flushList();
+    return out.join("\n");
+  }
+
+  var drawnFeatureTabs = {};
+  function drawFeatureTab(slug){
+    if(drawnFeatureTabs[slug]) return; // static over one IR, same as drawFeatures
+    var promoted = collectPromotedFeatures().filter(function(p){ return p.slug === slug; })[0];
+    var host = document.getElementById("view-" + slug);
+    if(!promoted || !host) return;
+    drawnFeatureTabs[slug] = true;
+
+    var e = promoted.entry, f = promoted.file;
+    var nodeId = resolveModuleNode(e.meta);
+    var parts = ['<div class="feat-tab-wrap">'];
+    parts.push('<div class="feat-tab-theme">' + esc(themeTitle(f.theme)) + '</div>');
+    parts.push('<h2 class="feat-tab-name"' +
+      (nodeId ? ' data-node="' + esc(nodeId) + '" tabindex="0" role="button"' : '') +
+      '>' + esc(e.name) + '</h2>');
+    if(e.summary){
+      parts.push('<p class="feat-tab-summary">' + esc(e.summary) + '</p>');
+    }
+    if(e.meta.length){
+      parts.push('<div class="feat-meta">');
+      e.meta.forEach(function(m){
+        parts.push('<div class="feat-meta-row"><b>' + esc(m.key) + ':</b> <span>' +
+          esc(m.value) + '</span></div>');
+      });
+      parts.push("</div>");
+    }
+    if(e.body){
+      parts.push('<div class="feat-tab-body">' + renderFeatureBody(e.body) + '</div>');
+    }
+    parts.push('<div class="feat-src"><a href="#" data-src="' + esc(f.path) + '">' +
+      esc(f.path) + ':' + e.line + '</a></div>');
+    parts.push("</div>");
+    host.innerHTML = parts.join("");
+
+    var nameEl = host.querySelector(".feat-tab-name[data-node]");
+    if(nameEl){
+      nameEl.addEventListener("click", function(){ navigate({ tab: "tree", id: nodeId }); });
+    }
     host.querySelectorAll(".feat-src a[data-src]").forEach(function(a){
       a.addEventListener("click", function(ev){
         ev.preventDefault();

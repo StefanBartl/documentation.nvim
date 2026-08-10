@@ -124,6 +124,89 @@ return function(H)
     )
   end
 
+  -- `- **Tab:** true` promotion: consumed out of `meta` into `tab`, and the
+  -- rich `body` capture — three shapes verified empirically against a real
+  -- fixture before writing this, not assumed: a Tab-only bullet with
+  -- nothing else in the section, Tab plus a body paragraph, and Tab plus
+  -- another bullet with nothing trailing.
+  do
+    local dr = H.tmpfile("_features_tab")
+    dwrite(
+      dr,
+      "docs/FEATURES/T.md",
+      table.concat({
+        "## Ordinary feature",
+        "",
+        "Never promoted.",
+        "",
+        "- **Module:** `plain.lua`",
+        "",
+        "## Only Tab bullet, nothing else",
+        "",
+        "Summary line.",
+        "",
+        "- **Tab:** true",
+        "",
+        "## Tab plus body",
+        "",
+        "Summary line two.",
+        "",
+        "- **Tab:** true",
+        "- **Module:** `x.lua`",
+        "",
+        "Rich body paragraph here.",
+        "",
+        "### A subheading",
+        "",
+        "- a list item",
+        "- another",
+        "",
+        "## Tab plus module only, no trailing body",
+        "",
+        "Summary line three.",
+        "",
+        "- **Tab:** true",
+        "- **Module:** `y.lua`",
+      }, "\n")
+    )
+
+    local result = features.resolve(dr)
+    local f = result.files[1]
+    eq(#f.entries, 4, "tab: four sections in the fixture")
+
+    local plain = f.entries[1]
+    eq(plain.tab, false, "tab: an ordinary feature is not promoted")
+    eq(plain.body, nil, "tab: an ordinary feature never carries a body, even unpromoted")
+    eq(#plain.meta, 1, "tab: ordinary feature's own bullet is untouched")
+
+    local only_tab = f.entries[2]
+    eq(only_tab.tab, true, "tab: Tab: true promotes the feature")
+    eq(#only_tab.meta, 0, "tab: the Tab bullet itself never appears in meta")
+    eq(only_tab.body, nil, "tab: nothing follows the metadata block — no body, not an error")
+
+    local with_body = f.entries[3]
+    eq(with_body.tab, true, "tab+body: promoted")
+    eq(#with_body.meta, 1, "tab+body: Tab consumed, Module remains")
+    eq(with_body.meta[1].key, "Module", "tab+body: the surviving bullet is Module")
+    ok(
+      with_body.body ~= nil and with_body.body:find("Rich body paragraph here.", 1, true) ~= nil,
+      "tab+body: the rich body is captured"
+    )
+    ok(
+      with_body.body:find("### A subheading", 1, true) ~= nil,
+      "tab+body: a subheading inside the body is captured verbatim (rendering it is the HTML tab's job, not the parser's)"
+    )
+
+    local module_only = f.entries[4]
+    eq(module_only.tab, true, "tab+module-only: promoted")
+    eq(#module_only.meta, 1, "tab+module-only: Tab consumed, Module remains")
+    eq(
+      module_only.body,
+      nil,
+      "tab+module-only: metadata block runs to the end of the section — no body"
+    )
+  end
+
   -- Lowercase docs/features fallback, and uppercase preferred when both
   -- exist — same resolution-order precedent as core/tools.lua's own
   -- docs/install.json-over-docs/INSTALL.md. Only meaningful on a

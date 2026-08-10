@@ -1424,6 +1424,62 @@ their own development — caught here, before shipping, by checking
 `module_map.json`'s actual keys against a real repo rather than trusting
 that `scan_full` setting the field was the whole story.
 
+### Promoting a feature to its own tab (`Tab: true`)
+
+Session 2026-08-10. The Features tab above is deliberately a uniform
+catalog — every feature the same card, no promotion mechanism — for the
+same reason the Plugins/Tools panels are. But a `docs/FEATURES/` author can
+still write one feature up at real length (a design rationale, a worked
+example, several subsections), and that write-up deserves more than a
+truncated card. A `- **Tab:** true` bullet in a feature's own metadata
+block gets it exactly that: a real top-level tab, built dynamically at page
+load (`buildPromotedTabs`, `core/render/html.lua`) rather than baked into
+the static markup the other nine tabs are — inserted right after the
+Features tab's own button/panel, in `ir.features`' own file-then-entry
+order, one `.tab-btn`/`[id^="view-feature-"]` pair per promoted feature.
+
+**A small Markdown subset, not a viewer swap.** Everything in a promoted
+feature's section *after* its metadata block — headings, paragraphs, fenced
+code, `-`/`*` lists, inline `` `code` ``/**bold**/*italic*/links — is
+captured as `entry.body` (`core/features.lua`'s `parse_body` now returns a
+third value, `body_start_idx`, marking where the metadata run ended) and
+rendered client-side by `renderFeatureBody`/`inlineMd`: the same "cheap
+reliable reading beats a general one" discipline the parser itself follows,
+not a CommonMark implementation. No tables, blockquotes, images, nested or
+ordered lists, or raw HTML — a write-up that needs those is better served
+by a real doc page the body links out to than by growing this renderer to
+match one feature's needs.
+
+**A sharp edge specific to this file's own architecture**, worth stating
+plainly since it cost a debugging pass: the entire embedded client-side
+script sits inside one Lua `[[...]]` long string (`local JS = [[ ... ]]`
+near this file's own top), which ends at the *first* literal `]]` it finds,
+Lua-syntax-blind to what that text means in JS. A link-matching regex
+written the ordinary way, `[^\]]`, contains exactly that byte pair and
+silently truncated the whole script mid-file. Written as `[^\x5d]` instead
+— same regex, no adjacent close-brackets in the source text — every other
+function in this file simply never had a reason to hit this, since none of
+them needed a `]` beside the close of its own character class.
+
+**Dropped from the Features catalog entirely** once promoted — shown as
+both a card and a tab would be the same feature listed twice for no reason.
+`drawFeatures` filters `entry.tab` out of both the card list and its
+counts; a theme file where every feature is promoted says so instead of
+rendering an empty section.
+
+**A stale promoted-tab link degrades to the Features catalog, not a blank
+page.** A promoted feature's tab id is content-derived (`feature-<slugified
+name>`) and can disappear across a regenerate — renamed, un-promoted, its
+theme file deleted — unlike the other nine tabs, which are permanent.
+`applyState` checks a `feature-`-prefixed `s.tab` against the live
+`collectPromotedFeatures()` list before doing anything else; no match
+redirects to `features` rather than leaving every `.view` panel inactive.
+
+No cap on how many features can be promoted — the roadmap item this
+shipped for says "for very few, especially important features"; that is a
+documentation-discipline convention for a repo's own `docs/FEATURES/`
+authors to follow, not a limit this renderer enforces.
+
 ## Drift checks
 
 The rendered map is the visible half; the checks are the half that catches
