@@ -79,7 +79,9 @@ The Hierarchy tab draws five graphs over the same IR — **Modules** (directory
 hierarchy), **Types** (`@class`/`@alias` collaboration), **Inheritance**,
 **Deps** (the require graph) and **Calls** (function-level caller/callee) —
 with direction and depth controls, semantic zoom, right-click navigation and
-real browser Back/Forward.
+real browser Back/Forward. Right-click any box to dim it (a "Hidden (N) —
+show all" pill clears them), shareable via the URL the same way marks are —
+noise-reduction for a large tree, not a structural re-layout.
 
 The **Quicks** tab states the same tree in sentences instead of tables — *"Most
 of your published API is never named in a spec — 12% — 9 of 72"* — negatives

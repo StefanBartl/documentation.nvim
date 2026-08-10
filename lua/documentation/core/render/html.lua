@@ -457,6 +457,15 @@ li:hover>.marki,tr:hover .marki{opacity:.8}
 #hgraph.focusing .hnode.near{opacity:1}
 #hgraph.focusing .hedge{opacity:.08}
 #hgraph.focusing .hedge.near{opacity:1;stroke-width:2}
+/* Persistent per-box dim (":DocMap"'s "hide/dim a module" — see the JS
+   section above this one for the state it reads). Same opacity mechanism as
+   hover-focus, deliberately independent of it: a dimmed box has to stay
+   dimmed even when hover-focus would otherwise light it up as a ".near"
+   neighbour, which is why both overrides below repeat the "#hgraph.focusing"
+   prefix — equal specificity to the rules above, decided by source order. */
+.hnode.hidden{opacity:.08;pointer-events:none}
+#hgraph.focusing .hnode.hidden{opacity:.08}
+#hgraph.focusing .hnode.hidden.near{opacity:.08}
 .hedge{transition:opacity .15s ease}
 @media (prefers-reduced-motion:reduce){
   .hnode,#hsvg,.hedge{transition:none}
@@ -612,6 +621,95 @@ local JS = [[
     bar.classList.toggle("has", n > 0);
     bar.textContent = "Compare (" + n + ")";
     bar.title = n + " marked object" + (n === 1 ? "" : "s") + " — open the Compare tab";
+  }
+
+  // Same "paint whatever is on screen" role as syncMarks, over `hboxes`
+  // instead of a `[data-mark]` query — a Hierarchy box's key already sits on
+  // its own element (`el.dataset.key`, set by reconcile()), so iterating
+  // `hboxes` directly reaches every box without a second lookup. A no-op
+  // on every tab but Hierarchy (`hboxes` is empty until drawHierarchy runs
+  // at least once), which is why this is safe to call unconditionally from
+  // applyState alongside syncMarks rather than gated on `state.tab`.
+  function syncHidden(){
+    Object.keys(hboxes).forEach(function(key){
+      hboxes[key].classList.toggle("hidden", isHidden(key));
+    });
+    var bar = document.getElementById("hiddenbar");
+    if(!bar) return;
+    var n = state.hidden.length;
+    bar.hidden = n === 0;
+    bar.classList.toggle("has", n > 0);
+    bar.textContent = "Hidden (" + n + ") — show all";
+    bar.title = n + " box" + (n === 1 ? "" : "es") +
+      " dimmed in the Hierarchy view — click to show them again";
+  }
+
+  // =====================================================================
+  // Hierarchy hide/dim
+  //
+  // A box in the Hierarchy graph, set aside so it stops competing for
+  // attention in a large tree — never removed from the layout (that would
+  // mean re-flowing the tree's remaining boxes, and possibly reparenting
+  // its children, every time one is toggled), just dimmed to near-zero
+  // opacity and taken out of pointer interaction. "Ausblenden/abdunkeln"
+  // in the roadmap item this ships — reads as fully hidden, implemented as
+  // a strong dim, so a reader who forgot what was under a dimmed box can
+  // still make out its outline rather than wondering what used to be there.
+  //
+  // Keyed the same as `hboxes`/`positions`/`boxSpec` — a node id, a class
+  // name (Types/Inheritance), or an `fnKey` (Calls) — so one mechanism
+  // covers all five Hierarchy views without a per-view special case.
+  //
+  // State shape and persistence deliberately mirror Compare marks above:
+  // same array-of-keys shape, same per-path localStorage scoping, same
+  // hash-wins-over-localStorage precedence on initial load (see the load
+  // at the bottom of this script). Not unified into one mechanism with
+  // marks, because the two answer different questions — "compare these"
+  // vs. "stop showing me that" — and a reader marking a function for
+  // comparison has no reason to expect it to also disappear from a graph.
+  // =====================================================================
+  function hiddenKeyExists(key){
+    return !!(byId[key] || classByName[key] || fnByKey[key]);
+  }
+
+  var HIDDEN_LS_KEY = "docmap:hidden:" + location.pathname;
+
+  function loadHidden(){
+    try {
+      var raw = localStorage.getItem(HIDDEN_LS_KEY);
+      if(!raw) return [];
+      return JSON.parse(raw).filter(hiddenKeyExists);
+    } catch(e){
+      return [];
+    }
+  }
+
+  function saveHidden(list){
+    try { localStorage.setItem(HIDDEN_LS_KEY, JSON.stringify(list)); } catch(e){ void 0; }
+  }
+
+  function isHidden(key){ return state.hidden.indexOf(key) !== -1; }
+
+  // Same "not a navigation" reasoning as toggleMark: updates the hash in
+  // place via replaceState rather than pushState, so dimming ten boxes
+  // while decluttering a tree does not bury the navigation the reader
+  // actually wants Back to return to under ten selection-noise entries.
+  function toggleHidden(key){
+    if(!hiddenKeyExists(key)) return;
+    var i = state.hidden.indexOf(key);
+    if(i === -1) state.hidden.push(key); else state.hidden.splice(i, 1);
+    state.hidden.sort();
+    saveHidden(state.hidden);
+    syncHidden();
+    history.replaceState(state, "", serializeState(state));
+  }
+
+  function clearHidden(){
+    if(!state.hidden.length) return;
+    state.hidden = [];
+    saveHidden(state.hidden);
+    syncHidden();
+    history.replaceState(state, "", serializeState(state));
   }
 
   // Blast radius: the transitive closure of `required_by`. Already implied
@@ -931,12 +1029,25 @@ local JS = [[
     // set is shareable, which is the same promise every other view on this
     // page makes; also mirrored into localStorage, because a mark collected
     // while reading should survive the regenerate that follows.
-    marks: []
+    marks: [],
+    // Dimmed Hierarchy boxes — same key scheme `hboxes` uses (node id, class
+    // name, or `fnKey`), unlike `marks` not unified with it since the two
+    // answer different questions. Hierarchy-scoped in the hash (see
+    // `serializeState`'s hierarchy branch), unlike `marks`, which is
+    // deliberately global — a dimmed box only exists inside the Hierarchy
+    // tab, so carrying it into a Tree-tab link would be noise no other
+    // hierarchy axis (`dir`/`depth`/`ext`) is allowed to add either.
+    hidden: []
   };
-  // `marks` is an array, so a shared reference would let one state's edits
-  // reach every other state object built from the same default — including the
+  // Both are arrays, so a shared reference would let one state's edits reach
+  // every other state object built from the same default — including the
   // one `parseState` starts from on every popstate.
-  function freshState(){ var s = Object.assign({}, DEFAULT_STATE); s.marks = []; return s; }
+  function freshState(){
+    var s = Object.assign({}, DEFAULT_STATE);
+    s.marks = [];
+    s.hidden = [];
+    return s;
+  }
 
   var state = freshState();
   // Tracks only the hash of the last *pushed* entry — deliberately never
@@ -1002,6 +1113,11 @@ local JS = [[
       // link would be noise in the common case.
       if(s.view === "deps" && s.ext) parts.push("ext=1");
       if(s.view === "calls" && s.fn) parts.push("fn=" + encodeURIComponent(s.fn));
+      // Hierarchy-scoped, unlike `marks` below: a dimmed box only exists in
+      // this tab, so a Tree-tab link carrying `hidden=` would name a control
+      // that link's own view does not have — the same rule `dir`/`depth`/
+      // `ext`/`fn` above already follow.
+      if(s.hidden && s.hidden.length) parts.push("hidden=" + encodeURIComponent(s.hidden.join(",")));
     }
     // Outside the per-tab branches, unlike every other axis: marks are
     // collected while reading any tab and belong to the reader, not to a view.
@@ -1064,6 +1180,9 @@ local JS = [[
       else if(k === "marks"){
         s.marks = v.split(",").filter(function(key){ return key && markExists(key); });
       }
+      else if(k === "hidden"){
+        s.hidden = v.split(",").filter(function(key){ return key && hiddenKeyExists(key); });
+      }
     });
     return s;
   }
@@ -1101,6 +1220,7 @@ local JS = [[
     // mark triggers, so painting them first would paint elements about to be
     // replaced.
     syncMarks();
+    syncHidden();
     syncGraphControls(s);
     syncSearchBox(s);
 
@@ -4240,10 +4360,14 @@ local JS = [[
     while(el && el !== document.body){
       if(el.dataset){
         if(el.classList.contains("hnode") && el._spec){
+          // `hkey` is the box's own key into `hboxes`/`state.hidden` — the
+          // only place this is available, since a tree row or detail-pane
+          // reference (the branches below) has no Hierarchy box behind it to
+          // dim. `buildMenu` gates the hide/dim entry on this field alone.
           return { kind: el._spec.fnKey ? "function" : (classByName[el.dataset.key] ? "class" : "node"),
                    nodeId: el._spec.nodeId, fnKey: el._spec.fnKey,
                    className: classByName[el.dataset.key] ? el.dataset.key : null,
-                   label: el.dataset.key };
+                   label: el.dataset.key, hkey: el.dataset.key };
         }
         if(el.dataset.fn && fnByKey[el.dataset.fn]){
           var e = fnByKey[el.dataset.fn];
@@ -4319,6 +4443,19 @@ local JS = [[
     }
     if(n.readme){
       items.push({ label: "Open README", run: function(){ window.open(rel(n.readme), "_self"); } });
+    }
+
+    // Only offered when the menu was opened on an actual Hierarchy box
+    // (`t.hkey`, set by describeTarget only in that branch) — right-clicking
+    // this same node's tree row or a reference in a detail pane has nothing
+    // to dim, since neither one has a box on screen.
+    if(t.hkey){
+      items.push({ sep: true });
+      items.push({
+        label: isHidden(t.hkey) ? "Show this box" : "Dim this box",
+        hint: "hierarchy",
+        run: function(){ toggleHidden(t.hkey); }
+      });
     }
 
     items.push({ sep: true });
@@ -4768,6 +4905,9 @@ local JS = [[
   document.getElementById("markbar").addEventListener("click", function(){
     navigate({ tab: "compare" });
   });
+  // Unlike #markbar, no tab to open — the pill's only job is showing how many
+  // boxes are dimmed and clearing all of them in one click.
+  document.getElementById("hiddenbar").addEventListener("click", clearHidden);
 
   document.addEventListener("click", function(ev){
     var un = ev.target.closest && ev.target.closest("[data-unmark]");
@@ -4808,6 +4948,10 @@ local JS = [[
   // marked. Only a hash with no `marks` at all falls back to the stored set,
   // which is the "I marked these yesterday, then regenerated" case.
   if(!initial.marks.length) initial.marks = loadMarks();
+  // Same precedence, same reasoning: a shared Hierarchy link that dims a
+  // specific set of boxes should show exactly that set, not that set unioned
+  // with whatever this browser had dimmed from an earlier session.
+  if(!initial.hidden.length) initial.hidden = loadHidden();
   applyState(initial, false);
 })();
 ]]
@@ -4998,6 +5142,10 @@ function M.render(ir, findings, opts)
     '<button id="hzoomreset" title="Reset zoom to 100% (or press 0)">⌕ 100%</button>',
     '<span class="hzoom" id="hzoomlabel">100%</span>',
     '<button id="hexport" title="Download the current diagram as a standalone SVG">↓ SVG</button>',
+    -- Right-click a box to dim/show it — see the context menu. This pill
+    -- only says how many are dimmed right now and clears all of them,
+    -- mirroring #markbar's own role for Compare marks.
+    '<button id="hiddenbar" class="markbar" hidden></button>',
     '<span class="hpath" id="hpath"></span>',
     "</div>",
     '<div id="hgraph-wrap"><div id="hgraph"><div id="hstage"></div></div></div>',
