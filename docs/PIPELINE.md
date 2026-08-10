@@ -1418,7 +1418,7 @@ the default), the same "only the axes a view actually uses" rule
 A tool palette, not a diagram — a fifth tab (`atool` state axis, same
 `iview=`-shaped URL rule as the Index tab) whose toolbar switches between
 panels the way Hierarchy's view buttons switch between graphs, applied to
-aggregate numbers instead of boxes. Six tools today:
+aggregate numbers instead of boxes. Eight tools today:
 
 - **Test coverage** — `fn.tested` (R2, [`coverage.lua`](../lua/documentation/core/coverage.lua))
 - **Documentation** — `fn.documented` (R4, [`doccoverage.lua`](../lua/documentation/core/doccoverage.lua))
@@ -1427,6 +1427,15 @@ aggregate numbers instead of boxes. Six tools today:
 - **Duplicates** — `ir.duplicates` (structural copy-paste detection, [`duplicates.lua`](../lua/documentation/core/duplicates.lua))
 - **Plugins** — `n.plugins` (lazy.nvim spec inventory, [`plugins.lua`](../lua/documentation/core/plugins.lua))
 - **Tools** — `ir.tools` (this repo's own `lib.nvim.deps` manifest, [`tools.lua`](../lua/documentation/core/tools.lua))
+- **Telemetry** — `runtime-analysis.telemetry`'s call counts, joined by [`telemetry_join.lua`](../lua/documentation/core/telemetry_join.lua) — the one panel that is not IR-only, see its own paragraph below
+
+The first seven are `.plugin-gated` or not depending on whether they need
+anything beyond the embedded IR to mean something (Tools and Telemetry are;
+the other five never show an empty state a real project would hit). Marked
+with a small badge (`::after`, `var(--ext)` tint — the same colour the
+Hierarchy graphs use for "connects outside this map") in the toolbar itself,
+so a reader can tell which panels are conditionally useful before clicking
+into one.
 
 The first two are per-module breakdowns over data `scan_full()` already
 stamped into the IR: a table, one row per module/namespace/file that owns
@@ -1602,6 +1611,34 @@ purpose, not duplicated into a static page.
 A malformed entry doesn't just vanish from the panel — `tools-spec-invalid`
 (§ Drift checks) surfaces it as a finding, so a typo'd manifest fails loud
 instead of a tool quietly never showing up.
+
+**Telemetry** breaks the "reads the embedded IR" rule every other panel in
+this tab follows, on purpose: call counts change between runs, and baking
+the current aggregate into `module_map.json` would make `--check`'s
+byte-compare depend on when it happened to run relative to real usage —
+`ir.tools`'s own reasoning above, one step further (there the *shape* is
+deterministic and only presence is not; here the counts themselves are the
+volatile part). So this panel fetches instead: `GET /api/telemetry` on
+`documentation.editor.serve` (`:DocMap serve`) reads
+`core/telemetry_join.lua`'s join — the identical join `:DocBrowse telemetry`
+already used — fresh on every open, joined against whatever
+`docs/map/module_map.json` currently holds on disk, not a revision. Opened
+from `file://`, the panel explains itself rather than doing nothing, the
+same treatment the History tab already gives that case, for the identical
+reason: a `file://` origin cannot `fetch()` anything at all.
+
+`telemetry_join.rows`/`by_key` had a real bug until 2026-08-10: `Documentation.
+IR.nodes` is keyed by `node.id` (a file path, `core/scan.lua`'s `local id =
+rel`), but `runtime-analysis.telemetry`'s `wrap_loaded()`/`telemetry.auto()`
+resolve `Data.modules` values to the *dotted* `@module` form instead — the
+two key spaces never intersected, so every row from an auto-instrumented
+tree (the common case, and this repo's own `core/telemetry_self.lua` is one)
+silently failed to match, unconditionally. Fixed by trying the direct-id
+convention first (an explicit `wrap(tbl, label, {module_id=...})` can
+legitimately name a real `node.id` directly) and a `node.module` index
+second. Found by curling a real join against this tree's own
+self-instrumentation rather than trusting the code read alone — see
+`docs/ROADMAP/FEATURES.md`'s own entry for the full account.
 
 ## Features tab
 

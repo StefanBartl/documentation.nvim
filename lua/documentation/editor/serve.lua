@@ -162,6 +162,29 @@ local function ir_at(cfg, rev)
   return require("documentation.editor.browse.source").rehydrate(doc)
 end
 
+---The map as it stands on disk right now — not a git revision, whatever the
+---last `:DocMap` run wrote, committed or not. What "current telemetry"
+---joins against: `route_telemetry` below needs the *live* tree, and
+---`ir_at` above deliberately only ever answers for a validated commit.
+---@param cfg table
+---@return Documentation.IR|nil
+local function current_ir(cfg)
+  local path = (cfg.root .. "/" .. (cfg.out_dir or "docs/map") .. "/module_map.json"):gsub(
+    "\\",
+    "/"
+  )
+  local ok_read, lines = pcall(vim.fn.readfile, path)
+  if not ok_read or type(lines) ~= "table" or #lines == 0 then
+    return nil
+  end
+  local ok, doc =
+    pcall(vim.json.decode, table.concat(lines, "\n"), { luanil = { object = true, array = true } })
+  if not ok or type(doc) ~= "table" or type(doc.nodes) ~= "table" then
+    return nil
+  end
+  return require("documentation.editor.browse.source").rehydrate(doc)
+end
+
 ---`GET /api/commits?n=N` — the list the History tab opens with.
 ---@param cfg table
 ---@param client userdata
@@ -286,6 +309,65 @@ local function route_commit(cfg, client, sha)
   )
 end
 
+---`GET /api/telemetry` — the current `runtime-analysis.telemetry` join for
+---the Analysis -> Telemetry panel, always the latest aggregate.
+---
+---Unlike `route_commit` above, nothing here touches git: telemetry is not a
+---revision, it is "whatever this namespace's counts are right now",
+---read straight off disk on every request (`telemetry_join.load`, no live
+---instance required) — the whole reason this stays a server route instead
+---of a field on `IR`, see `core/render/html.lua`'s client-side comment for
+---the `--check` determinism argument. Every "nothing to show" case answers
+---200 with `available: false` and a `reason`, never an HTTP error: absence
+---of telemetry data is a normal outcome here exactly as `telemetry_join.lua`
+---itself insists it is everywhere else.
+---@param cfg table
+---@param client userdata
+local function route_telemetry(cfg, client)
+  local telemetry_join = require("documentation.core.telemetry_join")
+
+  local namespace = telemetry_join.namespace(cfg)
+  if not namespace then
+    return respond(
+      client,
+      200,
+      "application/json",
+      vim.json.encode({ available = false, reason = "no namespace" })
+    )
+  end
+
+  local ir = current_ir(cfg)
+  if not ir then
+    return respond(
+      client,
+      200,
+      "application/json",
+      vim.json.encode({ available = false, namespace = namespace, reason = "no map generated yet" })
+    )
+  end
+
+  local data = telemetry_join.load(namespace)
+  if not data then
+    return respond(
+      client,
+      200,
+      "application/json",
+      vim.json.encode({ available = false, namespace = namespace, reason = "no data" })
+    )
+  end
+
+  respond(
+    client,
+    200,
+    "application/json",
+    vim.json.encode({
+      available = true,
+      namespace = namespace,
+      rows = telemetry_join.rows(ir, data),
+    })
+  )
+end
+
 ---Accept a request path only if it is a bare filename inside `out_dir`.
 ---
 ---An empty path means `index.html`; anything containing a separator or a `..`
@@ -358,6 +440,10 @@ local function handle(cfg, client, method, target)
 
   if path == "/api/commits" then
     return route_commits(cfg, client, query)
+  end
+
+  if path == "/api/telemetry" then
+    return route_telemetry(cfg, client)
   end
 
   local sha_part = path:match("^/api/commit/(.+)$")

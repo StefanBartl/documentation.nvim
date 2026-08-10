@@ -62,18 +62,24 @@ richer interactive version — open it locally, or see
 [docs/REUSE.md § Linking to your own map from your README](docs/REUSE.md#linking-to-your-own-map-from-your-readme)
 for the same pointer in a plugin that depends on this one.
 
-The Analysis tab ranks the tree seven ways over the same IR — test coverage,
-documentation coverage, fan-in/fan-out, cyclomatic complexity, structural
-**duplicates** (functions whose parse-tree shape is identical, which is the one
-kind of drift the require graph is blind to by construction — two modules that
-each grew their own `read(path)` do not require each other), **plugins**:
-every lazy.nvim spec in the tree, which matters when `documentation.nvim` is
-pointed at a Neovim *config* rather than a plugin — `lua/plugins/*.lua` is
-mostly `return { { "author/repo", event = "…" } }` with no function in sight,
-invisible to every other panel — and **tools**: this repo's own
-[`lib.nvim.deps`](https://github.com/StefanBartl/lib.nvim) manifest
-(`docs/install.json`/`docs/INSTALL.md`), declared only — never a live
-"is this installed here" probe, since a static page has no host to ask.
+The Analysis tab ranks the tree eight ways, seven of them over the same IR —
+test coverage, documentation coverage, fan-in/fan-out, cyclomatic complexity,
+structural **duplicates** (functions whose parse-tree shape is identical,
+which is the one kind of drift the require graph is blind to by construction
+— two modules that each grew their own `read(path)` do not require each
+other), **plugins**: every lazy.nvim spec in the tree, which matters when
+`documentation.nvim` is pointed at a Neovim *config* rather than a plugin —
+`lua/plugins/*.lua` is mostly `return { { "author/repo", event = "…" } }`
+with no function in sight, invisible to every other panel — and **tools**:
+this repo's own [`lib.nvim.deps`](https://github.com/StefanBartl/lib.nvim)
+manifest (`docs/install.json`/`docs/INSTALL.md`), declared only — never a
+live "is this installed here" probe, since a static page has no host to
+ask. The eighth, **telemetry**, is the odd one out on purpose: call counts
+change between runs, so unlike the other seven it is never baked into the
+page — `:DocMap serve` reads [`runtime-analysis.nvim`](https://github.com/StefanBartl/runtime-analysis.nvim)'s
+own counts fresh on every open instead, the same on-demand shape the
+History tab already uses for the one other thing that cannot live in a
+static artifact.
 
 The Hierarchy tab draws six graphs over the same IR — **Modules** (directory
 hierarchy), **Types** (`@class`/`@alias` collaboration), **Inheritance**,
