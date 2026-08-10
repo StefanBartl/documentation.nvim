@@ -1205,6 +1205,12 @@ local JS = [[
     // the string `"latest"` means "compare against the live aggregate
     // explicitly", anything else is a second snapshot name.
     tsnap: null, tsnapb: null,
+    // Which persisted runtime-analysis.loaded snapshot the Loaded panel
+    // reads (docs/ROADMAP.md §5.4). `null` means "none selected yet" —
+    // unlike Telemetry there is no live aggregate to fall back to here
+    // (see drawAnalysisLoaded's own header for why), so a picker with
+    // nothing chosen shows a prompt rather than data.
+    lsnap: null,
     // Per-tab text filter. One field, but the *contract* is per tab — see
     // `filterFor`.
     q: null,
@@ -1284,6 +1290,7 @@ local JS = [[
       // scoped to whichever panel is actually sortable.
       if(s.tsnap) parts.push("tsnap=" + encodeURIComponent(s.tsnap));
       if(s.tsnapb) parts.push("tsnapb=" + encodeURIComponent(s.tsnapb));
+      if(s.lsnap) parts.push("lsnap=" + encodeURIComponent(s.lsnap));
       if(s.q) parts.push("q=" + encodeURIComponent(s.q));
     } else if(s.tab === "history"){
       // The opened commit, so a link to one is shareable. Validated on the
@@ -1373,7 +1380,7 @@ local JS = [[
       else if(k === "iview") s.iview = (v === "modules") ? "modules" : "functions";
       else if(k === "atool") s.atool = (v === "doc" || v === "deps" || v === "complexity" ||
         v === "duplicates" || v === "plugins" || v === "tools" || v === "hooks" ||
-        v === "docs" || v === "endpoints" || v === "telemetry") ? v : "test";
+        v === "docs" || v === "endpoints" || v === "telemetry" || v === "loaded") ? v : "test";
       // Snapshot names are whatever runtime-analysis.telemetry's own
       // sanitizer allowed through when saved — not re-validated here, the
       // same posture `sha`/`q` already take: a value that does not
@@ -1381,6 +1388,11 @@ local JS = [[
       // from `/api/telemetry`, not silently dropped before it can ask.
       else if(k === "tsnap") s.tsnap = v || null;
       else if(k === "tsnapb") s.tsnapb = v || null;
+      // Same posture as tsnap/tsnapb: a snapshot name runtime-analysis.
+      // loaded's own sanitizer allowed through when saved, not
+      // re-validated here — an invalid one just gets "snapshot not found"
+      // back from /api/loaded.
+      else if(k === "lsnap") s.lsnap = v || null;
       // Not whitelisted against a column list here, because the valid columns
       // differ per panel and this parser does not know which panel `atool`
       // will resolve to. `anSort` looks the key up in the panel's own column
@@ -4203,21 +4215,26 @@ local JS = [[
     var atool = (state.atool === "doc" || state.atool === "deps" ||
       state.atool === "complexity" || state.atool === "duplicates" ||
       state.atool === "plugins" || state.atool === "tools" || state.atool === "hooks" ||
-      state.atool === "docs" || state.atool === "endpoints" || state.atool === "telemetry")
+      state.atool === "docs" || state.atool === "endpoints" || state.atool === "telemetry" ||
+      state.atool === "loaded")
       ? state.atool : "test";
 
     document.querySelectorAll("#antoggle .anview-btn").forEach(function(b){
       b.classList.toggle("active", b.dataset.atool === atool);
     });
 
-    // Telemetry is not computed from the embedded IR and cannot be — see
-    // its own draw function's header for why. It gets a separate path
-    // rather than a branch inside `renderAnalysis`, the same reason
-    // History is a sibling of this whole function rather than a case in it:
-    // the cache below is for synchronous, IR-only renders, and a fetch does
-    // not fit that shape.
+    // Telemetry/Loaded are not computed from the embedded IR and cannot
+    // be — see each draw function's own header for why. They get a
+    // separate path rather than a branch inside `renderAnalysis`, the
+    // same reason History is a sibling of this whole function rather than
+    // a case in it: the cache below is for synchronous, IR-only renders,
+    // and a fetch does not fit that shape.
     if(atool === "telemetry"){
       drawAnalysisTelemetry();
+      return;
+    }
+    if(atool === "loaded"){
+      drawAnalysisLoaded();
       return;
     }
 
@@ -4528,6 +4545,175 @@ local JS = [[
       });
     });
     telWirePicker();
+  }
+
+  // ---------------------------------------------------------------------
+  // Analysis -> Loaded: the runtime-analysis.loaded persisted-snapshot join,
+  // docs/ROADMAP.md §5.4 — "cold viewing" of a loaded-vs-declared diff taken
+  // in a process that is not this one.
+  //
+  // Unlike Telemetry, there is no "live aggregate" fallback here: a loaded
+  // diff is inherently a property of *some* live session's package.loaded,
+  // and the only such session `:DocBrowse loaded` can read is the one the
+  // browser was opened from — a browser tab, running in a different
+  // process entirely, has no live package.loaded of its own to read. So
+  // this panel only ever reads named snapshots (`:RA loaded snapshot
+  // <prefix> [name]`, runtime-analysis.nvim's own §5.4 command) — never a
+  // "Latest" option the way Telemetry's picker has one. `state.lsnap` is
+  // `null` until a snapshot is actually chosen; the panel prompts for one
+  // rather than guessing.
+  // ---------------------------------------------------------------------
+  var loadedSnapLoaded = false, loadedSnapList = null;
+  var loadedCache = {};
+
+  function loadedFetch(name){
+    if(loadedCache[name]) return Promise.resolve(loadedCache[name]);
+    return fetch("/api/loaded?snapshot=" + encodeURIComponent(name))
+      .then(function(r){ return r.json(); })
+      .then(function(d){ loadedCache[name] = d; return d; });
+  }
+
+  function drawAnalysisLoaded(){
+    var host = document.getElementById("anbody");
+    if(!historyAvailable()){
+      host.innerHTML = '<p class="hmsg">This page was opened from a file, so the Loaded panel has ' +
+        'nothing to ask.<br><br>Snapshots live outside the committed map on purpose — the same reason ' +
+        'Telemetry does — so reading them needs a server. Run <code>:DocMap serve</code> and open the ' +
+        'URL it prints (or <code>:DocMap open</code> while it runs).</p>';
+      return;
+    }
+
+    var snapListPromise = loadedSnapLoaded
+      ? Promise.resolve(loadedSnapList)
+      : fetch("/api/loaded/snapshots").then(function(r){ return r.json(); }).then(function(d){
+          loadedSnapLoaded = true;
+          loadedSnapList = (d && d.snapshots) || [];
+          return loadedSnapList;
+        }).catch(function(){ loadedSnapLoaded = true; loadedSnapList = []; return loadedSnapList; });
+
+    snapListPromise.then(function(list){
+      if(!state.lsnap){
+        renderAnalysisLoadedBody(null, list);
+        return;
+      }
+      return loadedFetch(state.lsnap).then(function(d){
+        renderAnalysisLoadedBody(d, list);
+      });
+    }).catch(function(e){
+      host.innerHTML = '<p class="hmsg">Could not reach the map server: ' + esc(String(e)) +
+        '<br><br>Is it still running? <code>:DocMap serve</code> starts it.</p>';
+    });
+  }
+
+  function loadedPickerHTML(list){
+    var items = [{ v: "", l: (list.length === 0 ? "No snapshots saved yet" : "— choose a snapshot —") }]
+      .concat(list.map(function(s){
+        var d = new Date(s.saved_at * 1000);
+        return { v: s.name, l: s.name + " (" + d.toLocaleString() + ")" };
+      }));
+    return '<div class="telpicker"><label>Snapshot: <select id="loadedsnap">' +
+      telOptionsHTML(items, state.lsnap || "") + '</select></label></div>';
+  }
+
+  function loadedWirePicker(){
+    var sel = document.getElementById("loadedsnap");
+    if(sel) sel.addEventListener("change", function(){
+      navigate({ tab: "analysis", atool: "loaded", lsnap: sel.value || null });
+    });
+  }
+
+  function loadedUnavailableMessage(d){
+    var reason = (d && d.reason) || "unknown";
+    if(reason === "no map generated yet"){
+      return "No map has been generated yet on this machine — run <code>:DocMap</code> first.";
+    }
+    if(reason === "no single root module prefix for this tree"){
+      return "This tree has no single root module (opts.source resolves to several top-level " +
+        "modules, or equals opts.lua_root) — there is no one prefix to snapshot.";
+    }
+    if(reason === "snapshot not found"){
+      return "Snapshot <code>" + esc((d && d.snapshot) || "") + "</code> was not found — it may have " +
+        "been evicted (only the most recent ones are kept).";
+    }
+    return "No loaded-snapshot data for prefix <code>" + esc((d && d.prefix) || "") + "</code> yet — " +
+      "install/enable <code>runtime-analysis.nvim</code>, then <code>:RA loaded snapshot " +
+      esc((d && d.prefix) || "&lt;prefix&gt;") + "</code> there.";
+  }
+
+  function renderAnalysisLoadedBody(d, list){
+    var host = document.getElementById("anbody");
+    var parts = [loadedPickerHTML(list || [])];
+
+    if(!state.lsnap){
+      parts.push('<p class="ntext none">Choose a snapshot above — this panel has nothing live to ' +
+        'fall back to (see the panel\'s own note: a browser tab has no package.loaded of its own).</p>');
+      host.innerHTML = parts.join("");
+      loadedWirePicker();
+      return;
+    }
+    if(!d || !d.available){
+      parts.push('<p class="ntext none">' + loadedUnavailableMessage(d) + '</p>');
+      host.innerHTML = parts.join("");
+      loadedWirePicker();
+      return;
+    }
+
+    var totalRows = (d.rows || []).length;
+    var rows = anFilter((d.rows || []).map(function(r){
+      var key = r.id + "#" + r.name;
+      return {
+        id: r.id, kind: r.kind, name: r.name, declared_name: r.declared_name,
+        line: r.line, haystack: key, sortkey: key
+      };
+    }));
+
+    var capturedAt = d.captured_at ? new Date(d.captured_at * 1000).toLocaleString() : "unknown time";
+    if(totalRows === 0){
+      parts.push('<p class="ntext none">Snapshot <code>' + esc(d.snapshot) + '</code> (captured ' +
+        esc(capturedAt) + ') has data for prefix <code>' + esc(d.prefix) +
+        '</code>, but nothing disagreed with the source.</p>');
+      host.innerHTML = parts.join("");
+      loadedWirePicker();
+      return;
+    }
+
+    var cols = [
+      { label: "Module", key: "id", get: function(r){ return r.id; }, initial: "asc" },
+      { label: "Name", key: "name", get: function(r){ return r.name; }, initial: "asc" },
+      { label: "Discrepancy", key: "kind", get: function(r){ return r.kind; }, initial: "asc" }
+    ];
+    anSort(rows, cols, function(a, b){
+      if(a.id !== b.id) return a.id < b.id ? -1 : 1;
+      return a.name < b.name ? -1 : 1;
+    });
+
+    parts.push('<p class="nsub">' + rows.length + ' discrepanc' + (rows.length === 1 ? 'y' : 'ies') +
+      ' in snapshot <code>' + esc(d.snapshot) + '</code> (captured ' + esc(capturedAt) +
+      ') for prefix <code>' + esc(d.prefix) + '</code>.' + anFilterNote(rows.length, totalRows) + '</p>');
+    if(rows.length === 0){
+      parts.push('<p class="ntext none">No function matches that filter.</p>');
+      host.innerHTML = parts.join("");
+      loadedWirePicker();
+      return;
+    }
+    parts.push('<table class="antable">' + anHead(cols) + '<tbody>');
+    rows.forEach(function(r){
+      var label = r.kind === "declared_only"
+        ? "✕ declared, not loaded" : "! loaded, not declared";
+      parts.push('<tr class="anrow" data-node="' + esc(r.id) + '">' +
+        '<td><code>' + esc(r.id) + '</code></td>' +
+        '<td><code>' + esc(r.name) + '</code></td>' +
+        '<td class="' + (r.kind === "declared_only" ? "teldown" : "telup") + '">' + label + '</td>' +
+        '</tr>');
+    });
+    parts.push("</tbody></table>");
+    host.innerHTML = parts.join("");
+    host.querySelectorAll(".anrow").forEach(function(tr){
+      tr.addEventListener("click", function(){
+        navigate({ tab: "tree", id: tr.dataset.node });
+      });
+    });
+    loadedWirePicker();
   }
 
   // =====================================================================
@@ -6382,6 +6568,7 @@ function M.render(ir, findings, opts)
     '<button class="anview-btn" data-atool="plugins">Plugins</button>',
     '<button class="anview-btn plugin-gated" data-atool="tools" title="Populated from docs/install.json (lib.nvim.deps manifest) when the scanned repo declares one">Tools</button>',
     '<button class="anview-btn plugin-gated" data-atool="telemetry" title="Needs runtime-analysis.nvim and :DocMap serve — call counts change between runs, so this is never baked into the committed map">Telemetry</button>',
+    '<button class="anview-btn plugin-gated" data-atool="loaded" title="Needs runtime-analysis.nvim, a saved :RA loaded snapshot, and :DocMap serve — a loaded-vs-declared diff is a property of some live session, so this reads a named snapshot, never a live aggregate">Loaded</button>',
     '<button class="anview-btn" data-atool="hooks">Hooks</button>',
     '<button class="anview-btn" data-atool="docs">Docs</button>',
     '<button class="anview-btn" data-atool="endpoints">Endpoints</button>',

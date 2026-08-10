@@ -56,19 +56,50 @@ local function exported_field(declared_name)
   return nil
 end
 
----One row per discrepancy across the whole tree — nodes with a real
----module path only; a namespace (no `init.lua`, nothing itself
----`require()`-able) has nothing for `package.loaded` to hold.
----@param ir Documentation.IR
----@return Documentation.LoadedDiff.Row[]? rows `nil` when
----`runtime-analysis.nvim` is not installed at all — distinct from an
----empty list, which means it *is* installed and found no discrepancies.
-function M.rows(ir)
-  local ok, loaded_mod = pcall(require, "runtime-analysis.loaded")
-  if not ok then
+---The `runtime-analysis.loaded` snapshot prefix this tree resolves to —
+---`opts.source`'s dotted form, the same transform `core/check.lua#M.
+---expected_module` already applies to every file in the tree, here applied
+---once to the root itself. Deliberately not a separate `opts` field the way
+---`telemetry_join.M.namespace` has one (`opts.telemetry_namespace`): unlike
+---a telemetry namespace, which genuinely can differ from the module prefix
+---it wraps (`core/telemetry_self.lua` wraps `main = "documentation"` under
+---`namespace = "documentation.nvim"`, two different strings, for this repo
+---itself), a loaded snapshot has nothing to name *except* the prefix it was
+---taken under — see `runtime-analysis.loaded`'s own snapshot section for
+---why it deliberately has no separate namespace argument either. Both sides
+---deriving the identical value from `opts.source` independently is what
+---lets `:RA loaded snapshot <prefix>` and this reading side agree on one
+---without either passing the other a config value to keep in sync.
+---@param opts Documentation.Opts
+---@return string? prefix `nil` when `opts.source`/`opts.lua_root` do not
+---resolve to a dotted prefix at all (an unusual layout with no single
+---root module) — the same "no opinion" shape `telemetry_join.M.namespace`
+---returns for an unset `opts.title`.
+function M.prefix(opts)
+  local source = (opts.source or "lua"):gsub("/+$", "")
+  local lua_root = (opts.lua_root or "lua"):gsub("/+$", "")
+  -- `source == lua_root` means the whole `lua/` tree is scanned directly —
+  -- several top-level modules, no single root to name. The same "more than
+  -- one candidate, do not guess" case `M.detect_source` already falls back
+  -- to plain `"lua"` for, here answered with "no prefix" instead of a wrong
+  -- one (`expected_module` would otherwise strip `lua_root .. "/"` and be
+  -- left with nothing to dot, an artifact of the path math, not a real name).
+  if source == lua_root then
     return nil
   end
+  local check = require("documentation.core.check")
+  return check.expected_module(source .. "/init.lua", lua_root)
+end
 
+---@internal
+---Shared by `M.rows` (live) and `M.rows_from_snapshot` (persisted,
+---docs/ROADMAP.md §5.4): everything past "how do I get a module's present
+---fields" is identical between the two, so this is the one place that
+---logic exists.
+---@param ir Documentation.IR
+---@param present_for fun(module_id: string): table<string, true>?
+---@return Documentation.LoadedDiff.Row[]
+local function diff(ir, present_for)
   local out = {}
   for _, id in ipairs(ir.order) do
     local node = ir.nodes[id]
@@ -81,7 +112,7 @@ function M.rows(ir)
         end
       end
 
-      local present = loaded_mod.functions(node.module) or {}
+      local present = present_for(node.module) or {}
 
       for field, info in pairs(declared) do
         if not present[field] then
@@ -112,6 +143,37 @@ function M.rows(ir)
     return a.name < b.name
   end)
   return out
+end
+
+---One row per discrepancy across the whole tree — nodes with a real
+---module path only; a namespace (no `init.lua`, nothing itself
+---`require()`-able) has nothing for `package.loaded` to hold.
+---@param ir Documentation.IR
+---@return Documentation.LoadedDiff.Row[]? rows `nil` when
+---`runtime-analysis.nvim` is not installed at all — distinct from an
+---empty list, which means it *is* installed and found no discrepancies.
+function M.rows(ir)
+  local ok, loaded_mod = pcall(require, "runtime-analysis.loaded")
+  if not ok then
+    return nil
+  end
+  return diff(ir, loaded_mod.functions)
+end
+
+---The same diff, against a persisted snapshot instead of the live
+---`package.loaded` — docs/ROADMAP.md §5.4, "cold viewing": a snapshot
+---taken in one process (or hours/days earlier in this one), read here
+---without needing that process to still be running. `snapshot.modules` is
+---already exactly the `module_id -> {field -> true}` shape `M.rows`'s own
+---`present_for` callback needs, from `runtime-analysis.loaded.snapshot`'s
+---own capture — see that function's header for what it captured and when.
+---@param ir Documentation.IR
+---@param snapshot { modules: table<string, table<string, true>> } The table `runtime-analysis.loaded.load_snapshot` returns.
+---@return Documentation.LoadedDiff.Row[]
+function M.rows_from_snapshot(ir, snapshot)
+  return diff(ir, function(module_id)
+    return snapshot.modules[module_id]
+  end)
 end
 
 return M

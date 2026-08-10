@@ -291,3 +291,20 @@ not installed, or installed but no session is currently attached.
 - **Config:** `opts.mdview` (`install()` only, boolean, default `false`).
 - **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Live preview via
   mdview.nvim" section.
+
+## Loaded panel — cold viewing of a loaded-vs-declared snapshot
+
+`:DocBrowse loaded`'s live diff (docs/ROADMAP.md §5.3 on the
+runtime-analysis.nvim side) only ever answers "what does *this* editor
+session's `package.loaded` disagree with" — a browser tab, running in a
+different process, has no live `package.loaded` of its own to read. The
+Analysis → **Loaded** panel is the cold counterpart: it reads a *named,
+persisted* snapshot (`:RA loaded snapshot <prefix> [name]`,
+runtime-analysis.nvim's own §5.4) instead of a live session, the same
+Telemetry-snapshot shape (§4.5) applied to a different kind of runtime
+fact. No "latest" fallback — unlike Telemetry there is no live aggregate
+to default to, so the panel prompts for a snapshot rather than guessing.
+
+- **Module:** `core/loaded_diff.lua` (`M.prefix`, `M.rows_from_snapshot`),
+  `editor/serve.lua` (`route_loaded`, `route_loaded_snapshots`)
+- **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Loaded panel" section.

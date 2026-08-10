@@ -124,6 +124,7 @@ flowchart LR
   nlua_documentation_core_lang --> nlua_documentation_core_lang_registry_lua
   nlua_documentation_core_lang --> nlua_documentation_core_scan_lua
   nlua_documentation_core_lang --> nlua_documentation_core_snippet_lua
+  nlua_documentation_core_loaded_diff_lua --> nlua_documentation_core_check_lua
   nlua_documentation_core_quicks_lua --> nlua_documentation_core_doccoverage_lua
   nlua_documentation_core_render --> nlua_documentation_core_json_lua
   nlua_documentation_core_scan_lua --> nlua_documentation_core_calls_lua
@@ -151,6 +152,7 @@ flowchart LR
   nlua_documentation_editor_registry_lua --> nlua_documentation_core_render
   nlua_documentation_editor_registry_lua --> nlua_documentation_editor_callhierarchy_lua
   nlua_documentation_editor_serve_lua --> nlua_documentation_core_history_lua
+  nlua_documentation_editor_serve_lua --> nlua_documentation_core_loaded_diff_lua
   nlua_documentation_editor_serve_lua --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_editor_serve_lua --> nlua_documentation_editor_browse
 ```
