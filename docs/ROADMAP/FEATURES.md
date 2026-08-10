@@ -2329,3 +2329,69 @@ soft dependency (`runtime-analysis.nvim`) rather than a manifest file —
 same visual signal, two different kinds of "optional" underneath it.
 Confirmed with the user which visual treatment (badge + tint, vs. badge
 alone, vs. tint alone) before building.
+
+## Analysis → Telemetry panel, server-backed (2026-08-10)
+
+A new `.plugin-gated` Analysis atool (`data-atool="telemetry"`, sibling to
+Tools) surfacing `runtime-analysis.telemetry`'s call counts for this
+project's own functions, joined against the IR by `core/telemetry_join.lua`
+— the same join `:DocBrowse telemetry` already used, now reachable from the
+generated static page too.
+
+**Not `generate()`-time baking, unlike Tools — this was the original design
+and it was wrong.** An earlier draft of this feature's concept note assumed
+it would bake the current aggregate into `module_map.json` the same way
+`opts.tools` bakes `docs/install.json`. That assumption did not survive
+contact with `--check`: call counts change between runs, and any two
+regenerations of the same source would produce a different artifact for a
+reason that has nothing to do with the tree changing — exactly the
+determinism `core/tools.lua`'s own header already argues host-presence
+checks must stay out of the artifact for, one step further (there the
+*shape* is deterministic and only presence is not; here the counts
+themselves are the volatile part).
+
+Built instead as a new `GET /api/telemetry` route on
+`documentation.editor.serve` (`:DocMap serve`), reading
+`telemetry_join.load()`/`.rows()` fresh on every request — always the
+latest aggregate, never stale, exactly `serve.lua`'s own History route's
+reasoning (a `file://` page cannot `fetch()` anything at all, so "load on
+click" already meant a server for History, and now for this too). Opened
+from `file://` the panel explains itself rather than silently doing
+nothing, the same treatment History already gives that case. Every "nothing
+to show" case (no namespace configured, no map generated yet, no telemetry
+data recorded) answers `200` with `{available:false, reason:...}` and a
+specific message — never an HTTP error, since absence of telemetry data is
+a normal outcome here exactly as `telemetry_join.lua` already insists
+everywhere else.
+
+**A real, previously-unnoticed bug in `core/telemetry_join.lua` was found and
+fixed while building this — not a synthetic issue, a real one.** Verifying
+against real data (`runtime-analysis.telemetry`'s own self-instrumentation
+of this tree, curled through a real headless server) initially returned
+zero rows despite confirmed real data on disk. Root cause: `Documentation.
+IR.nodes` is keyed by `node.id`, which `core/scan.lua` sets to a *file
+path*; `wrap_loaded()`/`telemetry.auto()` (this tree's own
+`core/telemetry_self.lua` uses the latter) resolve `Data.modules` values to
+the *dotted* `@module` form instead. `M.rows`'s `ir.nodes[module_id]` was
+looking a file-path-keyed table up by a dotted string that was never one of
+its keys — every row silently failed to match, unconditionally, in every
+project using `auto()`/`wrap_loaded()`. This is not a rare edge case: it is
+the *common* case, and it meant `:DocBrowse telemetry` (ECOSYSTEM.md step
+8, shipped earlier) had been showing "no telemetry data" for every function
+regardless of real usage since the day it shipped, and
+`telemetry_join.doc_usage_summary` had always reported 0/0. Fixed by adding
+a `node.module` → node index and trying both the direct-id and dotted
+conventions (`ir.nodes[module_id] or by_module[module_id]`) — a caller's
+own explicit `wrap(tbl, label, {module_id=...})` can legitimately choose
+either form, and `TESTS/browse_telemetry_spec.lua`'s existing fixture
+exercises the direct-id one, so both had to keep working, not just the one
+this feature happened to need. No test needed rewriting; the existing
+fixture's assumptions were compatible with the fix once the two-path lookup
+was in place.
+
+Regression-checked against `TESTS/browse_telemetry_spec.lua` (unchanged,
+still green) and against real, non-trivial data: 151 real functions with
+telemetry data resolved correctly post-fix, verified via a real running
+`:DocMap serve` instance and the Claude Browser MCP tools (panel render,
+sort order, row-click navigation to the real node), not a synthetic
+fixture.

@@ -56,10 +56,50 @@ function M.load(namespace)
   return data
 end
 
+---`node.module` (dotted, from an `@module` header) to the node itself —
+---built once per call rather than once per row.
+---
+---**Half of a bug fixed 2026-08-10, found by actually curling a real join
+---against this tree's own self-instrumentation instead of trusting the code
+---read alone.** `Documentation.IR.nodes` is keyed by `node.id`, which
+---`core/scan.lua` sets to a *file path* (`local id = rel`) — never the
+---dotted form. `runtime-analysis.telemetry`'s `wrap_loaded()` (and
+---`telemetry.auto()`, which this tree's own `core/telemetry_self.lua` uses)
+---resolves `Data.modules` values to the dotted require-path instead (e.g.
+---`"documentation.core.doccoverage"`). A plain `ir.nodes[module_id]` lookup
+---never sees those — the two key spaces do not intersect — so every row
+---from an auto-instrumented tree silently failed to match, unconditionally.
+---This made `:DocBrowse telemetry` (ECOSYSTEM.md step 8) show "no telemetry
+---data" for every function regardless of real usage, and
+---`M.doc_usage_summary` always report 0/0, on any project using `auto()`/
+---`wrap_loaded()` — which is the common case, not an edge one.
+---@param ir Documentation.IR
+---@return table<string, Documentation.Node> module (dotted) -> node
+local function module_index(ir)
+  local by_module = {}
+  for _, id in ipairs(ir.order) do
+    local node = ir.nodes[id]
+    if node.module then
+      by_module[node.module] = node
+    end
+  end
+  return by_module
+end
+
 ---Every function `data.modules` can resolve to a real node still present in
----`ir`, joined against `check.used_keys(ir)` for the static half. A telemetry
----key whose resolved module id no longer has a node (the module was renamed
----or removed since telemetry last ran) is silently dropped — the same
+---`ir`, joined against `check.used_keys(ir)` for the static half.
+---
+---**Two resolution conventions, tried in order, because both are real.** A
+---plain `runtime-analysis.telemetry` `wrap(tbl, label, {module_id=...})`
+---call lets the *caller* choose any string, including one that happens to
+---equal a real `node.id` directly (`TESTS/browse_telemetry_spec.lua`'s own
+---fixture does exactly this) — checked first since it is the more specific,
+---already-a-real-key case. `wrap_loaded()`/`telemetry.auto()` resolve to the
+---dotted `@module` form instead (`module_index`'s own header has the full
+---story of why that needs a second index rather than a second key on the
+---same table) — checked second. A telemetry key that matches neither (the
+---module was renamed or removed since telemetry last ran, or a `wrap()`
+---call with no `module_id` at all) is silently dropped, the same
 ---"declared but no longer real" case `history` mode already treats as "no
 ---longer in the map" rather than an error.
 ---@param ir Documentation.IR
@@ -68,16 +108,22 @@ end
 function M.rows(ir, data)
   local check = require("documentation.core.check")
   local used = check.used_keys(ir)
+  local by_module = module_index(ir)
 
   local rows = {}
   for key, module_id in pairs(data.modules) do
     local fn_name = key:match("([^.]+)$")
-    local node = fn_name and ir.nodes[module_id]
+    local node = fn_name and (ir.nodes[module_id] or by_module[module_id])
     if node then
-      local ir_key = module_id .. "#" .. fn_name
+      -- `node.id` (the real, file-path IR key) rather than `module_id`
+      -- verbatim: the two coincide for the direct-id convention above but
+      -- not for the dotted one, and this is what `used_keys(ir)` is itself
+      -- keyed by, and what a `navigate({id=...})` call on the client side
+      -- needs to actually find the node.
+      local ir_key = node.id .. "#" .. fn_name
       local stats = data.functions[key]
       rows[#rows + 1] = {
-        id = module_id,
+        id = node.id,
         fn = fn_name,
         ir_key = ir_key,
         calls = stats and stats.calls or 0,

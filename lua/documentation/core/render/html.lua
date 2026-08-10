@@ -4176,13 +4176,28 @@ local JS = [[
   }
 
   function drawAnalysis(){
-    var host = document.getElementById("anbody");
     var atool = (state.atool === "doc" || state.atool === "deps" ||
       state.atool === "complexity" || state.atool === "duplicates" ||
       state.atool === "plugins" || state.atool === "tools" || state.atool === "hooks" ||
-      state.atool === "docs" || state.atool === "endpoints")
+      state.atool === "docs" || state.atool === "endpoints" || state.atool === "telemetry")
       ? state.atool : "test";
 
+    document.querySelectorAll("#antoggle .anview-btn").forEach(function(b){
+      b.classList.toggle("active", b.dataset.atool === atool);
+    });
+
+    // Telemetry is not computed from the embedded IR and cannot be — see
+    // its own draw function's header for why. It gets a separate path
+    // rather than a branch inside `renderAnalysis`, the same reason
+    // History is a sibling of this whole function rather than a case in it:
+    // the cache below is for synchronous, IR-only renders, and a fetch does
+    // not fit that shape.
+    if(atool === "telemetry"){
+      drawAnalysisTelemetry();
+      return;
+    }
+
+    var host = document.getElementById("anbody");
     var key = anCacheKey(atool);
     if(analysisCache[key] === undefined) analysisCache[key] = renderAnalysis(atool);
     host.innerHTML = analysisCache[key];
@@ -4208,9 +4223,117 @@ local JS = [[
         navigate({ tab: "analysis", atool: atool, asort: key2, adir: dir });
       });
     });
+  }
 
-    document.querySelectorAll("#antoggle .anview-btn").forEach(function(b){
-      b.classList.toggle("active", b.dataset.atool === atool);
+  // ---------------------------------------------------------------------
+  // Analysis -> Telemetry: the runtime-analysis.nvim join, on demand.
+  //
+  // Not computed from the embedded IR, and cannot be: call counts change
+  // between runs, and baking them into `module_map.json` would make
+  // `--check`'s byte-for-byte comparison depend on when it happened to run
+  // relative to real usage — the same reason `core/tools.lua`'s own header
+  // keeps host-presence checks out of the artifact, one step further
+  // (there, the *shape* is deterministic and only presence is not; here,
+  // the counts themselves are the volatile part). `/api/telemetry` reads
+  // `runtime-analysis.telemetry` straight off disk on every request, so
+  // this is always the latest aggregate, never a stale snapshot baked in
+  // at generate() time — see `documentation.editor.serve`'s own header for
+  // why that means a server, exactly the History tab's own reasoning.
+  // ---------------------------------------------------------------------
+  var telLoaded = false, telData = null;
+
+  function drawAnalysisTelemetry(){
+    var host = document.getElementById("anbody");
+    if(!historyAvailable()){
+      host.innerHTML = '<p class="hmsg">This page was opened from a file, so the Telemetry panel has ' +
+        'nothing to ask.<br><br>Call counts live outside the committed map on purpose — they change between ' +
+        'runs, which the committed artifact never does — so reading them needs a server. Run ' +
+        '<code>:DocMap serve</code> and open the URL it prints (or <code>:DocMap open</code> while it runs).</p>';
+      return;
+    }
+    if(!telLoaded){
+      telLoaded = true;
+      host.innerHTML = '<p class="hmsg">Loading telemetry…</p>';
+      fetch("/api/telemetry")
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          telData = d;
+          renderAnalysisTelemetryBody();
+        })
+        .catch(function(e){
+          telLoaded = false;
+          host.innerHTML = '<p class="hmsg">Could not reach the map server: ' + esc(String(e)) +
+            '<br><br>Is it still running? <code>:DocMap serve</code> starts it.</p>';
+        });
+      return;
+    }
+    renderAnalysisTelemetryBody();
+  }
+
+  function renderAnalysisTelemetryBody(){
+    var host = document.getElementById("anbody");
+    var d = telData;
+    if(!d || !d.available){
+      var reason = (d && d.reason) || "unknown";
+      var msg;
+      if(reason === "no namespace"){
+        msg = "No telemetry namespace configured for this project — set " +
+          "<code>opts.telemetry_namespace</code> or <code>opts.title</code>.";
+      } else if(reason === "no map generated yet"){
+        msg = "No map has been generated yet on this machine — run <code>:DocMap</code> first.";
+      } else {
+        msg = "No telemetry data for namespace <code>" + esc((d && d.namespace) || "") + "</code> yet — " +
+          "install/enable <code>runtime-analysis.nvim</code>, or <code>:RATelemetry start</code> there.";
+      }
+      host.innerHTML = '<p class="ntext none">' + msg + '</p>';
+      return;
+    }
+
+    var totalRows = (d.rows || []).length;
+    var rows = anFilter((d.rows || []).map(function(r){
+      return {
+        id: r.id, fn: r.fn, ir_key: r.ir_key, calls: r.calls,
+        has_static_caller: r.has_static_caller,
+        haystack: r.ir_key, sortkey: r.ir_key
+      };
+    }));
+
+    if(totalRows === 0){
+      host.innerHTML = '<p class="ntext none">Telemetry namespace <code>' + esc(d.namespace) +
+        '</code> has data, but none of it resolved to a function still in this map.</p>';
+      return;
+    }
+
+    var cols = [
+      { label: "Function", key: "ir_key", get: function(r){ return r.ir_key; }, initial: "asc" },
+      { label: "Calls", key: "calls", get: function(r){ return r.calls; }, initial: "desc" },
+      { label: "Static caller?", key: "has_static_caller",
+        get: function(r){ return r.has_static_caller ? 1 : 0; }, initial: "desc" }
+    ];
+    anSort(rows, cols, function(a, b){ return b.calls - a.calls; });
+
+    var parts = [];
+    parts.push('<p class="nsub">' + rows.length + ' function' + (rows.length === 1 ? '' : 's') +
+      ' with telemetry data in namespace <code>' + esc(d.namespace) + '</code>.' +
+      anFilterNote(rows.length, totalRows) + '</p>');
+    if(rows.length === 0){
+      host.innerHTML = parts.join("") + '<p class="ntext none">No function matches that filter.</p>';
+      return;
+    }
+    parts.push('<table class="antable">' + anHead(cols) + '<tbody>');
+    rows.forEach(function(r){
+      parts.push('<tr class="anrow" data-node="' + esc(r.id) + '">' +
+        '<td><code>' + esc(r.ir_key) + '</code></td>' +
+        '<td>' + r.calls + '</td>' +
+        '<td>' + (r.has_static_caller ? "yes" : "no static caller found") + '</td>' +
+        '</tr>');
+    });
+    parts.push("</tbody></table>");
+    host.innerHTML = parts.join("");
+    host.querySelectorAll(".anrow").forEach(function(tr){
+      tr.addEventListener("click", function(){
+        navigate({ tab: "tree", id: tr.dataset.node });
+      });
     });
   }
 
@@ -6065,6 +6188,7 @@ function M.render(ir, findings, opts)
     '<button class="anview-btn" data-atool="duplicates">Duplicates</button>',
     '<button class="anview-btn" data-atool="plugins">Plugins</button>',
     '<button class="anview-btn plugin-gated" data-atool="tools" title="Populated from docs/install.json (lib.nvim.deps manifest) when the scanned repo declares one">Tools</button>',
+    '<button class="anview-btn plugin-gated" data-atool="telemetry" title="Needs runtime-analysis.nvim and :DocMap serve — call counts change between runs, so this is never baked into the committed map">Telemetry</button>',
     '<button class="anview-btn" data-atool="hooks">Hooks</button>',
     '<button class="anview-btn" data-atool="docs">Docs</button>',
     '<button class="anview-btn" data-atool="endpoints">Endpoints</button>',

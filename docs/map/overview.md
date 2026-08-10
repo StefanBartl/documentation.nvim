@@ -149,6 +149,7 @@ flowchart LR
   nlua_documentation_editor_registry_lua --> nlua_documentation_bindings_diagnostics_lua
   nlua_documentation_editor_registry_lua --> nlua_documentation_editor_callhierarchy_lua
   nlua_documentation_editor_serve_lua --> nlua_documentation_core_history_lua
+  nlua_documentation_editor_serve_lua --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_editor_serve_lua --> nlua_documentation_editor_browse
 ```
 
