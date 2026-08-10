@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**4 modules** · 5 namespaces · 66 helper files
+**4 modules** · 5 namespaces · 67 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -72,6 +72,7 @@ flowchart LR
   nlua_documentation_core_symbols_lua["documentation.core.symbols"]
   nlua_documentation_core_tagfiles_lua["documentation.core.tagfiles"]
   nlua_documentation_core_telemetry_join_lua["documentation.core.telemetry_join"]
+  nlua_documentation_core_telemetry_self_lua["documentation.core.telemetry_self"]
   nlua_documentation_core_timing_lua["documentation.core.timing"]
   nlua_documentation_editor_browse["documentation.editor.browse"]
   nlua_documentation_editor_command_lua["documentation.editor.command"]
@@ -87,6 +88,7 @@ flowchart LR
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_diff_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_find_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_history_lua
+  nlua_documentation_bindings_usrcmds --> nlua_documentation_core_telemetry_self_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_timing_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_editor_browse
   nlua_documentation_bindings_usrcmds --> nlua_documentation_editor_registry_lua
@@ -137,6 +139,7 @@ flowchart LR
   nlua_documentation_editor_command_lua --> nlua_documentation_bindings_usrcmds
   nlua_documentation_editor_command_lua --> nlua_documentation_core_find_lua
   nlua_documentation_editor_health_lua --> nlua_documentation_bindings_autocmds_lua
+  nlua_documentation_editor_health_lua --> nlua_documentation_core_telemetry_self_lua
   nlua_documentation_editor_serve_lua --> nlua_documentation_core_history_lua
   nlua_documentation_editor_serve_lua --> nlua_documentation_editor_browse
 ```

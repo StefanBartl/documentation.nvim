@@ -682,6 +682,28 @@ Ordered so each step is independently useful and nothing is a big-bang.
    `:DocMap check` run would — not only the join's pure-data-in-pure-data-out
    half. See `runtime-analysis.nvim`'s `docs/FINISHED.md` for that
    repository's own side of this entry.
+
+   **Extended (2026-08-10): the write side.** Step 8 as originally shipped
+   was read-only — the telemetry mode and dead-function suppression could
+   join against *some* namespace, but nothing made this tree itself write
+   to one; a caller had to hand-instrument `require("documentation")` with
+   runtime-analysis.telemetry to get anything to read back at all. New
+   module, `documentation.core.telemetry_self`: self-instruments this
+   tree's own aggregate on `documentation.setup()`, on by default, opt-out
+   via `opts.telemetry = false` — the same `~= false` shape `opts.which_key`
+   already established — and a no-op without runtime-analysis.nvim
+   installed, the identical soft-dependency posture every other integration
+   point in this document already takes. Built on
+   `runtime-analysis.telemetry.auto()` directly (the generic "new+wrap+start
+   on load" helper `lib.strategies.telemetry_wrap` was itself built around,
+   step 7's own entry above) rather than a bespoke materialize-then-wrap —
+   this tree's own module table has no metatable-hidden aggregate the way
+   `require("lib")` does, so the generic path was sufficient with nothing
+   lib.nvim-specific to work around. Same namespace resolution as the read
+   side (`opts.telemetry_namespace` or `opts.title`), so a caller who sets
+   nothing gets both sides pointed at the same place automatically.
+   Verified in `TESTS/telemetry_self_spec.lua`, same real-checkout-vs-absent
+   split as `browse_telemetry_spec.lua`.
 9. **Full-file previews / browser request runner / a Runtime tab under
    `serve`** — all three require the serve tier, and the runner additionally
    requires token gating.

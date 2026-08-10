@@ -81,6 +81,7 @@ local specs = {
   "snippet_spec.lua",
   "browse_endpoints_spec.lua",
   "browse_telemetry_spec.lua",
+  "telemetry_self_spec.lua",
   "browse_loaded_spec.lua",
   "docmap_browse_spec.lua",
   "pdf_artifact_spec.lua",
