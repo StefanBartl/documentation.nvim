@@ -60,6 +60,33 @@ more than a wall of text you have to search by hand.
 
 Fails on staleness *and* on error-severity drift.
 
+### `:DocMap annotate [--write|--sidecar]`
+
+Scaffolds a `---@module` header — and, when the file returns a table, a
+`---@class` block with one `---@field` per exported name — for every file
+`check`'s own `missing-module-tag` finding lists. Closes the gap between that
+finding being reported and it being fixed: previously the only path from "the
+check told me" to "the file says something true" was typing the header by
+hand, for every file, one at a time.
+
+No flag (the default, same as `--dry-run`) writes nothing: it opens a scratch
+buffer previewing every generated block, one `-- path` separator per file.
+`--write` splices the block into each file in place, immediately above
+`local M = {}` (or at the top of the file, for the rare export that is not a
+plain table) — never anywhere below it. `--sidecar` writes the same block to
+`<path>.annot.lua` next to the original instead, for review before merging it
+in by hand.
+
+Deliberately a starting point, not a finished annotation: types are best
+guesses — `fun(...)` reconstructed from a function's own already-parsed
+`@param`/`@return`, the referenced `---@class` name when a field's own value
+already carries one, `table`/`any` otherwise — and the one-line summary is a
+`TODO` for a human to fill in. A wrong confident type would be worse than an
+honest placeholder.
+
+`--write`/`--sidecar` open the quickfix list on every file touched, so the
+result is as easy to jump through and review as `check`'s own findings are.
+
 ### `:DocMap full`
 
 `:DocMap` plus LuaLS enrichment — parsed `@class`/`@alias` detail, type-reference

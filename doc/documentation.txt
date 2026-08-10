@@ -338,6 +338,17 @@ key and then regretted.
                         |quickfix| list — each names a real file. Fails on
                         staleness and on error-severity drift.
 
+:DocMap annotate [--write|--sidecar]
+                        Scaffold a ---@module header (and, when the file
+                        returns a table, a ---@class/---@field block) for
+                        every file `check`'s `missing-module-tag` finding
+                        lists. No flag previews everything in a scratch
+                        buffer and writes nothing; `--write` splices the
+                        block in place above `local M = {}`; `--sidecar`
+                        writes it to <path>.annot.lua instead. A starting
+                        point, not a finished annotation — types are best
+                        guesses, review before committing.
+
 :DocMap full            `:DocMap` plus LuaLS enrichment: parsed @class/@alias
                         detail, type-reference edges and inheritance edges
                         merged into the IR. Opt-in per invocation.
