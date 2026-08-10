@@ -146,46 +146,6 @@ point the user has in mind — not a specific technical trigger, since none
 was named. Whoever does that pass should start from this entry's own
 findings above rather than re-deriving them.
 
-### Neotree source — feasible, and not worth it (assessed 2026-07-28)
-
-*Could this plugin be used as a source for Neotree (a module tree beside the
-file tree, the way the buffer list is)?*
-
-**Feasible, cheaply.** The IR is already the exact shape a Neotree source hands
-over: `Documentation.Node` has a stable `id`, a `parent`, a `children` array
-and a `depth`, and `ir.order` is a stable traversal of it. `install()` already
-returns a live handle that rescans on write and fans out through `on_change` —
-which is the update channel a source needs, and the expensive half of writing
-one. The work would be an adapter of maybe 150 lines, not new analysis.
-
-**Not worth building, for now.** Three reasons, in the order they matter:
-
-1. **It duplicates `:DocBrowse` at a worse fidelity.** The browser already
-   navigates this data, and it does things a file-tree sidebar structurally
-   cannot: mode switching across six axes, depth and direction controls on the
-   dependency walk, `gq`/`gI` into the quickfix list, the trail. A Neotree
-   source would show the *hierarchy* and drop everything that makes the
-   hierarchy worth navigating.
-2. **The window is the scarce resource.** A file tree earns a permanent
-   sidebar because you use it constantly and incidentally. A module map is
-   consulted deliberately, in bursts — which is exactly the shape a
-   summoned float suits and a docked panel wastes.
-3. **It buys a dependency.** Today this plugin depends on lib.nvim and nothing
-   else, and `docs/PORTABILITY.md` treats that as a property worth keeping. A
-   Neotree source means tracking Neotree's source API across its releases, for
-   a view that duplicates one we already have.
-
-**What would reopen it:** a concrete want that the browser cannot serve because
-it is transient — "keep the module tree docked while I work", or "show module
-structure and files in one tree". Neither has come up. If it does, start from
-`browse/source.lua`'s `rehydrate` and the `install()` handle; the adapter is
-the easy part, and this entry exists so the feasibility question does not get
-re-derived.
-
-(The related item — harvesting this plugin's *interaction patterns* for
-`filetree.nvim` — was cut by the author on the same date and is deliberately
-not part of this repository's roadmap.)
-
 ### Reference tab — Lua syntax and LuaCATS tags
 
 Two panels, proposed together: a Lua keyword/syntax crib sheet, and one for
@@ -325,72 +285,50 @@ for a stated reason. Revisit only if the stated condition changes.
 | **`ctags` export** (`:LibMap tags`) | Anyone with LSP already has `gd`/`gr` via `lua-language-server` — practically everyone who installs `lib.nvim` at all. Only helps non-LSP external tooling, which nobody here uses | Someone needs `lib.nvim` symbols from outside LSP-aware tooling |
 | **Live-reload of the HTML page** on save | `:LibBrowse live` already covers the "see changes without a manual regen" need, in the editor, without a second running process/browser tab to keep in sync | `:LibBrowse live` stops being sufficient for some reason |
 | **Runtime inspection of a loaded module** (`:LibInspect`, backlog item B1) | Explicitly out of docmap's scope, not deferred *within* it — actually executing/requiring code is a different trust model (side effects, time-dependent, can never feed `--check` or a committed artifact) than docmap's pure static scan. A separate future tool, if built at all | Someone actually starts that tool — open design questions noted below |
+| **Neotree source** (a module tree beside the file tree, the way the buffer list is) | Feasible, cheaply — see the entry below for why; not worth it anyway | A concrete want the browser cannot serve because it is transient — see below |
 
 **B1 open design questions, if `:LibInspect` is ever started:** cycle/depth
 limits when walking a live table, whether to call into `__index` functions
 or just report them, and whether the result even belongs in a `ui.kit`
 window or somewhere else entirely.
 
-## O2 prep — naming survey + related-plugin feature research (2026-07-28)
+### Neotree source — feasible, and not worth it (assessed 2026-07-28)
 
-Not a decision to pursue O2, just work already done so it's not repeated
-if/when the question comes up for real.
+*Could this plugin be used as a source for Neotree (a module tree beside the
+file tree, the way the buffer list is)?*
 
-### Names checked against GitHub
+**Feasible, cheaply.** The IR is already the exact shape a Neotree source hands
+over: `Documentation.Node` has a stable `id`, a `parent`, a `children` array
+and a `depth`, and `ir.order` is a stable traversal of it. `install()` already
+returns a live handle that rescans on write and fans out through `on_change` —
+which is the update channel a source needs, and the expensive half of writing
+one. The work would be an adapter of maybe 150 lines, not new analysis.
 
-| Name | Status |
-|---|---|
-| `dooku.nvim` | **Taken** — [Zeioth/dooku.nvim](https://github.com/Zeioth/dooku.nvim), same problem space |
-| `docgen.nvim` | **Taken, twice** — [jamestrew/docgen.nvim](https://github.com/jamestrew/docgen.nvim), [dhananjaylatkar/docgen.nvim](https://github.com/dhananjaylatkar/docgen.nvim) |
-| `cartographer.nvim` | **Taken, twice** — [Iron-E/nvim-cartographer](https://github.com/Iron-E/nvim-cartographer) (keymap DSL), [hkupty/cartographer.nvim](https://github.com/hkupty/cartographer.nvim) (archived 2021) |
-| `wayfinder.nvim` | **Taken** — [error311/wayfinder.nvim](https://github.com/error311/wayfinder.nvim), and close enough in concept to `:LibBrowse` to risk real confusion even if it weren't |
-| `doxygen.nvim` | Not confirmed formally trademarked, but avoid anyway — reusing a distinct, well-known project's exact name for something unrelated reads as a claimed affiliation that doesn't exist |
-| `docmap.nvim` | Open. Matches the existing code/command names (`docmap`, `:LibMap`, `:LibBrowse`) — safest choice, no re-branding for anyone already using it via lib.nvim |
-| `docgraph.nvim` | Open. States what it is (doc + require/call/type/inheritance graphs) with no metaphor |
-| `luagraph.nvim` | Open. Leads with the static-analysis/graph angle over the doc-site angle |
-| `codeatlas.nvim` | Open. "Atlas" (a book of maps) extends the metaphor to match the Doxygen-parity breadth better than "map" alone |
-| `structura.nvim` | Open. Drops the map metaphor entirely — neutral, more "serious tool" reading |
+**Not worth building, for now.** Three reasons, in the order they matter:
 
-Re-check before actually registering — availability changes.
+1. **It duplicates `:DocBrowse` at a worse fidelity.** The browser already
+   navigates this data, and it does things a file-tree sidebar structurally
+   cannot: mode switching across six axes, depth and direction controls on the
+   dependency walk, `gq`/`gI` into the quickfix list, the trail. A Neotree
+   source would show the *hierarchy* and drop everything that makes the
+   hierarchy worth navigating.
+2. **The window is the scarce resource.** A file tree earns a permanent
+   sidebar because you use it constantly and incidentally. A module map is
+   consulted deliberately, in bursts — which is exactly the shape a
+   summoned float suits and a docked panel wastes.
+3. **It buys a dependency.** Today this plugin depends on lib.nvim and nothing
+   else, and `docs/PORTABILITY.md` treats that as a property worth keeping. A
+   Neotree source means tracking Neotree's source API across its releases, for
+   a view that duplicates one we already have.
 
-### Related-plugin feature survey
+**What would reopen it:** a concrete want that the browser cannot serve because
+it is transient — "keep the module tree docked while I work", or "show module
+structure and files in one tree". Neither has come up. If it does, start from
+`browse/source.lua`'s `rehydrate` and the `install()` handle; the adapter is
+the easy part, and this entry exists so the feasibility question does not get
+re-derived.
 
-Two of four repos found while researching names turned out relevant, two
-didn't:
+(The related item — harvesting this plugin's *interaction patterns* for
+`filetree.nvim` — was cut by the author on the same date and is deliberately
+not part of this repository's roadmap.)
 
-**Not relevant** — [hkupty/cartographer.nvim](https://github.com/hkupty/cartographer.nvim)
-(archived project/file/regex/TODO finder, author recommends telescope.nvim
-instead; nothing about analysis or graphs) and
-[Iron-E/nvim-cartographer](https://github.com/Iron-E/nvim-cartographer) (a
-keymap-definition DSL, unrelated to documentation entirely — a name
-collision only, not a feature one).
-
-**[dooku.nvim](https://github.com/Zeioth/dooku.nvim)** — same problem space,
-opposite architecture: a thin wrapper shelling out to *external*
-per-language doc generators (Doxygen/Typedoc/JSDoc/Rustdoc/Godoc/LDoc/Yard)
-and opening the HTML result. docmap's own-treesitter-analysis, zero-external-
-tool-dependency approach is a deliberate, worth-keeping difference, not a
-gap. Its generate-on-write option is the "regenerate on save" idea already
-rejected above (unintended diffs); `:DookuOpen` is already `:LibMap open`.
-Nothing here worth adopting.
-
-**[wayfinder.nvim](https://github.com/error311/wayfinder.nvim)** — closest
-relative of `:LibBrowse`, genuine candidates if `:LibBrowse` gets revisited
-(none currently scheduled, listed roughly cheapest/most-valuable first):
-1. ~~**`?` key-hint overlay** and **`:checkhealth docmap`**~~ — both
-   shipped, see "Shipped since this file was last written" above. They were
-   correctly ranked cheapest-first: together they cost one afternoon.
-2. ~~**Trail**~~ — shipped. `p` pins the entry under the cursor in any
-   mode, `6` lists them, `d` unpins. One `p` rather than wayfinder's
-   `p`/`a`/`A`: pressing it on something already pinned has exactly one
-   sensible meaning, and a second key would only make the first worse.
-3. ~~**Saved Trails**~~ — shipped. Read as one feature or two; it was built
-   as both, since auto-persisting the working trail and naming copies of it
-   are the same serialization of the same table. `S` saves, `L` loads
-   additively, `X` forgets.
-4. ~~**Local list filter**~~ — shipped as `f`, in every mode rather than
-   only Deps/Calls: it narrows `st.entries`, which every mode has, so
-   restricting it would have been extra code to do less.
-
-Already covered, no gap: wayfinder's quickfix export (`x`) is already
-`:LibBrowse`'s `gq`.
