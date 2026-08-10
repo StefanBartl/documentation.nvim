@@ -534,6 +534,89 @@ building, not after: `--check` compares the committed page byte-for-byte,
 and a link that could vary between two identical regenerations would have
 broken that guarantee.
 
+## Live preview via mdview.nvim (`opts.mdview`)
+
+Session 2026-08-10. `install()`-only, off by default, same posture as
+`watch`/`callhierarchy`/`diagnostics`: pushes a live, `core/render/
+mdview.lua`-shaped Markdown rendering of the in-memory IR into an
+already-running [mdview.nvim](https://github.com/StefanBartl/mdview.nvim)
+session on every `on_change`, so a browser tab previewing this root's
+`overview.md` stays in sync with the tree as it changes, not just with
+whatever `generate()` last wrote to disk. Tier A of a roadmap item that had
+sat as "never built" — Tier B (a real box+connector diagram inside mdview's
+own tab) is not buildable today and stays out of this repo; see below.
+
+**Soft dependency, the same posture `opts.pdf`'s pdfport.nvim already
+has.** `pcall(require, "mdview.core.state")` is the presence probe —
+mdview.nvim is never a hard requirement of docmap. Not installed at all →
+`ensure_mdview` is a silent no-op. Installed but no session currently
+attached (`:MDViewStart` never run, or already stopped) → each push checks
+`state.is_attached()`/`state.get_server()`, the identical guard mdview's own
+`M.open()` uses before doing anything, and skips rather than queuing a
+doomed HTTP POST. Deliberately not `ws_client.wait_ready()`'s `/health`
+poll instead — that blocks for up to its 10-second timeout, retrying every
+200ms, and would fire that cost on every single rescan for a user who
+enabled `opts.mdview` but has not started a session yet; the cheap
+in-process state check has none of that cost.
+
+**Two things the original roadmap entry flagged as unverified before Tier A
+could start — both resolved from primary source, not assumed, 2026-08-10:**
+
+1. **Ammonia's exact default attribute allowlist.** Read directly from the
+   vendored crate source (`ammonia` 4.1.3, `~/.cargo/registry/src/…
+   /ammonia-4.1.3/src/lib.rs`'s `Builder::default()`), not from
+   documentation or memory. `generic_attributes` is only `{"lang",
+   "title"}` — no `id`, no `style`, ever. `<details>`/`<summary>` and
+   `<div>`/`<span>` are already in ammonia's *default* tag set (`tags =
+   hashset!["a", ..., "details", ..., "div", ..., "span", ..., "summary",
+   ...]`) — mdview's own `sanitizer()` (`native/wasm-render/src/lib.rs`)
+   only adds `<input>` (task-list checkboxes) and a `class` attribute
+   scoped to `<code>` alone (for `language-xxx` syntax-highlight hints) on
+   top of that default. So `render/mdview.lua` sticks to plain tables,
+   headings, lists, inline code and `<details>` — no custom class, no
+   `style`, no `id` — and needs nothing from mdview beyond what a plain
+   `require("documentation")` install already gets from `ammonia::
+   Builder::default()`.
+2. **How a browser tab gets pointed at a specific room.** Traced through
+   mdview's own `init.lua#M.open()` and `adapter/ws_client.lua`: the room
+   key is `normalize.path()` of the previewed file's absolute path, the
+   same key `ws_client.send_markdown(path, markdown, opts)` normalizes
+   internally before building the `/update?key=…` URL. No separate
+   "point a tab at this room" mechanism exists or is needed — pushing to
+   `<root>/<out_dir>/overview.md`'s absolute path is the whole address, and
+   it is exactly the path `generate()` already writes `overview.md` to, so
+   opening that file and running `:MDViewStart` is the entire setup on the
+   mdview side.
+
+**No Mermaid, honestly disclosed rather than shipped broken.** mdview's
+client (`src/client/`) has no Mermaid dependency at all — a ` ```mermaid `
+fenced block survives ammonia (`pre`/`code` are default-allowed) but
+renders as inert text, not a diagram. `render/mdview.lua` drops
+`render/markdown.lua`'s two Mermaid sections entirely and puts a one-line
+note pointing at the interactive `index.html` map instead, rather than
+emitting a broken code block that looks like an oversight.
+
+**Only reacts to `on_change`, the same as `watch`/`callhierarchy`/
+`diagnostics` already do.** `on_change` fires on `install()`'s initial
+scan and on any later rescan — watch-triggered or a manual `:DocMap`.
+`opts.mdview` without `opts.watch` still works, but the preview then only
+updates when something calls `handle.rescan()`; pair the two for a preview
+that updates on every save.
+
+**Tier B stays out of this repo, on purpose — "don't design it twice".**
+A real box+connector diagram inside mdview's own browser tab needs a
+`kind` field on mdview's own WS protocol and a client branch that skips
+comrak/ammonia for `kind = "structured"` — a change to mdview.nvim itself,
+not to docmap. Belongs in a concept doc in that repo if it's ever built;
+recording it here again would just be the same design written twice.
+
+- **Module:** `core/render/mdview.lua`, `editor/registry.lua`
+  (`ensure_mdview`)
+- **Config:** `opts.mdview` (`install()` only, boolean, default `false`).
+- **Tests:** `TESTS/mdview_spec.lua` (stubs `package.loaded["mdview.core.
+  state"]`/`["mdview.adapter.ws_client"]`, same soft-dependency test
+  posture `pdf_artifact_spec.lua` established for pdfport.nvim).
+
 ## LuaLS enrichment (`opts.luals`)
 
 Off by default — a full-repo `lua-language-server --doc` run costs several

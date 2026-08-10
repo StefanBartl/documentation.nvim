@@ -78,40 +78,6 @@ and 25 are `vim.treesitter` — the only real blocker, and the thing that
 supplies every per-function fact the map has. Not scheduled, with the
 condition that would reopen it stated there.
 
-### mdview.nvim integration — never built
-
-Concept existed (originally `docmap_hierarchy_and_integrations.md` Part 4),
-LuaLS enrichment / Hierarchy tab / `install()` (that doc's Parts 1–3) all
-shipped in more complete form than sketched there, but the mdview piece
-itself was never started — confirmed by grep, no `mdview` reference
-anywhere under `lua/lib/nvim/docmap/`.
-
-**Tier A** (buildable without any mdview.nvim change): a new
-`render/mdview.lua` producing markdown shaped for what mdview's `ammonia`
-sanitizer's *default* builder actually keeps (`<details>`/`<summary>`,
-GFM tables, inline code — no custom CSS classes or `style` attributes,
-badges conveyed through text/emoji instead), pushed via mdview's existing
-`ws_client.send_markdown(path, markdown, opts)` from `install()`'s
-`on_change` hook, guarded by `pcall(require, "mdview.core.state")` so
-lib.nvim never hard-depends on mdview.
-
-**Tier B** (a real box+connector diagram inside mdview's own browser tab):
-not buildable today — mdview's pipeline is markdown-in/sanitized-HTML-out
-with no structured-data render mode. Needs a `kind` field on mdview's own
-WS protocol and a client branch that skips comrak/ammonia for
-`kind = "structured"`. Belongs in a concept doc in mdview.nvim's own repo,
-not here — don't design it twice.
-
-**Two things to verify before Tier A starts** (unresolved when this was
-last looked at):
-1. Ammonia's exact default attribute allowlist — confirmed the sanitizer is
-   `ammonia::Builder::default()` and that mdview only adds `data-sourcepos`
-   + the checkbox `<input>` beyond that default, but never read ammonia's
-   own crate source to confirm which attributes (e.g. `id`) survive.
-2. How a browser tab gets pointed at a *specific* room vs. the
-   currently-open buffer's path — `send_markdown` accepts any string as a
-   room key, but the routing from a URL to that key wasn't traced.
-
 ### Per-tab "create PDF" export — deferred to a maturity pass (assessed 2026-08-10)
 
 *Should specific report-shaped tabs/usrcmds (a call graph, the Deps view,

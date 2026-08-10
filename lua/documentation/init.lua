@@ -257,6 +257,9 @@ M.render = {
   markdown = function(...)
     return require("documentation.core.render.markdown")(...)
   end,
+  mdview = function(...)
+    return require("documentation.core.render.mdview")(...)
+  end,
   dot = function(...)
     return require("documentation.core.render.dot")(...)
   end,

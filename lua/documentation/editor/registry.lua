@@ -19,7 +19,7 @@ local autocmd = require("lib.nvim.autocmd")
 
 local M = {}
 
----@type table<string, { opts: Documentation.Opts, ir: Documentation.IR, findings: Documentation.Finding[], watchers: fun(ir: Documentation.IR, findings: Documentation.Finding[])[], augroup: integer?, debounce: Lib.Debounce.Handle?, ch_augroup: integer?, diag_augroup: integer?, diag_unsub: (fun())?, handle: Documentation.Handle, rescan_fn: fun(opts?: table): Documentation.IR, Documentation.Finding[] }>
+---@type table<string, { opts: Documentation.Opts, ir: Documentation.IR, findings: Documentation.Finding[], watchers: fun(ir: Documentation.IR, findings: Documentation.Finding[])[], augroup: integer?, debounce: Lib.Debounce.Handle?, ch_augroup: integer?, diag_augroup: integer?, diag_unsub: (fun())?, mdview_wired: boolean?, handle: Documentation.Handle, rescan_fn: fun(opts?: table): Documentation.IR, Documentation.Finding[] }>
 local registry = {}
 
 ---@param root string
@@ -212,6 +212,72 @@ function M.ensure_diagnostics(root)
   return true
 end
 
+---Push a live, mdview-shaped Markdown rendering of this root's IR to an
+---already-running mdview.nvim session, so a browser tab previewing this
+---root's `overview.md` path stays in sync with the in-memory IR instead of
+---only with whatever `generate()` last wrote to disk. Tier A of the roadmap's
+---"mdview.nvim integration" item — see `core/render/mdview.lua`'s own header
+---for the two ammonia/Mermaid constraints that shape its output.
+---
+---Soft dependency, the same posture `opts.pdf`'s pdfport.nvim has:
+---`pcall(require, "mdview.core.state")` is the presence probe, so
+---documentation.nvim never hard-depends on mdview.nvim. Not installed at
+---all → silent no-op. Installed but no session attached (`:MDViewStart`
+---never run, or already stopped) → each push checks `state.is_attached()`/
+---`state.get_server()` (the same guard `mdview.open()` itself uses) and
+---skips rather than queuing a doomed HTTP POST — avoids retry-exhausted
+---error notifications for a user who enabled `opts.mdview` but has not
+---started a session yet, and avoids the alternative of a `wait_ready()`
+---health poll (up to 10s of `/health` polling) firing on every single
+---rescan while no server is running at all.
+---
+---Pushes to `<root>/<out_dir>/overview.md` — the same path `generate()`
+---writes `overview.md` to — so opening that file and running `:MDViewStart`
+---is the whole setup; no separate mdview-specific path or command.
+---
+---Note: like `watch`/`callhierarchy`/`diagnostics`, this only reacts to
+---`on_change` — which fires on `install()`'s initial scan and on any
+---rescan (watch-triggered or manual `:DocMap`). `opts.mdview` without
+---`opts.watch` still works, but the preview only updates when something
+---calls `handle.rescan()`, not automatically on every save.
+---
+---Idempotent: called on a root already wired for this, or one that was
+---never installed, it does nothing.
+---@param root string
+---@return boolean wired True if mdview.nvim is installed and this root is wired for it (an inactive session is checked per-push, not here).
+function M.ensure_mdview(root)
+  root = norm_root(root)
+  local entry = registry[root]
+  if not entry or not entry.handle then
+    return false
+  end
+  if entry.mdview_wired then
+    return true
+  end
+
+  local probe_ok = pcall(require, "mdview.core.state")
+  if not probe_ok then
+    return false
+  end
+
+  local function publish()
+    local state = require("mdview.core.state")
+    if not state.is_attached() or not state.get_server() then
+      return -- no mdview session running right now; the next change tries again
+    end
+    local opts = entry.opts
+    local out_dir = opts.out_dir or "docs/map"
+    local path = root .. "/" .. out_dir .. "/overview.md"
+    local markdown = require("documentation.core.render.mdview")(entry.ir, entry.findings, opts)
+    require("mdview.adapter.ws_client").send_markdown(path, markdown, { immediate = true })
+  end
+
+  publish()
+  entry.handle.on_change(publish)
+  entry.mdview_wired = true
+  return true
+end
+
 ---Install a live handle for `opts.root`. Runs an initial scan immediately
 ---(synchronously — including the LuaLS shell-out if `opts.luals` is set, so
 ---a caller passing `luals = true` here is opting into that cost up front,
@@ -344,6 +410,9 @@ function M.install(opts)
   if opts.diagnostics then
     M.ensure_diagnostics(root)
   end
+  if opts.mdview then
+    M.ensure_mdview(root)
+  end
 
   return handle
 end
@@ -390,7 +459,11 @@ function M.uninstall(handle_or_root)
   -- `entry.diag_unsub` needs no explicit call: it is just one more entry in
   -- `entry.watchers`, which the blanket clear below already drops. Existing
   -- diagnostics on any buffer are left as they were, same posture as
-  -- call-hierarchy's own teardown note below.
+  -- call-hierarchy's own teardown note below. `ensure_mdview`'s `publish`
+  -- subscription is the same story: no separate unsub, no `mdview_unwired`
+  -- flag to reset — `registry[root] = nil` below drops the whole `entry`
+  -- (including `mdview_wired`), so a fresh `install()` for this root starts
+  -- from an unwired state without any extra teardown here.
   -- Stops *future* attachments only, same posture as `watch`'s own teardown
   -- above (which cancels the debounce but does not chase down an in-flight
   -- rescan): a buffer the call-hierarchy client already attached to keeps

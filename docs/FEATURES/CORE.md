@@ -274,3 +274,20 @@ with no project/multi-file mode the way CMake/C++ has.
   `false`).
 - **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Compiler Explorer
   links, experimental" section.
+
+## Live preview via mdview.nvim
+
+`opts.mdview` pushes a live, Mermaid-free Markdown rendering of the
+in-memory IR into an already-running
+[mdview.nvim](https://github.com/StefanBartl/mdview.nvim) session on every
+`on_change`, so a browser tab previewing this root's `overview.md` stays in
+sync with the tree as it changes rather than only with whatever
+`generate()` last wrote to disk. Soft dependency (`pcall`-guarded, same
+posture as `opts.pdf`'s pdfport.nvim) — a silent no-op when mdview.nvim is
+not installed, or installed but no session is currently attached.
+
+- **Module:** `core/render/mdview.lua`, `editor/registry.lua`
+  (`ensure_mdview`)
+- **Config:** `opts.mdview` (`install()` only, boolean, default `false`).
+- **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Live preview via
+  mdview.nvim" section.

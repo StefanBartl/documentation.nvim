@@ -2490,3 +2490,80 @@ exists to reset to) rather than left as a one-way mutation — a scan with
 no override must never inherit a previous scan's, since `:DocBrowse`
 bouncing between repos (or several `:DocMap` calls in one session) can
 scan more than one repo's `opts` in the same process.
+
+## `opts.mdview` — live preview via mdview.nvim, Tier A (2026-08-10)
+
+Closed out the roadmap's "mdview.nvim integration — never built" entry,
+which had sat with a concept (`docmap_hierarchy_and_integrations.md` Part
+4) but zero implementation — confirmed at the time by grep, no `mdview`
+reference anywhere under the tree. That entry itself already split the
+work into a buildable Tier A (a Markdown render shaped for what mdview's
+ammonia sanitizer keeps, pushed via `ws_client.send_markdown` from
+`install()`'s `on_change`) and a Tier B (a real diagram inside mdview's own
+tab) it explicitly said was "not buildable today" and "belongs in a
+concept doc in mdview.nvim's own repo, not here — don't design it twice".
+Shipped: Tier A, exactly as scoped. Tier B is not attempted here, for the
+same reason the original entry gave — nothing changed about mdview's own
+WS protocol to make it buildable, and it stays that repo's decision, not
+this one's.
+
+**The roadmap entry's own two "verify before starting" items were resolved
+from primary source before writing a line of `render/mdview.lua`, not
+assumed correct because the concept doc sounded confident:**
+
+1. **Ammonia's default attribute allowlist** — read directly out of the
+   vendored crate source on disk (`~/.cargo/registry/src/index.crates.io-*/
+   ammonia-4.1.3/src/lib.rs`), not from documentation or a training-time
+   assumption. Two findings mattered for what `render/mdview.lua` could
+   safely emit: `generic_attributes` is only `{"lang", "title"}` — `id` and
+   `style` never survive sanitization, on any tag — and `<details>`/
+   `<summary>` need nothing extra from mdview's own `sanitizer()` because
+   both are already in ammonia's *default* tag set (verified by reading
+   `Builder::default()`'s own `tags = hashset![...]` literal). mdview's
+   `native/wasm-render/src/lib.rs#sanitizer()` turned out to add only
+   `<input>` (task-list checkboxes) and a `class` attribute scoped to
+   `<code>` alone beyond that default — smaller than the roadmap entry's
+   own wording ("additionally permits… span… div") suggested, since `span`
+   and `div` were already default-allowed and the code comment's list was
+   listing what it re-asserts, not what is new.
+2. **Room routing** — traced through mdview's own `init.lua#M.open()` and
+   `adapter/ws_client.lua` rather than guessed: the room key a browser tab
+   watches is `normalize.path()` of the previewed file's absolute path,
+   the exact same normalization `ws_client.send_markdown(path, markdown,
+   opts)` already applies internally before building its `/update?key=…`
+   URL. No separate "point a tab at a room" mechanism needed inventing —
+   pushing to `<root>/<out_dir>/overview.md`'s absolute path (the same
+   path `generate()` already writes `overview.md` to) is the entire
+   address, so "open that file, run `:MDViewStart`" is the whole setup.
+
+**No Mermaid, disclosed rather than silently broken.** mdview's client has
+no Mermaid dependency at all (checked: nothing under `src/client/`
+references it) — a fenced ` ```mermaid ` block would survive ammonia
+(`pre`/`code` are default-allowed) but render as inert text, not a
+diagram. Rather than ship `render/markdown.lua`'s two Mermaid sections
+unchanged and let them look broken in mdview specifically,
+`render/mdview.lua` drops them and adds one line pointing at the
+interactive `index.html` map instead.
+
+**Soft dependency, matching `opts.pdf`'s existing pdfport.nvim posture
+exactly**, down to the same `pcall(require, …)` presence probe pattern —
+not installed → silent no-op; installed but no session attached (checked
+via `mdview.core.state.is_attached()`/`get_server()`, the identical guard
+`mdview.open()` itself uses) → skipped per push rather than queuing a
+doomed request. Deliberately *not* `ws_client.wait_ready()`'s `/health`
+poll for that check: `wait_ready` blocks up to 10s, retrying every 200ms,
+which would tax every single `on_change` for a user who turned
+`opts.mdview` on but never ran `:MDViewStart` — the in-process state check
+costs nothing by comparison.
+
+**Only reacts to `on_change`, same posture as `watch`/`callhierarchy`/
+`diagnostics`.** Documented plainly rather than left implicit: `opts.
+mdview` without `opts.watch` still works, but the preview then only
+updates on a manual `handle.rescan()`/`:DocMap`, not on every save.
+
+Test coverage in `TESTS/mdview_spec.lua`, stubbing
+`package.loaded["mdview.core.state"]`/`["mdview.adapter.ws_client"]` —
+the same soft-dependency test posture `pdf_artifact_spec.lua` already
+established for pdfport.nvim, chosen over depending on a real mdview.nvim
+checkout (which would need a running relay server and a curl subprocess to
+exercise for real, well past what a unit test should require).
