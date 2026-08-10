@@ -52,3 +52,19 @@ here" probe, since a static page has no host to ask.
 - **Usercmds:** `:DocMap tools` (see
   [BINDINGS.md](../BINDINGS.md#user-commands))
 - **Docs:** [`docs/COMMANDS.md`](../COMMANDS.md) "`:DocMap tools`" section.
+
+## Features tab
+
+A repo's own `docs/FEATURES/` folder, when it has one, as a ninth top-level
+tab — an index, not a Markdown viewer: one card per `## Feature` section,
+its summary and whatever `- **Key:** value` metadata bullets the author
+wrote. This entry is the recursive case: the file you are reading is itself
+what that tab renders, for this repo.
+
+- **Module:** `core/features.lua` (`M.resolve`), `core/render/html.lua`
+  (`drawFeatures`)
+- **Config:** none — reads `docs/FEATURES/` (or `docs/features/`)
+  automatically when present.
+- **Docs:** [`docs/FEATURES_FORMAT.md`](../FEATURES_FORMAT.md) (the format
+  this file follows), [`docs/PIPELINE.md`](../PIPELINE.md) "Features tab"
+  section.

@@ -15,5 +15,10 @@ reference.
 ## Files
 
 - **[CORE.md](CORE.md)** — the map's own cross-cutting mechanisms: Compare
-  marks, the Hierarchy hide/dim toggle, and the ecosystem-convention
-  Analysis panels (`plugins`/`tools`) this session added.
+  marks, the Hierarchy hide/dim toggle, the ecosystem-convention Analysis
+  panels (`plugins`/`tools`), and the Features tab itself.
+- **[ANNOTATIONS.md](ANNOTATIONS.md)** — reading and generating LuaCATS
+  annotations: `:DocMap annotate` header generation, `@see` validation,
+  `@deprecated` badges, `@generic` signatures.
+- **[CHECKS.md](CHECKS.md)** — the `type-vs-class` drift check (one of
+  sixteen; `docs/PIPELINE.md` has the full table).
