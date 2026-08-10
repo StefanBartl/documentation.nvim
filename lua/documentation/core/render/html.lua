@@ -332,7 +332,29 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .hctl{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
 .hctl .hpath{font-family:var(--mono);font-size:12.5px;color:var(--muted);word-break:break-all}
 .hctl button{padding:4px 9px;font-size:12px}
+#hgraph-outer{position:relative}
 #hgraph-wrap{overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+/* Root-level hide/show slider (Modules view only) — a vertical Google
+   Maps-style zoom control: "+" hides one more layer (zooming into a
+   narrower slice of the tree), "-" shows one more (zooming back out).
+   Positioned against #hgraph-outer, not #hgraph-wrap, so it stays put
+   while the diagram underneath scrolls. */
+.hrootslider{position:absolute;left:10px;top:14px;z-index:20;display:none;
+  flex-direction:column;align-items:center;gap:4px;background:var(--panel);
+  border:1px solid var(--line);border-radius:8px;padding:8px 6px;
+  box-shadow:0 2px 8px rgba(0,0,0,.14)}
+.hrootslider.on{display:flex}
+.hroot-btn{width:22px;height:22px;padding:0;border:1px solid var(--line);
+  border-radius:5px;background:var(--bg);color:var(--ink);font-size:14px;
+  line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.hroot-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.hroot-btn:disabled{opacity:.35;cursor:default}
+/* `writing-mode:vertical-lr` turns a plain range input vertical with no JS
+   transform hack — min renders at the bottom, max at the top, which is
+   exactly "+" (more hidden, higher value) above "-" (less hidden, lower
+   value) without any extra flipping. */
+#hrootrange{writing-mode:vertical-lr;width:20px;height:84px;margin:2px 0;
+  cursor:pointer;accent-color:var(--accent)}
 /* Middle-drag panning. `grabbing` only while a drag is live — a permanent
    grab cursor would advertise left-drag panning, which is deliberately not
    what this does. `user-select:none` is on the dragging state only, so text
@@ -1095,6 +1117,13 @@ local JS = [[
     tab: "tree", id: null, center: null, view: "modules",
     dir: "out", depth: 2, fn: null, ext: false, iview: "functions", atool: "test",
     sha: null,
+    // Modules view only: how many top layers of the real tree are peeled
+    // off, so every node that used to sit at that depth renders as its own
+    // parallel root instead — a "forest" view, not a re-center on any one
+    // of them (that's what `center` already does). Mutually exclusive with
+    // `center` in practice — see `navigate()`'s own note on why setting one
+    // clears the other.
+    hideroot: 0,
     // Analysis sort. `null` means "this panel's own default order", which is
     // deliberately not spelled as an explicit column: each panel's default is
     // an editorial choice (worst coverage first, highest fan-in first) that a
@@ -1201,6 +1230,12 @@ local JS = [[
     } else {
       if(s.center) parts.push("center=" + encodeURIComponent(s.center));
       parts.push("view=" + encodeURIComponent(s.view || "modules"));
+      // Modules only, same "only where it applies" rule as `ext` below —
+      // Deps/Calls/Module Calls/Types/Inheritance have no notion of a
+      // directory root to peel layers off of.
+      if((s.view || "modules") === "modules" && s.hideroot) {
+        parts.push("hideroot=" + encodeURIComponent(String(s.hideroot)));
+      }
       if(isGraphView(s.view)){
         parts.push("dir=" + encodeURIComponent(s.dir || "out"));
         parts.push("depth=" + encodeURIComponent(String(s.depth === 0 ? 0 : (s.depth || 2))));
@@ -1247,6 +1282,12 @@ local JS = [[
       // which would make every BFS below terminate immediately and draw an
       // empty diagram for a URL that merely had a typo in it.
       else if(k === "depth"){ var d = parseInt(v, 10); s.depth = isNaN(d) ? 2 : d; }
+      // Clamped against the real tree at layout time (layoutModulesRooted),
+      // not here — maxRootDepth() reads IR, which parseState has no need to
+      // depend on. A negative or unparseable value falls back to 0 (the
+      // ordinary single-root case) rather than to NaN, same reasoning as
+      // `depth` above.
+      else if(k === "hideroot"){ var hr = parseInt(v, 10); s.hideroot = (isNaN(hr) || hr < 0) ? 0 : hr; }
       else if(k === "fn") s.fn = v;
       else if(k === "ext") s.ext = (v === "1" || v === "true");
       else if(k === "iview") s.iview = (v === "modules") ? "modules" : "functions";
@@ -1352,6 +1393,20 @@ local JS = [[
   ///one — for changes that happen per keystroke, where one Back-stack entry
   ///per character would make the Back button useless.
   function navigate(patch, opts){
+    // Centering on a specific node and hiding root levels are two different
+    // answers to "what does the Modules view show" — picking one has to
+    // clear the other, or double-clicking a box while a forest view is up
+    // would appear to do nothing (still covered by every other root's own
+    // subtree), and dragging the slider after centering somewhere would
+    // leave a stale `center` sitting in the URL that the forest layout
+    // never even reads. Centralized here rather than at each of the dozen
+    // call sites that set one or the other, so none of them has to
+    // remember to.
+    if(patch.center !== undefined && patch.hideroot === undefined){
+      patch = Object.assign({}, patch, { hideroot: 0 });
+    } else if(patch.hideroot !== undefined && patch.center === undefined){
+      patch = Object.assign({}, patch, { center: null });
+    }
     applyState(Object.assign({}, state, patch), !(opts && opts.push === false));
   }
 
@@ -1883,9 +1938,13 @@ local JS = [[
   // Producing the edges here rather than in the drawing code is what keeps
   // four structurally different graphs — a tree, a class graph, a require
   // graph and a call graph — behind one renderer.
-  function layoutModules(startId){
+  // Shared by layoutModules (one seed, the ordinary case) and
+  // layoutModulesRooted (several seeds at once, the hidden-root forest
+  // case) — the BFS itself does not care how many roots it started from,
+  // only layoutModules used to assume there was exactly one.
+  function layoutModulesFrom(seeds){
     var layers = [], included = {}, count = 0, truncated = false;
-    var queue = [ { id: startId, d: 0 } ];
+    var queue = seeds.map(function(id){ return { id: id, d: 0 }; });
     while(queue.length){
       var item = queue.shift();
       if(included[item.id] !== undefined) continue;
@@ -1919,6 +1978,63 @@ local JS = [[
     });
 
     return { layers: layers, included: included, count: count, truncated: truncated, edges: edges };
+  }
+
+  function layoutModules(startId){
+    return layoutModulesFrom([startId]);
+  }
+
+  // Every node at exactly `n` steps below the true IR.root via `children` —
+  // the "peel off the top n layers" seed set the hidden-root slider needs.
+  // n<=0 is the ordinary single-root case. Falls back to [IR.root] if `n`
+  // overshoots the tree's real depth (a hand-edited URL hash, since the
+  // slider's own `max` is bounded by maxRootDepth()) rather than laying out
+  // nothing.
+  function rootFrontier(n){
+    if(n <= 0) return [IR.root];
+    var frontier = [];
+    var seen = {};
+    var queue = [ { id: IR.root, d: 0 } ];
+    while(queue.length){
+      var item = queue.shift();
+      if(seen[item.id]) continue;
+      seen[item.id] = true;
+      if(item.d === n){ frontier.push(item.id); continue; }
+      var node = byId[item.id];
+      if(!node) continue;
+      (node.children || []).forEach(function(c){
+        if(byId[c]) queue.push({ id: c, d: item.d + 1 });
+      });
+    }
+    return frontier.length ? frontier : [IR.root];
+  }
+
+  // The tree's own real depth from IR.root, computed once and cached — the
+  // slider's `max`, so it is structurally impossible to drag past the point
+  // where there would be nothing left to show.
+  var cachedMaxRootDepth = null;
+  function maxRootDepth(){
+    if(cachedMaxRootDepth !== null) return cachedMaxRootDepth;
+    var max = 0;
+    var seen = {};
+    var queue = [ { id: IR.root, d: 0 } ];
+    while(queue.length){
+      var item = queue.shift();
+      if(seen[item.id]) continue;
+      seen[item.id] = true;
+      if(item.d > max) max = item.d;
+      var node = byId[item.id];
+      if(!node) continue;
+      (node.children || []).forEach(function(c){
+        if(byId[c]) queue.push({ id: c, d: item.d + 1 });
+      });
+    }
+    cachedMaxRootDepth = max;
+    return max;
+  }
+
+  function layoutModulesRooted(n){
+    return layoutModulesFrom(rootFrontier(Math.min(n, maxRootDepth())));
   }
 
   // BFS over ir.edges' from_class/to_class, seeded from the centered node's
@@ -4214,7 +4330,14 @@ local JS = [[
     });
   }
 
-  function drawHierarchy(centerId, view){
+  // `forceCenter`: used only by the search box's live-typing preview below,
+  // which calls this directly rather than through navigate() (see that
+  // handler's own comment for why) and so never goes through navigate()'s
+  // own center-clears-hideroot logic. Without it, live-typing a match while
+  // a root-hidden forest view was up would silently keep drawing the
+  // forest — `state.hideroot` unchanged, the typed match completely
+  // ignored — until Enter's real navigate({center}) finally cleared it.
+  function drawHierarchy(centerId, view, forceCenter){
     view = VIEWS[view] ? view : "modules";
     hcenter = (centerId && byId[centerId]) ? centerId : (hcenter && byId[hcenter] ? hcenter : IR.root);
     var center = byId[hcenter];
@@ -4232,17 +4355,22 @@ local JS = [[
     var wantFn = (state.fn && fnByKey[state.fn] && fnByKey[state.fn].node.id === hcenter)
       ? state.fn : null;
 
+    var hidingRoot = !forceCenter && view === "modules" && (state.hideroot || 0) > 0;
+
     var built;
     if(view === "types") built = layoutTypes(hcenter);
     else if(view === "inheritance") built = layoutInheritance(hcenter);
     else if(view === "deps") built = layoutDeps(hcenter, state.dir || "out", depth, !!state.ext);
     else if(view === "calls") built = layoutCalls(hcenter, wantFn, state.dir || "out", depth);
     else if(view === "modulecalls") built = layoutModuleCalls(hcenter, state.dir || "out", depth, !!state.ext);
+    else if(hidingRoot) built = layoutModulesRooted(state.hideroot);
     else built = layoutModules(hcenter);
 
     if(built.count === 0){
       clearGraph();
-      hpathEl.textContent = center.module || center.path;
+      hpathEl.textContent = hidingRoot
+        ? (state.hideroot + " root level" + (state.hideroot === 1 ? "" : "s") + " hidden")
+        : (center.module || center.path);
       hgraph.style.width = ""; hgraph.style.height = "";
       hstage.style.width = ""; hstage.style.height = "";
       // Cleared, not just left behind: applyZoom() multiplies this by the
@@ -4265,9 +4393,15 @@ local JS = [[
                    deps: " · deps", calls: " · calls",
                    modulecalls: " · module calls" }[view] || "";
     var focusFn = view === "calls" && wantFn;
-    hpathEl.textContent = (focusFn ? wantFn.split("#")[1] + "  in  " : "") +
-      (center.module || center.path) + suffix +
-      (isGraphView(view) ? "  ·  " + (state.dir || "out") + ", depth " + (depth === 0 ? "∞" : depth) : "");
+    if(hidingRoot){
+      hpathEl.textContent = state.hideroot + " root level" + (state.hideroot === 1 ? "" : "s") +
+        " hidden — " + (built.layers[0] ? built.layers[0].length : 0) + " subtree" +
+        ((built.layers[0] && built.layers[0].length === 1) ? "" : "s") + " shown";
+    } else {
+      hpathEl.textContent = (focusFn ? wantFn.split("#")[1] + "  in  " : "") +
+        (center.module || center.path) + suffix +
+        (isGraphView(view) ? "  ·  " + (state.dir || "out") + ", depth " + (depth === 0 ? "∞" : depth) : "");
+    }
 
     // The empty branch above writes its explanation straight into #hgraph;
     // nothing else removes it, because reconcile() only ever adds and removes
@@ -4287,6 +4421,9 @@ local JS = [[
     if(view === "types") centerKey = built.layers[0] && built.layers[0][0];
     else if(view === "inheritance") centerKey = built.centerKey;
     else if(view === "calls") centerKey = wantFn || (built.layers[0] && built.layers[0][0]);
+    // A forest has no single "middle" — every layer-0 box is equally a
+    // root, so none of them gets the highlight ring a real center would.
+    else if(hidingRoot) centerKey = null;
 
     var moved = reconcile(positions, view, centerKey);
 
@@ -4666,14 +4803,43 @@ local JS = [[
     var hext = document.getElementById("hext");
     hext.style.display = (s.view === "deps" || s.view === "modulecalls") ? "" : "none";
     hext.classList.toggle("active", !!s.ext);
+
+    // Modules only — Deps/Calls/Module Calls/Types/Inheritance have no
+    // directory root to peel layers off of.
+    var slider = document.getElementById("hrootslider");
+    slider.classList.toggle("on", (s.view || "modules") === "modules");
+    var max = maxRootDepth();
+    var val = Math.min(s.hideroot || 0, max);
+    var range = document.getElementById("hrootrange");
+    range.max = String(max);
+    range.value = String(val);
+    document.getElementById("hrootplus").disabled = val >= max;
+    document.getElementById("hrootminus").disabled = val <= 0;
   }
 
   document.getElementById("hup").addEventListener("click", function(){
+    // Hidden-root mode has no single center to walk up from — "Up" peels
+    // back one hidden level instead, the same direction the slider's own
+    // "-" end moves in.
+    if(state.view === "modules" && (state.hideroot || 0) > 0){
+      navigate({ hideroot: state.hideroot - 1 });
+      return;
+    }
     var center = byId[hcenter || IR.root];
     if(center && center.parent) navigate({ center: center.parent, fn: null });
   });
   document.getElementById("hroot").addEventListener("click", function(){
-    navigate({ center: IR.root, fn: null });
+    navigate({ center: IR.root, fn: null, hideroot: 0 });
+  });
+  document.getElementById("hrootplus").addEventListener("click", function(){
+    navigate({ hideroot: Math.min((state.hideroot || 0) + 1, maxRootDepth()) });
+  });
+  document.getElementById("hrootminus").addEventListener("click", function(){
+    navigate({ hideroot: Math.max((state.hideroot || 0) - 1, 0) });
+  });
+  document.getElementById("hrootrange").addEventListener("input", function(ev){
+    var n = parseInt(ev.target.value, 10);
+    navigate({ hideroot: isNaN(n) ? 0 : n });
   });
   document.querySelectorAll(".hview-btn").forEach(function(b){
     b.addEventListener("click", function(){ navigate({ view: b.dataset.view }); });
@@ -4888,7 +5054,11 @@ local JS = [[
       // current, so Up/Root/double-click after a preview (without ever
       // pressing Enter) act on what's actually on screen.
       var match = findBestMatch(this.value);
-      if(match) drawHierarchy(match, state.view);
+      // forceCenter: a typed match always wins over a root-hidden forest
+      // view, the same way Enter's real navigate({center}) would clear
+      // hideroot — see drawHierarchy's own note on why this path needs it
+      // spelled out explicitly instead of getting it for free.
+      if(match) drawHierarchy(match, state.view, true);
       return;
     }
     treeEl.querySelectorAll(".row").forEach(function(r){
@@ -5741,7 +5911,19 @@ function M.render(ir, findings, opts)
     '<button id="hiddenbar" class="markbar" hidden></button>',
     '<span class="hpath" id="hpath"></span>',
     "</div>",
+    -- Outside #hgraph-wrap, not inside it: the wrap itself scrolls
+    -- (overflow:auto, for a diagram bigger than the viewport), and an
+    -- absolutely-positioned child of a scrolling element scrolls away with
+    -- its content. This outer div exists only to give the slider a
+    -- positioned ancestor that never moves.
+    '<div id="hgraph-outer">',
+    '<div class="hrootslider" id="hrootslider" title="Hide root levels — every node at that depth becomes its own root">',
+    '<button class="hroot-btn" id="hrootplus" title="Hide one more root level">+</button>',
+    '<input type="range" id="hrootrange" min="0" max="0" value="0" step="1">',
+    '<button class="hroot-btn" id="hrootminus" title="Show one more root level">−</button>',
+    "</div>",
     '<div id="hgraph-wrap"><div id="hgraph"><div id="hstage"></div></div></div>',
+    "</div>",
     '<div class="hlegend" id="hlegend"></div>',
     "</div>",
 

@@ -83,7 +83,10 @@ weighted by call count) — with direction and depth controls, semantic zoom,
 right-click navigation and real browser Back/Forward. Right-click any box to
 dim it (a "Hidden (N) — show all" pill clears them), shareable via the URL
 the same way marks are — noise-reduction for a large tree, not a structural
-re-layout.
+re-layout. The Modules view also has a vertical zoom-style slider that hides
+the top N levels of a deep tree, turning every node that used to sit at that
+depth into its own parallel root — useful the moment a tree is several
+directories deep before anything interesting starts.
 
 The Deps and Module Calls views' `+ external` toggle answers *why* a
 dependency is there, not just that it is: each external box's tooltip
