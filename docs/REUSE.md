@@ -187,6 +187,23 @@ Local paths only, deliberately: the tag file is read synchronously during
 `scan_full()`, and a network fetch would turn a deterministic `--check` into
 one that depends on network availability and timing.
 
+## Linking to your own map from your README
+
+Once `docs/map/` is committed, point your own README at it — one line under
+whatever "development" or "internals" section you already have:
+
+```markdown
+This plugin's own module map: [docs/map/overview.md](docs/map/overview.md)
+```
+
+Link `overview.md`, not `index.html`: GitHub renders Markdown inline in the
+repo view, so `overview.md` is useful the moment it is committed. `index.html`
+is real HTML — GitHub shows it as source, not rendered — so it only pays off
+once you actually publish it somewhere a browser can load it directly (locally
+via `:DocMap open`, or `scripts/publish_map.sh` to Pages, see
+[FINISH_PLAN.md](ROADMAP/FINISH_PLAN.md)). Nothing stops you linking both; just
+know which one works today and which one is a promise for later.
+
 ## What the tree has to look like
 
 One requirement: files carry `---@module`. That is what the scanner reads —

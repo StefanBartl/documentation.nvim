@@ -56,6 +56,12 @@ plugin](docs/PIPELINE.md#why-this-is-its-own-plugin).
 | `docs/map/coverage.svg` | Optional (`opts.badge`): a doc-coverage badge, hand-rolled, no network call. |
 | `docs/map/overview.pdf` | Optional (`opts.pdf`): the same content as `overview.md`, via [pdfport.nvim](https://github.com/StefanBartl/pdfport.nvim) (optional dependency). |
 
+This repository maps itself with the same tool: **[docs/map/overview.md](docs/map/overview.md)**
+renders straight on GitHub, no Pages required. `docs/map/index.html` is the
+richer interactive version — open it locally, or see
+[docs/REUSE.md § Linking to your own map from your README](docs/REUSE.md#linking-to-your-own-map-from-your-readme)
+for the same pointer in a plugin that depends on this one.
+
 The Analysis tab ranks the tree six ways over the same IR — test coverage,
 documentation coverage, fan-in/fan-out, cyclomatic complexity, structural
 **duplicates** (functions whose parse-tree shape is identical, which is the one
