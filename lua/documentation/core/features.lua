@@ -1,0 +1,236 @@
+---@module 'documentation.core.features'
+--- Reads a repo's own `docs/FEATURES/` folder into
+--- `Documentation.Features.Result` for the Features tab.
+---
+--- See `docs/FEATURES_FORMAT.md` for the full field guide this parser
+--- implements — a `##`-per-feature, `- **Key:** value`-metadata convention
+--- deliberately closest to `markdown.nvim`'s own real `docs/FEATURES/`, the
+--- one of three independently-invented shapes found across this user's
+--- plugins that is both ordinary prose and mechanically recognizable
+--- line-by-line, no CommonMark parser needed — same "cheap reliable reading
+--- beats a general one" discipline `core/deps.lua`'s require-extraction and
+--- `lib.nvim.deps.spec`'s fenced-block parsing already use.
+---
+--- No validation, unlike `core/tools.lua`: that format feeds an installer,
+--- so a missing `why` is a real defect. This one feeds a reader, and
+--- `markdown.nvim`'s own real `docs/FEATURES/headings.md` already mixes
+--- `Module`/`Keymaps`/`Config` with one-off keys in the same file — a
+--- whitelist would reject working documentation that predates this parser.
+--- A theme file with zero `##` sections, or a feature with zero metadata
+--- bullets, is not an error; both are real, valid states.
+
+local M = {}
+
+local uv = vim.uv or vim.loop
+
+---@param path string
+---@return boolean
+local function is_dir(path)
+  local st = uv.fs_stat(path)
+  return st ~= nil and st.type == "directory"
+end
+
+---@param path string
+---@return string|nil
+local function read_file(path)
+  local fd = io.open(path, "r")
+  if not fd then
+    return nil
+  end
+  local text = fd:read("*a")
+  fd:close()
+  return text
+end
+
+--- Candidate folder names, in resolution order — uppercase preferred,
+--- matching `docs/BINDINGS.md`'s own convention, same "first match wins"
+--- shape `lib.nvim.deps.spec`'s `SPEC_FILES` uses for install.json/
+--- INSTALL.md.
+local CANDIDATE_FOLDERS = { "docs/FEATURES", "docs/features" }
+
+---One `- **Key:** value` bullet.
+---@param line string Already right-trimmed.
+---@return string|nil key
+---@return string|nil value
+local function match_bullet(line)
+  -- The colon sits *inside* the bold markers (`**Key:**`), not after them
+  -- (`**Key**:`) — confirmed against markdown.nvim's own real
+  -- `docs/FEATURES/headings.md`, which is what this format is modelled on.
+  local key, value = line:match("^%-%s*%*%*([^*:]+):%*%*%s*(.*)$")
+  if not key then
+    return nil, nil
+  end
+  return (key:match("^%s*(.-)%s*$")), (value:match("^%s*(.-)%s*$"))
+end
+
+---Split into lines, `\n`-terminated tail included so the last real line is
+---never dropped — same idiom `core/deps.lua`'s `extract_source` uses.
+---@param text string
+---@return string[]
+local function to_lines(text)
+  local out = {}
+  for line in (text .. "\n"):gmatch("([^\n]*)\n") do
+    out[#out + 1] = line
+  end
+  -- The trailing empty string from a file that already ends in "\n" is not
+  -- a real line and would otherwise read as a spurious paragraph break.
+  if out[#out] == "" then
+    out[#out] = nil
+  end
+  return out
+end
+
+---Everything from `start_idx` to `end_idx` (inclusive) that belongs to one
+---feature: a summary (the leading run of non-bullet prose lines) and a
+---metadata block (the contiguous run of bullets immediately after it).
+---
+---A bullet's own value routinely wraps onto an **indented** continuation
+---line — confirmed against markdown.nvim's real `docs/FEATURES/headings.md`,
+---where `- **Module:** ...(` regularly continues on the next line with a
+---2-space-indented function list. Such a line is folded into the value of
+---the bullet it continues, not treated as ending the run. A **blank** line,
+---or a non-bullet line with **no** leading indent (a new flush-left
+---paragraph — prose written after the metadata, with no blank separator),
+---ends the run for good: neither case is a continuation of anything.
+---@param lines string[]
+---@param start_idx integer
+---@param end_idx integer
+---@return string|nil summary
+---@return Documentation.Features.Meta[] meta
+local function parse_body(lines, start_idx, end_idx)
+  local summary_parts = {}
+  ---@type Documentation.Features.Meta[]
+  local meta = {}
+  -- "before" the first bullet, "in" a contiguous bullet run, or "after" one
+  -- that has ended — once "after", every remaining line is inert.
+  local state = "before"
+
+  for i = start_idx, end_idx do
+    local raw = lines[i]
+    local trimmed = raw:match("^%s*(.-)%s*$")
+    local key, value = match_bullet(trimmed)
+
+    if state == "before" then
+      if key then
+        meta[#meta + 1] = { key = key, value = value }
+        state = "in"
+      elseif trimmed ~= "" then
+        summary_parts[#summary_parts + 1] = trimmed
+      end
+    elseif state == "in" then
+      if key then
+        meta[#meta + 1] = { key = key, value = value }
+      elseif trimmed == "" then
+        state = "after"
+      elseif raw:match("^%s") then
+        local last = meta[#meta]
+        last.value = last.value .. " " .. trimmed
+      else
+        state = "after"
+      end
+    end
+  end
+
+  return (#summary_parts > 0 and table.concat(summary_parts, " ") or nil), meta
+end
+
+---One theme file: `# Title` + intro prose (optional) before the first `##`,
+---then one `Documentation.Features.Entry` per `## <name>` section.
+---@param path string Absolute path.
+---@param rel string Repo-relative path, for `Documentation.Features.File.path`.
+---@param theme string Filename without extension, as the author wrote it.
+---@return Documentation.Features.File|nil `nil` when the file could not be read.
+local function parse_file(path, rel, theme)
+  local text = read_file(path)
+  if not text then
+    return nil
+  end
+  local lines = to_lines(text)
+
+  -- Section boundaries first: every `## ` line, plus a sentinel one past
+  -- the end so the last section's body has a real stop index.
+  ---@type { name: string, line: integer, start_idx: integer }[]
+  local headings = {}
+  for i, line in ipairs(lines) do
+    local name = line:match("^##%s+(.-)%s*$")
+    if name then
+      headings[#headings + 1] = { name = name, line = i, start_idx = i + 1 }
+    end
+  end
+
+  -- Everything before the first `##` (skipping a leading `# Title` line, if
+  -- any) is the file's own intro — optional, same as a feature's own
+  -- summary is optional.
+  local first_section_line = headings[1] and headings[1].line or (#lines + 1)
+  local intro_start = 1
+  if lines[1] and lines[1]:match("^#%s") then
+    intro_start = 2
+  end
+  local intro = parse_body(lines, intro_start, first_section_line - 1)
+
+  ---@type Documentation.Features.Entry[]
+  local entries = {}
+  for i, h in ipairs(headings) do
+    local end_idx = (headings[i + 1] and headings[i + 1].line - 1) or #lines
+    local summary, meta = parse_body(lines, h.start_idx, end_idx)
+    entries[#entries + 1] = { name = h.name, line = h.line, summary = summary, meta = meta }
+  end
+
+  return { path = rel, theme = theme, intro = intro, entries = entries }
+end
+
+---@param root string Repo root (`ctx.cfg.root` / `opts.root`).
+---@return Documentation.Features.Result|nil result `nil` when this repo ships no `docs/FEATURES/` (or `docs/features/`) folder at all.
+function M.resolve(root)
+  local normalized = (root:gsub("\\", "/"):gsub("/+$", ""))
+
+  local folder
+  for _, candidate in ipairs(CANDIDATE_FOLDERS) do
+    if is_dir(normalized .. "/" .. candidate) then
+      folder = candidate
+      break
+    end
+  end
+  if not folder then
+    return nil
+  end
+  local abs_folder = normalized .. "/" .. folder
+
+  -- README.md (or readme.md) is the folder's own intro, read separately —
+  -- never itself a theme file, the same way a plugin's top-level README is
+  -- never scanned as a module.
+  local intro
+  for _, name in ipairs({ "README.md", "readme.md" }) do
+    local text = read_file(abs_folder .. "/" .. name)
+    if text then
+      local trimmed = text:match("^%s*(.-)%s*$")
+      intro = trimmed ~= "" and trimmed or nil
+      break
+    end
+  end
+
+  ---@type Documentation.Features.File[]
+  local files = {}
+  local iter = vim.fs.dir(abs_folder)
+  if iter then
+    ---@type string[]
+    local names = {}
+    for name, type_ in iter do
+      if type_ == "file" and name:match("%.md$") and name:lower() ~= "readme.md" then
+        names[#names + 1] = name
+      end
+    end
+    table.sort(names)
+    for _, name in ipairs(names) do
+      local theme = name:gsub("%.md$", "")
+      local file = parse_file(abs_folder .. "/" .. name, folder .. "/" .. name, theme)
+      if file then
+        files[#files + 1] = file
+      end
+    end
+  end
+
+  return { folder = folder, intro = intro, files = files }
+end
+
+return M

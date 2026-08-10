@@ -211,8 +211,8 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 #view-notes{padding:22px 26px 60px}
 #view-notes h3{margin:26px 0 4px;font-size:13px;font-weight:600;color:var(--ink)}
 #view-notes h3:first-child{margin-top:0}
-#view-notes .nsub,#view-index .nsub,#view-analysis .nsub{font-size:12px;color:var(--muted);
-  margin:0 0 10px}
+#view-notes .nsub,#view-index .nsub,#view-analysis .nsub,#view-features .nsub{
+  font-size:12px;color:var(--muted);margin:0 0 10px}
 #view-notes .ncount,#view-index .ncount{color:var(--muted);font-weight:400;font-size:11.5px;
   margin-left:6px}
 .nlist{list-style:none;margin:0;padding:0}
@@ -223,7 +223,27 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .nlist .nfn:hover{text-decoration:underline}
 .nlist .nwhere{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:8px}
 .nlist .ntext{font-size:12.5px;color:var(--ink);margin-top:2px}
-.nlist .ntext.none{color:var(--muted);font-style:italic}
+/* Unscoped variant: the Analysis panels' empty-state paragraphs
+   (`<p class="ntext none">`) and the Features tab both use this outside any
+   `.nlist`, and it was previously only ever styled inside one. */
+.ntext.none{color:var(--muted);font-style:italic}
+/* --- Features tab -------------------------------------------------------- */
+#view-features{padding:22px 26px 60px}
+.feat-wrap{max-width:820px}
+.feat-intro{font-size:13px;color:var(--ink);line-height:1.5;margin-bottom:16px}
+.feat-card{border:1px solid var(--line);border-radius:8px;background:var(--panel);
+  padding:11px 14px;margin-bottom:8px}
+.feat-name{font-size:13.5px;font-weight:600;color:var(--ink)}
+.feat-name[data-node]{cursor:pointer;color:var(--accent)}
+.feat-name[data-node]:hover{text-decoration:underline}
+.feat-summary{font-size:12.5px;color:var(--ink);margin-top:4px;line-height:1.45}
+.feat-meta{margin-top:7px;display:flex;flex-direction:column;gap:2px}
+.feat-meta-row{font-size:11.5px;color:var(--muted);font-family:var(--mono)}
+.feat-meta-row b{color:var(--ink);font-weight:600;margin-right:4px}
+.feat-src{margin-top:6px}
+.feat-src a{font-size:10.5px;color:var(--muted);font-family:var(--mono);text-decoration:none;
+  cursor:pointer}
+.feat-src a:hover{color:var(--accent);text-decoration:underline}
 #hist-list{padding:12px 8px 60px 16px;border-right:1px solid var(--line);
   max-height:calc(100vh - 132px);overflow:auto}
 @media (max-width:860px){#hist-list{max-height:none;border-right:0;
@@ -1100,6 +1120,10 @@ local JS = [[
       // Nothing to carry: one flat verdict list over the whole map, same as
       // Notes.
       void 0;
+    } else if(s.tab === "features"){
+      // Same reasoning as Quicks/Notes: one flat catalog over the whole
+      // repo's docs/FEATURES/, no center/sort/filter axis of its own yet.
+      void 0;
     } else if(s.tab === "compare"){
       if(s.cview !== "matrix") parts.push("cview=" + encodeURIComponent(s.cview));
     } else {
@@ -1207,6 +1231,7 @@ local JS = [[
     document.getElementById("view-history").classList.toggle("active", s.tab === "history");
     document.getElementById("view-quicks").classList.toggle("active", s.tab === "quicks");
     document.getElementById("view-compare").classList.toggle("active", s.tab === "compare");
+    document.getElementById("view-features").classList.toggle("active", s.tab === "features");
 
     if(s.tab === "tree" && s.id && byId[s.id]) selectRow(s.id);
     if(s.tab === "hierarchy") drawHierarchy(s.center || IR.root, s.view || "modules");
@@ -1216,6 +1241,7 @@ local JS = [[
     if(s.tab === "history") drawHistory(s.sha || null);
     if(s.tab === "quicks") drawQuicks();
     if(s.tab === "compare") drawCompare();
+    if(s.tab === "features") drawFeatures();
     // After the draw, not before: a redraw rebuilds the rows that carry the
     // mark triggers, so painting them first would paint elements about to be
     // replaced.
@@ -2424,6 +2450,134 @@ local JS = [[
     host.querySelectorAll(".nfn").forEach(function(a){
       a.addEventListener("click", function(){
         navigate({ tab: "tree", id: a.dataset.node });
+      });
+    });
+  }
+
+  // =====================================================================
+  // Features tab: this repo's own docs/FEATURES/, read by
+  // core/features.lua — see docs/FEATURES_FORMAT.md for the format.
+  //
+  // An index, not a Markdown viewer, the same shape the Plugins/Tools
+  // Analysis panels already are: name, summary, metadata — never the full
+  // prose that may follow a feature's bullets in its own file. That prose
+  // stays exactly where the author put it; the card's own path links out to
+  // it instead of re-rendering it here.
+  //
+  // A plain key/value list, not a table, because the metadata keys are not
+  // fixed columns — one feature may carry Module/Keymaps/Config, another
+  // Module/Command/Autocmd, and `docs/FEATURES_FORMAT.md` deliberately
+  // never constrains the vocabulary (see that file's own header for why a
+  // whitelist would reject real, working documentation).
+  // =====================================================================
+
+  // One line per bullet's first backtick-quoted token, matched against
+  // every node's own `source`/`path` — the same "endswith" leniency
+  // `tag_links` resolution already extends to stale cross-references
+  // elsewhere on this page. `null` when nothing in `meta` names a `Module`
+  // bullet, or nothing in the tree matches it; never thrown.
+  function resolveModuleNode(meta){
+    var mod = null;
+    meta.forEach(function(m){
+      if(!mod && /^module$/i.test(m.key)) mod = m.value;
+    });
+    if(!mod) return null;
+    var token = (mod.match(/`([^`]+)`/) || [])[1];
+    if(!token) return null;
+    token = token.replace(/\\/g, "/");
+    var found = null;
+    IR.nodes.forEach(function(n){
+      if(found) return;
+      var p = (n.source || n.path || "").replace(/\\/g, "/");
+      if(p && (p === token || p.slice(-token.length) === token)) found = n.id;
+    });
+    return found;
+  }
+
+  // A theme filename as the tab's own heading: an already-uppercase name
+  // (`UI`, `PERFORMANCE`) is left alone but for its separators, since
+  // title-casing it would just be re-uppercasing what is already upper;
+  // anything else (`headings`, `editing-and-handlers`) is title-cased.
+  function themeTitle(theme){
+    var spaced = theme.replace(/[_-]+/g, " ");
+    if(/^[A-Z0-9 ]+$/.test(spaced)) return spaced;
+    return spaced.replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+  }
+
+  var featuresDrawn = false;
+  function drawFeatures(){
+    if(featuresDrawn) return; // static over one IR; nothing invalidates it
+    featuresDrawn = true;
+
+    var host = document.getElementById("view-features");
+    var feats = IR.features;
+    var parts = ['<div class="feat-wrap">'];
+
+    if(!feats){
+      parts.push('<p class="ntext none">No <code>docs/FEATURES/</code> (or ' +
+        '<code>docs/features/</code>) folder in this repo — see ' +
+        '<code>docs/FEATURES_FORMAT.md</code> for the convention this tab reads.</p>');
+      parts.push("</div>");
+      host.innerHTML = parts.join("");
+      return;
+    }
+
+    if(feats.intro){
+      parts.push('<div class="feat-intro">' + esc(feats.intro) + '</div>');
+    }
+
+    var totalFeatures = 0;
+    feats.files.forEach(function(f){ totalFeatures += f.entries.length; });
+    parts.push('<p class="nsub">' + totalFeatures + ' feature' +
+      (totalFeatures === 1 ? '' : 's') + ' across ' + feats.files.length + ' file' +
+      (feats.files.length === 1 ? '' : 's') + ' in <code>' + esc(feats.folder) + '</code>.</p>');
+
+    feats.files.forEach(function(f){
+      parts.push('<h3 class="nhead">' + esc(themeTitle(f.theme)) +
+        '<span class="ncount">' + f.entries.length + '</span></h3>');
+      if(f.intro){
+        parts.push('<p class="nsub">' + esc(f.intro) + '</p>');
+      }
+      if(f.entries.length === 0){
+        parts.push('<p class="ntext none">No <code>##</code> sections in this file.</p>');
+        return;
+      }
+      f.entries.forEach(function(e){
+        var nodeId = resolveModuleNode(e.meta);
+        parts.push('<div class="feat-card">');
+        parts.push('<div class="feat-name"' +
+          (nodeId ? ' data-node="' + esc(nodeId) + '" tabindex="0" role="button"' : '') +
+          '>' + esc(e.name) + '</div>');
+        if(e.summary){
+          parts.push('<div class="feat-summary">' + esc(e.summary) + '</div>');
+        }
+        if(e.meta.length){
+          parts.push('<div class="feat-meta">');
+          e.meta.forEach(function(m){
+            parts.push('<div class="feat-meta-row"><b>' + esc(m.key) + ':</b> <span>' +
+              esc(m.value) + '</span></div>');
+          });
+          parts.push("</div>");
+        }
+        parts.push('<div class="feat-src"><a href="#" data-src="' + esc(f.path) + '">' +
+          esc(f.path) + ':' + e.line + '</a></div>');
+        parts.push("</div>");
+      });
+    });
+
+    parts.push("</div>");
+    host.innerHTML = parts.join("");
+
+    host.querySelectorAll(".feat-name[data-node]").forEach(function(el){
+      el.addEventListener("click", function(){
+        navigate({ tab: "tree", id: el.dataset.node });
+      });
+    });
+    host.querySelectorAll(".feat-src a[data-src]").forEach(function(a){
+      a.addEventListener("click", function(ev){
+        ev.preventDefault();
+        var u = srcUrl(a.dataset.src);
+        window.open(u || rel(a.dataset.src), u ? "_blank" : "_self");
       });
     });
   }
@@ -5005,6 +5159,17 @@ function M.render(ir, findings, opts)
     -- threshold" (a real and quite good answer for a healthy tree) apart from
     -- "this artifact predates Quicks".
     quicks = ir.quicks or { good = {}, bad = {}, total_good = 0, total_bad = 0 },
+    -- Caught here, before shipping, precisely *because* of the comment
+    -- thread above — the fourth and fifth fields added to `ir` after
+    -- `M.render`'s own field list existed, checked against this trap on
+    -- purpose instead of by opening the page and finding them missing.
+    -- No empty-shape fallback, unlike duplicates/docs/quicks: `nil` here is
+    -- not "this artifact predates the feature", it is the real, common
+    -- answer "this repo ships no lib.nvim.deps manifest" / "no
+    -- docs/FEATURES/ folder" — `renderAnalysisTools`/`drawFeatures` already
+    -- check for exactly that falsy value.
+    tools = ir.tools,
+    features = ir.features,
   })
   -- `</script>` inside JSON would terminate the block early.
   payload = payload:gsub("</", "<\\/")
@@ -5099,6 +5264,7 @@ function M.render(ir, findings, opts)
     '<button class="tab-btn" data-tab="history">History</button>',
     '<button class="tab-btn" data-tab="analysis">Analysis</button>',
     '<button class="tab-btn" data-tab="compare">Compare</button>',
+    '<button class="tab-btn" data-tab="features">Features</button>',
     "</div>",
 
     '<div class="toolbar">',
@@ -5165,6 +5331,8 @@ function M.render(ir, findings, opts)
     "</div>",
 
     '<div id="view-notes" class="view"></div>',
+
+    '<div id="view-features" class="view"></div>',
 
     '<div id="view-index" class="view">',
     '<div class="hview-toggle" id="ixtoggle">',

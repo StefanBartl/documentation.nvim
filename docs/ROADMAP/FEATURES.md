@@ -1749,3 +1749,63 @@ flips to "Show this box" on a second right-click, confirmed the toolbar
 pill's "show all" clears everything, and confirmed the hash-wins-over-
 localStorage precedence with two different boxes across three separate
 fresh page loads.
+
+## `docs/FEATURES/` convention + the Features tab (2026-08-10)
+
+The largest roadmap item this session: a canonical, mechanically-readable
+`docs/FEATURES/` folder format, plus a ninth top-level tab that renders it —
+`core/features.lua` (parser), `ir.features` (IR field), `drawFeatures()`
+(the tab itself), and [`docs/FEATURES_FORMAT.md`](../FEATURES_FORMAT.md)
+(the field guide). See `docs/PIPELINE.md`'s own "Features tab" section for
+the full design writeup; this entry is the decision record.
+
+**Design was not invented from a blank page.** Before writing anything, a
+survey of the user's own ~30 plugins found `docs/BINDINGS.md` universally
+consistent (this plugin's own generator) but "FEATURES" genuinely three
+different, independently-invented shapes — `lib.nvim` (essay write-ups),
+`markdown.nvim` (compact per-feature metadata blocks), `color_my_ascii.nvim`
+(full user manuals). The chosen format is deliberately closest to
+`markdown.nvim`'s, the one shape that is both ordinary prose and reliably
+parseable line-by-line, confirmed by user choice between the three surveyed
+options rather than picked unilaterally.
+
+**No fixed metadata vocabulary** (`Module`/`Keymaps`/`Config`, or anything
+an author writes) — `markdown.nvim`'s own real `docs/FEATURES/headings.md`
+already mixes known keys with one-off ones like `Scope-aware` in the same
+file, and a whitelist would have rejected working documentation that
+predates this parser. Validated against that real file directly while
+building the parser, not only against invented fixtures: the first version
+of `parse_body` treated any non-bullet line as ending a metadata run,
+which silently dropped every bullet after the first one whose value wrapped
+onto an indented continuation line — a real, common shape in that file
+(`- **Module:** ...` regularly continues on the next line with a
+2-space-indented function list), not a synthetic edge case. Fixed by
+folding an indented continuation line into the bullet it continues, and
+only ending the run on a blank line or a flush-left non-bullet line.
+
+**Dogfooded**: this repo's own [`docs/FEATURES/`](../FEATURES) (a
+deliberately small, real sample — Compare marks, Hierarchy hide/dim, and
+the Plugins/Tools Analysis panels — not full coverage, `docs/PIPELINE.md`
+stays the complete reference), verified rendering in a real browser against
+the generated `docs/map/index.html`: all four cards, their summaries, their
+metadata, and the `Module:`-bullet-to-Tree-tab link resolution (which
+endswith-matches a bullet's first backtick-quoted token against every
+node's own `source`/`path` — the same leniency `tag_links` resolution
+already extends elsewhere).
+
+**A real, separate bug found and fixed along the way, affecting `tools` as
+much as `features`**: `core/render/html.lua`'s `M.render` builds the
+generated page's embedded IR payload as its own `json.encode({...})` table,
+independently of `documentation.to_json` (`module_map.json`'s writer) — a
+fact a comment thread in that exact function already documented, left by
+two *earlier* omissions of the same shape (`duplicates`, `docs`). Both
+`ir.tools` (added earlier this session, see the `:DocMap tools` entry
+above) and `ir.features` were present on the scanned IR and in
+`module_map.json`, but **absent from the generated page's own embedded
+JSON** — meaning the Tools Analysis panel had rendered "no manifest found"
+unconditionally, for every repo, regardless of whether one actually
+existed, since the moment it shipped. Caught here by checking
+`module_map.json`'s actual keys against a real repo rather than trusting
+that `scan_full` setting the field was the whole story — the same category
+of mistake the comment thread already named, now stated a third time in
+`M.render` itself so a fourth field does not repeat it.

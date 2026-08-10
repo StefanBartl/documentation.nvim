@@ -473,6 +473,35 @@
 ---@field tools Documentation.Tools.Tool[] Validated entries.
 ---@field errors Documentation.Tools.Error[] Malformed entries, never nil — a manifest can be partly valid.
 
+--- One `- **Key:** value` metadata bullet under a feature — see
+--- `docs/FEATURES_FORMAT.md`. No fixed vocabulary: `key` is whatever the
+--- author wrote (`Module`, `Keymaps`, one-off labels like `Scope-aware`),
+--- captured in the order written.
+---@class Documentation.Features.Meta
+---@field key string
+---@field value string
+
+--- One `## <name>` section inside a theme file.
+---@class Documentation.Features.Entry
+---@field name string As written after `## ` — free text, not an identifier.
+---@field line integer 1-based line of the `## ` heading, in its own file.
+---@field summary string? The leading run of prose before the first metadata bullet. Absent when a feature is metadata-only or intro-only — see the format doc for why that is a valid state, not a parse failure.
+---@field meta Documentation.Features.Meta[] In writing order; empty when the feature has none.
+
+--- One theme file under `docs/FEATURES/` (or `docs/features/`).
+---@class Documentation.Features.File
+---@field path string Repo-relative, e.g. "docs/FEATURES/UI.md".
+---@field theme string Filename without extension, exactly as the author named it.
+---@field intro string? Prose before the first `## `, skipping a leading `# Title` line if present.
+---@field entries Documentation.Features.Entry[]
+
+--- `ir.features` — this repo's own `docs/FEATURES/` (or `docs/features/`)
+--- folder. See `core/features.lua` and `docs/FEATURES_FORMAT.md`.
+---@class Documentation.Features.Result
+---@field folder string Which candidate resolved, e.g. "docs/FEATURES".
+---@field intro string? The folder's own `README.md`/`readme.md`, when present — never itself a theme file.
+---@field files Documentation.Features.File[] Sorted by filename.
+
 ---@class Documentation.IR
 ---@field meta Documentation.Meta
 ---@field quicks Documentation.Quicks.Result? Verdicts over this tree — see `quicks.lua`. Set by `scan_full`, so a bare `scan()` leaves it nil.
@@ -483,6 +512,7 @@
 ---@field duplicates Documentation.Duplicates.Result Functions grouped by structural shape — see `duplicates.lua`. Set by `scan_full`, so a bare `scan()` leaves it nil; serialised into the artifact because the grouping needs `fn.shape`, and a page reading the artifact has no parse tree to redo it with.
 ---@field docs Documentation.Docs.Result? Which prose file mentions which module or function — see `docs.lua`. Set by `scan_full`, so a bare `scan()` leaves it nil.
 ---@field tools Documentation.Tools.Result? This repo's declared `lib.nvim.deps` tools — see `core/tools.lua`. Set by `scan_full`; nil when lib.nvim.deps is unavailable or this repo ships no manifest.
+---@field features Documentation.Features.Result? This repo's own `docs/FEATURES/` — see `core/features.lua`. Set by `scan_full`; nil when this repo ships no such folder.
 ---@field tag_links table<string, Documentation.TagLink> `requires_external` modules resolved through `opts.tag_files`. Always a table, empty when `opts.tag_files` is unset or nothing resolved — unlike `types_detail`, resolving is local and cheap, so there is no "did this run" question worth a nil.
 ---@field timing Documentation.Timing? Per-stage durations, set by `scan_full` when `opts.debug` is on. Deliberately **not** serialised into the artifact: a duration differs on every machine and `--check` byte-compares, so embedding one would make the map invalidate itself.
 

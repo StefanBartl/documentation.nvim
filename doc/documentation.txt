@@ -32,19 +32,23 @@ documentation.nvim generates a module map from an annotated Lua tree. Point it
 at a repository whose files carry `---@module` and it produces:
 
     docs/map/index.html        interactive: Quicks, Tree, Hierarchy, Notes,
-                               Index, History, Analysis and Compare tabs.
-                               Self-contained — no CDN, no build step. The
-                               Analysis tab ranks test coverage,
-                               documentation coverage, fan-in/fan-out,
-                               cyclomatic complexity, structural duplicates,
-                               lazy.nvim plugin specs, declared external
-                               tools (lib.nvim.deps), React hooks (functions
-                               named like `^use[A-Z]`), the documentation
-                               corpus (which `.md` files exist and how much
-                               they reference), and call-based API routes
-                               (Express/Fastify/Koa-shaped). Quicks and
-                               Compare have sections of their own below —
-                               see |documentation-quicks| and
+                               Index, History, Analysis, Compare and
+                               Features tabs. Self-contained — no CDN, no
+                               build step. The Analysis tab ranks test
+                               coverage, documentation coverage,
+                               fan-in/fan-out, cyclomatic complexity,
+                               structural duplicates, lazy.nvim plugin specs,
+                               declared external tools (lib.nvim.deps),
+                               React hooks (functions named like
+                               `^use[A-Z]`), the documentation corpus (which
+                               `.md` files exist and how much they
+                               reference), and call-based API routes
+                               (Express/Fastify/Koa-shaped). The Features tab
+                               reads a repo's own docs/FEATURES/ folder, when
+                               it has one — see
+                               docs/FEATURES_FORMAT.md. Quicks and Compare
+                               have sections of their own below — see
+                               |documentation-quicks| and
                                |documentation-compare|.
     docs/map/overview.md       the same tree as Markdown, renders on GitHub
     docs/map/module_map.json   the IR, byte-deterministic
@@ -600,9 +604,11 @@ so `f` then `gq` sends a subset of a call graph to the |quickfix| list.
 6. THE GENERATED PAGE                                       *documentation-page*
 
 `docs/map/index.html` is one self-contained file — no CDN, no build step — with
-eight tabs. Tree, Hierarchy, Notes, Index, History and Analysis are covered
-where they come up elsewhere in this document; the two below are worth their
-own words.
+nine tabs. Tree, Hierarchy, Notes, Index, History, Analysis and Features are
+covered where they come up elsewhere in this document (Features in
+docs/FEATURES_FORMAT.md and docs/PIPELINE.md — an index over a repo's own
+docs/FEATURES/ folder, not documented tag-by-tag here the way a command is);
+the two below are worth their own words.
 
 Every view is addressable. The tab, the selected node, the graph's center and
 direction, an Analysis panel's sort column and any active filter all live in

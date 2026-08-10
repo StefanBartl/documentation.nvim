@@ -1233,6 +1233,80 @@ A malformed entry doesn't just vanish from the panel — `tools-spec-invalid`
 (§ Drift checks) surfaces it as a finding, so a typo'd manifest fails loud
 instead of a tool quietly never showing up.
 
+## Features tab
+
+A repo's own `docs/FEATURES/` (or `docs/features/`) folder, when it has one
+— read by [`core/features.lua`](../lua/documentation/core/features.lua) into
+`ir.features`, rendered as an index: one card per `## Feature` section, its
+summary and whatever `- **Key:** value` metadata bullets the author wrote.
+The full field guide is [`docs/FEATURES_FORMAT.md`](../FEATURES_FORMAT.md);
+this section is the *why*, that one is the *contract*.
+
+**Modelled on real data, not a format invented from scratch.** Before
+writing this, three of the user's own plugins already had a
+`docs/FEATURES/`-shaped folder — `lib.nvim`, `markdown.nvim`,
+`color_my_ascii.nvim` — and all three had independently settled on a
+*different* shape (essay write-ups, compact per-feature metadata blocks,
+full user manuals). This format is deliberately closest to the middle one,
+because it is the one shape that is both ordinary human-writable prose and
+mechanically recognizable line-by-line — the same "cheap reliable reading
+beats a general one" discipline `core/deps.lua`'s require-extraction and
+`lib.nvim.deps.spec`'s fenced-block parsing already use elsewhere in this
+codebase.
+
+**An index, not a Markdown viewer**, the same shape the Plugins/Tools
+Analysis panels already are. `parse_body` (in `core/features.lua`) extracts
+a feature's leading prose as its summary and the contiguous run of
+`- **Key:** value` bullets that follows as ordered metadata; anything
+written after that — a longer example, a troubleshooting note — stays in
+the source file. The card's own path (`docs/FEATURES/<theme>.md:<line>`)
+links out to it (`srcUrl`-resolved, same as every other source link on the
+page) rather than re-rendering it.
+
+**No fixed metadata vocabulary, deliberately.** `lib.nvim.deps.spec`
+validates `bin`/`why`/`pkg` because that format feeds an installer — a
+missing field there is a real defect. This one feeds a reader, and
+`markdown.nvim`'s own real `docs/FEATURES/headings.md` already mixes
+`Module`/`Keymaps`/`Config` with one-off keys like `Scope-aware` in the same
+file; a whitelist would have rejected working documentation that predates
+this parser. Any `- **Label:** text` line is captured as-is, in writing
+order, duplicates and all.
+
+**A bullet's value routinely wraps onto an indented continuation line** —
+confirmed against `markdown.nvim`'s real content while developing this,
+not a synthetic edge case: `- **Module:** \`core/headings.lua\` (...)`
+regularly continues on the next line with a 2-space-indented function list.
+`parse_body` folds such a line into the value of the bullet it continues.
+Only a **blank** line, or a non-bullet line with **no** leading indent (a
+new flush-left paragraph with no blank separator), ends the metadata run
+for good — the first parser version treated any non-bullet line as ending
+the run and silently dropped every bullet after the first wrapped one; this
+is the fix, not the original design.
+
+A `Module:` bullet whose first backtick-quoted token matches (or
+endswith-matches) a real node's own `source`/`path` makes the card's own
+name a link into the Tree tab — the same leniency `tag_links` resolution
+already extends to stale cross-references elsewhere on this page. No match,
+no link, never thrown.
+
+**Declared only, same posture as Tools.** `ir.features` is a static parse of
+whatever `docs/FEATURES/` contains at scan time — nothing here is probed
+against a running host, so there is nothing here that could make
+`--check`'s byte-compare depend on who last regenerated the map.
+
+**Caught, not shipped silently broken**: `ir.tools`/`ir.features` are set
+on the *scanned* IR by `scan_full`, but the generated page reads a
+*separately* serialized payload — `core/render/html.lua`'s own `M.render`
+builds its own `json.encode({...})` table independently of
+`documentation.to_json` (`module_map.json`'s writer). Adding a field to
+`ir` and to `to_json` does not, by itself, put it on the page; both sites
+need it, and a comment thread in `M.render` (predating this feature, left
+by two earlier omissions of the same shape) says so plainly. `tools` and
+`features` were both missing from `M.render`'s payload through most of
+their own development — caught here, before shipping, by checking
+`module_map.json`'s actual keys against a real repo rather than trusting
+that `scan_full` setting the field was the whole story.
+
 ## Drift checks
 
 The rendered map is the visible half; the checks are the half that catches
