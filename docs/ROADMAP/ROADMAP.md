@@ -295,6 +295,65 @@ as available). Pin to the 5.1 manual, mark the 5.2-isms Neovim does
 provide, and link `:help luaref` and `:help lua-guide` alongside, which are
 the versions that are actually correct for the runtime.
 
+### Telemetry/Loaded as a real Analysis panel — integration concept (2026-08-10)
+
+Raised the same day `opts.godbolt` shipped, in the same conversation that
+audited doc currency: Telemetry and Loaded (`:DocBrowse telemetry`/
+`:DocBrowse loaded`) exist only as `:DocBrowse` modes today, unlike
+`opts.tools`'s Analysis → Tools panel, which bakes a static manifest
+(`docs/install.json`) into the generated page at `generate()` time. The
+asymmetry is not cosmetic: `runtime-analysis.telemetry` and
+`runtime-analysis.loaded` are both live-process reads by design (see
+`runtime-analysis.nvim/docs/ROADMAP.md` §4.5/§5.4, added the same day as
+this entry) — Telemetry already persists across restarts and *processes*
+(`telemetry.load(namespace)` needs no live instance), but only as one
+continuously-overwritten aggregate; Loaded is genuinely, structurally
+live-only (`package.loaded` in *this* process, no persistence exists at
+all today).
+
+**The concept, contingent on runtime-analysis.nvim's own §4.5 shipping
+first:**
+
+- A new Analysis atool (`data-atool="telemetry"`, sibling to `tools`),
+  gated the same way Tools is — `pcall(require, "runtime-analysis.telemetry")`,
+  a plain "not installed" message otherwise, matching the soft-dependency
+  pattern `browse/view.lua`'s existing telemetry join already uses.
+- Baked at `generate()`/`scan_full()` time via a headless
+  `telemetry.load(namespace)` call (the same shape `opts.tools` already
+  uses for `docs/install.json` — a read at generation time, not a live
+  browser-side fetch), joined against the IR the same way
+  `core/telemetry_join.lua` already joins it for `:DocBrowse telemetry`.
+  **The current/latest aggregate is the default view** — no snapshot
+  picker needed for that part, it is exactly what `t.load()` already
+  returns.
+- Once §4.5 ships in runtime-analysis.nvim (named/dated snapshots,
+  `t.list_snapshots()`/`t.load_snapshot()`): a snapshot picker in the same
+  panel, defaulting to "latest" (the live aggregate, not a snapshot) with
+  named/dated snapshots selectable alongside it, and a **Compare** entry
+  point reusing the existing Compare-tab marking mechanism (`+` next to
+  `ⓘ`) rather than inventing a second comparison UI — a telemetry snapshot
+  is annotation-shaped data (per-function counts/timings), the same shape
+  Compare already handles for any two marked objects.
+- A parallel Loaded panel is **not** part of this concept — it is blocked
+  on runtime-analysis.nvim §5.4's own open question (whether a persisted
+  loaded-vs-declared snapshot is worth having at all), not merely on
+  implementation effort. Revisit once §5.4 is resolved one way or the
+  other.
+
+**Also part of the same request:** conditionally-visible panels/modes
+(Tools today; this Telemetry panel once built) should be visually
+distinguished in their tab bar — a small badge/icon plus a subtle accent,
+confirmed 2026-08-10 — from panels that are always present regardless of
+what else is installed. Scoped as its own small styling pass, applicable
+to Tools immediately without waiting on any of the above.
+
+**Sequencing:** runtime-analysis.nvim §4.5 (snapshot API) → this Analysis
+panel's "latest" half (buildable today already, does not actually need
+§4.5) → the badge/accent styling pass (buildable today, independent of
+either) → the snapshot picker + Compare integration (needs §4.5). Nothing
+here is blocked end-to-end; the pieces are independently shippable in
+roughly that order.
+
 ## Deliberately not building (documented rejections)
 
 Keeping the reasoning here so the question isn't re-asked from a blank
