@@ -384,7 +384,7 @@ handle.uninstall()
 
 The rendered map is the visible half; the checks are the half that catches
 bugs. `missing-module-tag` and `module-path-mismatch` are errors;
-`missing-summary`, `dead-readme-link`, `dead-see-target`,
+`missing-summary`, `dead-readme-link`, `dead-see-target`, `type-vs-class`,
 `doc-references-missing`, `require-cycle`, `require-not-declared` and
 `layer-violation` are warnings; `missing-readme`, `unreferenced-module`,
 `undocumented-param`, `param-name-mismatch` and `dead-function` are

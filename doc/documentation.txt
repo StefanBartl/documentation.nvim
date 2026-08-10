@@ -666,6 +666,11 @@ Generic checks, run against any annotated Lua tree:
                                  nothing.
     dead-see-target       warn   An @see target resolving to no known module
                                  or function.
+    type-vs-class         warn   A module table annotated ---@type Foo that
+                                 later has real fields assigned to it — LuaLS
+                                 reports missing-fields/"fields cannot be
+                                 injected" for this shape; ---@class M : Foo
+                                 is the annotation that actually means it.
     require-cycle         warn   A cycle among load-time requires. Deferred
                                  requires — `require(...)` inside a function
                                  body — are excluded: they are the standard

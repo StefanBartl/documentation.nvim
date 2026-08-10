@@ -568,6 +568,55 @@ local function check_see_targets(ir, findings)
   end
 end
 
+--- `---@type Foo` on a module's own `local M = {}` (or equivalent), when
+--- fields are then assigned to that same table, is a real LuaLS defect
+--- class rather than a style nit: it produces `missing-fields` and
+--- "fields cannot be injected" diagnostics on every one of those
+--- assignments, because `@type` tells the language server "this value
+--- already has exactly this shape", and a later `M.foo = ...` looks like
+--- an attempt to add a field the type never declared. `---@class M : Foo`
+--- (optionally with a `@see` on the type definition) is the annotation
+--- that actually means "this table's own shape, which happens to satisfy
+--- `Foo`" — declaring it exports M in that shape instead of freezing it.
+---
+--- Reads the same leading-comment-block scan `scan.parse_header` already
+--- does for `@module`/`@brief`/prose — a bare `---@type` line there is
+--- exactly as reachable as any other tag on that block, so this needs no
+--- new parsing, only a second look at data already being read. Fires only
+--- when the node also has real exported functions (`#node.functions > 0`)
+--- — a `@type` with nothing ever assigned to it afterward is not this bug,
+--- whatever else it might be.
+---@param ir Documentation.IR
+---@param findings Documentation.Finding[]
+---@param opts Documentation.Opts
+local function check_type_vs_class(ir, findings, opts)
+  local scan = require("documentation.core.scan")
+  local root = opts.root:gsub("\\", "/"):gsub("/+$", "")
+
+  for _, id in ipairs(ir.order) do
+    local node = ir.nodes[id]
+    if node.source and #node.functions > 0 then
+      local header = scan.parse_header(root .. "/" .. node.source)
+      local declared_type = header.tags.type
+      if declared_type then
+        add(
+          findings,
+          "warn",
+          "type-vs-class",
+          id,
+          ('module table annotated ---@type %s, but %d field(s) are assigned to it — LuaLS reports missing-fields/"fields cannot be injected" for this shape; use ---@class instead (---@class %s : %s, plus @see the type definition, if %s should still be checked against it)'):format(
+            declared_type,
+            #node.functions,
+            node.module or id,
+            declared_type,
+            declared_type
+          )
+        )
+      end
+    end
+  end
+end
+
 --- Comma-split the raw signature parameter list into declared names, in
 --- source order. `...` is kept as its own token (both checks below treat it
 --- specially rather than dropping it silently) so a caller comparing
@@ -860,6 +909,7 @@ function M.run(ir, opts)
   check_require_not_declared(ir, findings, opts)
   check_layers(ir, findings, opts)
   check_see_targets(ir, findings)
+  check_type_vs_class(ir, findings, opts)
   check_undocumented_params(ir, findings)
   check_param_name_mismatch(ir, findings)
   check_dead_functions(ir, findings, opts)
