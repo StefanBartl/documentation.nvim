@@ -458,6 +458,140 @@ local function route_telemetry_snapshots(cfg, client)
   )
 end
 
+---`GET /api/loaded?snapshot=<name>` — the `runtime-analysis.loaded`
+---persisted-snapshot join for the Analysis -> Loaded panel, docs/ROADMAP.md
+---§5.4. Unlike `/api/telemetry`, `snapshot` is required, not optional:
+---there is no "live aggregate" reading here the way telemetry always has
+---one — `loaded_diff.rows(ir)` (the live path) is what `:DocBrowse loaded`
+---already reads directly from an editor session; this route exists
+---specifically for the *cold* case a live browse mode structurally cannot
+---serve, reading a persisted snapshot the same way `route_telemetry` reads
+---a named one. Every "nothing to show" case answers 200 with
+---`available: false` and a `reason`, the identical posture `route_telemetry`
+---already takes.
+---@param cfg table
+---@param client userdata
+---@param query string Raw query string, `?`-prefixed.
+local function route_loaded(cfg, client, query)
+  local loaded_diff = require("documentation.core.loaded_diff")
+
+  local ir = current_ir(cfg)
+  if not ir then
+    return respond(
+      client,
+      200,
+      "application/json",
+      vim.json.encode({ available = false, reason = "no map generated yet" })
+    )
+  end
+
+  local prefix = loaded_diff.prefix(cfg)
+  if not prefix then
+    return respond(
+      client,
+      200,
+      "application/json",
+      vim.json.encode({ available = false, reason = "no single root module prefix for this tree" })
+    )
+  end
+
+  local raw_snapshot = query and query:match("[?&]snapshot=([^&]+)")
+  local snapshot_name = raw_snapshot
+    and raw_snapshot
+      :gsub("%%(%x%x)", function(h)
+        return string.char(tonumber(h, 16))
+      end)
+      :gsub("%+", " ")
+  if not snapshot_name or snapshot_name == "" then
+    return respond(
+      client,
+      200,
+      "application/json",
+      vim.json.encode({ available = false, prefix = prefix, reason = "no snapshot named" })
+    )
+  end
+
+  local ok_loaded, loaded_mod = pcall(require, "runtime-analysis.loaded")
+  if not ok_loaded then
+    return respond(
+      client,
+      200,
+      "application/json",
+      vim.json.encode({ available = false, prefix = prefix, reason = "no data" })
+    )
+  end
+
+  local ok_load, snap = pcall(loaded_mod.load_snapshot, prefix, snapshot_name)
+  if not ok_load or not snap then
+    return respond(
+      client,
+      200,
+      "application/json",
+      vim.json.encode({
+        available = false,
+        prefix = prefix,
+        snapshot = snapshot_name,
+        reason = "snapshot not found",
+      })
+    )
+  end
+
+  respond(
+    client,
+    200,
+    "application/json",
+    vim.json.encode({
+      available = true,
+      prefix = prefix,
+      snapshot = snapshot_name,
+      captured_at = snap.captured_at,
+      rows = loaded_diff.rows_from_snapshot(ir, snap),
+    })
+  )
+end
+
+---`GET /api/loaded/snapshots` — every named `runtime-analysis.loaded`
+---snapshot for this project's root prefix, newest first. What the Loaded
+---panel's picker populates from, before choosing one to pass as
+---`route_loaded`'s own `snapshot=` query parameter.
+---@param cfg table
+---@param client userdata
+local function route_loaded_snapshots(cfg, client)
+  local loaded_diff = require("documentation.core.loaded_diff")
+
+  local prefix = loaded_diff.prefix(cfg)
+  if not prefix then
+    return respond(
+      client,
+      200,
+      "application/json",
+      vim.json.encode({ available = false, reason = "no single root module prefix for this tree" })
+    )
+  end
+
+  local ok_loaded, loaded_mod = pcall(require, "runtime-analysis.loaded")
+  if not ok_loaded then
+    return respond(
+      client,
+      200,
+      "application/json",
+      vim.json.encode({ available = false, prefix = prefix, snapshots = {} })
+    )
+  end
+
+  local ok_list, list = pcall(loaded_mod.list_snapshots, prefix)
+  respond(
+    client,
+    200,
+    "application/json",
+    vim.json.encode({
+      available = true,
+      prefix = prefix,
+      snapshots = (ok_list and list) or {},
+    })
+  )
+end
+
 ---Accept a request path only if it is a bare filename inside `out_dir`.
 ---
 ---An empty path means `index.html`; anything containing a separator or a `..`
@@ -538,6 +672,14 @@ local function handle(cfg, client, method, target)
 
   if path == "/api/telemetry/snapshots" then
     return route_telemetry_snapshots(cfg, client)
+  end
+
+  if path == "/api/loaded" then
+    return route_loaded(cfg, client, query)
+  end
+
+  if path == "/api/loaded/snapshots" then
+    return route_loaded_snapshots(cfg, client)
   end
 
   local sha_part = path:match("^/api/commit/(.+)$")

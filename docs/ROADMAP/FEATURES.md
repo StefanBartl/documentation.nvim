@@ -2567,3 +2567,93 @@ the same soft-dependency test posture `pdf_artifact_spec.lua` already
 established for pdfport.nvim, chosen over depending on a real mdview.nvim
 checkout (which would need a running relay server and a curl subprocess to
 exercise for real, well past what a unit test should require).
+
+## Loaded panel — cold viewing via persisted snapshots (2026-08-10)
+
+Closes runtime-analysis.nvim's own docs/ROADMAP.md §5.4 ("persist
+loaded-vs-declared for cold viewing"), raised the same day §4.5 (named
+telemetry snapshots) shipped and explicitly left open pending it — "the
+snapshot mechanism there first will make the marginal cost of asking
+`loaded.lua` for the same thing obvious one way or the other" (that
+entry's own words). It did: once §4.5 existed as a real, working pattern,
+building the parallel for loaded-vs-declared was a much smaller lift than
+the original "is this even worth having" framing suggested.
+
+**Real user pushback resolved the open question, not further analysis.**
+§5.4's own text called this "a real open question whether a persisted
+loaded-vs-declared snapshot is worth having at all". The user's own
+feedback disagreed directly: reports can already be saved and reopened —
+why should surfacing them in documentation.nvim, as persisted state data,
+listed and clicked through one at a time, be a hard problem? It wasn't.
+Once framed as "the exact same mechanism §4.5 already proved, applied to
+a different kind of runtime fact", the remaining work was mechanical, not
+a fresh design question.
+
+**One identifier, not two — a real design decision, confirmed by tracing
+how telemetry's own two identifiers actually differ, not assumed they
+would.** `core/telemetry_self.lua` wraps `main = "documentation"` (a
+require prefix) under `namespace = "documentation.nvim"` (`opts.title`) —
+two different strings, for this repo itself, because a telemetry namespace
+can wrap arbitrary code under any prefix. A loaded snapshot has nothing to
+name except the prefix it was taken under, so `runtime-analysis.loaded`'s
+new snapshot API takes only `prefix` — no separate namespace argument a
+caller would have to keep in sync with it by hand — and
+`loaded_diff.M.prefix(opts)` on this side derives the identical value
+independently from `opts.source`/`opts.lua_root` (the same
+`check.expected_module` transform already applied to every file in the
+tree), rather than adding an `opts` field for it. Neither side ever tells
+the other which prefix was used; both compute the same one.
+
+**Shipped across both repos**, mirroring §4.5's own shape closely:
+
+- `runtime-analysis.loaded` gained `M.snapshot`/`M.list_snapshots`/
+  `M.load_snapshot` — same `lib.nvim.cache.disk` storage primitive
+  `telemetry/store.lua` uses, a parallel `"loaded/"` cache-key prefix so
+  the two never collide, same `SNAPSHOT_RETENTION = 20` default and
+  eviction policy, same "always explicit, nothing snapshots on its own"
+  posture. `:RA loaded snapshot <prefix> [name]` / `:RA loaded snapshots
+  <prefix>` are the only call sites.
+- `core/loaded_diff.lua`'s live `M.rows(ir)` and the new
+  `M.rows_from_snapshot(ir, snapshot)` now share one `diff(ir,
+  present_for)` implementation — refactored rather than duplicated, so
+  the live and cold paths can never quietly drift into different
+  discrepancy logic.
+- `editor/serve.lua` gained `GET /api/loaded?snapshot=<name>` and
+  `GET /api/loaded/snapshots`, mirroring `route_telemetry`/
+  `route_telemetry_snapshots` closely but structurally simpler: **no
+  "latest" fallback**, and no A/B compare. A loaded diff is a property of
+  *some* live session's `package.loaded`; a server route answering a
+  browser tab in a different process has no live one of its own to read,
+  the identical honest limit `loaded_diff.lua`'s own header already
+  states for the live browse mode — so unlike Telemetry, there is nothing
+  to default to, and the panel prompts for a snapshot rather than
+  guessing. A/B compare was left out on scope grounds, not an oversight:
+  the user's own framing was "list them, click through one report after
+  another", not "diff two captures" — Telemetry's compare view answers a
+  real but different question this feature was never asked for.
+- A new **Loaded** Analysis panel (`core/render/html.lua`), reusing
+  Telemetry's own `.telpicker` CSS and `telOptionsHTML` builder rather
+  than duplicating them.
+
+**Verified against real data before calling it done, not assumed from the
+code.** A real headless session took a real snapshot
+(`runtime-analysis.loaded.snapshot`), started `documentation.editor.serve`,
+and curled both new routes: `/api/loaded/snapshots` listed the real
+snapshot; `/api/loaded?snapshot=<name>` returned a real, correct diff
+against this repo's own IR — including a synthetic `loaded_only` field
+planted specifically to confirm that direction, not only `declared_only`
+(the direction a mostly-cold headless session produces by default, which
+would have hidden a bug in the other direction). A request for a snapshot
+name that was never saved correctly answered `"snapshot not found"`
+rather than an error.
+
+Test coverage: `docs/TESTS/loaded_spec.lua` (runtime-analysis.nvim side,
+snapshot/list/load/retention/eviction) and `TESTS/browse_loaded_spec.lua`
+(documentation.nvim side, `M.prefix` and `M.rows_from_snapshot` — the
+latter needs no real runtime-analysis.nvim checkout at all, unlike the
+existing `M.rows` block in the same file, since it never touches a live
+`package.loaded`). The server routes themselves are not unit-tested,
+the same posture `docmap_spec.lua`'s own comment states for
+`/api/telemetry`: "the route table and socket handling are verified by
+running the thing and talking to it, which a spec cannot do without an
+event loop" — covered by the real curl verification above instead.

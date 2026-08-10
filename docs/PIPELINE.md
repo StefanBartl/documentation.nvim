@@ -1501,7 +1501,7 @@ the default), the same "only the axes a view actually uses" rule
 A tool palette, not a diagram — a fifth tab (`atool` state axis, same
 `iview=`-shaped URL rule as the Index tab) whose toolbar switches between
 panels the way Hierarchy's view buttons switch between graphs, applied to
-aggregate numbers instead of boxes. Eight tools today:
+aggregate numbers instead of boxes. Nine tools today:
 
 - **Test coverage** — `fn.tested` (R2, [`coverage.lua`](../lua/documentation/core/coverage.lua))
 - **Documentation** — `fn.documented` (R4, [`doccoverage.lua`](../lua/documentation/core/doccoverage.lua))
@@ -1511,10 +1511,11 @@ aggregate numbers instead of boxes. Eight tools today:
 - **Plugins** — `n.plugins` (lazy.nvim spec inventory, [`plugins.lua`](../lua/documentation/core/plugins.lua))
 - **Tools** — `ir.tools` (this repo's own `lib.nvim.deps` manifest, [`tools.lua`](../lua/documentation/core/tools.lua))
 - **Telemetry** — `runtime-analysis.telemetry`'s call counts, joined by [`telemetry_join.lua`](../lua/documentation/core/telemetry_join.lua) — the one panel that is not IR-only, see its own paragraph below
+- **Loaded** — `runtime-analysis.loaded`'s persisted loaded-vs-declared snapshots, joined by [`loaded_diff.lua`](../lua/documentation/core/loaded_diff.lua) — also not IR-only, see its own paragraph below
 
-The first seven are `.plugin-gated` or not depending on whether they need
-anything beyond the embedded IR to mean something (Tools and Telemetry are;
-the other five never show an empty state a real project would hit). Marked
+Each is `.plugin-gated` or not depending on whether it needs anything
+beyond the embedded IR to mean something (Tools, Telemetry and Loaded are;
+the other six never show an empty state a real project would hit). Marked
 with a small badge (`::after`, `var(--ext)` tint — the same colour the
 Hierarchy graphs use for "connects outside this map") in the toolbar itself,
 so a reader can tell which panels are conditionally useful before clicking
@@ -1737,6 +1738,46 @@ Telemetry panel, not a strained reuse — see `docs/ROADMAP/FEATURES.md`'s
 own entry for the full reasoning, including a real Lua-syntax bug this
 caught before it shipped (a `[[...]]` array-literal pair closing with two
 adjacent `]` inside the file's own `[[ ... ]]` client-script string).
+
+**Loaded** — docs/ROADMAP.md §5.4 on the runtime-analysis.nvim side — is
+Telemetry's shape applied to a different runtime fact, with one structural
+difference that shows up in the panel itself: **there is no "latest"
+fallback.** Telemetry always has a live aggregate to default to (the
+running Neovim process this page's own server route is talking to keeps
+counting in the background); a loaded-vs-declared diff is a property of
+*some* live session's `package.loaded`, and the only such session
+`:DocBrowse loaded` can read is the one the browser was opened from — a
+server route, answering a request from a browser tab in a different
+process, structurally has no `package.loaded` of its own to read live. So
+this panel only ever reads named snapshots
+(`:RA loaded snapshot <prefix> [name]`, `runtime-analysis.nvim`'s own
+§5.4 command) and prompts for one rather than guessing at a fallback that
+does not exist.
+
+`GET /api/loaded?snapshot=<name>` reads the snapshot via
+`runtime-analysis.loaded.load_snapshot(prefix, name)` and joins it against
+whatever `docs/map/module_map.json` currently holds, through
+[`loaded_diff.lua`](../lua/documentation/core/loaded_diff.lua)'s
+`rows_from_snapshot` — the identical diff logic `M.rows` (the live path
+`:DocBrowse loaded` uses) already has, refactored to take "how do I get a
+module's present fields" as a callback so the two paths share one
+implementation rather than two copies of the same discrepancy logic.
+`GET /api/loaded/snapshots` lists what is available, the same shape
+`/api/telemetry/snapshots` already has.
+
+**One identifier, not two, unlike Telemetry.** A telemetry namespace can
+genuinely differ from the module prefix it wraps (`core/telemetry_self.lua`
+wraps `main = "documentation"` under `namespace = "documentation.nvim"` —
+two different strings, for this repo itself), so `telemetry_join.
+M.namespace(opts)` reads `opts.telemetry_namespace`/`opts.title`. A loaded
+snapshot has nothing to name except the prefix it was taken under, so
+`loaded_diff.M.prefix(opts)` derives it from `opts.source`/`opts.lua_root`
+instead — the same `check.expected_module` transform every file in the
+tree is already checked against — rather than adding a second `opts` field
+a caller would have to keep in sync with `:RA loaded snapshot`'s own
+`<prefix>` argument by hand. Both sides computing the identical value
+independently is what lets the CLI command and this reading side agree
+without either passing the other a config value.
 
 ## Features tab
 

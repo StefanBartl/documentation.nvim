@@ -216,4 +216,81 @@ return function(H)
     ok(parsed_live.live, "parse: 'live loaded' still sets live")
     eq(parsed_live.mode, "loaded", "parse: ... and still recognizes loaded after it")
   end
+
+  -- ------------------------------------------- persisted snapshots (§5.4)
+
+  -- M.prefix: the dotted root prefix `runtime-analysis.loaded.snapshot`'s
+  -- own room key has to agree with, derived independently on both sides
+  -- from opts.source/opts.lua_root rather than a shared config value.
+  do
+    eq(
+      loaded_diff.prefix({ source = "lua/documentation", lua_root = "lua" }),
+      "documentation",
+      "prefix: lua/<name> under lua_root 'lua' resolves to the dotted name"
+    )
+    eq(
+      loaded_diff.prefix({ source = "lua", lua_root = "lua" }),
+      nil,
+      "prefix: source == lua_root has no single root module, honestly nil"
+    )
+    eq(
+      loaded_diff.prefix({ source = "lua/a/b", lua_root = "lua" }),
+      "a.b",
+      "prefix: a nested source path dots every segment, not just the last"
+    )
+  end
+
+  -- M.rows_from_snapshot: same diff logic as M.rows, but against a plain
+  -- snapshot table instead of a live runtime-analysis.loaded read — no
+  -- runtime-analysis.nvim checkout needed at all, unlike the M.rows block
+  -- above, since nothing here touches package.loaded.
+  do
+    local ir = fake_ir()
+    ir.nodes.a.module = "app.widgets"
+    local snapshot = {
+      version = 1,
+      prefix = "app",
+      captured_at = 1234567890,
+      modules = {
+        ["app.widgets"] = { make = true, extra = true },
+      },
+    }
+    local rows = loaded_diff.rows_from_snapshot(ir, snapshot)
+
+    local by_name = {}
+    for _, row in ipairs(rows) do
+      by_name[row.kind .. ":" .. row.name] = row
+    end
+    ok(
+      by_name["declared_only:destroy"] ~= nil,
+      "rows_from_snapshot: M.destroy declared but absent from the snapshot"
+    )
+    ok(
+      by_name["loaded_only:extra"] ~= nil,
+      "rows_from_snapshot: extra present in the snapshot but never declared"
+    )
+    ok(
+      by_name["declared_only:make"] == nil and by_name["loaded_only:make"] == nil,
+      "rows_from_snapshot: make is both declared and in the snapshot, no discrepancy"
+    )
+
+    -- A module the snapshot never captured (never loaded at capture time)
+    -- reads as fully declared-only for every exported function — the same
+    -- "absent module" answer M.rows gives for a module with no live
+    -- package.loaded entry, not an error.
+    local ir2 = fake_ir()
+    ir2.nodes.a.module = "never.captured"
+    local rows2 = loaded_diff.rows_from_snapshot(ir2, { modules = {} })
+    local declared_only_count = 0
+    for _, row in ipairs(rows2) do
+      if row.id == "a" and row.kind == "declared_only" then
+        declared_only_count = declared_only_count + 1
+      end
+    end
+    eq(
+      declared_only_count,
+      2,
+      "rows_from_snapshot: a module absent from the snapshot reads as fully declared-only"
+    )
+  end
 end

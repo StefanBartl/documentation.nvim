@@ -77,7 +77,7 @@ rather than ported (the editor half is 35% of the tree), ~113 are mechanical,
 and 25 are `vim.treesitter` — the only real blocker, and the thing that
 supplies every per-function fact the map has. Not scheduled, with the
 condition that would reopen it stated there.
-
+-> stanbdaalone beginnen
 ### Per-tab "create PDF" export — deferred to a maturity pass (assessed 2026-08-10)
 
 *Should specific report-shaped tabs/usrcmds (a call graph, the Deps view,
@@ -221,22 +221,6 @@ as available). Pin to the 5.1 manual, mark the 5.2-isms Neovim does
 provide, and link `:help luaref` and `:help lua-guide` alongside, which are
 the versions that are actually correct for the runtime.
 
-### A parallel Loaded panel — blocked on runtime-analysis.nvim §5.4
-
-The Telemetry Analysis panel this entry used to describe (latest aggregate,
-badge/accent styling, then a snapshot picker and an A/B diff view once
-`runtime-analysis.nvim` shipped named snapshots) is fully built now — see
-`FEATURES.md`'s own entries for what shipped and, notably, why the compare
-UI turned out **not** to reuse the generic Compare tab's marking mechanism
-the way an earlier draft of this note assumed it would (that assumption did
-not survive contact with what Compare actually compares — see the entry for
-the real reasoning).
-
-A parallel **Loaded** panel is not part of any of that — blocked on
-`runtime-analysis.nvim` §5.4's own open question (whether a persisted
-loaded-vs-declared snapshot is worth having at all), not merely on
-implementation effort. Revisit once §5.4 is resolved one way or the other.
-
 ## Deliberately not building (documented rejections)
 
 Keeping the reasoning here so the question isn't re-asked from a blank
@@ -258,43 +242,4 @@ limits when walking a live table, whether to call into `__index` functions
 or just report them, and whether the result even belongs in a `ui.kit`
 window or somewhere else entirely.
 
-### Neotree source — feasible, and not worth it (assessed 2026-07-28)
-
-*Could this plugin be used as a source for Neotree (a module tree beside the
-file tree, the way the buffer list is)?*
-
-**Feasible, cheaply.** The IR is already the exact shape a Neotree source hands
-over: `Documentation.Node` has a stable `id`, a `parent`, a `children` array
-and a `depth`, and `ir.order` is a stable traversal of it. `install()` already
-returns a live handle that rescans on write and fans out through `on_change` —
-which is the update channel a source needs, and the expensive half of writing
-one. The work would be an adapter of maybe 150 lines, not new analysis.
-
-**Not worth building, for now.** Three reasons, in the order they matter:
-
-1. **It duplicates `:DocBrowse` at a worse fidelity.** The browser already
-   navigates this data, and it does things a file-tree sidebar structurally
-   cannot: mode switching across six axes, depth and direction controls on the
-   dependency walk, `gq`/`gI` into the quickfix list, the trail. A Neotree
-   source would show the *hierarchy* and drop everything that makes the
-   hierarchy worth navigating.
-2. **The window is the scarce resource.** A file tree earns a permanent
-   sidebar because you use it constantly and incidentally. A module map is
-   consulted deliberately, in bursts — which is exactly the shape a
-   summoned float suits and a docked panel wastes.
-3. **It buys a dependency.** Today this plugin depends on lib.nvim and nothing
-   else, and `docs/PORTABILITY.md` treats that as a property worth keeping. A
-   Neotree source means tracking Neotree's source API across its releases, for
-   a view that duplicates one we already have.
-
-**What would reopen it:** a concrete want that the browser cannot serve because
-it is transient — "keep the module tree docked while I work", or "show module
-structure and files in one tree". Neither has come up. If it does, start from
-`browse/source.lua`'s `rehydrate` and the `install()` handle; the adapter is
-the easy part, and this entry exists so the feasibility question does not get
-re-derived.
-
-(The related item — harvesting this plugin's *interaction patterns* for
-`filetree.nvim` — was cut by the author on the same date and is deliberately
-not part of this repository's roadmap.)
 
