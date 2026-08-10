@@ -2246,3 +2246,66 @@ the fixture: opening `editor/health.lua` (flagged `unreferenced-module`
 by the real scan — required by no other file in this tree) produced
 exactly one real `HINT`-severity diagnostic, correct check name, correct
 message, on line 1.
+
+## Compiler Explorer links, experimental — `opts.godbolt` (2026-08-10)
+
+The "Fragwürdig — eher nicht umsetzen" item, reopened on the user's own
+feedback: "Compiler Explorer ist für kompilierte Sprachen gedacht... für
+Lua fehlt der eigentliche Nutzen fast komplett" was the wrong call, and
+the user was right to push back rather than let it sit rejected.
+
+**Checked before agreeing, not taken on the user's word alone** — the
+project's own established practice all session: `/api/languages` on
+Compiler Explorer's real API lists `lua` as a genuine language id,
+`/api/compilers/lua` lists five real Lua interpreter versions (5.1.5
+through 5.5.0), and the `lua` compiler class's own source
+(`lib/compilers/lua.ts`) runs `luac -l -l -p <file>` — a real, verbose
+bytecode listing with source-line association, exactly the kind of
+"compiled output" the original assessment said Lua had none of.
+Confirmed a second way, not just by reading source: built a real
+clientstate link from this repo's own `registry.lua#norm_root` function,
+opened it in a real browser, and got back a real disassembly
+(`VARARGPREP`/`CLOSURE`/`RETURN` opcodes, locals/upvalues tables) from a
+real server-side compile — the original dismissal was simply wrong, and
+would have stayed wrong without checking a primary source instead of
+trusting a training-time assumption about what Compiler Explorer
+supports.
+
+**The other half of the user's feedback — loading the whole project —
+does not hold up the same way, and the gap is disclosed rather than
+faked.** `luac` compiles exactly one file per invocation; Compiler
+Explorer's multi-file/project support is CMake/build-system-specific
+(C/C++, Java templates), and nothing Lua-specific for it turned up
+anywhere checked. Shipped instead: a module's own link concatenates its
+own functions' snippets in declaration order, a real, useful
+approximation of the file's interesting content, not a byte-perfect
+reconstruction — comments, `require`s, module-scope symbols outside a
+function are not part of it. This gap is the concrete, stated reason the
+feature ships marked **experimental**, confirmed with the user before
+building rather than silently under-delivering on "whole project" and
+calling it done.
+
+**Structurally different from the three features shipped just before
+it, confirmed with the user first.** `callhierarchy`/`diagnostics`/`watch`
+are all `install()`-only, live-editor features. This one bakes into the
+generated static page itself (`meta.godbolt`, the exact render-time-only
+mechanism `out_depth` already uses) — `generate()`/`scan_full()`-time, so
+it works for anyone who opens the committed `docs/map/index.html` cold,
+matching what the roadmap item's own original text actually described (a
+page feature with icons, not an editor affordance).
+
+**No new IR field.** The link is built entirely client-side, lazily on
+click, from `fn.snippet` — already serialized for the existing
+hover-preview feature (bounded snippets, ECOSYSTEM.md step 3) and already
+bounded the same way. A truncated snippet produces a correctly-labelled
+but incomplete compile on Compiler Explorer's side, the same honesty the
+in-page preview already carries via its own `snippet_omitted` count, not
+a new limitation this feature introduces.
+
+**Compiler Explorer's own documented `clientstate` URL scheme**
+(`godbolt.org/clientstate/<base64 JSON>`) needs no API call to build —
+UTF-8-safe base64 (the standard `encodeURIComponent`/`unescape`/`btoa`
+detour, since `btoa` alone is Latin1-only) client-side, then open the
+result. Fully deterministic from the same source, so this puts nothing
+non-reproducible into a committed artifact — checked against `--check`'s
+own byte-for-byte comparison before building, not after.

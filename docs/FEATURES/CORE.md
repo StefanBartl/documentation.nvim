@@ -218,3 +218,22 @@ drops them.
   `false`).
 - **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Findings as native
   diagnostics" section.
+
+## Compiler Explorer links (experimental)
+
+A "⚙ Compiler Explorer ↗" link next to every module and function in the
+generated page — opens `godbolt.org` in a new tab, pre-loaded with that
+entity's real source and Lua selected, showing a genuine `luac -l -l -p`
+bytecode disassembly. Not a workaround: verified against Compiler
+Explorer's own API and compiler source that `lua` is a real, first-class
+language there. Marked experimental because a module's own link
+concatenates its functions' snippets rather than the file's exact
+content — Compiler Explorer's Lua compiler takes one file per compile,
+with no project/multi-file mode the way CMake/C++ has.
+
+- **Module:** `core/render/html.lua` (`godboltUrl`, `godboltTrigger`)
+- **Config:** `opts.godbolt` (`generate()`/`scan_full()`, not
+  `install()`-only — bakes into the generated page — boolean, default
+  `false`).
+- **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Compiler Explorer
+  links, experimental" section.

@@ -471,6 +471,69 @@ flags `unreferenced-module` — required by no other file in this tree)
 produced exactly one real `HINT`-severity diagnostic, correct check name,
 correct message, on line 1.
 
+## Compiler Explorer links, experimental (`opts.godbolt`)
+
+Session 2026-08-10. `generate()`/`scan_full()` only, unlike the three
+options directly above it — this bakes into the generated page itself
+(`meta.godbolt`, the same render-time-only mechanism `out_depth` already
+uses), so it works for anyone who opens the committed `docs/map/index.html`
+cold, no live Neovim session or `install()` needed. Adds a
+"⚙ Compiler Explorer ↗" link next to every module and function, opening
+`godbolt.org` in a new tab pre-loaded with that entity's real source and
+Lua selected.
+
+**A real bytecode disassembly, not a workaround — an earlier version of
+this roadmap item's own text was wrong about that, corrected on
+re-examination.** The original assessment dismissed Compiler Explorer for
+Lua on the grounds that it is interpreted, with "kein Assembler-Output,
+den man sinnvoll inspizieren würde". Checked directly against Compiler
+Explorer's own API and source before writing anything here: `/api/languages`
+lists `lua` as a real language id, `/api/compilers/lua` lists five real
+Lua interpreter versions (5.1.5 through 5.5.0), and the compiler class's
+own source runs `luac -l -l -p <file>` — a genuine, verbose bytecode
+listing with source-line association, exactly analogous to what Compiler
+Explorer shows for a compiled language. Verified end to end, not only
+read from source: a real clientstate link built from this repo's own
+`registry.lua#norm_root` function, opened in a real browser, produced a
+real disassembly (`VARARGPREP`/`CLOSURE`/`RETURN` opcodes, locals and
+upvalues tables) from a real server-side compile.
+
+**"Load the whole project" does not hold up, though, and is deliberately
+not attempted.** `luac`'s own invocation takes exactly one file; Compiler
+Explorer's multi-file/project support (CMake, effectively) is specific to
+languages with a real build-system concept, and nothing Lua-specific
+turned up anywhere checked. What ships instead: a module's own link
+concatenates its functions' snippets in declaration order — a real,
+useful approximation of the file (most of what's interesting about a
+module the reader would want bytecode for), not a byte-perfect
+reconstruction of it (comments, `require`s and module-scope symbols
+outside any function are not part of any `fn.snippet`). This is the
+concrete reason the feature ships marked **experimental** rather than
+finished.
+
+**No new IR field, on purpose.** The link is built entirely client-side,
+lazily on click — not pre-computed for every function/module on every
+page load, most of which nobody will ever click — from `fn.snippet`,
+already serialized for the existing hover-preview feature and already
+bounded the same way (`core/snippet.lua`'s own cap). A very long
+function's snippet may already be truncated (`snippet_omitted` says by
+how much); the bytecode Compiler Explorer shows for it is correspondingly
+a compile of that same truncated fragment — the same honesty the in-page
+preview already has, not a new limitation this feature introduces.
+
+**The URL is Compiler Explorer's own documented `clientstate` scheme** —
+`godbolt.org/clientstate/<base64 JSON>` — chosen specifically because it
+needs no API call to construct: base64-encoding the source (UTF-8-safe,
+via the standard `encodeURIComponent`/`unescape`/`btoa` detour, since
+`btoa` alone is Latin1-only) client-side and opening the resulting URL is
+the only network access this feature ever causes, the exact same posture
+every other external link on this page (`srcUrl`, `tag_links`) already
+has. Fully deterministic from the same source, so `opts.godbolt` puts
+nothing non-reproducible into a committed artifact — confirmed before
+building, not after: `--check` compares the committed page byte-for-byte,
+and a link that could vary between two identical regenerations would have
+broken that guarantee.
+
 ## LuaLS enrichment (`opts.luals`)
 
 Off by default — a full-repo `lua-language-server --doc` run costs several

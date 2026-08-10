@@ -445,6 +445,16 @@ same the quickfix list already has (`Documentation.Finding` carries no
 line number); `info`-severity findings map to `vim.diagnostic.severity.HINT`
 and are shown, where the quickfix list drops them.
 
+`godbolt = true` (**experimental**, `generate()`-time, not `install()`) adds
+a "⚙ Compiler Explorer ↗" link next to every module and function in the
+generated page — a real `luac -l -l -p` bytecode disassembly, verified
+against Compiler Explorer's own API and compiler source (`lua` is a real
+language there, with five real interpreter versions), not a workaround.
+Built entirely client-side from each function's already-serialized
+`fn.snippet`, no new IR field; a module's own link concatenates its
+functions' snippets, an approximation of the file rather than a
+byte-perfect one, which is why this ships marked experimental.
+
 ## Drift checks
 
 The rendered map is the visible half; the checks are the half that catches
