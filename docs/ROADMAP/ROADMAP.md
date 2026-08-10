@@ -295,26 +295,18 @@ as available). Pin to the 5.1 manual, mark the 5.2-isms Neovim does
 provide, and link `:help luaref` and `:help lua-guide` alongside, which are
 the versions that are actually correct for the runtime.
 
-### Telemetry snapshot picker + Compare integration — blocked on runtime-analysis.nvim §4.5
+### A parallel Loaded panel — blocked on runtime-analysis.nvim §5.4
 
-The "latest aggregate" half of this idea (a new Analysis → Telemetry panel,
-plus badge/accent styling for it and the existing Tools panel) shipped
-2026-08-10 — see `FEATURES.md`'s own entry for what actually got built and
-why it turned out **not** to be `generate()`-time baking the way `opts.tools`
-does it (an earlier draft of this note assumed it would be; that assumption
-was wrong and is corrected there, not repeated here).
+The Telemetry Analysis panel this entry used to describe (latest aggregate,
+badge/accent styling, then a snapshot picker and an A/B diff view once
+`runtime-analysis.nvim` shipped named snapshots) is fully built now — see
+`FEATURES.md`'s own entries for what shipped and, notably, why the compare
+UI turned out **not** to reuse the generic Compare tab's marking mechanism
+the way an earlier draft of this note assumed it would (that assumption did
+not survive contact with what Compare actually compares — see the entry for
+the real reasoning).
 
-**Still open, genuinely:** once `runtime-analysis.nvim` ships its own §4.5
-(named/dated telemetry snapshots — `t.snapshot()`/`t.list_snapshots()`/
-`t.load_snapshot()`), the same panel gets a snapshot picker alongside
-"latest", and a **Compare** entry point reusing the existing Compare-tab
-marking mechanism (`+` next to `ⓘ`) rather than inventing a second
-comparison UI — a telemetry snapshot is annotation-shaped data (per-function
-counts), the same shape Compare already handles for any two marked objects.
-Blocked on that upstream API existing, not on any open design question on
-this side.
-
-A parallel Loaded panel is **not** part of this either — blocked on
+A parallel **Loaded** panel is not part of any of that — blocked on
 `runtime-analysis.nvim` §5.4's own open question (whether a persisted
 loaded-vs-declared snapshot is worth having at all), not merely on
 implementation effort. Revisit once §5.4 is resolved one way or the other.

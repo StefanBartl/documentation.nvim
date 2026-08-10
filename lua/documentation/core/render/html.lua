@@ -316,6 +316,12 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
   border-radius:4px;padding:1px 5px;margin-left:6px}
 .anbar{width:120px;height:8px;background:var(--line);border-radius:4px;overflow:hidden}
 .anfill{height:100%;background:var(--accent)}
+.telpicker{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px;font-size:12.5px}
+.telpicker label{display:flex;align-items:center;gap:6px;color:var(--muted)}
+.telpicker select{font:inherit;color:var(--ink);background:var(--panel);
+  border:1px solid var(--line);border-radius:5px;padding:2px 6px}
+.telup{color:var(--file);font-weight:600}
+.teldown{color:var(--warn);font-weight:600}
 #view-index h3{margin:22px 0 6px;font-size:15px;font-weight:700;color:var(--accent);
   font-family:var(--mono);border-bottom:1px solid var(--line);padding-bottom:3px}
 .ixjump{display:flex;flex-wrap:wrap;gap:3px;margin:0 0 6px;position:sticky;top:0;
@@ -1193,6 +1199,12 @@ local JS = [[
     // named column would flatten into "sorted by pct, descending" and lose the
     // tiebreaks with it.
     asort: null, adir: null,
+    // Which capture the Telemetry panel's single-view table reads: `null`
+    // means the live aggregate ("Latest"), otherwise a snapshot name.
+    // `tsnapb` is set only in compare mode — `null` means "not comparing",
+    // the string `"latest"` means "compare against the live aggregate
+    // explicitly", anything else is a second snapshot name.
+    tsnap: null, tsnapb: null,
     // Per-tab text filter. One field, but the *contract* is per tab — see
     // `filterFor`.
     q: null,
@@ -1267,6 +1279,11 @@ local JS = [[
         parts.push("asort=" + encodeURIComponent(s.asort));
         parts.push("adir=" + encodeURIComponent(s.adir === "asc" ? "asc" : "desc"));
       }
+      // Telemetry's own two axes — which capture, and what it is compared
+      // against — only meaningful on that one panel, same as asort/adir are
+      // scoped to whichever panel is actually sortable.
+      if(s.tsnap) parts.push("tsnap=" + encodeURIComponent(s.tsnap));
+      if(s.tsnapb) parts.push("tsnapb=" + encodeURIComponent(s.tsnapb));
       if(s.q) parts.push("q=" + encodeURIComponent(s.q));
     } else if(s.tab === "history"){
       // The opened commit, so a link to one is shareable. Validated on the
@@ -1356,7 +1373,14 @@ local JS = [[
       else if(k === "iview") s.iview = (v === "modules") ? "modules" : "functions";
       else if(k === "atool") s.atool = (v === "doc" || v === "deps" || v === "complexity" ||
         v === "duplicates" || v === "plugins" || v === "tools" || v === "hooks" ||
-        v === "docs" || v === "endpoints") ? v : "test";
+        v === "docs" || v === "endpoints" || v === "telemetry") ? v : "test";
+      // Snapshot names are whatever runtime-analysis.telemetry's own
+      // sanitizer allowed through when saved — not re-validated here, the
+      // same posture `sha`/`q` already take: a value that does not
+      // actually name a saved snapshot just gets "snapshot not found" back
+      // from `/api/telemetry`, not silently dropped before it can ask.
+      else if(k === "tsnap") s.tsnap = v || null;
+      else if(k === "tsnapb") s.tsnapb = v || null;
       // Not whitelisted against a column list here, because the valid columns
       // differ per panel and this parser does not know which panel `atool`
       // will resolve to. `anSort` looks the key up in the panel's own column
@@ -4239,8 +4263,31 @@ local JS = [[
   // this is always the latest aggregate, never a stale snapshot baked in
   // at generate() time — see `documentation.editor.serve`'s own header for
   // why that means a server, exactly the History tab's own reasoning.
+  //
+  // `state.tsnap` (which capture the single-view table reads) and
+  // `state.tsnapb` (set only in compare mode — `null` means "not
+  // comparing", the string `"latest"` means "compare against the live
+  // aggregate explicitly", anything else is a snapshot name) both default
+  // to `null`/`"latest"` meaning the live aggregate, matching what this
+  // panel always showed before named snapshots existed. Threaded through
+  // `navigate()`/the URL the same way `atool`/`asort` already are, so a
+  // link to a specific comparison is shareable.
   // ---------------------------------------------------------------------
-  var telLoaded = false, telData = null;
+  var telSnapLoaded = false, telSnapList = null;
+  var telCache = {}, telReqToken = 0;
+
+  // Fetch (and cache) /api/telemetry's response for one capture. `name` is
+  // null/"latest" for the live aggregate, otherwise a snapshot name — both
+  // forms state.tsnap/state.tsnapb can hold.
+  function telFetch(name){
+    var key = (!name || name === "latest") ? "" : name;
+    if(telCache[key]) return Promise.resolve(telCache[key]);
+    var url = key ? ("/api/telemetry?snapshot=" + encodeURIComponent(key)) : "/api/telemetry";
+    return fetch(url).then(function(r){ return r.json(); }).then(function(d){
+      telCache[key] = d;
+      return d;
+    });
+  }
 
   function drawAnalysisTelemetry(){
     var host = document.getElementById("anbody");
@@ -4251,81 +4298,226 @@ local JS = [[
         '<code>:DocMap serve</code> and open the URL it prints (or <code>:DocMap open</code> while it runs).</p>';
       return;
     }
-    if(!telLoaded){
-      telLoaded = true;
-      host.innerHTML = '<p class="hmsg">Loading telemetry…</p>';
-      fetch("/api/telemetry")
-        .then(function(r){ return r.json(); })
-        .then(function(d){
-          telData = d;
-          renderAnalysisTelemetryBody();
-        })
-        .catch(function(e){
-          telLoaded = false;
-          host.innerHTML = '<p class="hmsg">Could not reach the map server: ' + esc(String(e)) +
-            '<br><br>Is it still running? <code>:DocMap serve</code> starts it.</p>';
-        });
-      return;
-    }
-    renderAnalysisTelemetryBody();
+
+    var token = ++telReqToken;
+    host.innerHTML = '<p class="hmsg">Loading telemetry…</p>';
+
+    var snapListPromise = telSnapLoaded
+      ? Promise.resolve(telSnapList)
+      : fetch("/api/telemetry/snapshots").then(function(r){ return r.json(); }).then(function(d){
+          telSnapLoaded = true;
+          telSnapList = (d && d.snapshots) || [];
+          return telSnapList;
+        }).catch(function(){ telSnapLoaded = true; telSnapList = []; return telSnapList; });
+
+    var fetches = [telFetch(state.tsnap)];
+    if(state.tsnapb) fetches.push(telFetch(state.tsnapb));
+
+    Promise.all([snapListPromise].concat(fetches))
+      .then(function(results){
+        if(token !== telReqToken) return; // a newer selection superseded this one
+        renderAnalysisTelemetryBody(results[1], state.tsnapb ? results[2] : null);
+      })
+      .catch(function(e){
+        if(token !== telReqToken) return;
+        host.innerHTML = '<p class="hmsg">Could not reach the map server: ' + esc(String(e)) +
+          '<br><br>Is it still running? <code>:DocMap serve</code> starts it.</p>';
+      });
   }
 
-  function renderAnalysisTelemetryBody(){
+  // The picker row: "Snapshot:" (single view) plus, once at least one
+  // snapshot exists, a "Compare vs:" second select that switches into the
+  // diff render below. Rendered even with zero snapshots saved yet — the
+  // "Snapshot:" select still lets a reader pick "Latest" explicitly, and
+  // an empty picker row would read as a missing feature rather than "no
+  // snapshots saved yet".
+  // {v, l} (value, label) objects to <option> HTML, marking whichever
+  // matches "selected" -- one small builder instead of the fragile "join
+  // then string-replace the right value= in afterward" a first draft of
+  // this used, which risked matching the wrong option whenever one value
+  // was a substring of another. Objects rather than [value, label]
+  // tuples for a second, entirely mechanical reason: this whole script is
+  // one Lua long-bracket string, and two adjacent closing square brackets
+  // anywhere inside it -- which a tuple array closing right after a
+  // nested one produces -- close that Lua string early. Not a style
+  // preference; the first draft of this function shipped with exactly
+  // that bug.
+  function telOptionsHTML(items, selected){
+    return items.map(function(it){
+      return '<option value="' + esc(it.v) + '"' + (it.v === selected ? " selected" : "") + '>' +
+        esc(it.l) + "</option>";
+    }).join("");
+  }
+
+  function telPickerHTML(){
+    var aItems = [{ v: "", l: "Latest" }].concat((telSnapList || []).map(function(s){
+      var d = new Date(s.saved_at * 1000);
+      return { v: s.name, l: s.name + " (" + d.toLocaleString() + ")" };
+    }));
+    var h = ['<div class="telpicker">'];
+    h.push('<label>Snapshot: <select id="telsnap">' +
+      telOptionsHTML(aItems, state.tsnap || "") + '</select></label>');
+    if((telSnapList || []).length > 0){
+      var bItems = [{ v: "", l: "— not comparing —" }, { v: "latest", l: "Latest" }]
+        .concat((telSnapList || []).map(function(s){ return { v: s.name, l: s.name }; }));
+      h.push('<label>Compare vs: <select id="telsnapb">' +
+        telOptionsHTML(bItems, state.tsnapb || "") + '</select></label>');
+    }
+    h.push("</div>");
+    return h.join("");
+  }
+
+  function telWirePicker(){
+    var snapSel = document.getElementById("telsnap");
+    if(snapSel) snapSel.addEventListener("change", function(){
+      navigate({ tab: "analysis", atool: "telemetry", tsnap: snapSel.value || null });
+    });
+    var snapBSel = document.getElementById("telsnapb");
+    if(snapBSel) snapBSel.addEventListener("change", function(){
+      navigate({ tab: "analysis", atool: "telemetry", tsnapb: snapBSel.value || null });
+    });
+  }
+
+  function telUnavailableMessage(d){
+    var reason = (d && d.reason) || "unknown";
+    if(reason === "no namespace"){
+      return "No telemetry namespace configured for this project — set " +
+        "<code>opts.telemetry_namespace</code> or <code>opts.title</code>.";
+    }
+    if(reason === "no map generated yet"){
+      return "No map has been generated yet on this machine — run <code>:DocMap</code> first.";
+    }
+    if(reason === "snapshot not found"){
+      return "Snapshot <code>" + esc((d && d.snapshot) || "") + "</code> was not found — it may have " +
+        "been evicted (only the most recent ones are kept).";
+    }
+    return "No telemetry data for namespace <code>" + esc((d && d.namespace) || "") + "</code> yet — " +
+      "install/enable <code>runtime-analysis.nvim</code>, or <code>:RATelemetry start</code> there.";
+  }
+
+  function renderAnalysisTelemetryBody(dA, dB){
     var host = document.getElementById("anbody");
-    var d = telData;
-    if(!d || !d.available){
-      var reason = (d && d.reason) || "unknown";
-      var msg;
-      if(reason === "no namespace"){
-        msg = "No telemetry namespace configured for this project — set " +
-          "<code>opts.telemetry_namespace</code> or <code>opts.title</code>.";
-      } else if(reason === "no map generated yet"){
-        msg = "No map has been generated yet on this machine — run <code>:DocMap</code> first.";
-      } else {
-        msg = "No telemetry data for namespace <code>" + esc((d && d.namespace) || "") + "</code> yet — " +
-          "install/enable <code>runtime-analysis.nvim</code>, or <code>:RATelemetry start</code> there.";
-      }
-      host.innerHTML = '<p class="ntext none">' + msg + '</p>';
+
+    if(!dA || !dA.available){
+      host.innerHTML = telPickerHTML() + '<p class="ntext none">' + telUnavailableMessage(dA) + '</p>';
+      telWirePicker();
+      return;
+    }
+    if(dB !== null && (!dB || !dB.available)){
+      host.innerHTML = telPickerHTML() + '<p class="ntext none">' + telUnavailableMessage(dB) + '</p>';
+      telWirePicker();
       return;
     }
 
-    var totalRows = (d.rows || []).length;
-    var rows = anFilter((d.rows || []).map(function(r){
+    var parts = [telPickerHTML()];
+
+    if(dB === null){
+      // Single-capture view — unchanged from before the picker existed,
+      // just fed by whichever capture is currently selected instead of
+      // always the live aggregate.
+      var totalRows = (dA.rows || []).length;
+      var rows = anFilter((dA.rows || []).map(function(r){
+        return {
+          id: r.id, fn: r.fn, ir_key: r.ir_key, calls: r.calls,
+          has_static_caller: r.has_static_caller,
+          haystack: r.ir_key, sortkey: r.ir_key
+        };
+      }));
+
+      if(totalRows === 0){
+        parts.push('<p class="ntext none">Telemetry namespace <code>' + esc(dA.namespace) +
+          '</code> has data, but none of it resolved to a function still in this map.</p>');
+        host.innerHTML = parts.join("");
+        telWirePicker();
+        return;
+      }
+
+      var cols = [
+        { label: "Function", key: "ir_key", get: function(r){ return r.ir_key; }, initial: "asc" },
+        { label: "Calls", key: "calls", get: function(r){ return r.calls; }, initial: "desc" },
+        { label: "Static caller?", key: "has_static_caller",
+          get: function(r){ return r.has_static_caller ? 1 : 0; }, initial: "desc" }
+      ];
+      anSort(rows, cols, function(a, b){ return b.calls - a.calls; });
+
+      parts.push('<p class="nsub">' + rows.length + ' function' + (rows.length === 1 ? '' : 's') +
+        ' with telemetry data in namespace <code>' + esc(dA.namespace) + '</code>' +
+        (state.tsnap ? ' (snapshot ' + esc(state.tsnap) + ')' : ' (latest)') + '.' +
+        anFilterNote(rows.length, totalRows) + '</p>');
+      if(rows.length === 0){
+        parts.push('<p class="ntext none">No function matches that filter.</p>');
+        host.innerHTML = parts.join("");
+        telWirePicker();
+        return;
+      }
+      parts.push('<table class="antable">' + anHead(cols) + '<tbody>');
+      rows.forEach(function(r){
+        parts.push('<tr class="anrow" data-node="' + esc(r.id) + '">' +
+          '<td><code>' + esc(r.ir_key) + '</code></td>' +
+          '<td>' + r.calls + '</td>' +
+          '<td>' + (r.has_static_caller ? "yes" : "no static caller found") + '</td>' +
+          '</tr>');
+      });
+      parts.push("</tbody></table>");
+      host.innerHTML = parts.join("");
+      host.querySelectorAll(".anrow").forEach(function(tr){
+        tr.addEventListener("click", function(){
+          navigate({ tab: "tree", id: tr.dataset.node });
+        });
+      });
+      telWirePicker();
+      return;
+    }
+
+    // A/B diff — the point of naming snapshots at all: "what changed
+    // between these two captures", not just "what does one look like".
+    // Union of both sides' functions, not an intersection: a function only
+    // one side has data for is exactly as real a result as one both do —
+    // it either did not exist yet, or was never called, at the other
+    // point in time, which is itself the answer to "what changed".
+    var byKeyA = {}, byKeyB = {};
+    (dA.rows || []).forEach(function(r){ byKeyA[r.ir_key] = r; });
+    (dB.rows || []).forEach(function(r){ byKeyB[r.ir_key] = r; });
+    var allKeys = Object.keys(byKeyA);
+    Object.keys(byKeyB).forEach(function(k){ if(!(k in byKeyA)) allKeys.push(k); });
+
+    var diffRows = anFilter(allKeys.map(function(k){
+      var ra = byKeyA[k], rb = byKeyB[k];
+      var callsA = ra ? ra.calls : 0, callsB = rb ? rb.calls : 0;
       return {
-        id: r.id, fn: r.fn, ir_key: r.ir_key, calls: r.calls,
-        has_static_caller: r.has_static_caller,
-        haystack: r.ir_key, sortkey: r.ir_key
+        id: (ra || rb).id, ir_key: k, callsA: callsA, callsB: callsB,
+        delta: callsB - callsA, haystack: k, sortkey: k
       };
     }));
 
-    if(totalRows === 0){
-      host.innerHTML = '<p class="ntext none">Telemetry namespace <code>' + esc(d.namespace) +
-        '</code> has data, but none of it resolved to a function still in this map.</p>';
-      return;
-    }
-
     var cols = [
       { label: "Function", key: "ir_key", get: function(r){ return r.ir_key; }, initial: "asc" },
-      { label: "Calls", key: "calls", get: function(r){ return r.calls; }, initial: "desc" },
-      { label: "Static caller?", key: "has_static_caller",
-        get: function(r){ return r.has_static_caller ? 1 : 0; }, initial: "desc" }
+      { label: "A", key: "callsA", get: function(r){ return r.callsA; }, initial: "desc" },
+      { label: "B", key: "callsB", get: function(r){ return r.callsB; }, initial: "desc" },
+      { label: "Δ (B − A)", key: "delta", get: function(r){ return Math.abs(r.delta); }, initial: "desc" }
     ];
-    anSort(rows, cols, function(a, b){ return b.calls - a.calls; });
+    anSort(diffRows, cols, function(a, b){ return Math.abs(b.delta) - Math.abs(a.delta); });
 
-    var parts = [];
-    parts.push('<p class="nsub">' + rows.length + ' function' + (rows.length === 1 ? '' : 's') +
-      ' with telemetry data in namespace <code>' + esc(d.namespace) + '</code>.' +
-      anFilterNote(rows.length, totalRows) + '</p>');
-    if(rows.length === 0){
-      host.innerHTML = parts.join("") + '<p class="ntext none">No function matches that filter.</p>';
+    var aLabel = state.tsnap ? esc(state.tsnap) : "latest";
+    var bLabel = (state.tsnapb === "latest" || !state.tsnapb) ? "latest" : esc(state.tsnapb);
+    parts.push('<p class="nsub">Comparing <code>' + aLabel + '</code> (A) against <code>' + bLabel +
+      '</code> (B) — ' + diffRows.length + ' function' + (diffRows.length === 1 ? '' : 's') + '.' +
+      anFilterNote(diffRows.length, allKeys.length) + '</p>');
+    if(diffRows.length === 0){
+      parts.push('<p class="ntext none">No function matches that filter.</p>');
+      host.innerHTML = parts.join("");
+      telWirePicker();
       return;
     }
     parts.push('<table class="antable">' + anHead(cols) + '<tbody>');
-    rows.forEach(function(r){
+    diffRows.forEach(function(r){
+      var sign = r.delta > 0 ? "+" : "";
       parts.push('<tr class="anrow" data-node="' + esc(r.id) + '">' +
         '<td><code>' + esc(r.ir_key) + '</code></td>' +
-        '<td>' + r.calls + '</td>' +
-        '<td>' + (r.has_static_caller ? "yes" : "no static caller found") + '</td>' +
+        '<td>' + r.callsA + '</td>' +
+        '<td>' + r.callsB + '</td>' +
+        '<td class="' + (r.delta > 0 ? "telup" : r.delta < 0 ? "teldown" : "") + '">' +
+          sign + r.delta + '</td>' +
         '</tr>');
     });
     parts.push("</tbody></table>");
@@ -4335,6 +4527,7 @@ local JS = [[
         navigate({ tab: "tree", id: tr.dataset.node });
       });
     });
+    telWirePicker();
   }
 
   // =====================================================================

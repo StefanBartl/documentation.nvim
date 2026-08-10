@@ -2395,3 +2395,73 @@ telemetry data resolved correctly post-fix, verified via a real running
 `:DocMap serve` instance and the Claude Browser MCP tools (panel render,
 sort order, row-click navigation to the real node), not a synthetic
 fixture.
+
+## Telemetry snapshot picker + A/B diff view (2026-08-10)
+
+Once `runtime-analysis.nvim` shipped named snapshots (its own §4.5), the
+Telemetry panel gained a picker — "Snapshot:" (Latest + every saved
+snapshot, newest first) — and, once at least one snapshot exists, a second
+"Compare vs:" select that switches the panel into a diff table: Function /
+A / B / Δ (B − A), sorted by `|Δ|` descending, a red/green cue on the delta
+column. `GET /api/telemetry` gained an optional `?snapshot=<name>` query
+parameter (percent-decoded server-side, `+`-as-space handled in the
+standard order); a new `GET /api/telemetry/snapshots` route lists what the
+picker populates from. Both new routes follow the same "everything is a
+normal 200 with `available: false` and a reason, never an HTTP error"
+posture the original panel already established — a snapshot name that
+doesn't resolve (typed by hand, or evicted since the link was shared) is
+"not found," not a broken page.
+
+**The original concept note for this (written the same day the Telemetry
+panel first shipped) planned to reuse the generic Compare tab's marking
+mechanism — the `+` next to `ⓘ` that lets a reader put two functions or
+modules side by side. That plan did not survive actually reading what
+Compare compares.** `CMP_ROWS` is a fixed set of *static* IR attributes
+(signature, params, complexity, tested, documented, …) read off whichever
+real node or function a mark's key resolves to (`fnByKey`/`byId`) — there
+is no third axis for "as of which point in time," because every one of
+those attributes is a property of the current tree, not something that
+changes between two snapshots of the same function. A telemetry snapshot
+comparison needed a different axis entirely (the same function, two
+different moments), which Compare's data model has no room for and was
+never built to have. Built instead as its own dedicated view inside the
+Telemetry panel — the right shape for what the feature actually is, not a
+strained reuse of a mechanism that compares a different kind of thing.
+Caught and corrected before writing any of the comparison code, not after
+shipping the wrong shape and reworking it.
+
+Union of both sides' functions for the diff, not an intersection: a
+function only one snapshot has a row for is exactly as real an answer as
+one both do (it did not exist yet, or was simply never called, at the
+other point in time) — dropping it would hide exactly the kind of change
+snapshots exist to surface.
+
+State (`state.tsnap`/`state.tsnapb`) threaded through the URL the same way
+`atool`/`asort` already are, so a specific comparison is a shareable link —
+verified by opening `#tab=analysis&atool=telemetry&tsnapb=<name>` fresh and
+confirming it opens directly into that exact diff, not just by toggling the
+selects and trusting the state machine.
+
+**A real Lua-syntax bug, caught before it shipped rather than after:** the
+entire client script is one Lua `[[ ... ]]` long-bracket string (`local JS
+= [[ … ]]`), and an early draft of the picker's option-list builder used
+`[value, label]` tuple arrays — `[["", "Latest"]]`, closing one array
+literal immediately after another produces two adjacent `]` characters,
+which is exactly the sequence that closes that Lua string early. Caught
+immediately via a real `nvim -l` load (not just the file's own syntax
+highlighting, which had nothing to say about it) rather than discovered
+after `:DocMap serve` was already committed. Fixed by using `{v, l}`
+objects instead of tuples, which contain no bracket pair that could ever
+collide with the enclosing string's own delimiter — a mechanical
+constraint the fix's own comment states plainly, so the next tuple-shaped
+convenience added to this file does not reintroduce it.
+
+Verified against real, non-trivial data end to end: a real named snapshot
+saved via `telemetry.snapshot()` against this tree's own live cache
+directory (not a throwaway fixture), `GET /api/telemetry/snapshots` and
+`GET /api/telemetry?snapshot=…` both hit directly with `curl`, then the
+actual picker driven through the Claude Browser MCP tools — option lists,
+the compare-mode diff table, the not-found message for a name that does
+not resolve, and the URL round-trip on a fresh navigation. The test
+snapshot was deleted from the real cache directory afterward rather than
+left behind as debris in a live environment.
