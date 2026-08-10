@@ -159,3 +159,21 @@ machinery every other view already has — decided with the repo owner on
 the grounds that this view is exactly as centered-on-a-node, directed and
 depth-limited as Deps already is, and a new tab would have meant either
 duplicating that machinery or generalizing it for one caller.
+
+## Root-level hide slider
+
+A vertical, Google Maps-styled slider next to the Modules view — `+` at
+the top hides one more layer of the real directory tree, `−` at the
+bottom shows one back. Every node that used to sit at the hidden depth
+becomes its own parallel root, all drawn at once as a forest, not a
+re-center on any single one of them (double-click already does that).
+Answers a problem specific to deep trees: several directories before
+anything interesting starts means every session begins with the same
+uninteresting clicks.
+
+- **Module:** `core/render/html.lua` (`layoutModulesRooted`,
+  `rootFrontier`, `maxRootDepth`, `layoutModulesFrom`)
+- **Config:** none — the slider's own `max` is measured off the real tree
+  (`maxRootDepth()`), not a config value.
+- **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Hiding root levels
+  (Modules view)" section.

@@ -732,6 +732,55 @@ to the same width. Log-scaled so one outlier pair (a config module calling
 `vim.notify` forty times) doesn't compress every other, genuinely
 interesting weight difference down to visually-identical hairlines.
 
+### Hiding root levels (Modules view)
+
+Session 2026-08-10. A vertical slider next to the diagram — `+` at the top
+hides one more layer of the real tree, `−` at the bottom shows one back,
+styled after Google Maps' own zoom control. Answers a navigation problem
+specific to very deep trees: this repo's own map is shallow enough that
+double-click-to-recenter (which already existed) covers it, but a tree four
+or five directories deep before anything interesting starts means every
+session begins by clicking through the same uninteresting prefix.
+
+**A forest, not a re-center.** "Hide N root levels" does not pick one
+node — it collects *every* node sitting at depth N below the true root
+(`rootFrontier(n)`, a plain BFS over `children`) and lays out all of them
+as parallel roots at once, each with its own subtree. Confirmed with the
+user before building: the roadmap item's own wording ("Level-2-**Ordner**",
+plural) named a forest, not "recenter on whichever level-2 folder I care
+about" — which double-click already does, and would not have been a new
+feature. `layoutModules(startId)` and this both now go through one shared
+`layoutModulesFrom(seeds)` — the existing single-seed BFS taking an array
+was already exactly the shape a forest needed, just never called with more
+than one seed before.
+
+**Mutually exclusive with centering on a specific node**, not a second
+independent axis: `navigate()` clears `hideroot` the moment a patch sets
+`center`, and clears `center` the moment a patch sets `hideroot`, both
+without every one of the dozen-plus call sites that set either having to
+remember to. Double-click, the context menu, mouse-wheel drilling and
+pressing Enter in the search box all set `center` and so all exit forest
+mode automatically. The one call path that does *not* go through
+`navigate()` — the search box's live-typing preview, which calls
+`drawHierarchy` directly and deliberately skips history for every
+keystroke (see that function's own comment) — needed the exception spelled
+out explicitly (`drawHierarchy`'s third argument, `forceCenter`), since
+skipping `navigate()` also meant skipping the auto-clear a typed match
+should still get.
+
+**No single center to highlight or breadcrumb**, unlike every other state
+this tab has. `centerKey` (the highlight-ring target) is `null` in forest
+mode — every layer-0 box is equally a root — and the breadcrumb reads "N
+root levels hidden — M subtrees shown" instead of a module name.
+
+**The slider's own `max` is the tree's real depth** (`maxRootDepth()`,
+cached after one BFS), not an arbitrary cap — dragging past it is
+structurally impossible rather than merely discouraged. A hand-edited URL
+hash can still name a `hideroot` beyond it; `layoutModulesRooted` clamps
+against `maxRootDepth()` at layout time regardless of what the hash said,
+same "anything unparseable falls back to a sane value" posture `depth`
+already has.
+
 ### Functions are addressable
 
 A function's id is `"<node id>#<declared name>"` — derived from data already in

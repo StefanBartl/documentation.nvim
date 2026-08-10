@@ -104,6 +104,13 @@ already a deduplicated name list) works the same way it does on Deps.
   require graph has no "one level in/out" the way a tree does).
 - **LOD** — below ~0.65 scale, box detail lines hide (name only); pure CSS
   class toggle, no re-render.
+- **Root-level hide slider** (Session 2026-08-10, Modules only) — a
+  vertical Google Maps-style slider peels the top N layers off the real
+  tree, turning every node that used to sit at that depth into its own
+  parallel root (`layoutModulesRooted`/`rootFrontier`, both built on a new
+  `layoutModulesFrom(seeds)` the old single-seed `layoutModules` now
+  delegates to). Mutually exclusive with centering on a specific node —
+  `navigate()` clears one axis whenever a patch sets the other.
 
 ## Navigator (`:LibBrowse`)
 
@@ -2019,3 +2026,76 @@ on a fresh load, and an invalid `feature-` slug redirects to the Features
 catalog with exactly one `.view` panel active. `TESTS/features_spec.lua`
 covers the parser; the client-side renderer has the same "no direct Lua
 test coverage" precedent noted in the Module Calls entry above.
+
+## Root-level hide slider — a forest view for the Modules tab (2026-08-10)
+
+The last remaining concrete "Hoch" item: "Hierarchie: Root-Level
+aus-/einblenden mit Zoom-Slider" — a vertical, Google Maps-styled slider
+(`+` top, `−` bottom) that hides the top N layers of a deep directory
+tree, so the layer that used to sit at that depth becomes the new apparent
+root. Aimed at the gap double-click-to-recenter (pre-existing) does not
+close: a tree several directories deep before anything interesting starts
+means every session begins with the same uninteresting clicks.
+
+**A forest, confirmed before building.** The roadmap text supported two
+readings — re-center on one specific node (which double-click already
+does) or show every node at the chosen depth simultaneously as parallel
+roots. Put to the user directly rather than guessed: "Level-2-**Ordner**",
+plural, named the forest reading, and it was confirmed as the one to
+build. Technically cheap once decided: `walk()`'s Deps/Calls/ModuleCalls
+sibling already took an array of seeds, and even `layoutTypes` already
+seeded from several class names at once — only `layoutModules` had ever
+been called with exactly one. Refactored into a shared
+`layoutModulesFrom(seeds)`; `layoutModules(id)` is now `layoutModulesFrom([id])`,
+and the new `layoutModulesRooted(n)` feeds it `rootFrontier(n)` — every
+node at exactly `n` steps below `IR.root` via `children`, found with a
+plain BFS.
+
+**Mutually exclusive with node-centering, enforced in one place.**
+`center` (recenter on a specific node) and `hideroot` (peel off N layers,
+forest mode) are two different answers to "what does the Modules view
+show" and cannot both apply — `navigate()` now clears whichever one a
+patch does not set, whenever the other is set. Centralizing it there
+avoided auditing the dozen-plus call sites that set `center`
+(double-click, context menu, mouse-wheel drilling, Enter in the search
+box) individually; all of them get the reset for free. The one path that
+does *not* go through `navigate()` — the search box's live-typing
+preview, which calls `drawHierarchy` directly to avoid clobbering history
+on every keystroke (a real, previously-fixed bug; see that code's own
+comment) — needed the exception spelled out by hand, via a new third
+`forceCenter` argument on `drawHierarchy` itself, since bypassing
+`navigate()` also bypassed the auto-clear. Caught by reasoning through
+every call site during design, not found later by testing: verified
+afterward by artificially re-entering forest mode and confirming a typed
+search match interrupted it correctly, rather than being ignored.
+
+**The slider's `max` is a real measurement, not a guess** —
+`maxRootDepth()`, one cached BFS over the tree's actual `children` depth
+— so dragging past the point of nothing-left-to-show is structurally
+impossible through the UI. A hand-edited URL hash can still name an
+out-of-range `hideroot`; `layoutModulesRooted` clamps it against the same
+`maxRootDepth()` at layout time regardless, matching `depth`'s own
+"anything unparseable degrades to a sane value" posture.
+
+**`writing-mode: vertical-lr`**, not a `transform: rotate()` hack, turns
+the native `<input type=range>` vertical — standard behavior renders min
+at the bottom and max at the top with no extra flipping, which is exactly
+"+" (hide more, higher value) above "−" (hide less, lower value) matching
+the Google Maps analogy the roadmap item itself named.
+
+Verified against this repo's own real tree (`IR.root`'s single child
+folding into a genuine 4-way fork one level down: `bindings`/`config`/
+`core`/`editor`) in a live browser session: `hideroot=1` shows exactly the
+expected single subtree, `hideroot=2` shows exactly the expected 4
+parallel roots with zero boxes carrying the "center" highlight class, the
+breadcrumb reads correctly at each level, the slider's own `max`/value/
+disabled-state track real state, Up decrements instead of walking to a
+parent, Root resets both axes, double-click on a forest-root box exits
+forest mode and centers on it, a direct `#hideroot=2` link opens correctly
+on a fresh load, the live-search override interrupts forest mode
+mid-keystroke and Enter commits it permanently, and Deps/Calls/other views
+are unaffected (slider hidden, `layoutModules`'s own single-seed behavior
+unchanged). No console errors at any step. No new `TESTS/*_spec.lua` file
+— same "html.lua's embedded client-side JS has no direct Lua test
+coverage" precedent every other Hierarchy-view feature this session has
+already noted.
