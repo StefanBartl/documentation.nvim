@@ -69,6 +69,26 @@ what that tab renders, for this repo.
   this file follows), [`docs/PIPELINE.md`](../PIPELINE.md) "Features tab"
   section.
 
+## Promoted feature tabs
+
+A `- **Tab:** true` bullet promotes one feature out of the Features catalog
+above and into a real top-level tab of its own, built dynamically at page
+load. Everything after the metadata block — headings, fenced code, lists,
+paragraphs, inline `` `code` ``/**bold**/*italic*/links — renders through a
+small Markdown subset instead of just being linked out to. This entry is
+the recursive case again, one level deeper: "Module Calls view" above this
+one in the same file *is* promoted, so the tab it names is currently
+rendering the bullet you are reading right now.
+
+- **Module:** `core/features.lua` (`parse_body`'s `body_start_idx`),
+  `core/render/html.lua` (`buildPromotedTabs`, `drawFeatureTab`,
+  `renderFeatureBody`)
+- **Config:** none — the `Tab: true` bullet is per-feature, not a global
+  option.
+- **Docs:** [`docs/FEATURES_FORMAT.md`](../FEATURES_FORMAT.md) "Promoting a
+  feature to its own tab" section, [`docs/PIPELINE.md`](../PIPELINE.md)
+  "Promoting a feature to its own tab" section.
+
 ## External call/plugin visibility
 
 The Deps view's external box answers *why* a dependency is there, not just
@@ -94,6 +114,7 @@ modules draw one arrow labelled "5 calls" instead of five overlapping ones —
 a require graph already answers "does A depend on B", this answers "how
 much". Same `+ external` toggle, direction and depth axes as Deps.
 
+- **Tab:** true
 - **Module:** `core/render/html.lua` (`layoutModuleCalls`,
   `addModuleCallExternals`)
 - **Config:** none — call-graph resolution runs unconditionally in `scan()`
@@ -101,3 +122,40 @@ much". Same `+ external` toggle, direction and depth axes as Deps.
   is available on every generated map.
 - **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Module Calls: weighted
   alternative to Calls" section.
+
+### Why weight, not just an edge
+
+A require graph already draws an arrow for "A depends on B" — a binary
+fact. What it cannot say is whether that dependency is load-bearing or a
+single forgotten call from three years ago. Module Calls exists for
+exactly that gap: two modules connected by one call and by forty calls
+look identical on a Deps diagram, and very different on this one.
+
+### Edge weight, visually
+
+Stroke width is `min(1.5 + log2(weight) * 1.1, 7)` pixels, applied as an
+inline style rather than an SVG `stroke-width` attribute — the page's own
+`.hedge{stroke-width:1.5}` CSS rule would otherwise win over a presentation
+attribute and silently flatten every edge back to the same width.
+
+```
+weight  1 -> 1.5px
+weight  2 -> 2.6px
+weight  5 -> 4.0px
+weight 20 -> 6.1px
+weight 64+ (capped) -> 7.0px
+```
+
+Log-scaled on purpose: a linear mapping would let one outlier pair (a
+config module calling `vim.notify` forty times) dwarf every other,
+genuinely interesting difference into invisibility.
+
+### Why a view, not its own tab
+
+The roadmap item this shipped for ("Gewichtete Alternativ-Ansicht des
+Call-Graphen") asked for a dedicated tab. Built instead as a sixth
+Hierarchy view, reusing the zoom/pan/hide-dim/context-menu/SVG-export
+machinery every other view already has — decided with the repo owner on
+the grounds that this view is exactly as centered-on-a-node, directed and
+depth-limited as Deps already is, and a new tab would have meant either
+duplicating that machinery or generalizing it for one caller.

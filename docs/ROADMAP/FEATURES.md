@@ -1886,3 +1886,136 @@ committed `scripts/gen_map.lua` for the reproducibility reason above.
 `TESTS/calls_external_spec.lua` and `TESTS/external_repos_spec.lua` cover
 both halves with fixtures, including the wrong-guess-corrected-by-
 `local_path` case directly.
+
+## Module Calls — a sixth Hierarchy view, weighted (2026-08-10)
+
+The largest remaining "Hoch" roadmap item: a weighted, module-to-module
+alternative to the existing per-function Calls view. Same `kind="call"`
+edges, collapsed by shared-reference edge objects (`moduleCallOut[from]`
+and `moduleCallIn[to]` for a pair point at the *same* object, so
+incrementing `.weight` once when a new call edge is processed updates
+whichever adjacency list a walk finds it from), self-edges (two functions
+in one file calling each other) dropped since a module graph has nothing
+to say about a module calling itself. `layoutModuleCalls`/
+`addModuleCallExternals` in `core/render/html.lua`, modelled directly on
+the existing `layoutDeps`/`addExternals` — the same `+ external` toggle,
+direction and depth axes, sourced from `node.calls_external` (built the
+session before this one) rather than `requires_external`, summed per
+(node, module) pair since a module can call several distinct functions in
+the same external module where `requires_external` is already a
+deduplicated module list.
+
+**Shipped as a view, not the tab the roadmap item's own text asked for.**
+"Gewichtete Alternativ-Ansicht des Call-Graphen, eigener Tab" said
+"verdient einen eigenen Tab statt eine Erweiterung des bestehenden
+Hierarchy-Tabs" — deserves its own tab, not an extension of the existing
+Hierarchy tab. Raised with the user before implementing (design decisions
+1–4 below all confirmed via `AskUserQuestion`) and built as a sixth
+Hierarchy view instead, on the grounds that the view is exactly as
+centered-on-a-node/directed/depth-limited as Deps already is, and a new
+tab would have meant either duplicating the existing zoom/pan/hide-dim/
+context-menu/SVG-export machinery for one caller or generalizing it — the
+roadmap item's own literal wording is deliberately not what shipped, with
+the user's explicit approval. Confirmed via two rounds of questions:
+(1) module-to-module aggregated edges, weight = underlying call count, not
+function-to-function; (2) external modules included as nodes in the same
+graph; (3) a view inside Hierarchy, not a new tab; (4) the same In/Out/Both
+toggle and depth control the other directed views already have.
+
+**Weight, drawn.** `stroke-width = min(1.5 + log2(weight) * 1.1, 7)`,
+applied via `path.style.strokeWidth` — an inline style, not a
+`stroke-width` presentation attribute, because the page's own
+`.hedge{stroke-width:1.5}` CSS class rule would silently win over the
+latter and flatten every edge back to the same width. Log-scaled so one
+outlier pair does not compress every other, genuinely interesting weight
+difference into visual noise.
+
+**A real corruption caught in passing, not by any test.** A literal NUL
+byte had landed inside a string concatenation (`e.from + "\x00" + e.to`
+instead of `"\x20"`) during editing — found via `grep`'s own "binary file
+matches" warning on a `.lua` file that should never trigger one, not by
+any test or lint (Lua permits embedded NUL bytes inside a string literal,
+so `loadfile` alone would not have caught it; the two module-pair keys it
+produced would still have been syntactically valid, just silently
+wrong — a phantom pair that could never match a real edge). Fixed with a
+byte-level Python pass, re-verified with `loadfile` and the full CI suite
+afterward.
+
+Verified against this repo's own real call graph (511 call edges, one node
+with three distinct external modules called) in a live browser session:
+edge weights/labels/stroke-widths correct, external-box aggregation
+correct, `dir=both&depth=3` widened the graph correctly, URL-hash
+round-tripped through a manual `hashchange` dispatch, no console errors,
+Deps/Calls views unaffected by the shared edge-processing loop's
+extension. No new `TESTS/*_spec.lua` file — consistent with the
+established precedent that `html.lua`'s embedded client-side JS has no
+direct Lua test coverage anywhere in this project; `docs/PIPELINE.md`'s own
+"Module Calls: weighted alternative to Calls" section is the design
+writeup this entry compresses.
+
+## Promoting a feature to its own tab — `Tab: true` (2026-08-10)
+
+A `docs/FEATURES/` author can now mark one feature especially
+important with `- **Tab:** true` and get it a real top-level tab instead
+of a card in the Features catalog — dynamically registered at page load
+(`buildPromotedTabs`), not baked into the nine tabs' static markup.
+`core/features.lua`'s `parse_body` gained a third return value,
+`body_start_idx` (where the metadata run ended), so a promoted feature's
+entire post-metadata section — headings, fenced code, lists, paragraphs —
+can be captured as `entry.body` and rendered through a small new
+client-side Markdown subset (`renderFeatureBody`/`inlineMd`): the same
+"cheap reliable reading beats a general one" discipline the parser itself
+already follows, deliberately not CommonMark (no tables, blockquotes,
+images, nested/ordered lists, raw HTML).
+
+**Gated on real usage first, then built anyway.** The roadmap item's own
+text said this was "erst sinnvoll zu bewerten, wenn `docs/FEATURES/` in
+echten Repos genutzt wird und sich zeigt, ob der Bedarf real ist" — only
+worth evaluating once real repos show the need. At the time this shipped,
+only this repo's own dogfooded `docs/FEATURES/` used the convention at
+all. Put to the user explicitly before starting (`AskUserQuestion`); the
+answer was to build it now rather than wait.
+
+**A real bug in this entry's own drafting, corrected before it shipped.**
+The first cut of this design added a caveat — "requires at least one
+metadata bullet, or the body is silently folded into a flattened summary"
+— that does not describe anything reachable: `- **Tab:** true` is *itself*
+a bullet, so a promoted feature always has at least one, and the
+zero-bullet fallback the caveat warned about is `core/features.lua`'s
+behavior for an *unpromoted* feature with no bullets at all, never a
+promoted one. Caught by writing a throwaway fixture and reading the
+parser's real output before finalizing the docs (three shapes: a
+Tab-only bullet with nothing else, Tab plus a body, Tab plus another
+bullet with no trailing body) — `body` is `nil` exactly when nothing
+follows the metadata block, a real state and not a limitation. The three
+fixtures became `TESTS/features_spec.lua`'s own coverage once confirmed
+correct, and the type doc comment and code comment that repeated the
+same wrong claim were fixed alongside the prose.
+
+**A sharp edge in this file's own architecture, hit and fixed while
+writing the link-rendering regex.** The whole embedded client-side script
+lives inside one Lua `[[...]]` long string, which ends at the first
+literal `]]` it finds. `[^\]]` (the ordinary way to write "not a closing
+bracket" in a regex) contains exactly that byte pair and silently
+truncated the script mid-file — caught immediately by the Lua syntax
+check, not shipped. Fixed with `[^\x5d]`, a hex escape for the same
+character with no adjacent brackets in the source text.
+
+Dropped from the Features catalog entirely once promoted (`drawFeatures`
+filters `entry.tab` out of both the card list and its counts). A stale
+promoted-tab link (the feature renamed, un-promoted, or its theme file
+deleted since the link was made) falls back to the Features catalog rather
+than leaving the page blank — checked in `applyState` against the live
+`collectPromotedFeatures()` list before anything else runs.
+
+Dogfooded on this repo's own "Module Calls view" entry in
+`docs/FEATURES/CORE.md` (the entry directly above this one in git blame,
+promoted the same session it shipped) and verified end-to-end in a live
+browser: the tab button appears in the right position with the right
+label, its content renders headings/paragraphs/a fenced block/inline code
+correctly, the card list drops to 11 and its own file's count reflects the
+exclusion, a direct `#tab=feature-module-calls-view` link opens correctly
+on a fresh load, and an invalid `feature-` slug redirects to the Features
+catalog with exactly one `.view` panel active. `TESTS/features_spec.lua`
+covers the parser; the client-side renderer has the same "no direct Lua
+test coverage" precedent noted in the Module Calls entry above.

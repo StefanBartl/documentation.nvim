@@ -97,6 +97,7 @@ end
 ---@param end_idx integer
 ---@return string|nil summary
 ---@return Documentation.Features.Meta[] meta
+---@return integer|nil body_start_idx The line right after the metadata run ended — where a `Tab: true` feature's rich body begins. `nil` when the run never started (no bullets at all; see `parse_file`'s promoted-feature handling for what that means for `body`).
 local function parse_body(lines, start_idx, end_idx)
   local summary_parts = {}
   ---@type Documentation.Features.Meta[]
@@ -104,6 +105,7 @@ local function parse_body(lines, start_idx, end_idx)
   -- "before" the first bullet, "in" a contiguous bullet run, or "after" one
   -- that has ended — once "after", every remaining line is inert.
   local state = "before"
+  local body_start_idx = nil
 
   for i = start_idx, end_idx do
     local raw = lines[i]
@@ -122,16 +124,18 @@ local function parse_body(lines, start_idx, end_idx)
         meta[#meta + 1] = { key = key, value = value }
       elseif trimmed == "" then
         state = "after"
+        body_start_idx = i + 1
       elseif raw:match("^%s") then
         local last = meta[#meta]
         last.value = last.value .. " " .. trimmed
       else
         state = "after"
+        body_start_idx = i
       end
     end
   end
 
-  return (#summary_parts > 0 and table.concat(summary_parts, " ") or nil), meta
+  return (#summary_parts > 0 and table.concat(summary_parts, " ") or nil), meta, body_start_idx
 end
 
 ---One theme file: `# Title` + intro prose (optional) before the first `##`,
@@ -172,8 +176,52 @@ local function parse_file(path, rel, theme)
   local entries = {}
   for i, h in ipairs(headings) do
     local end_idx = (headings[i + 1] and headings[i + 1].line - 1) or #lines
-    local summary, meta = parse_body(lines, h.start_idx, end_idx)
-    entries[#entries + 1] = { name = h.name, line = h.line, summary = summary, meta = meta }
+    local summary, meta, body_start_idx = parse_body(lines, h.start_idx, end_idx)
+
+    -- `Tab: true` is a control directive, not something a reader wants to
+    -- see rendered as an ordinary "Tab: true" metadata row — pulled out of
+    -- `meta` here rather than filtered client-side, so the IR never carries
+    -- a bullet the page is going to hide again.
+    local tab = false
+    ---@type Documentation.Features.Meta[]
+    local visible_meta = {}
+    for _, m in ipairs(meta) do
+      if m.key:lower() == "tab" and m.value:lower() == "true" then
+        tab = true
+      else
+        visible_meta[#visible_meta + 1] = m
+      end
+    end
+
+    -- The rich body only exists for a promoted feature — a card never
+    -- renders it, so there is no reason to carry it for every other feature
+    -- in the tree. `body_start_idx` is only ever nil here because `tab`
+    -- itself is a bullet (see the loop above): a promoted feature always
+    -- has at least one, so `parse_body` never falls back to folding the
+    -- whole section into `summary` the way a truly bullet-less feature
+    -- would. `body` stays nil when nothing actually follows the metadata
+    -- block — a promoted feature can be title+summary+metadata only, same
+    -- as an ordinary card; that's a real state, not a parse failure.
+    local body = nil
+    if tab and body_start_idx and body_start_idx <= end_idx then
+      local body_lines = {}
+      for li = body_start_idx, end_idx do
+        body_lines[#body_lines + 1] = lines[li]
+      end
+      local joined = table.concat(body_lines, "\n"):match("^%s*(.-)%s*$")
+      if joined ~= "" then
+        body = joined
+      end
+    end
+
+    entries[#entries + 1] = {
+      name = h.name,
+      line = h.line,
+      summary = summary,
+      meta = visible_meta,
+      tab = tab,
+      body = body,
+    }
   end
 
   return { path = rel, theme = theme, intro = intro, entries = entries }

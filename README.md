@@ -118,10 +118,13 @@ one — one card per `## Feature` section, its summary and whatever
 or anything else; there is no fixed vocabulary). An index over hand-written
 prose, not a Markdown viewer — a `Module:` bullet that resolves to a real
 node links straight into the Tree tab, the rest of the file stays exactly
-where the author put it. See
+where the author put it. A `- **Tab:** true` bullet promotes the rare,
+especially-important feature out of the card list entirely and into its own
+top-level tab, with everything after its metadata rendered through a small
+Markdown subset instead of just linked out to. See
 [`docs/FEATURES_FORMAT.md`](docs/FEATURES_FORMAT.md) for the format this
 tab reads, and this repository's own [`docs/FEATURES/`](docs/FEATURES) for
-a real (if deliberately small) example.
+a real (if deliberately small) example — including one promoted feature.
 
 ## Installation
 

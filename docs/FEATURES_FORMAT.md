@@ -117,21 +117,81 @@ tab treats them specially when present:
 | `Module` | If the value contains (or is) a path this repo's own scan recognizes, the row links straight to that node in the Tree tab — the same resolution `:DocMap why`'s module-name matching already does, not a new one. |
 | `Keymaps` / `Usercmds` / `Autocmds` | Rendered as-is; not cross-resolved against `docs/BINDINGS.md`'s own rows (which have no per-row anchors to resolve *to* — see "What this deliberately does not do" below). Write these as a normal Markdown link to `../BINDINGS.md#keymaps`/`#user-commands`/`#autocommands` yourself if you want a click-through; the tab only renders the link, it does not invent one. |
 | `Config` | Rendered as-is. No cross-check against `config/DEFAULTS.lua` — that would mean parsing Lua defaults generically across every consuming plugin's own shape, a real feature and not this one. |
+| `Tab` | `- **Tab:** true` promotes the feature to its own top-level tab instead of a card in the Features catalog — see "Promoting a feature to its own tab" below. Any other value is ignored (the feature stays an ordinary card); this is the one key consumed rather than displayed, so it never shows up as a "Tab: true" row either way. |
+
+---
+
+## Promoting a feature to its own tab
+
+Session 2026-08-10. For the very few features important enough to deserve
+more than a card — `- **Tab:** true` on its own line, anywhere in the
+metadata block, gets a feature a dedicated tab in the generated page instead
+of an entry in the Features catalog:
+
+```markdown
+## Undo-safe bulk rename
+
+Renames a module and every `require` that points at it in one atomic
+operation, with a single `u` undoing the whole thing.
+
+- **Tab:** true
+- **Module:** `core/rename.lua` (`M.run`)
+
+### Why atomic matters
+
+A rename that touched files one at a time left a tree that would not load
+if interrupted halfway — a `require` pointing at a path that had already
+moved. ...
+```
+
+**Everything after the metadata block is the tab's own content**, rendered
+with a small Markdown subset — `#`.."######" headings, fenced ` ``` ` code
+blocks, `-`/`*` bullet lists, paragraphs, and inline `` `code` ``/
+**bold**/*italic*/`[text](url)`. Not understood: tables, blockquotes,
+images, nested or ordered lists, raw HTML. This is still the same "cheap
+reliable reading beats a general one" discipline the rest of this format
+follows (see the intro above) — not a CommonMark implementation, and not
+meant to become one. A feature whose write-up genuinely needs a table or an
+image is better served by a real doc page this tab's body links out to (a
+normal Markdown link in the body text) than by growing the renderer to
+match one write-up's needs.
+
+**No body is a real state, not a parse failure.** A promoted feature with
+nothing after its metadata block — `- **Tab:** true` and maybe a `Module`
+line, then straight into the next `## `  — gets a tab with just its title,
+summary and metadata, no rendered body section. `- **Tab:** true` is itself
+a bullet, so this never runs into the "no bullets at all" case the ordinary
+summary/metadata split (see "The shape" above) has to worry about: a
+promoted feature always has at least the one bullet that promoted it.
+
+**Dropped from the Features catalog entirely**, not shown as both a card
+and a tab — the whole point of promoting one is that it no longer needs
+the card. If every feature in a theme file is promoted, that file's own
+section of the catalog says so rather than rendering empty.
+
+**No cap on how many can be promoted.** The roadmap item this format ships
+for is explicit that this is "for very few, especially important features"
+— a convention to follow, not a limit the parser enforces. A repo that
+promotes a dozen features gets a dozen extra tabs and a wide tab bar; that
+is a documentation-discipline problem for the repo, not a parser error.
 
 ---
 
 ## What this deliberately does not do
 
-- **No full Markdown rendering.** The Features tab is an index — theme,
-  feature name, summary, metadata — the same shape the Plugins and Tools
-  Analysis panels already are, not a prose viewer. Anything written in a
-  theme file *after* the metadata bullets (a longer example, a
-  troubleshooting section) stays in the file; the tab links out to it
-  (`srcUrl`-resolved the same way every other source link on the page is)
-  rather than re-rendering it. A plugin that already writes full
+- **No full Markdown rendering — in the catalog.** The Features tab is an
+  index — theme, feature name, summary, metadata — the same shape the
+  Plugins and Tools Analysis panels already are, not a prose viewer.
+  Anything written in a theme file *after* the metadata bullets (a longer
+  example, a troubleshooting section) stays in the file; the tab links out
+  to it (`srcUrl`-resolved the same way every other source link on the page
+  is) rather than re-rendering it. A plugin that already writes full
   `color_my_ascii.nvim`-style manual pages loses nothing — the tab still
   extracts name/summary/metadata from the top of each `##` section and
-  links to the rest.
+  links to the rest. A **promoted** feature (`- **Tab:** true`) is the one
+  exception — see "Promoting a feature to its own tab" above — and even
+  there it is a small, deliberately bounded Markdown *subset*, not the real
+  thing.
 - **No per-row anchors into `docs/BINDINGS.md`.** GitHub-flavored Markdown
   does not anchor individual table rows, only headings — `docs/BINDINGS.md`
   as generated by `bindings/docs.lua` has exactly three anchors
