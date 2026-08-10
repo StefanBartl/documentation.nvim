@@ -1640,6 +1640,21 @@ second. Found by curling a real join against this tree's own
 self-instrumentation rather than trusting the code read alone — see
 `docs/ROADMAP/FEATURES.md`'s own entry for the full account.
 
+Once `runtime-analysis.nvim` shipped named snapshots (`telemetry.snapshot()`
+et al., its own docs/ROADMAP.md §4.5), the panel gained a picker —
+"Snapshot:" (Latest plus every saved capture) and, once at least one exists,
+"Compare vs:" — that switches it into an A/B diff table (Function/A/B/Δ) via
+the same `GET /api/telemetry`, now accepting an optional `?snapshot=<name>`,
+plus a new `GET /api/telemetry/snapshots` the picker populates from. Not
+built on the generic Compare tab's marking mechanism, despite an earlier
+design note assuming it would be — `CMP_ROWS` compares *static* IR
+attributes of a marked function/module, which has no time axis at all, and
+a snapshot comparison needed exactly that axis. A dedicated view inside the
+Telemetry panel, not a strained reuse — see `docs/ROADMAP/FEATURES.md`'s
+own entry for the full reasoning, including a real Lua-syntax bug this
+caught before it shipped (a `[[...]]` array-literal pair closing with two
+adjacent `]` inside the file's own `[[ ... ]]` client-script string).
+
 ## Features tab
 
 A repo's own `docs/FEATURES/` (or `docs/features/`) folder, when it has one

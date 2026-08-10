@@ -309,21 +309,27 @@ local function route_commit(cfg, client, sha)
   )
 end
 
----`GET /api/telemetry` — the current `runtime-analysis.telemetry` join for
----the Analysis -> Telemetry panel, always the latest aggregate.
+---`GET /api/telemetry[?snapshot=<name>]` — the `runtime-analysis.telemetry`
+---join for the Analysis -> Telemetry panel. No `snapshot` (or an empty one):
+---the live/latest aggregate, unchanged from before named snapshots existed.
+---`snapshot=<name>`: that exact named capture instead — `runtime-analysis.
+---nvim` §4.5, `telemetry.load_snapshot`, read fresh from disk the same way
+---the latest aggregate already is.
 ---
 ---Unlike `route_commit` above, nothing here touches git: telemetry is not a
----revision, it is "whatever this namespace's counts are right now",
----read straight off disk on every request (`telemetry_join.load`, no live
----instance required) — the whole reason this stays a server route instead
----of a field on `IR`, see `core/render/html.lua`'s client-side comment for
----the `--check` determinism argument. Every "nothing to show" case answers
----200 with `available: false` and a `reason`, never an HTTP error: absence
----of telemetry data is a normal outcome here exactly as `telemetry_join.lua`
+---revision, it is "whatever this namespace's counts are right now" (or, for
+---a named snapshot, "whatever they were captured as"), read straight off
+---disk on every request — no live instance required for either case, the
+---whole reason this stays a server route instead of a field on `IR`, see
+---`core/render/html.lua`'s client-side comment for the `--check`
+---determinism argument. Every "nothing to show" case answers 200 with
+---`available: false` and a `reason`, never an HTTP error: absence of
+---telemetry data is a normal outcome here exactly as `telemetry_join.lua`
 ---itself insists it is everywhere else.
 ---@param cfg table
 ---@param client userdata
-local function route_telemetry(cfg, client)
+---@param query string Raw query string, `?`-prefixed, same shape `route_commits` already parses.
+local function route_telemetry(cfg, client, query)
   local telemetry_join = require("documentation.core.telemetry_join")
 
   local namespace = telemetry_join.namespace(cfg)
@@ -346,14 +352,55 @@ local function route_telemetry(cfg, client)
     )
   end
 
-  local data = telemetry_join.load(namespace)
-  if not data then
-    return respond(
-      client,
-      200,
-      "application/json",
-      vim.json.encode({ available = false, namespace = namespace, reason = "no data" })
-    )
+  -- `%%` first, `%+` second: a percent-encoded byte can itself decode to the
+  -- literal character `+`, and decoding that occurrence a second time as "a
+  -- space" would corrupt it — the standard `application/x-www-form-urlencoded`
+  -- ordering, same one every query-string decoder gets wrong by doing it the
+  -- other way round.
+  local raw_snapshot = query and query:match("[?&]snapshot=([^&]+)")
+  local snapshot_name = raw_snapshot
+    and raw_snapshot
+      :gsub("%%(%x%x)", function(h)
+        return string.char(tonumber(h, 16))
+      end)
+      :gsub("%+", " ")
+
+  local data
+  if snapshot_name and snapshot_name ~= "" then
+    local ok_telemetry, telemetry = pcall(require, "runtime-analysis.telemetry")
+    if not ok_telemetry then
+      return respond(
+        client,
+        200,
+        "application/json",
+        vim.json.encode({ available = false, namespace = namespace, reason = "no data" })
+      )
+    end
+    local ok_load, snap = pcall(telemetry.load_snapshot, namespace, snapshot_name)
+    data = ok_load and snap or nil
+    if not data then
+      return respond(
+        client,
+        200,
+        "application/json",
+        vim.json.encode({
+          available = false,
+          namespace = namespace,
+          snapshot = snapshot_name,
+          reason = "snapshot not found",
+        })
+      )
+    end
+  else
+    data = telemetry_join.load(namespace)
+    if not data then
+      return respond(
+        client,
+        200,
+        "application/json",
+        vim.json.encode({ available = false, namespace = namespace, reason = "no data" })
+      )
+    end
   end
 
   respond(
@@ -363,7 +410,50 @@ local function route_telemetry(cfg, client)
     vim.json.encode({
       available = true,
       namespace = namespace,
+      snapshot = snapshot_name,
       rows = telemetry_join.rows(ir, data),
+    })
+  )
+end
+
+---`GET /api/telemetry/snapshots` — every named snapshot for this project's
+---telemetry namespace, newest first. What the Telemetry panel's picker
+---populates from, before choosing one to pass as `route_telemetry`'s own
+---`snapshot=` query parameter.
+---@param cfg table
+---@param client userdata
+local function route_telemetry_snapshots(cfg, client)
+  local telemetry_join = require("documentation.core.telemetry_join")
+
+  local namespace = telemetry_join.namespace(cfg)
+  if not namespace then
+    return respond(
+      client,
+      200,
+      "application/json",
+      vim.json.encode({ available = false, reason = "no namespace" })
+    )
+  end
+
+  local ok_telemetry, telemetry = pcall(require, "runtime-analysis.telemetry")
+  if not ok_telemetry then
+    return respond(
+      client,
+      200,
+      "application/json",
+      vim.json.encode({ available = false, namespace = namespace, snapshots = {} })
+    )
+  end
+
+  local ok_list, list = pcall(telemetry.list_snapshots, namespace)
+  respond(
+    client,
+    200,
+    "application/json",
+    vim.json.encode({
+      available = true,
+      namespace = namespace,
+      snapshots = (ok_list and list) or {},
     })
   )
 end
@@ -443,7 +533,11 @@ local function handle(cfg, client, method, target)
   end
 
   if path == "/api/telemetry" then
-    return route_telemetry(cfg, client)
+    return route_telemetry(cfg, client, query)
+  end
+
+  if path == "/api/telemetry/snapshots" then
+    return route_telemetry_snapshots(cfg, client)
   end
 
   local sha_part = path:match("^/api/commit/(.+)$")
