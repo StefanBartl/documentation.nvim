@@ -112,6 +112,40 @@ last looked at):
    currently-open buffer's path — `send_markdown` accepts any string as a
    room key, but the routing from a URL to that key wasn't traced.
 
+### Per-tab "create PDF" export — deferred to a maturity pass (assessed 2026-08-10)
+
+*Should specific report-shaped tabs/usrcmds (a call graph, the Deps view,
+an Analysis panel...) get their own "create PDF" export, via
+pdfport.nvim?* Raised on the user's own personal roadmap, itself
+questioning the premise — "braucht man da pdfport.nvim, wenn man eh schon
+im Browser ist?" (do you even need pdfport.nvim there, given you're
+already in the browser?).
+
+**First-pass reading, not the final word.** Two existing mechanisms
+already cover most of what this could mean: `opts.pdf`
+(`M.write_pdf_artifact`) already converts the static `overview.md` through
+pandoc into `overview.pdf` — the one case where pdfport genuinely adds
+typesetting value over raw markdown — and the Hierarchy tab's diagrams
+already have `↓ SVG`, a client-side vector export with no server
+round-trip. Everything else the idea names (Analysis panels, tables) is
+plain HTML already on screen, where the browser's own Print → Save as PDF
+already produces a PDF of exactly the current view for free, with no new
+dependency.
+
+**Deliberately not closed out as a rejection.** That reading held up under
+a first pass, but the user's own call: revisit properly once the project
+reaches a mature/stable stage, with a real live walkthrough of every tab
+and usrcmd — not from this analysis alone — and note specifically where a
+"create PDF" affordance would earn its keep versus where Ctrl+P/`↓ SVG`
+already do the job. Keeping this open rather than filing it under
+"Deliberately not building" below, since the intent is a scheduled
+re-look, not a closed question.
+
+**What reopens it:** the project reaching that maturity/stable-feature
+point the user has in mind — not a specific technical trigger, since none
+was named. Whoever does that pass should start from this entry's own
+findings above rather than re-deriving them.
+
 ### Neotree source — feasible, and not worth it (assessed 2026-07-28)
 
 *Could this plugin be used as a source for Neotree (a module tree beside the
