@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**4 modules** · 5 namespaces · 74 helper files
+**4 modules** · 5 namespaces · 75 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -42,6 +42,7 @@ in both directions, with load-time and lazy requires told apart.
 ```mermaid
 flowchart LR
   nlua_documentation_bindings_autocmds_lua["documentation.bindings.autocmds"]
+  nlua_documentation_bindings_diagnostics_lua["documentation.bindings.diagnostics"]
   nlua_documentation_bindings_docs_lua["documentation.bindings.docs"]
   nlua_documentation_bindings_keymaps_lua["documentation.bindings.keymaps"]
   nlua_documentation_bindings_progress_lua["documentation.bindings.progress"]
@@ -145,6 +146,7 @@ flowchart LR
   nlua_documentation_editor_command_lua --> nlua_documentation_core_find_lua
   nlua_documentation_editor_health_lua --> nlua_documentation_bindings_autocmds_lua
   nlua_documentation_editor_health_lua --> nlua_documentation_core_telemetry_self_lua
+  nlua_documentation_editor_registry_lua --> nlua_documentation_bindings_diagnostics_lua
   nlua_documentation_editor_registry_lua --> nlua_documentation_editor_callhierarchy_lua
   nlua_documentation_editor_serve_lua --> nlua_documentation_core_history_lua
   nlua_documentation_editor_serve_lua --> nlua_documentation_editor_browse

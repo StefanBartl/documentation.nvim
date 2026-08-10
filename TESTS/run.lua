@@ -92,6 +92,7 @@ local specs = {
   "calls_external_spec.lua",
   "external_repos_spec.lua",
   "callhierarchy_spec.lua",
+  "diagnostics_spec.lua",
 }
 
 --- Straight to stdout rather than through `print`.

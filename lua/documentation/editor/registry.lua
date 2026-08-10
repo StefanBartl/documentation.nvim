@@ -19,7 +19,7 @@ local autocmd = require("lib.nvim.autocmd")
 
 local M = {}
 
----@type table<string, { opts: Documentation.Opts, ir: Documentation.IR, findings: Documentation.Finding[], watchers: fun(ir: Documentation.IR, findings: Documentation.Finding[])[], augroup: integer?, debounce: Lib.Debounce.Handle?, ch_augroup: integer?, handle: Documentation.Handle, rescan_fn: fun(opts?: table): Documentation.IR, Documentation.Finding[] }>
+---@type table<string, { opts: Documentation.Opts, ir: Documentation.IR, findings: Documentation.Finding[], watchers: fun(ir: Documentation.IR, findings: Documentation.Finding[])[], augroup: integer?, debounce: Lib.Debounce.Handle?, ch_augroup: integer?, diag_augroup: integer?, diag_unsub: (fun())?, handle: Documentation.Handle, rescan_fn: fun(opts?: table): Documentation.IR, Documentation.Finding[] }>
 local registry = {}
 
 ---@param root string
@@ -161,6 +161,57 @@ function M.ensure_callhierarchy(root)
   return true
 end
 
+---Publish `documentation.bindings.diagnostics` for this root: an initial
+---pass over every buffer already open under `source`, plus a live refresh
+---on every subsequent `on_change` (a watch-triggered rescan, or a manual
+---`:DocMap`) and on every later buffer open under `source` too.
+---
+---Unlike `ensure_watch`/`ensure_callhierarchy` above, this needs
+---`entry.handle` to exist *synchronously* at call time — `handle.on_change`
+---is subscribed to once, right here, not read lazily from inside a later
+---autocmd callback the way `ensure_callhierarchy`'s does — so `install()`
+---calls this only after `entry.handle` is actually built, not alongside
+---`watch`/`callhierarchy` above where the handle does not exist yet.
+---
+---Idempotent: called on a root already wired for this, or one that was
+---never installed, it does nothing.
+---@param root string
+---@return boolean wired True if diagnostics publishing is wired when this returns.
+function M.ensure_diagnostics(root)
+  root = norm_root(root)
+  local entry = registry[root]
+  if not entry or not entry.handle then
+    return false
+  end
+  if entry.diag_augroup then
+    return true
+  end
+
+  local opts = entry.opts
+  local source_dir = root .. "/" .. (opts.source or "lua")
+  local is_subpath = require("lib.nvim.fs.is_subpath")
+  local diagnostics = require("documentation.bindings.diagnostics")
+
+  diagnostics.publish(root, entry.handle)
+  entry.diag_unsub = entry.handle.on_change(function()
+    diagnostics.publish(root, entry.handle)
+  end)
+
+  local group = vim.api.nvim_create_augroup("LibDocmapDiagnostics:" .. root, { clear = true })
+  autocmd.create({ "BufReadPost", "BufNewFile" }, function(args)
+    local buf_path = vim.api.nvim_buf_get_name(args.buf)
+    if buf_path ~= "" and is_subpath(buf_path, source_dir) then
+      diagnostics.publish(root, entry.handle)
+    end
+  end, {
+    group = group,
+    pattern = "*.lua",
+  })
+
+  entry.diag_augroup = group
+  return true
+end
+
 ---Install a live handle for `opts.root`. Runs an initial scan immediately
 ---(synchronously — including the LuaLS shell-out if `opts.luals` is set, so
 ---a caller passing `luals = true` here is opting into that cost up front,
@@ -290,6 +341,10 @@ function M.install(opts)
   }
   entry.handle = handle
 
+  if opts.diagnostics then
+    M.ensure_diagnostics(root)
+  end
+
   return handle
 end
 
@@ -329,6 +384,13 @@ function M.uninstall(handle_or_root)
   if entry.ch_augroup then
     pcall(vim.api.nvim_del_augroup_by_id, entry.ch_augroup)
   end
+  if entry.diag_augroup then
+    pcall(vim.api.nvim_del_augroup_by_id, entry.diag_augroup)
+  end
+  -- `entry.diag_unsub` needs no explicit call: it is just one more entry in
+  -- `entry.watchers`, which the blanket clear below already drops. Existing
+  -- diagnostics on any buffer are left as they were, same posture as
+  -- call-hierarchy's own teardown note below.
   -- Stops *future* attachments only, same posture as `watch`'s own teardown
   -- above (which cancels the debounce but does not chase down an in-flight
   -- rescan): a buffer the call-hierarchy client already attached to keeps

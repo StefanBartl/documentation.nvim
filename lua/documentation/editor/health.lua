@@ -182,6 +182,12 @@ function M.check()
     "Call hierarchy (opts.callhierarchy) — no external dependency, set true on install() to attach it"
   )
 
+  -- Same posture as call hierarchy directly above: no external dependency,
+  -- nothing here that can be missing or broken.
+  h_ok(
+    "Diagnostics (opts.diagnostics) — no external dependency, set true on install() to publish findings as vim.diagnostic"
+  )
+
   local ok_self, telemetry_self = pcall(require, "documentation.core.telemetry_self")
   local self_instance = ok_self and telemetry_self.instance()
   if self_instance then
