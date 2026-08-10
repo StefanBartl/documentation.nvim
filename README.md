@@ -400,6 +400,7 @@ Repository-specific checks go in `opts.extra_checks`.
 |---|---|
 | [docs/PIPELINE.md](docs/PIPELINE.md) | Every stage, every design decision, and the measurement behind each one. |
 | [docs/COMMANDS.md](docs/COMMANDS.md) | `:DocMap` and `:DocBrowse`, subcommand by subcommand. |
+| [docs/WORKFLOW.md](docs/WORKFLOW.md) | Using it day to day: which panel answers which question, reading the Telemetry join's badges correctly, Trail vs filter vs fuzzy jump. |
 | [docs/REUSE.md](docs/REUSE.md) | Generating a map for your own plugin. |
 | [docs/PORTABILITY.md](docs/PORTABILITY.md) | Mapping a Lua project that is not a Neovim plugin — and what a Neovim-free port would actually cost. |
 | [docs/MULTILANG.md](docs/MULTILANG.md) | What supporting other languages would take, and how much of the code survives it. |
