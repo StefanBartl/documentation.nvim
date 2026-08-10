@@ -619,9 +619,9 @@ node it was centered on, since a shallow layer (the root has one box) sharing
 a horizontal axis with a much wider deeper layer means the centered node can
 sit thousands of pixels from the left edge on a large map.
 
-### The five views
+### The six views
 
-Toggled from the Hierarchy toolbar. Three of them are undirected structure, two
+Toggled from the Hierarchy toolbar. Three of them are undirected structure, three
 are directed graphs with a direction control of their own:
 
 | View | Boxes are | Edges are | Doxygen equivalent |
@@ -631,6 +631,7 @@ are directed graphs with a direction control of their own:
 | **Inheritance** | `@class` definitions that have a parent or a subclass | `kind="extends"` | Class hierarchy / inheritance diagram |
 | **Deps** | IR nodes | `kind="require"` | Include dependency graph |
 | **Calls** | individual **functions** | `kind="call"` | Caller / callee graph |
+| **Module Calls** | IR nodes | `kind="call"`, collapsed module-to-module and weighted | (no direct equivalent) |
 
 **Inheritance** is the one view that does *not* layer by distance from the
 centered object, and cannot: a module normally declares a base class and its
@@ -655,7 +656,7 @@ to the center. Doxygen makes the same choice.
 Depth defaults to 2. A require graph's neighbourhood grows far faster than a
 tree's, and `MAX_HNODES` alone would fill every diagram to the cap.
 
-**`+ external`** (Deps only) also draws the requires that resolve to nothing in
+**`+ external`** (Deps and Module Calls) also draws the requires that resolve to nothing in
 the scanned tree — other plugins, or anything outside `source`. They live in
 the IR as plain module strings on `node.requires_external`, never as invented
 nodes: the map only claims to describe what it scanned, and a box with no
@@ -689,6 +690,47 @@ through every box in between, so an edge whose target is not strictly below
 its source is routed out of the box's side and back in — and every directed
 view gets arrowheads, without which a same-layer edge says nothing about which
 way it points.
+
+### Module Calls: weighted alternative to Calls
+
+Roadmap item, Session 2026-08-10 (`docs/ROADMAP/FEATURES.md`). Calls answers
+"which function calls which" one function pair at a time; that is precise but
+does not summarize — reading a module's actual coupling to another module
+means eyeballing a dozen individual function-to-function edges and adding
+them up by hand. Module Calls is the same underlying `kind="call"` edge set,
+collapsed: every call edge between two functions in different modules feeds
+one shared edge object between their two *modules* (`from`/`to` = node id,
+not `fnKey`), and each additional call increments that edge's `weight`
+instead of drawing a second line. Two modules with five call sites between
+them get one arrow labelled "5 calls" and drawn measurably thicker, not five
+overlapping arrows indistinguishable from one.
+
+The roadmap item that asked for this ("Gewichtete Alternativ-Ansicht des
+Call-Graphen") specifically asked for its own tab, separate from Hierarchy.
+Implemented instead as a sixth Hierarchy *view* — same toolbar, same
+zoom/pan/hide-dim/context-menu/SVG-export machinery the other five views
+already have, reached via the same `#view=modulecalls` state axis as
+`deps`/`calls`. A new top-level tab would have meant either duplicating that
+machinery or generalizing it for one caller, for a view that is, structurally,
+exactly as centered-on-a-node/directed/depth-limited as Deps already is.
+Decided with the user; the roadmap entry was removed on implementation
+rather than left to describe an architecture the shipped feature doesn't use.
+
+Same `+ external` mechanism as Deps, sourced from `node.calls_external`
+instead of `node.requires_external` — the difference being that a module can
+call *several distinct functions* in the same external module, so weights
+are summed per (node, external module) pair before a box or edge exists for
+it, where Deps' `requires_external` is already a deduplicated list of module
+names with nothing to sum.
+
+Edge thickness is `Math.min(1.5 + Math.log2(weight) * 1.1, 7)` in
+`buildDefs`'s sibling edge-drawing loop, applied via `path.style.strokeWidth`
+— an *inline* style, not a `stroke-width` attribute, because the `.hedge`
+CSS rule (`stroke-width: 1.5`) is a class selector and wins over a
+presentation attribute on specificity, silently flattening every edge back
+to the same width. Log-scaled so one outlier pair (a config module calling
+`vim.notify` forty times) doesn't compress every other, genuinely
+interesting weight difference down to visually-identical hairlines.
 
 ### Functions are addressable
 
@@ -883,10 +925,10 @@ call edges, not a second traversal: every alias `deps.lua` bound to an
 external module (kept, where an earlier version threw it away the moment it
 decided the module was external) is joined against the same `calls_raw`
 callee text that already resolves `fs.read(x)`-shaped internal calls. Two
-call sites through the same alias count as 2. The Deps view's external box
-reads this straight off the already-serialized per-node field — client-side
-aggregation, the same "the counting already happened in Lua" pattern the
-Plugins Analysis panel uses.
+call sites through the same alias count as 2. Both the Deps view's external
+box and Module Calls' external box read this straight off the
+already-serialized per-node field — client-side aggregation, the same "the
+counting already happened in Lua" pattern the Plugins Analysis panel uses.
 
 **Where**, second — `opts.tag_files` (above) only resolves a module against
 *another `docmap`-shaped project's own committed artifact*. The far more

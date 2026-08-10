@@ -84,3 +84,20 @@ verified against a local checkout when you name one.
 - **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "External call/plugin
   visibility" section, [`docs/REUSE.md`](../REUSE.md) "GitHub links for
   third-party deps".
+
+## Module Calls view
+
+A sixth Hierarchy view alongside Modules/Types/Inheritance/Deps/Calls: the
+same `kind="call"` edges as Calls, collapsed from function-to-function to
+module-to-module and weighted by call count, so five call sites between two
+modules draw one arrow labelled "5 calls" instead of five overlapping ones —
+a require graph already answers "does A depend on B", this answers "how
+much". Same `+ external` toggle, direction and depth axes as Deps.
+
+- **Module:** `core/render/html.lua` (`layoutModuleCalls`,
+  `addModuleCallExternals`)
+- **Config:** none — call-graph resolution runs unconditionally in `scan()`
+  (unlike Types/Inheritance, it needs no LuaLS `--full` pass), so this view
+  is available on every generated map.
+- **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Module Calls: weighted
+  alternative to Calls" section.

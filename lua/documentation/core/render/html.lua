@@ -784,6 +784,15 @@ local JS = [[
   // (from_class = the child, to_class = the parent), so which end is "next"
   // depends on which map you came in through — see layoutInheritance.
   var extUp = {}, extDown = {}, extendsEdges = [];
+  // Module Calls view: the same "call" edges above, collapsed from
+  // function-to-function to module-to-module and counted, so five call
+  // sites between two modules draw one weighted edge, not five overlapping
+  // ones. Built by reference: `moduleCallOut[id]` and `moduleCallIn[id]`
+  // for a given pair share the *same* edge object, so incrementing
+  // `.weight` once updates whichever side a walk finds it from. Self-edges
+  // (two functions in the same file calling each other) are dropped — a
+  // module graph has nothing to say about a module calling itself.
+  var moduleCallOut = {}, moduleCallIn = {}, moduleCallEdgeByPair = {};
   function push(map, key, val){ (map[key] = map[key] || []).push(val); }
   (IR.edges || []).forEach(function(e){
     if(e.kind === "require"){
@@ -791,6 +800,17 @@ local JS = [[
     } else if(e.kind === "call"){
       push(callOut, fnKey(e.from, e.from_fn), e);
       push(callIn, fnKey(e.to, e.to_fn), e);
+      if(e.from !== e.to){
+        var pairKey = e.from + " " + e.to;
+        var mcEdge = moduleCallEdgeByPair[pairKey];
+        if(!mcEdge){
+          mcEdge = { from: e.from, to: e.to, weight: 0 };
+          moduleCallEdgeByPair[pairKey] = mcEdge;
+          push(moduleCallOut, e.from, mcEdge);
+          push(moduleCallIn, e.to, mcEdge);
+        }
+        mcEdge.weight++;
+      }
     } else if(e.kind === "type"){
       typeEdges.push(e);
     } else if(e.kind === "extends"){
@@ -1104,7 +1124,7 @@ local JS = [[
   // carrying dir/depth/view would be three pieces of noise in every link
   // anyone shares, and a Modules-view URL carrying `dir` would suggest a
   // control that view does not have.
-  function isGraphView(v){ return v === "deps" || v === "calls"; }
+  function isGraphView(v){ return v === "deps" || v === "calls" || v === "modulecalls"; }
 
   function serializeState(s){
     var parts = ["tab=" + encodeURIComponent(s.tab)];
@@ -1155,7 +1175,7 @@ local JS = [[
       }
       // Only when on, and only where it applies: an "ext=0" in every Deps
       // link would be noise in the common case.
-      if(s.view === "deps" && s.ext) parts.push("ext=1");
+      if((s.view === "deps" || s.view === "modulecalls") && s.ext) parts.push("ext=1");
       if(s.view === "calls" && s.fn) parts.push("fn=" + encodeURIComponent(s.fn));
       // Hierarchy-scoped, unlike `marks` below: a dimmed box only exists in
       // this tab, so a Tree-tab link carrying `hidden=` would name a control
@@ -2139,6 +2159,81 @@ local JS = [[
     return built;
   }
 
+  // Module Calls view: same shape as layoutDeps, but walking the
+  // module-to-module edges collapsed above (moduleCallOut/moduleCallIn)
+  // instead of per-function call edges — one weighted arrow per pair of
+  // modules rather than one per call site.
+  function layoutModuleCalls(startId, dir, maxDepth, showExternal){
+    var keyOf = { from: function(e){ return e.from; }, to: function(e){ return e.to; } };
+    var built = walk([startId], { out: moduleCallOut, in: moduleCallIn }, keyOf, dir, maxDepth,
+      function(k){ return !!byId[k]; });
+
+    var edges = [];
+    Object.keys(moduleCallEdgeByPair).forEach(function(key){
+      var e = moduleCallEdgeByPair[key];
+      if(built.included[e.from] === undefined || built.included[e.to] === undefined) return;
+      edges.push({
+        from: e.from, to: e.to,
+        cls: "hedge hedge-call",
+        marker: "call",
+        label: e.weight + " call" + (e.weight === 1 ? "" : "s"),
+        weight: e.weight
+      });
+    });
+    built.edges = edges;
+    if(showExternal) addModuleCallExternals(built, maxDepth);
+    return built;
+  }
+
+  // Same idea as addExternals, but sourcing node.calls_external — which,
+  // unlike requires_external, can have several entries per module (one per
+  // distinct member called), so weights are summed per (node, module) pair
+  // before boxes/edges are built.
+  function addModuleCallExternals(built, maxDepth){
+    var idModuleWeight = {};
+    Object.keys(built.included).forEach(function(id){
+      if(id.indexOf("ext:") === 0) return;
+      ((byId[id] || {}).calls_external || []).forEach(function(c){
+        var byMod = idModuleWeight[id] || (idModuleWeight[id] = {});
+        byMod[c.module] = (byMod[c.module] || 0) + c.count;
+      });
+    });
+
+    var depthOf = {};
+    Object.keys(idModuleWeight).forEach(function(id){
+      Object.keys(idModuleWeight[id]).forEach(function(mod){
+        var key = "ext:" + mod;
+        var d = built.included[id] + 1;
+        if(maxDepth > 0 && d > maxDepth) return;
+        if(depthOf[key] === undefined || d > depthOf[key]) depthOf[key] = d;
+      });
+    });
+
+    Object.keys(depthOf).sort().forEach(function(key){
+      if(built.count >= MAX_HNODES){ built.truncated = true; return; }
+      var d = depthOf[key];
+      while(built.layers.length <= d) built.layers.push([]);
+      built.layers[d].push(key);
+      built.included[key] = d;
+      built.count++;
+    });
+
+    Object.keys(idModuleWeight).forEach(function(id){
+      Object.keys(idModuleWeight[id]).forEach(function(mod){
+        var key = "ext:" + mod;
+        if(built.included[key] === undefined) return;
+        var weight = idModuleWeight[id][mod];
+        built.edges.push({
+          from: id, to: key,
+          cls: "hedge hedge-call external",
+          marker: "call",
+          label: weight + " call" + (weight === 1 ? "" : "s") + " to " + mod + " (outside this map)",
+          weight: weight
+        });
+      });
+    });
+  }
+
   function layerPositions(layers){
     var maxRowWidth = 0;
     layers.forEach(function(layer){
@@ -2247,7 +2342,7 @@ local JS = [[
     // The Deps view labels boxes by module path rather than directory name:
     // a require graph is read in module terms, and half this tree's
     // directories are called `init`-shaped things that are ambiguous alone.
-    var label = view === "deps" ? (n.module || n.name) : n.name;
+    var label = (view === "deps" || view === "modulecalls") ? (n.module || n.name) : n.name;
     return {
       cls: "hnode k-" + n.kind,
       title: n.summary || n.name,
@@ -2404,6 +2499,9 @@ local JS = [[
         ? '<p class="hmsg">None of ' + esc(center.name) + '’s functions call — or are called by — anything the scanner could resolve. Dynamic dispatch is invisible to it; see the module README.</p>'
         : '<p class="hmsg">' + esc(center.name) + ' declares no functions.</p>';
     }
+    if(view === "modulecalls"){
+      return '<p class="hmsg">' + esc(center.name) + ' has no resolved call edges to or from another module — either it doesn’t call across module boundaries, or nothing else calls into it.</p>';
+    }
     return '<p class="hmsg">Nothing to draw here.</p>';
   }
 
@@ -2419,7 +2517,7 @@ local JS = [[
     if(msg) msg.remove();
   }
 
-  var VIEWS = { modules: 1, types: 1, inheritance: 1, deps: 1, calls: 1 };
+  var VIEWS = { modules: 1, types: 1, inheritance: 1, deps: 1, calls: 1, modulecalls: 1 };
 
   // =====================================================================
   // Notes tab: Doxygen's Deprecated / Todo / Bug / Test lists.
@@ -3871,6 +3969,7 @@ local JS = [[
     else if(view === "inheritance") built = layoutInheritance(hcenter);
     else if(view === "deps") built = layoutDeps(hcenter, state.dir || "out", depth, !!state.ext);
     else if(view === "calls") built = layoutCalls(hcenter, wantFn, state.dir || "out", depth);
+    else if(view === "modulecalls") built = layoutModuleCalls(hcenter, state.dir || "out", depth, !!state.ext);
     else built = layoutModules(hcenter);
 
     if(built.count === 0){
@@ -3895,7 +3994,8 @@ local JS = [[
     }
 
     var suffix = { types: " · types", inheritance: " · inheritance",
-                   deps: " · deps", calls: " · calls" }[view] || "";
+                   deps: " · deps", calls: " · calls",
+                   modulecalls: " · module calls" }[view] || "";
     var focusFn = view === "calls" && wantFn;
     hpathEl.textContent = (focusFn ? wantFn.split("#")[1] + "  in  " : "") +
       (center.module || center.path) + suffix +
@@ -3947,6 +4047,14 @@ local JS = [[
       p.setAttribute("d", edgePath(a, b));
       p.setAttribute("class", e.cls);
       p.setAttribute("marker-end", "url(#m-" + (e.marker || "tree") + ")");
+      // Weighted edges (Module Calls) get a thicker stroke for more calls —
+      // log-scaled so one outlier pair doesn't flatten every other edge to a
+      // hairline. Set via inline style, not a `stroke-width` attribute: the
+      // `.hedge{stroke-width:1.5}` CSS rule would win over a presentation
+      // attribute but not over an inline style.
+      if(e.weight){
+        p.style.strokeWidth = String(Math.min(1.5 + Math.log2(e.weight) * 1.1, 7));
+      }
       p.dataset.from = e.from;
       p.dataset.to = e.to;
       if(e.label){
@@ -4284,11 +4392,11 @@ local JS = [[
     var show = isGraphView(s.view) ? "" : "none";
     document.getElementById("hdir").style.display = show;
     document.getElementById("hdepth").style.display = show;
-    // External requires exist only in the Deps view; the Calls view has no
-    // equivalent, since a call into a module the map never scanned leaves no
-    // resolvable name behind to draw.
+    // External requires/calls exist only in Deps and Module Calls; the
+    // per-function Calls view has no equivalent, since a call into a module
+    // the map never scanned leaves no resolvable name behind to draw.
     var hext = document.getElementById("hext");
-    hext.style.display = s.view === "deps" ? "" : "none";
+    hext.style.display = (s.view === "deps" || s.view === "modulecalls") ? "" : "none";
     hext.classList.toggle("active", !!s.ext);
   }
 
@@ -5335,6 +5443,7 @@ function M.render(ir, findings, opts)
     '<button class="hview-btn active" data-view="modules">Modules</button>',
     '<button class="hview-btn" data-view="deps">Deps</button>',
     '<button class="hview-btn" data-view="calls">Calls</button>',
+    '<button class="hview-btn" data-view="modulecalls" title="Module-to-module call graph, weighted by call count">Module Calls</button>',
     '<button class="hview-btn" data-view="types">Types</button>',
     '<button class="hview-btn" data-view="inheritance">Inheritance</button>',
     "</div>",
@@ -5353,7 +5462,7 @@ function M.render(ir, findings, opts)
     '<button class="hdepth-btn" data-depth="0" title="Unbounded, still capped at 90 boxes">∞</button>',
     "</div>",
     '<div class="hview-toggle" id="hext">',
-    '<button class="hext-btn" title="Also draw requires that resolve outside this map">+ external</button>',
+    '<button class="hext-btn" title="Also draw requires/calls that resolve outside this map">+ external</button>',
     "</div>",
     '<button id="hzoomreset" title="Reset zoom to 100% (or press 0)">⌕ 100%</button>',
     '<span class="hzoom" id="hzoomlabel">100%</span>',

@@ -75,18 +75,21 @@ invisible to every other panel — and **tools**: this repo's own
 (`docs/install.json`/`docs/INSTALL.md`), declared only — never a live
 "is this installed here" probe, since a static page has no host to ask.
 
-The Hierarchy tab draws five graphs over the same IR — **Modules** (directory
+The Hierarchy tab draws six graphs over the same IR — **Modules** (directory
 hierarchy), **Types** (`@class`/`@alias` collaboration), **Inheritance**,
-**Deps** (the require graph) and **Calls** (function-level caller/callee) —
-with direction and depth controls, semantic zoom, right-click navigation and
-real browser Back/Forward. Right-click any box to dim it (a "Hidden (N) —
-show all" pill clears them), shareable via the URL the same way marks are —
-noise-reduction for a large tree, not a structural re-layout.
+**Deps** (the require graph), **Calls** (function-level caller/callee) and
+**Module Calls** (the same call graph collapsed module-to-module, edges
+weighted by call count) — with direction and depth controls, semantic zoom,
+right-click navigation and real browser Back/Forward. Right-click any box to
+dim it (a "Hidden (N) — show all" pill clears them), shareable via the URL
+the same way marks are — noise-reduction for a large tree, not a structural
+re-layout.
 
-The Deps view's `+ external` toggle answers *why* a dependency is there, not
-just that it is: each external box's tooltip breaks down exactly which
-functions were actually called and how often (`plenary.async.run (2×)`),
-counted from the same call-resolution pass as the internal call graph — no
+The Deps and Module Calls views' `+ external` toggle answers *why* a
+dependency is there, not just that it is: each external box's tooltip
+breaks down exactly which functions were actually called and how often
+(`plenary.async.run (2×)`), counted from the same call-resolution pass as
+the internal call graph — no
 second traversal. `opts.external_repos` turns the box into a working GitHub
 link too, verified against a local checkout when you name one (`opts.tag_files`
 does the same for another `docmap`-shaped project's own committed map).
