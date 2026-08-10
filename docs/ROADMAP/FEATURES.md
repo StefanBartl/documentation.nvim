@@ -1809,3 +1809,66 @@ existed, since the moment it shipped. Caught here by checking
 that `scan_full` setting the field was the whole story — the same category
 of mistake the comment thread already named, now stated a third time in
 `M.render` itself so a fourth field does not repeat it.
+
+## External call/plugin visibility — `node.calls_external` + `opts.external_repos` (2026-08-10)
+
+Two problems the roadmap named together, because they turned out to share
+one join and one table: *why* is a dependency here (which of its functions
+does the tree actually call), and *where* is its source, since it's outside
+the scan by definition.
+
+**The "why" half cost no second traversal.** `core/deps.lua` already threw
+the alias away the moment it decided a required module was external —
+`deps.build` kept only the module string, for `requires_external`.
+`core/calls.lua` extends the exact same alias-building pass with the
+negative case (`external_aliases`, built alongside the existing internal
+`aliases` from the same `node.requires_raw` loop) and joins it against the
+same `calls_raw` callee text that already resolves `fs.read(x)`-shaped
+internal calls — `node.calls_external`, counted, not just detected. Both the
+alias-bound shape (`local async = require("plenary.async"); async.run(x)`)
+and the inline shape (`require("plenary.job").new(x)`) resolve, mirroring
+the two internal-call shapes `calls.lua` already recognized.
+
+**The "where" half needed new user configuration, and there was no way
+around that.** Researched before writing anything: no mapping from a bare
+namespace (`"plenary"`) to a GitHub `owner/repo` exists anywhere this plugin
+can already see. `core/plugins.lua`'s lazy.nvim spec extraction looked like
+a candidate — it does parse real `"owner/repo"` strings — but only fires
+when scanning a Neovim *config* repo that declares the dependency, never the
+dependency's own plugin repo, which is the actual shape this feature is for
+("plenary is a dependency of *this plugin*"). `opts.external_repos` is a new
+sibling to `opts.tag_files`, resolving into the identical `ir.tag_links`
+table (never overwriting an entry `tag_files` already set) so the existing
+`boxSpec`/click-handling code needed zero new UI to consume it.
+
+**A guessed link, corrected mid-build by real data.** The first version
+guessed `<lua_root>/<module path>.lua` unconditionally — right for this
+repo's own layout, wrong for `lib.nvim`'s: verified against a real checkout
+while building this, `lib.nvim` uses the `<module>/init.lua` directory shape
+almost everywhere (`autocmd/init.lua`, `fs/read/init.lua`, `deps/spec/init.lua`,
+...), and a flat-only guess got every single one of them wrong. Fixed with
+an optional `local_path`: when given, both shapes are checked against the
+real checkout on disk (`uv.fs_stat`, not a network call — `scan_full()`/
+`--check` stay exactly as offline as `tag_files`'s own local-path resolution
+already is), verified correct against three real `lib.nvim` modules
+end-to-end afterward. Flagged explicitly in both the module header and
+`docs/PIPELINE.md`: `local_path` must not vary between where a repo is
+regenerated and where its `--check` runs (CI, typically), or the resolved
+path shape becomes an irreproducible part of the committed artifact —
+exactly the failure mode `tag_files`'s own "local paths only" design
+already avoids, so documentation.nvim's own `scripts/gen_map.lua`
+deliberately does not configure `external_repos` for itself.
+
+Rendered in the Deps view's existing external box, not a new panel: the
+box's second line gains a total (`external ↗ · 27 calls`), its tooltip a
+per-function breakdown sorted by count. Verified end-to-end against this
+repo's own real `require("lib.nvim...")`/`require("pdfport")`/
+`require("runtime-analysis...")` calls — 21 real call sites across the tree,
+correctly counted and correctly linked (`lib.nvim.notify` → 27 calls,
+`.warn` 14×/`.info` 10×/`.error` 2×/`.create` 1×, linking to
+`lib.nvim/blob/main/lua/lib/nvim/notify/init.lua`, confirmed against the
+real file on disk) — via a one-off `generate()` call, never wired into the
+committed `scripts/gen_map.lua` for the reproducibility reason above.
+`TESTS/calls_external_spec.lua` and `TESTS/external_repos_spec.lua` cover
+both halves with fixtures, including the wrong-guess-corrected-by-
+`local_path` case directly.

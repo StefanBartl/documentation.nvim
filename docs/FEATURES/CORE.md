@@ -68,3 +68,19 @@ what that tab renders, for this repo.
 - **Docs:** [`docs/FEATURES_FORMAT.md`](../FEATURES_FORMAT.md) (the format
   this file follows), [`docs/PIPELINE.md`](../PIPELINE.md) "Features tab"
   section.
+
+## External call/plugin visibility
+
+The Deps view's external box answers *why* a dependency is there, not just
+that it is — hover any `+ external` box for a breakdown of exactly which
+functions were actually called and how often (`plenary.async.run (2×)`),
+counted in the same pass that resolves the internal call graph. Declare
+`opts.external_repos` to also turn the box into a real GitHub link,
+verified against a local checkout when you name one.
+
+- **Module:** `core/calls.lua` (`node.calls_external`), `core/external_repos.lua`
+- **Config:** `opts.external_repos` (module-prefix → `"owner/repo"` or a
+  table with `branch`/`lua_root`/`local_path`).
+- **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "External call/plugin
+  visibility" section, [`docs/REUSE.md`](../REUSE.md) "GitHub links for
+  third-party deps".

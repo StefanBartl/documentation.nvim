@@ -187,6 +187,33 @@ Local paths only, deliberately: the tag file is read synchronously during
 `scan_full()`, and a network fetch would turn a deterministic `--check` into
 one that depends on network availability and timing.
 
+## GitHub links for third-party deps (`opts.external_repos`)
+
+`tag_files` above only helps when the external module is *another
+`docmap`-shaped project*. The common case — a third-party plugin
+(`plenary.nvim`, ...) with no `docmap` artifact to resolve against — gets a
+GitHub link instead, into the same `ir.tag_links` table:
+
+```lua
+require("documentation").generate({
+  ...,
+  external_repos = {
+    plenary = "nvim-lua/plenary.nvim",
+    ["lib.nvim"] = { repo = "StefanBartl/lib.nvim", local_path = "/path/to/lib.nvim" },
+  },
+})
+```
+
+The link is a guess (`<lua_root>/<module, dots as slashes>.lua`) unless
+`local_path` names a real local checkout, in which case both the flat and
+`init.lua`-directory shape are checked against it — see
+[`docs/PIPELINE.md`](PIPELINE.md#external-callplugin-visibility-optsexternal_repos)
+for why a flat-only guess is wrong more often than you'd expect, and why a
+`local_path` whose location differs between where you regenerate and where
+`--check` runs breaks reproducibility. Each external box's tooltip also
+shows exactly which functions of that module were actually called and how
+often, independent of whether a link resolved at all.
+
 ## Linking to your own map from your README
 
 Once `docs/map/` is committed, point your own README at it — one line under

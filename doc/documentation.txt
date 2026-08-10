@@ -192,6 +192,7 @@ All options, with their defaults: >lua
       calls_heuristic = false,  -- guessed call edges, drawn dashed
       layers = {},              -- module-prefix layering rules
       tag_files = {},           -- cross-project links, Doxygen TAGFILES-style
+      external_repos = {},      -- GitHub links for third-party deps
       extra_checks = {},        -- your own drift checks
 
       watch = false,            -- install() only: rescan on BufWritePost
@@ -852,6 +853,28 @@ so `lib.nvim.fs` but never `lib.nvimx` — is looked up in that directory's
 project's page at that node; what does not is left silently inert, never an
 error. Local paths only: a network fetch during `scan_full()` would make
 `--check` depend on availability and timing.
+
+                                             *documentation-external-repos*
+`opts.tag_files` above only helps against another `docmap`-shaped project.
+`opts.external_repos` covers the common case instead -- a third-party
+plugin with no `docmap` artifact of its own: >lua
+
+    external_repos = {
+      plenary = "nvim-lua/plenary.nvim",
+      ["lib.nvim"] = { repo = "StefanBartl/lib.nvim",
+                        local_path = "/path/to/lib.nvim" },
+    },
+<
+Builds a GitHub blob link (guessed as `<lua_root>/<module path>.lua` unless
+`local_path` names a real checkout, in which case both the flat and
+`init.lua`-directory shape are checked against it -- do not point
+`local_path` somewhere that differs between where you regenerate and where
+`--check` runs, or the committed artifact stops being reproducible there).
+Every external box's tooltip also breaks down exactly which functions of
+that module were actually called and how often
+(`plenary.async.run (2x)`), independent of whether a link resolved --
+counted in the same pass `core/calls.lua` already resolves internal calls
+in, off `node.calls_external`.
 
 ==============================================================================
 11. ANNOTATIONS                                      *documentation-annotations*

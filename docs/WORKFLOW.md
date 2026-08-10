@@ -117,3 +117,11 @@ directory) resolves it against the *real* artifact instead of leaving it
 inert — the same mechanism `runtime-analysis.nvim`/`documentation.nvim`
 already use to cross-link each other's own maps. Worth setting up once
 per pair of repos you navigate between often, not per session.
+
+For a dependency that isn't `docmap`-shaped at all — the common case,
+any ordinary third-party plugin — `opts.external_repos` gets you most of
+the same value: hover the box first, regardless of whether a link
+resolved, since the tooltip's own call breakdown (`plenary.async.run
+(2×)`) is usually the faster answer to "why is this here" than opening
+the dependency's source would be. Reach for the link only when the
+breakdown alone doesn't settle it.
