@@ -131,6 +131,25 @@ end
 
 probe(langs_root, { "--source=src", "--out-dir=out" })
 
+-- **A third mode, because the closure depends on what was asked for, not
+-- only on what was scanned.** `--api=<route>` short-circuits before
+-- `core/cli.run` entirely and reaches modules a scan does not:
+-- `core/api`, `core/artifact` and `core/loaded_diff` (measured, not listed
+-- from reading the requires — `core/telemetry_join` looks like it belongs
+-- on that list and does not, because `config.build` already pulls it).
+-- Without this probe the manifest omits them and the binary dies with
+-- "module not found" the first time `docmap-desktop`'s host asks for the
+-- Telemetry panel. Same shape as the language-fixture case immediately
+-- above, and the same reason it is a separate probe rather than a note: a
+-- manifest that is *measured* has to measure every mode that ships.
+--
+-- Every route, not one: they do not share a dependency set (`telemetry`
+-- pulls `telemetry_join`, `loaded` pulls `loaded_diff`), so probing one
+-- would leave the other's half out with nothing to say so.
+for _, route in ipairs({ "telemetry", "telemetry/snapshots", "loaded", "loaded/snapshots" }) do
+  probe(root, { "--api=" .. route, "--out-dir=.deps/bundle-manifest-probe" })
+end
+
 ---Collapse `a/b/../c` to `a/c`. `package.searchpath` returns whatever
 ---template matched, and this script is reached through `scripts/`, so paths
 ---arrive as `scripts/../standalone/../lua/…` — valid, but not something to

@@ -219,6 +219,61 @@ function vim.fn.isdirectory(path)
   return lfs.attributes(path, "mode") == "directory" and 1 or 0
 end
 
+---Neovim's own standard directories, reimplemented rather than guessed.
+---
+---**Why this is here at all**, since nothing in the scan pipeline wants it:
+---`runtime-analysis.nvim`'s telemetry store resolves its cache root from
+---`vim.fn.stdpath("cache")` at *module load time*, so the `--api=telemetry`
+---and `--api=loaded` routes cannot even `require` it without this. That is
+---the only reason this exists, and the reason it must be exact: a shim that
+---resolves a *different* directory than the running editor would report
+---"no telemetry data" for data that is sitting on disk — silent degradation,
+---the failure class this build has already paid for once.
+---
+---Verified against a real `nvim --headless` on this platform rather than
+---read off the documentation: on Windows `cache` is `$TEMP/nvim` (not
+---`%LOCALAPPDATA%`, which is the intuitive wrong answer), `data` is
+---`nvim-data`, `config` is plain `nvim`. Elsewhere the XDG variables win
+---when set, with the documented defaults underneath.
+---@param what string One of "cache"|"data"|"config"|"state"|"log".
+---@return string
+function vim.fn.stdpath(what)
+  local windows = (package.config:sub(1, 1) == "\\")
+  local function env(name, fallback)
+    local v = os.getenv(name)
+    return (v and v ~= "") and v or fallback
+  end
+
+  local base
+  if windows then
+    local local_app = env("LOCALAPPDATA", env("USERPROFILE", ".") .. "/AppData/Local")
+    base = {
+      cache = env("TEMP", env("TMP", local_app .. "/Temp")) .. "/nvim",
+      data = local_app .. "/nvim-data",
+      config = local_app .. "/nvim",
+      -- Neovim keeps both under the data root on Windows.
+      state = local_app .. "/nvim-data",
+      log = local_app .. "/nvim-data",
+    }
+  else
+    local home = env("HOME", ".")
+    local data = env("XDG_DATA_HOME", home .. "/.local/share") .. "/nvim"
+    base = {
+      cache = env("XDG_CACHE_HOME", home .. "/.cache") .. "/nvim",
+      data = data,
+      config = env("XDG_CONFIG_HOME", home .. "/.config") .. "/nvim",
+      state = env("XDG_STATE_HOME", home .. "/.local/state") .. "/nvim",
+      log = env("XDG_STATE_HOME", home .. "/.local/state") .. "/nvim",
+    }
+  end
+
+  local dir = base[what]
+  if not dir then
+    error("standalone vim_shim: vim.fn.stdpath does not implement " .. tostring(what), 0)
+  end
+  return (dir:gsub("\\", "/"))
+end
+
 ---Only the `":t"` (tail/basename) modifier — the one real call site
 ---(`documentation.config`'s own `title` default) never uses another.
 ---@param path string

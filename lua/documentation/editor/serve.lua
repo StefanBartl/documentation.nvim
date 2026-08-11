@@ -176,25 +176,34 @@ end
 
 ---The map as it stands on disk right now — not a git revision, whatever the
 ---last `:DocMap` run wrote, committed or not. What "current telemetry"
----joins against: `route_telemetry` below needs the *live* tree, and
+---joins against: the telemetry/loaded routes need the *live* tree, and
 ---`ir_at` above deliberately only ever answers for a validated commit.
 ---@param cfg table
 ---@return Documentation.IR|nil
 local function current_ir(cfg)
-  local path = (cfg.root .. "/" .. (cfg.out_dir or "docs/map") .. "/module_map.json"):gsub(
-    "\\",
-    "/"
-  )
-  local ok_read, lines = pcall(vim.fn.readfile, path)
-  if not ok_read or type(lines) ~= "table" or #lines == 0 then
-    return nil
+  return require("documentation.core.artifact").load(cfg)
+end
+
+---Encode one `core.api` answer as this server's JSON response.
+---
+---The four data routes below are thin on purpose: their bodies moved to
+---`core/api.lua` so the standalone build can answer the identical questions
+---for `docmap-desktop`'s own host, and two hosts computing the same join
+---separately is exactly how they would come to disagree. What stays here is
+---what is genuinely this transport's: the socket, the status code, the
+---encoding.
+---@param client userdata
+---@param name string A `core.api` route name.
+---@param cfg table
+---@param query string|nil Raw query string, `?`-prefixed.
+local function respond_api(client, name, cfg, query)
+  local api = require("documentation.core.api")
+  local param = api.decode_param(query and query:match("[?&]snapshot=([^&]+)"))
+  local result, err = api.answer(name, cfg, param)
+  if not result then
+    return respond_error(client, 404, err or "no such endpoint")
   end
-  local ok, doc =
-    pcall(vim.json.decode, table.concat(lines, "\n"), { luanil = { object = true, array = true } })
-  if not ok or type(doc) ~= "table" or type(doc.nodes) ~= "table" then
-    return nil
-  end
-  return require("documentation.editor.browse.source").rehydrate(doc)
+  return respond(client, 200, "application/json", vim.json.encode(result))
 end
 
 ---`GET /api/checklist` — the staleness verdict for the Analysis -> Checklist
@@ -401,289 +410,6 @@ local function route_commit(cfg, client, sha)
   )
 end
 
----`GET /api/telemetry[?snapshot=<name>]` — the `runtime-analysis.telemetry`
----join for the Analysis -> Telemetry panel. No `snapshot` (or an empty one):
----the live/latest aggregate, unchanged from before named snapshots existed.
----`snapshot=<name>`: that exact named capture instead — `runtime-analysis.
----nvim` §4.5, `telemetry.load_snapshot`, read fresh from disk the same way
----the latest aggregate already is.
----
----Unlike `route_commit` above, nothing here touches git: telemetry is not a
----revision, it is "whatever this namespace's counts are right now" (or, for
----a named snapshot, "whatever they were captured as"), read straight off
----disk on every request — no live instance required for either case, the
----whole reason this stays a server route instead of a field on `IR`, see
----`core/render/html.lua`'s client-side comment for the `--check`
----determinism argument. Every "nothing to show" case answers 200 with
----`available: false` and a `reason`, never an HTTP error: absence of
----telemetry data is a normal outcome here exactly as `telemetry_join.lua`
----itself insists it is everywhere else.
----@param cfg table
----@param client userdata
----@param query string Raw query string, `?`-prefixed, same shape `route_commits` already parses.
-local function route_telemetry(cfg, client, query)
-  local telemetry_join = require("documentation.core.telemetry_join")
-
-  local namespace = telemetry_join.namespace(cfg)
-  if not namespace then
-    return respond(
-      client,
-      200,
-      "application/json",
-      vim.json.encode({ available = false, reason = "no namespace" })
-    )
-  end
-
-  local ir = current_ir(cfg)
-  if not ir then
-    return respond(
-      client,
-      200,
-      "application/json",
-      vim.json.encode({ available = false, namespace = namespace, reason = "no map generated yet" })
-    )
-  end
-
-  -- `%%` first, `%+` second: a percent-encoded byte can itself decode to the
-  -- literal character `+`, and decoding that occurrence a second time as "a
-  -- space" would corrupt it — the standard `application/x-www-form-urlencoded`
-  -- ordering, same one every query-string decoder gets wrong by doing it the
-  -- other way round.
-  local raw_snapshot = query and query:match("[?&]snapshot=([^&]+)")
-  local snapshot_name = raw_snapshot
-    and raw_snapshot
-      :gsub("%%(%x%x)", function(h)
-        return string.char(tonumber(h, 16))
-      end)
-      :gsub("%+", " ")
-
-  local data
-  if snapshot_name and snapshot_name ~= "" then
-    local ok_telemetry, telemetry = pcall(require, "runtime-analysis.telemetry")
-    if not ok_telemetry then
-      return respond(
-        client,
-        200,
-        "application/json",
-        vim.json.encode({ available = false, namespace = namespace, reason = "no data" })
-      )
-    end
-    local ok_load, snap = pcall(telemetry.load_snapshot, namespace, snapshot_name)
-    data = ok_load and snap or nil
-    if not data then
-      return respond(
-        client,
-        200,
-        "application/json",
-        vim.json.encode({
-          available = false,
-          namespace = namespace,
-          snapshot = snapshot_name,
-          reason = "snapshot not found",
-        })
-      )
-    end
-  else
-    data = telemetry_join.load(namespace)
-    if not data then
-      return respond(
-        client,
-        200,
-        "application/json",
-        vim.json.encode({ available = false, namespace = namespace, reason = "no data" })
-      )
-    end
-  end
-
-  respond(
-    client,
-    200,
-    "application/json",
-    vim.json.encode({
-      available = true,
-      namespace = namespace,
-      snapshot = snapshot_name,
-      rows = telemetry_join.rows(ir, data),
-    })
-  )
-end
-
----`GET /api/telemetry/snapshots` — every named snapshot for this project's
----telemetry namespace, newest first. What the Telemetry panel's picker
----populates from, before choosing one to pass as `route_telemetry`'s own
----`snapshot=` query parameter.
----@param cfg table
----@param client userdata
-local function route_telemetry_snapshots(cfg, client)
-  local telemetry_join = require("documentation.core.telemetry_join")
-
-  local namespace = telemetry_join.namespace(cfg)
-  if not namespace then
-    return respond(
-      client,
-      200,
-      "application/json",
-      vim.json.encode({ available = false, reason = "no namespace" })
-    )
-  end
-
-  local ok_telemetry, telemetry = pcall(require, "runtime-analysis.telemetry")
-  if not ok_telemetry then
-    return respond(
-      client,
-      200,
-      "application/json",
-      vim.json.encode({ available = false, namespace = namespace, snapshots = {} })
-    )
-  end
-
-  local ok_list, list = pcall(telemetry.list_snapshots, namespace)
-  respond(
-    client,
-    200,
-    "application/json",
-    vim.json.encode({
-      available = true,
-      namespace = namespace,
-      snapshots = (ok_list and list) or {},
-    })
-  )
-end
-
----`GET /api/loaded?snapshot=<name>` — the `runtime-analysis.loaded`
----persisted-snapshot join for the Analysis -> Loaded panel, docs/ROADMAP.md
----§5.4. Unlike `/api/telemetry`, `snapshot` is required, not optional:
----there is no "live aggregate" reading here the way telemetry always has
----one — `loaded_diff.rows(ir)` (the live path) is what `:DocBrowse loaded`
----already reads directly from an editor session; this route exists
----specifically for the *cold* case a live browse mode structurally cannot
----serve, reading a persisted snapshot the same way `route_telemetry` reads
----a named one. Every "nothing to show" case answers 200 with
----`available: false` and a `reason`, the identical posture `route_telemetry`
----already takes.
----@param cfg table
----@param client userdata
----@param query string Raw query string, `?`-prefixed.
-local function route_loaded(cfg, client, query)
-  local loaded_diff = require("documentation.core.loaded_diff")
-
-  local ir = current_ir(cfg)
-  if not ir then
-    return respond(
-      client,
-      200,
-      "application/json",
-      vim.json.encode({ available = false, reason = "no map generated yet" })
-    )
-  end
-
-  local prefix = loaded_diff.prefix(cfg)
-  if not prefix then
-    return respond(
-      client,
-      200,
-      "application/json",
-      vim.json.encode({ available = false, reason = "no single root module prefix for this tree" })
-    )
-  end
-
-  local raw_snapshot = query and query:match("[?&]snapshot=([^&]+)")
-  local snapshot_name = raw_snapshot
-    and raw_snapshot
-      :gsub("%%(%x%x)", function(h)
-        return string.char(tonumber(h, 16))
-      end)
-      :gsub("%+", " ")
-  if not snapshot_name or snapshot_name == "" then
-    return respond(
-      client,
-      200,
-      "application/json",
-      vim.json.encode({ available = false, prefix = prefix, reason = "no snapshot named" })
-    )
-  end
-
-  local ok_loaded, loaded_mod = pcall(require, "runtime-analysis.loaded")
-  if not ok_loaded then
-    return respond(
-      client,
-      200,
-      "application/json",
-      vim.json.encode({ available = false, prefix = prefix, reason = "no data" })
-    )
-  end
-
-  local ok_load, snap = pcall(loaded_mod.load_snapshot, prefix, snapshot_name)
-  if not ok_load or not snap then
-    return respond(
-      client,
-      200,
-      "application/json",
-      vim.json.encode({
-        available = false,
-        prefix = prefix,
-        snapshot = snapshot_name,
-        reason = "snapshot not found",
-      })
-    )
-  end
-
-  respond(
-    client,
-    200,
-    "application/json",
-    vim.json.encode({
-      available = true,
-      prefix = prefix,
-      snapshot = snapshot_name,
-      captured_at = snap.captured_at,
-      rows = loaded_diff.rows_from_snapshot(ir, snap),
-    })
-  )
-end
-
----`GET /api/loaded/snapshots` — every named `runtime-analysis.loaded`
----snapshot for this project's root prefix, newest first. What the Loaded
----panel's picker populates from, before choosing one to pass as
----`route_loaded`'s own `snapshot=` query parameter.
----@param cfg table
----@param client userdata
-local function route_loaded_snapshots(cfg, client)
-  local loaded_diff = require("documentation.core.loaded_diff")
-
-  local prefix = loaded_diff.prefix(cfg)
-  if not prefix then
-    return respond(
-      client,
-      200,
-      "application/json",
-      vim.json.encode({ available = false, reason = "no single root module prefix for this tree" })
-    )
-  end
-
-  local ok_loaded, loaded_mod = pcall(require, "runtime-analysis.loaded")
-  if not ok_loaded then
-    return respond(
-      client,
-      200,
-      "application/json",
-      vim.json.encode({ available = false, prefix = prefix, snapshots = {} })
-    )
-  end
-
-  local ok_list, list = pcall(loaded_mod.list_snapshots, prefix)
-  respond(
-    client,
-    200,
-    "application/json",
-    vim.json.encode({
-      available = true,
-      prefix = prefix,
-      snapshots = (ok_list and list) or {},
-    })
-  )
-end
-
 ---Accept a request path only if it is a bare filename inside `out_dir`.
 ---
 ---An empty path means `index.html`; anything containing a separator or a `..`
@@ -773,20 +499,12 @@ local function handle(cfg, client, method, target)
     return route_commits(cfg, client, query)
   end
 
-  if path == "/api/telemetry" then
-    return route_telemetry(cfg, client, query)
-  end
-
-  if path == "/api/telemetry/snapshots" then
-    return route_telemetry_snapshots(cfg, client)
-  end
-
-  if path == "/api/loaded" then
-    return route_loaded(cfg, client, query)
-  end
-
-  if path == "/api/loaded/snapshots" then
-    return route_loaded_snapshots(cfg, client)
+  -- Every route `core/api.lua` owns, dispatched by name rather than one
+  -- `if` per route: the set is data on that module, so a route added there
+  -- reaches this host and the standalone one without either being told.
+  local api_name = path:match("^/api/(.+)$")
+  if api_name and require("documentation.core.api").routes[api_name] then
+    return respond_api(client, api_name, cfg, query)
   end
 
   if path == "/api/checklist" then

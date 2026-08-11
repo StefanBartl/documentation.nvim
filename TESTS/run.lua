@@ -98,6 +98,7 @@ local specs = {
   "mdview_spec.lua",
   "mcp_spec.lua",
   "checklist_spec.lua",
+  "api_spec.lua",
 }
 
 --- Straight to stdout rather than through `print`.

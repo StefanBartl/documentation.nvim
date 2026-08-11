@@ -85,13 +85,15 @@ local argv = {}
 -- own wrapper and can hardcode both. Without them the two produce maps that
 -- differ in `meta.repo_url` — correct on each side, and an apples-to-oranges
 -- comparison when checking that this build is byte-faithful to a Neovim run.
-local source, repo_url, branch, out_dir
+local source, repo_url, branch, out_dir, api_route, api_snapshot
 for i = 2, #arg do
   local a = arg[i]
   local src = a:match("^%-%-source=(.+)$")
   local url = a:match("^%-%-repo%-url=(.+)$")
   local br = a:match("^%-%-branch=(.+)$")
   local out = a:match("^%-%-out%-dir=(.+)$")
+  local api = a:match("^%-%-api=(.+)$")
+  local snap = a:match("^%-%-snapshot=(.+)$")
   if src then
     source = src
   elseif url then
@@ -100,6 +102,10 @@ for i = 2, #arg do
     branch = br
   elseif out then
     out_dir = out
+  elseif api then
+    api_route = api
+  elseif snap then
+    api_snapshot = snap
   else
     argv[#argv + 1] = a
   end
@@ -131,6 +137,31 @@ local opts = require("documentation.config").build(root, {
     },
   },
 })
+
+-- `--api=<route>`: answer one of the generated page's own `/api/*` routes
+-- and print its JSON, instead of generating anything.
+--
+-- This is what makes the app a real host rather than a viewer. The page
+-- already fetches these routes and already handles their answers; what it
+-- never had outside Neovim was anything on the other end. `docmap-desktop`
+-- runs a small HTTP server that forwards `/api/*` here — Rust is transport
+-- only, and the join logic stays in Lua, owned once by `core/api.lua` and
+-- shared with `editor/serve.lua`'s in-editor server.
+--
+-- One route per invocation, deliberately: a request is one question, and a
+-- process that answered several would need a protocol to say which answer
+-- is which. stdout carries exactly the JSON, so the caller does not have to
+-- find where it starts.
+if api_route then
+  local api = require("documentation.core.api")
+  local result, api_err = api.answer(api_route, opts, api_snapshot)
+  if not result then
+    io.stderr:write("standalone/docmap.lua: " .. tostring(api_err) .. "\n")
+    os.exit(2)
+  end
+  io.stdout:write(require("documentation.core.json").encode(result) .. "\n")
+  os.exit(0)
+end
 
 local code = require("documentation.core.cli").run(opts, argv)
 os.exit(code)
