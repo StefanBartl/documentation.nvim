@@ -557,6 +557,79 @@ correct target node; `.feat-name` likewise; and neither existing handler
 regressed — `.marki` still toggles `marki` → `marki on` and back without
 navigating, `.sigi` still opens its popup, both staying on the Index tab.
 
+**Slice 6 — roving tabindex for the long lists.** Slice 5 deliberately
+stopped short of the rest of what it had measured: Tree rows (169),
+History commits (100), Analysis rows (79) and the three sort headers. A
+`tabindex` each, the way the Index's links got one, would have put ~440
+Tab presses between the tab bar and the content — accessible on a
+checklist, unusable in practice. That needed a different pattern and its
+own decision, which is why it was flagged rather than folded in.
+
+The pattern is roving tabindex: **one** tab stop per list, on the
+container, and the arrows move within it, so exactly one element is
+focusable at any moment. Implemented once as `rovingList(containerId,
+itemSelector, activate, hooks)` and applied to `#tree`, `#hist-list` and
+`#anbody` — all three of which exist in the initial HTML and are never
+replaced. Delegated on those stable containers and never bound per item,
+for the reason the graph's own click handler already gives: these bodies
+are rebuilt wholesale on redraw and per-item binding stacks duplicates.
+Items therefore carry no `tabindex` attribute at rest at all; `tabIndex =
+-1` is set on one lazily, immediately before focusing it, which is also
+what makes the whole thing survive a redraw with no re-wiring.
+
+`offsetParent === null` is the visibility filter, and it earns its place
+rather than being a formality: it excludes both rows inside a collapsed
+`.kids` (`display:none`) and rows the search box hid via `style.display`,
+so the arrows walk exactly what the eye sees. Verified by collapsing the
+root and confirming the arrows no longer descend into it.
+
+The Tree is a tree, not a flat list, so it passes a `horizontal` hook:
+Right expands a collapsed node and otherwise steps into the first child,
+Left collapses an open one and otherwise moves to the parent. It reuses
+the twisty's own click handler rather than re-implementing the toggle, so
+there stays one source of truth for what expanding means — including the
+glyph swap.
+
+Two scoping calls, both deliberate. The Analysis rows get roving focus
+but **no** `listbox`/`option` roles: that body holds a real `<table>`,
+and overriding table semantics with list roles would throw away the row
+and column relationships a screen reader otherwise gets for free. And the
+sort headers are *not* a roving list — three controls in a row are
+genuinely three tab stops, so they get Slice 5's simpler treatment
+(`tabindex`/`role`, a delegated Enter/Space that replays the click rather
+than duplicating the ascending-vs-descending logic) plus `aria-sort`,
+which is the one ARIA property a sortable column header actually owns and
+which was already derivable from state at that point.
+
+**A bug this slice's own verification caught, worth recording because
+reasoning would not have found it.** `aria-expanded` is stamped by a
+`syncTreeExpanded` pass hung off a click listener on `#tree`. The first
+version used the bubble phase, and measurement showed the attribute still
+reading `"true"` on a node that had just collapsed — for mouse clicks as
+well as keyboard. The cause is that the twisty's own handler calls
+`ev.stopPropagation()` (so expanding a node does not also select it), so
+the one click that actually changes expanded state never reaches a
+bubble-phase listener on the container. Moved to the capture phase, which
+runs on the way down, before that stop. Confirmed afterwards for both
+input methods, and confirmed that all 163 rows with children carry the
+attribute while no leaf row does.
+
+The fuller `tree`/`treeitem`/`group` role taxonomy is deliberately not
+attempted. `aria-expanded` is unambiguous and measurable; the role
+taxonomy is neither without a screen reader to check it against, and
+getting it half-right is worse than leaving native semantics alone —
+which is the same bar that keeps the typographic scale and zebra striping
+out of this phase.
+
+Verified: tab stops went from 77 to **78** on Tree (the container, not
+169 rows), 16 → 17 on History, 30 → 34 on Analysis (container plus the
+three sort headers) — zero items carry a `tabindex` at rest in any of the
+three. Arrows move and reverse, Home/End jump, Enter selects the right
+row in all three lists, Right/Left expand and collapse and traverse the
+Tree, Enter on a sort header re-sorts, and the Slice 5 controls are
+untouched: Index links still navigate, `.marki` still toggles, `.sigi`
+still opens its popup.
+
 ### Phase 5 — standalone → desktop app *(unblocked on Linux, 2026-08-11)*
 
 In order: full-fidelity standalone generation (the parser-less MVP in

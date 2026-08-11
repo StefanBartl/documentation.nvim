@@ -224,6 +224,15 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .nlist .nfn:focus-visible{outline:2px solid var(--accent-soft);outline-offset:2px}
 .feat-name[data-node]:focus-visible,.feat-tab-name[data-node]:focus-visible{
   outline:2px solid var(--accent-soft);outline-offset:2px}
+/* Roving-tabindex lists: the container is the tab stop, the item is what the
+   arrows move. Both need to say where focus is. `outline-offset:-2px` on the
+   row keeps the ring inside the row box, which a table row would otherwise
+   clip against its neighbours. */
+#tree:focus-visible,#hist-list:focus-visible,#anbody:focus-visible{
+  outline:2px solid var(--accent-soft);outline-offset:-2px}
+.row:focus-visible,.crow:focus-visible,tr.anrow:focus-visible{
+  outline:2px solid var(--accent);outline-offset:-2px}
+.antable th.ansort:focus-visible{outline:2px solid var(--accent-soft);outline-offset:-2px}
 .nlist .nwhere{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:8px}
 .nlist .ntext{font-size:12.5px;color:var(--ink);margin-top:2px}
 /* Unscoped variant: the Analysis panels' empty-state paragraphs
@@ -3464,8 +3473,14 @@ local JS = [[
       // The arrow is on the active column only. An idle arrow on every header
       // reads as "these are all sorted", which is exactly backwards.
       var arrow = active ? (state.adir === "asc" ? " ▲" : " ▼") : "";
+      // A sort control is a control: focusable in its own right, and few
+      // enough (three per table) that it is a tab stop rather than another
+      // roving list. `aria-sort` is the one ARIA property a sortable column
+      // header genuinely owns, and it is derivable from state already here.
       out.push('<th class="ansort' + (active ? " active" : "") + '" data-sort="' +
         esc(c.key) + '" data-initial="' + (c.initial === "asc" ? "asc" : "desc") +
+        '" tabindex="0" role="button" aria-sort="' +
+        (active ? (state.adir === "asc" ? "ascending" : "descending") : "none") +
         '" title="Sort by ' + esc(c.label) + '">' + c.label + arrow + '</th>');
     });
     out.push('</tr></thead>');
@@ -6477,6 +6492,177 @@ local JS = [[
   });
 
   // =====================================================================
+  // =====================================================================
+  // Roving tabindex for the long lists.
+  //
+  // Slice 5 gave the Index's 456 links a tabindex each, which is right for a
+  // list of links but wrong at this scale: the Tree carries 169 rows, the
+  // Analysis panels up to 79, History 100. Stamping each one a tab stop
+  // would put ~440 presses between the tab bar and the page's own content,
+  // which is not "accessible", just unusable in a different way.
+  //
+  // So: one tab stop per list, on the container, and the arrows move within
+  // it — the roving-tabindex pattern. Exactly one element in each list is
+  // focusable at any moment, which is what makes it "roving".
+  //
+  // Delegated on a container that exists in the initial HTML and is never
+  // replaced (`#tree`, `#hist-list`, `#anbody`), never bound per item, for
+  // the reason the graph's click handler already states: these bodies are
+  // rebuilt wholesale on redraw and per-item binding stacks duplicates.
+  // Items therefore carry no tabindex attribute at rest; `tabIndex = -1` is
+  // set on one lazily, immediately before focusing it. That is also what
+  // makes this survive a redraw with no re-wiring: nothing is remembered
+  // about the old DOM.
+  //
+  // `offsetParent === null` is the visibility test, and it is doing real
+  // work rather than being a formality: it excludes rows inside a collapsed
+  // `.kids` (`display:none`) *and* rows the search box hid via
+  // `style.display`, so the arrows walk exactly what the eye sees.
+  // =====================================================================
+  function rovingList(containerId, itemSelector, activate, hooks){
+    var container = document.getElementById(containerId);
+    if(!container) return;
+    // The container is the single tab stop. Items are reached with arrows
+    // once focus is inside it.
+    if(!container.hasAttribute("tabindex")) container.tabIndex = 0;
+
+    function items(){
+      return Array.prototype.slice.call(container.querySelectorAll(itemSelector))
+        .filter(function(el){ return el.offsetParent !== null; });
+    }
+    function itemOf(target){
+      var el = target;
+      while(el && el !== container){
+        if(el.matches && el.matches(itemSelector)) return el;
+        el = el.parentNode;
+      }
+      return null;
+    }
+    function focusItem(el){
+      if(!el) return;
+      el.tabIndex = -1;
+      el.focus();
+      // `nearest` so arrowing does not yank a list that is already in view.
+      if(el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
+    }
+
+    container.addEventListener("keydown", function(ev){
+      if(ev.ctrlKey || ev.metaKey || ev.altKey) return;
+      // A search box or any other real input inside the list keeps its own
+      // arrow-key meaning.
+      if(/^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName)) return;
+
+      var list = items();
+      if(!list.length) return;
+      var cur = itemOf(ev.target);
+      var i = cur ? list.indexOf(cur) : -1;
+
+      if(ev.key === "ArrowDown"){
+        ev.preventDefault();
+        focusItem(list[i < 0 ? 0 : Math.min(i + 1, list.length - 1)]);
+      } else if(ev.key === "ArrowUp"){
+        ev.preventDefault();
+        focusItem(list[i <= 0 ? 0 : i - 1]);
+      } else if(ev.key === "Home"){
+        ev.preventDefault(); focusItem(list[0]);
+      } else if(ev.key === "End"){
+        ev.preventDefault(); focusItem(list[list.length - 1]);
+      } else if(ev.key === "Enter" || ev.key === " "){
+        if(!cur) return;
+        ev.preventDefault();
+        activate(cur);
+      } else if(hooks && hooks.horizontal && (ev.key === "ArrowRight" || ev.key === "ArrowLeft")){
+        if(!cur) return;
+        ev.preventDefault();
+        hooks.horizontal(cur, ev.key === "ArrowRight", focusItem, list, i);
+      }
+    });
+  }
+
+  // The Tree is a tree, not a flat list, so Right/Left expand and collapse
+  // the way every other tree widget does. Reusing the twisty's own click
+  // handler rather than re-implementing the toggle keeps one source of truth
+  // for what expanding means — including the arrow glyph it swaps.
+  function treeKidsOf(row){
+    var box = row.parentNode;
+    return box ? box.querySelector(".kids") : null;
+  }
+  rovingList("tree", ".row", function(row){
+    if(row.dataset.id) navigate({ tab: "tree", id: row.dataset.id });
+  }, {
+    horizontal: function(row, isRight, focusItem, list, i){
+      var kids = treeKidsOf(row);
+      var tw = row.querySelector(".tw");
+      if(isRight){
+        // Collapsed: open it. Already open (or a leaf): step into the first
+        // child, which is what Right does in a tree that is already expanded.
+        if(kids && kids.classList.contains("hide")){ tw && tw.click(); return; }
+        if(i >= 0 && i + 1 < list.length) focusItem(list[i + 1]);
+        return;
+      }
+      // Left: close an open node, else go to the parent row.
+      if(kids && !kids.classList.contains("hide")){ tw && tw.click(); return; }
+      var parentBox = row.parentNode && row.parentNode.parentNode;
+      var parentRow = parentBox && parentBox.parentNode
+        ? parentBox.parentNode.querySelector(":scope > .row") : null;
+      if(parentRow && parentRow !== row) focusItem(parentRow);
+    }
+  });
+
+  rovingList("hist-list", ".crow", function(row){
+    if(row.dataset.sha) navigate({ tab: "history", sha: row.dataset.sha });
+  });
+
+  // The Analysis body holds a real <table>. Its rows get roving focus, but
+  // deliberately no listbox/option roles: a table already carries correct
+  // semantics, and overriding them with list roles would throw away the row
+  // and column relationships a screen reader otherwise gets for free.
+  rovingList("anbody", "tr.anrow", function(row){
+    if(row.dataset.node) navigate({ tab: "tree", id: row.dataset.node });
+  });
+
+  // `aria-expanded` on the rows that have something to expand. Stamped after
+  // every tree redraw and every toggle rather than at render time, because
+  // the twisty's own click handler is what changes the state and it lives in
+  // renderNode. Measurable and unambiguous, unlike the fuller tree/treeitem
+  // role taxonomy, which is deliberately not attempted here: getting it
+  // half-right is worse than leaving native semantics alone, and this
+  // session has no screen reader to verify it against.
+  function syncTreeExpanded(){
+    var treeEl2 = document.getElementById("tree");
+    if(!treeEl2) return;
+    treeEl2.querySelectorAll(".row").forEach(function(row){
+      var kids = treeKidsOf(row);
+      if(kids) row.setAttribute("aria-expanded", kids.classList.contains("hide") ? "false" : "true");
+      else row.removeAttribute("aria-expanded");
+    });
+  }
+  // Capture phase, deliberately: the twisty's own click handler calls
+  // `ev.stopPropagation()` (so that expanding a node does not also select
+  // it), which means a bubble-phase listener on `#tree` never sees the one
+  // click that actually changes expanded state. Measured, not reasoned about
+  // — the first version of this used the bubble phase and left
+  // `aria-expanded` reading "true" on a collapsed node, for keyboard and
+  // mouse alike. Capture runs on the way down, before that stop; the
+  // `setTimeout` then reads the state after the toggle has applied.
+  document.getElementById("tree").addEventListener("click", function(){
+    setTimeout(syncTreeExpanded, 0);
+  }, true);
+
+  // Keyboard parity for the sort headers, same shape as `data-node`'s above:
+  // they are rendered fresh with every panel redraw, so this is delegated on
+  // `#anbody` and keyed on `data-sort`, and it simply replays the click the
+  // pointer would have produced rather than duplicating the direction logic
+  // that decides ascending from descending.
+  document.getElementById("anbody").addEventListener("keydown", function(ev){
+    if(ev.key !== "Enter" && ev.key !== " ") return;
+    var el = document.activeElement;
+    if(!el || !el.dataset || el.dataset.sort === undefined) return;
+    ev.preventDefault();
+    el.click();
+  });
+
+  // =====================================================================
   // Initial load: parse whatever hash the page was opened with (a bare
   // #<id> from an old-style/shared link, a full serialized state from
   // Back/Forward, or nothing) and apply it as a *replace*, not a push — the
@@ -6495,6 +6681,7 @@ local JS = [[
   // with whatever this browser had dimmed from an earlier session.
   if(!initial.hidden.length) initial.hidden = loadHidden();
   applyState(initial, false);
+  syncTreeExpanded();
 })();
 ]]
 
