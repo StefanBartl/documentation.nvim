@@ -538,6 +538,55 @@
 ---@field intro string? The folder's own `README.md`/`readme.md`, when present — never itself a theme file.
 ---@field files Documentation.Features.File[] Sorted by filename.
 
+---- One `<!-- @tag value -->` comment on a checklist item whose tag is
+---- neither `@ref` nor `@verified`. Kept rather than dropped — a hand-written
+---- corpus grows a vocabulary the parser did not anticipate.
+---@class Documentation.Checklist.Meta
+---@field key string Tag name, without the `@`.
+---@field value string
+
+---- One `- [ ]` / `- [x]` line, with whatever metadata comments follow it.
+---@class Documentation.Checklist.Item
+---@field done boolean `- [x]` (any case) vs `- [ ]`.
+---@field text string The item's own text, as written.
+---@field line integer 1-based line of the item, in its own file.
+---@field file string Repo-relative path of the checklist file the item is in.
+---@field ref string? Repo-relative path this item's verdict was read off, from `<!-- @ref path[:line] -->`. Absent for an item that cites nothing — a real state (a fact about the project rather than about a line of code), not a defect: such an item simply can never go stale.
+---@field ref_line integer? 1-based line from the same `@ref`, when written. Never used to decide staleness (that is per file) — carried so a flagged item is somewhere to jump to rather than a file to re-read from the top.
+---@field verified string? Date from `<!-- @verified YYYY-MM-DD -->`, exactly as written. A date rather than a commit hash on purpose: nobody hand-writes a hash, and requiring one would force a command to check an item off. See `core/checklist.lua`.
+---@field meta Documentation.Checklist.Meta[] Unrecognized tags, in writing order. Empty for most items.
+
+---- One `## <name>` section inside a checklist file.
+---@class Documentation.Checklist.Section
+---@field name string As written after `## `. Empty string for the synthetic section holding items that appear before any heading.
+---@field line integer 1-based line of the `## ` heading. `0` for the synthetic section, which corresponds to no line at all.
+---@field items Documentation.Checklist.Item[]
+
+---- One `.md` file of the checklist corpus.
+---@class Documentation.Checklist.File
+---@field path string Repo-relative, e.g. "docs/CHECKLIST/keybindings.md".
+---@field name string Filename without extension, exactly as the author named it.
+---@field sections Documentation.Checklist.Section[]
+
+---- `ir.checklist` — this repo's own hand-verified ledger. See
+---- `core/checklist.lua` and `docs/CHECKLIST_FORMAT.md`. Carries no staleness
+---- verdict: that needs git, and git data cannot enter the committed artifact
+---- (`--check` byte-compares). `core/checklist.lua`'s own `status()` computes it live, off a table the command layer produces.
+---@class Documentation.Checklist.Result
+---@field source string Which candidate resolved, e.g. "docs/CHECKLIST" or "docs/CHECKLIST.md".
+---@field files Documentation.Checklist.File[] Sorted by filename.
+---@field total integer Items across every file.
+---@field done integer Of those, how many are `- [x]`.
+---@field cited integer Of those, how many carry an `@ref`. The rest can never be flagged stale.
+
+---- One item paired with the staleness verdict computed for it. Never part of
+---- the IR — see `core/checklist.lua`'s `status()`.
+---@class Documentation.Checklist.Status
+---@field item Documentation.Checklist.Item
+---@field state "stale"|"current"|"unverified"|"uncited" `stale`: the cited file has commits newer than `@verified`. `current`: it does not. `unverified`: cited, but no `@verified` date to compare against. `uncited`: no `@ref` at all, so staleness is not a question that applies.
+---@field commits integer Commits to the cited file since `@verified`. `0` unless `state == "stale"`.
+---@field last_commit string? ISO date of the newest commit to the cited file, when one exists.
+
 ---@class Documentation.IR
 ---@field meta Documentation.Meta
 ---@field quicks Documentation.Quicks.Result? Verdicts over this tree — see `quicks.lua`. Set by `scan_full`, so a bare `scan()` leaves it nil.
@@ -549,6 +598,7 @@
 ---@field docs Documentation.Docs.Result? Which prose file mentions which module or function — see `docs.lua`. Set by `scan_full`, so a bare `scan()` leaves it nil.
 ---@field tools Documentation.Tools.Result? This repo's declared `lib.nvim.deps` tools — see `core/tools.lua`. Set by `scan_full`; nil when lib.nvim.deps is unavailable or this repo ships no manifest.
 ---@field features Documentation.Features.Result? This repo's own `docs/FEATURES/` — see `core/features.lua`. Set by `scan_full`; nil when this repo ships no such folder.
+---@field checklist Documentation.Checklist.Result? This repo's own `docs/CHECKLIST/` ledger of hand-verified facts — see `core/checklist.lua`. Set by `scan_full`; nil when this repo ships no checklist. Carries no staleness verdict: that needs git, which cannot enter a byte-compared artifact.
 ---@field tag_links table<string, Documentation.TagLink> `requires_external` modules resolved through `opts.tag_files`. Always a table, empty when `opts.tag_files` is unset or nothing resolved — unlike `types_detail`, resolving is local and cheap, so there is no "did this run" question worth a nil.
 ---@field timing Documentation.Timing? Per-stage durations, set by `scan_full` when `opts.debug` is on. Deliberately **not** serialised into the artifact: a duration differs on every machine and `--check` byte-compares, so embedding one would make the map invalidate itself.
 

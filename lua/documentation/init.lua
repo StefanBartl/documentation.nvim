@@ -170,6 +170,16 @@ function M.scan_full(opts)
     return require("documentation.core.features").resolve(opts.root)
   end)
 
+  -- The hand-verified ledger, same posture as `features`/`tools` above: a
+  -- directory listing plus a few file reads, and a repo without one simply
+  -- leaves `ir.checklist` nil. Only the *ledger* is resolved here — the
+  -- "changed since verified" verdict needs git and would make the committed
+  -- artifact invalidate itself, so it is computed live by `:DocMap checklist`
+  -- and the serve tier instead. See core/checklist.lua.
+  ir.checklist = timing.measure(t, "checklist", function()
+    return require("documentation.core.checklist").resolve(opts.root)
+  end)
+
   local luals_err
   if opts.luals then
     local luals = require("documentation.core.luals")
@@ -364,6 +374,12 @@ function M.to_json(ir)
   put(json.encode(ir.tools))
   put(',\n  "features": ')
   put(json.encode(ir.features))
+  -- Same shape and same reasoning as tools/features directly above. Only the
+  -- ledger is serialized — every staleness field is deliberately absent,
+  -- because it is derived from `git log` and a byte-compared artifact cannot
+  -- carry git data without invalidating itself. See core/checklist.lua.
+  put(',\n  "checklist": ')
+  put(json.encode(ir.checklist))
   put("\n}\n")
   return table.concat(out)
 end
