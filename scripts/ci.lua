@@ -1,10 +1,11 @@
 -- scripts/ci.lua — every gate CI runs, as Lua rather than as shell.
 --
---   nvim --headless -l scripts/ci.lua              all four, stopping at the first failure
+--   nvim --headless -l scripts/ci.lua              all five, stopping at the first failure
 --   nvim --headless -l scripts/ci.lua stylua       one gate
 --   nvim --headless -l scripts/ci.lua luacheck
 --   nvim --headless -l scripts/ci.lua tests
 --   nvim --headless -l scripts/ci.lua map
+--   nvim --headless -l scripts/ci.lua standalone
 --
 -- Why this exists next to `ci.sh`: the plugin is cross-platform by
 -- construction — no `io.popen`, no `os.execute`, `vim.system`/`vim.uv`/`vim.fs`
@@ -15,7 +16,7 @@
 --
 -- **What each gate is lives here and nowhere else.** `scripts/ci.sh` is now a
 -- wrapper that calls this, and `.github/workflows/ci.yml` calls the wrapper —
--- so the four CI jobs keep their independent red/green marks and their
+-- so the CI jobs keep their independent red/green marks and their
 -- parallelism while the commands themselves exist once. A second copy that
 -- drifts is precisely the failure this repository exists to detect.
 --
@@ -140,11 +141,100 @@ function GATES.map()
   run({ "nvim", "--headless", "-l", "scripts/gen_map.lua", "--check" }, "map --check")
 end
 
+---The first Lua 5.x interpreter on PATH that is not Neovim, or nil.
+---
+---`lua5.4` before `lua` because Debian-family images ship both and the bare
+---name is often 5.1; this gate wants the *other* Lua from the one Neovim
+---embeds, which is the entire point of it existing.
+---@return string?
+local function puc_lua()
+  for _, exe in ipairs({ "lua5.4", "lua5.3", "lua" }) do
+    if vim.fn.executable(exe) == 1 then
+      return exe
+    end
+  end
+  return nil
+end
+
+--- The standalone build, run under a Lua that is **not** LuaJIT.
+---
+--- This gate exists because of a defect the other four could not see. The
+--- artifact is byte-compared by `map --check` and by a pre-commit hook, and
+--- two places rendered numbers host-dependently: LuaJIT writes an integral
+--- float as `100`, PUC Lua 5.3+ as `100.0`. Every gate above runs inside
+--- Neovim, so all four were green on a tree whose map a second Lua would have
+--- called stale. Fixed in `core/json.lua` and `core/quicks.lua`; this is what
+--- keeps it fixed.
+---
+--- Deliberately the **parser-less** build, needing only `lfs` and `dkjson`
+--- rather than a `lua-tree-sitter` rock and a compiled grammar. The full
+--- parity comparison (byte-identical to a Neovim run) needs both and is a
+--- local gate instead — see `docs/ROADMAP/V1_EXTENSION/PORTABILITY.md`. Its
+--- published rock has two packaging defects, and a gate that is red before
+--- anyone touches anything gets switched off the same day, which is exactly
+--- the advice `docs/REUSE.md` gives about extra checks.
+---
+--- Writes to a temporary directory, never `docs/map`: a gate that rewrites
+--- the artifact it is checking is not a gate.
+function GATES.standalone()
+  step("standalone (non-LuaJIT host)")
+  local lua = puc_lua()
+  if not lua then
+    -- A stated skip, not a silent pass. Locally this is the common case and
+    -- failing on it would make `scripts/ci.sh` unusable on a machine that has
+    -- Neovim and nothing else.
+    say("  skipped: no PUC Lua on PATH (this gate is about the *other* Lua)")
+    return
+  end
+
+  -- Repo-relative, because `opts.out_dir` is repo-relative everywhere else
+  -- (`docs/map` is the default) and an absolute path would be joined onto the
+  -- root rather than replacing it. `.deps/` is already gitignored and already
+  -- where the headless runners put throwaway checkouts, so nothing here can
+  -- reach the working tree or the scanned corpus.
+  local out_rel = ".deps/standalone-map"
+  local out_abs = root .. "/" .. out_rel
+  vim.fn.delete(out_abs, "rf")
+  run({
+    lua,
+    "standalone/docmap.lua",
+    root,
+    "--source=lua/documentation",
+    "--out-dir=" .. out_rel,
+  }, "standalone/docmap.lua")
+
+  local path = out_abs .. "/module_map.json"
+  local fd = io.open(path, "rb")
+  if not fd then
+    fail("standalone build wrote no module_map.json to " .. out_rel)
+    return
+  end
+  local body = fd:read("*a")
+  fd:close()
+
+  -- The two shapes the bug produced, asserted directly rather than by
+  -- comparing against a reference file: a reference would have to be
+  -- regenerated with every real change, and would then stop being evidence.
+  -- `%f[%D]` so a genuine fraction like `45.05` is not mistaken for one.
+  local bad_value = body:match('"value":%-?%d+%.0%f[%D]')
+  local bad_detail = body:match('"detail":"[^"]-%d%.0%f[%D][^"]-"')
+  if bad_value or bad_detail then
+    fail(
+      "standalone artifact renders numbers host-dependently — the defect "
+        .. "core/json.lua and core/quicks.lua exist to prevent:\n    "
+        .. tostring(bad_value or bad_detail)
+    )
+    return
+  end
+
+  say("  ok: no host-dependent number formatting in the standalone artifact")
+end
+
 -- The order is not cosmetic. A formatting failure is the cheapest one to find
 -- and the least interesting; a stale map is the most likely to be a real
 -- finding rather than a slip. Failing fast on the cheap one first means the
 -- expensive checks only ever run on code that is already tidy.
-local ORDER = { "stylua", "luacheck", "tests", "map" }
+local ORDER = { "stylua", "luacheck", "tests", "map", "standalone" }
 
 local stage = (_G.arg or {})[1] or "all"
 

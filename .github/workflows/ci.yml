@@ -121,3 +121,40 @@ jobs:
           neovim: true
           version: stable
       - run: scripts/ci.sh map
+
+  # The only job that runs this repository's code under a Lua that is *not*
+  # LuaJIT, which is the entire reason it exists. Every other job runs inside
+  # Neovim, so all four stayed green on a tree whose committed map a second
+  # Lua would have called stale: LuaJIT renders an integral float as `100`,
+  # PUC Lua 5.3+ as `100.0`, and that reached the byte-compared artifact
+  # through `core/json.lua` and `core/quicks.lua`. Found by the first real
+  # non-Neovim run, not by any gate.
+  #
+  # The parser-less standalone build, deliberately: `lfs` and `dkjson` are
+  # ordinary, reliable rocks, whereas the full-fidelity path needs
+  # `lua-tree-sitter`, whose published rock has two packaging defects. Gating
+  # `main` on that would be a check that goes red without anyone touching
+  # anything — see `docs/ROADMAP/V1_EXTENSION/PORTABILITY.md`, and the same
+  # advice this project gives adopters in `docs/REUSE.md`. Full byte-parity
+  # against a Neovim run stays a local gate.
+  standalone:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: StefanBartl/lib.nvim
+          path: .deps/lib.nvim
+      - uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: "5.4"
+      - uses: leafo/gh-actions-luarocks@v4
+      - run: luarocks install luafilesystem && luarocks install dkjson
+      # `scripts/ci.sh` is itself launched via `nvim -l`, so this job needs
+      # Neovim as the script *host* even though the gate it runs deliberately
+      # never uses it as the Lua under test.
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+      - run: scripts/ci.sh standalone
