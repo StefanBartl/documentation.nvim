@@ -533,6 +533,29 @@ li:hover>.marki,tr:hover .marki{opacity:.8}
 #hext.active button{background:var(--accent-soft);color:var(--accent);font-weight:600}
 .hedge-call{stroke:var(--call);opacity:.8}
 .hedge-call.weak{stroke-dasharray:3 4;opacity:.5}
+/* An invisible, much wider companion path per edge. A 1.5px line is a 1.5px
+   hover target, which is not a target — the weighted Module Calls edges made
+   that obvious, since the thing worth reading (how many calls, which way) was
+   hardest to point at on the thinnest edges. `stroke:transparent` rather than
+   `opacity:0`: an `opacity:0` element still paints nothing *and* still takes
+   pointer events, but reads to a future editor as "hidden, delete me". */
+.hedge-hit{fill:none;stroke:transparent;stroke-width:14;cursor:default}
+/* Edge readout. `position:fixed` for exactly the reason `.sigpop` is: the
+   graph lives in a pannable, zoomable stage, and an absolutely-positioned
+   card would ride along with that transform instead of staying by the
+   cursor. `pointer-events:none` so it can never sit between the cursor and
+   the edge it describes and flicker the hover off. */
+.hedge-tip{position:fixed;z-index:60;display:none;pointer-events:none;
+  background:var(--bg);border:1px solid var(--line);border-radius:6px;
+  box-shadow:0 6px 20px rgba(0,0,0,.18);padding:6px 9px;font-size:11.5px;
+  max-width:300px;line-height:1.5}
+.hedge-tip.on{display:block}
+.hedge-tip .et-row{white-space:nowrap;font-family:var(--mono);color:var(--ink)}
+.hedge-tip .et-n{font-weight:650;color:var(--call)}
+/* The reverse direction, when the pair calls both ways. Muted because it is
+   context for the edge under the cursor, not the edge itself. */
+.hedge-tip .et-back{color:var(--muted)}
+.hedge-tip .et-back .et-n{color:var(--muted)}
 #hsvg marker path{stroke:none}
 #m-tree path{fill:var(--muted)}
 #m-type path{fill:var(--accent)}
@@ -2096,6 +2119,60 @@ local JS = [[
     var bulge = (leftward ? -1 : 1) * Math.max(38, Math.abs(sy - ey) * 0.45);
     return "M" + sx + "," + sy + " C" + (sx + bulge) + "," + sy + " " +
       (ex + bulge) + "," + ey + " " + ex + "," + ey;
+  }
+
+  // Edge readout on hover. The weighted Module Calls edges encode their count
+  // as thickness, which ranks well and reads badly: "thicker than that one"
+  // is not a number, and log scaling — the thing that stops one outlier
+  // flattening everything else — deliberately compresses the difference the
+  // eye is being asked to judge. So the number itself is one hover away.
+  //
+  // Shows the reverse direction too when the pair calls both ways. That is
+  // the question thickness cannot express at all: two modules calling each
+  // other draw two separate edges (`pairKey` is directional), and which of
+  // them is under the cursor is otherwise guesswork.
+  var edgeTip = null;
+  function edgeHover(hit, path, e, weightByPair){
+    function label(id){ var n = byId[id]; return (n && (n.module || n.name)) || id; }
+    hit.addEventListener("mouseenter", function(){
+      if(!edgeTip){
+        edgeTip = document.createElement("div");
+        edgeTip.className = "hedge-tip";
+        document.body.appendChild(edgeTip);
+      }
+      var back = weightByPair[e.to + " " + e.from];
+      var h = '<div class="et-row"><span class="et-n">' + e.weight + '</span> ' +
+        (e.weight === 1 ? "call" : "calls") + " " + esc(label(e.from)) + " → " + esc(label(e.to)) + "</div>";
+      if(back){
+        h += '<div class="et-row et-back"><span class="et-n">' + back + '</span> ' +
+          (back === 1 ? "call" : "calls") + " back</div>";
+      }
+      edgeTip.innerHTML = h;
+      edgeTip.classList.add("on");
+      // Widen the real edge while it is described, so it is unambiguous which
+      // of several overlapping lines the readout belongs to. Set inline and
+      // restored on leave: the weighted edges already carry an inline
+      // `stroke-width`, which no class could override.
+      path.dataset.w = path.style.strokeWidth || "";
+      path.style.strokeWidth = String((parseFloat(path.style.strokeWidth) || 1.5) + 2.5);
+      path.style.opacity = "1";
+    });
+    hit.addEventListener("mousemove", function(ev){
+      if(!edgeTip) return;
+      // Flip to the other side near the viewport edges rather than letting a
+      // fixed-position card get clipped.
+      var pad = 14, w = edgeTip.offsetWidth, hgt = edgeTip.offsetHeight;
+      var x = ev.clientX + pad, y = ev.clientY + pad;
+      if(x + w > window.innerWidth) x = ev.clientX - w - pad;
+      if(y + hgt > window.innerHeight) y = ev.clientY - hgt - pad;
+      edgeTip.style.left = Math.max(4, x) + "px";
+      edgeTip.style.top = Math.max(4, y) + "px";
+    });
+    hit.addEventListener("mouseleave", function(){
+      if(edgeTip) edgeTip.classList.remove("on");
+      path.style.strokeWidth = path.dataset.w || "";
+      path.style.opacity = "";
+    });
   }
 
   // BFS over node.children from `startId`. Files count the same as modules/
@@ -5288,6 +5365,14 @@ local JS = [[
     // for up to 90 edges buys very little over simply not drawing lines that
     // would be pointing at boxes still in motion. So: hidden while the boxes
     // move, faded in once they have arrived.
+    // Both directions of a pair are separate edge objects (`pairKey` is
+    // `from + " " + to`), so the reverse call count is a lookup away rather
+    // than something to recompute. Built once per draw, not per hover.
+    var weightByPair = {};
+    built.edges.forEach(function(e){
+      if(e.weight) weightByPair[e.from + " " + e.to] = e.weight;
+    });
+
     var neighbours = {};
     built.edges.forEach(function(e){
       var a = positions[e.from], b = positions[e.to];
@@ -5312,6 +5397,17 @@ local JS = [[
         p.appendChild(title);
       }
       svg.appendChild(p);
+      // The hover companion, added after its own edge so it sits on top and
+      // wins the pointer. Only where there is something to read: an
+      // unweighted tree edge has no count to show, and giving every edge a
+      // 14px hit area would make the graph's own boxes harder to reach.
+      if(e.weight){
+        var hit = document.createElementNS(svgNS, "path");
+        hit.setAttribute("d", edgePath(a, b));
+        hit.setAttribute("class", "hedge-hit");
+        edgeHover(hit, p, e, weightByPair);
+        svg.appendChild(hit);
+      }
       (neighbours[e.from] = neighbours[e.from] || {})[e.to] = true;
       (neighbours[e.to] = neighbours[e.to] || {})[e.from] = true;
     });
