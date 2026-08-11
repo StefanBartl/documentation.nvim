@@ -1,5 +1,55 @@
 # documentation.nvim — idea backlog
 
+## Table of content
+
+  - [Intro](#intro)
+  - [1. New drift checks](#1-new-drift-checks)
+    - [1.1 Code blocks in Markdown, checked against the real API](#11-code-blocks-in-markdown-checked-against-the-real-api)
+    - [1.2 `@example` blocks that do not parse](#12-example-blocks-that-do-not-parse)
+    - [1.3 API-surface change detection](#13-api-surface-change-detection)
+    - [1.4 Tests that name a function which no longer exists](#14-tests-that-name-a-function-which-no-longer-exists)
+    - [1.5 Orphaned `@class` / `@alias`](#15-orphaned-class-alias)
+    - [1.6 `@since` / version-tag drift](#16-since-version-tag-drift)
+    - [1.7 Cross-repository checks over `tag_files`](#17-cross-repository-checks-over-tag_files)
+  - [2. New Analysis panels](#2-new-analysis-panels)
+    - [2.1 Annotation adoption — generated, not hand-written](#21-annotation-adoption-generated-not-hand-written)
+    - [2.2 Public API surface](#22-public-api-surface)
+    - [2.3 Ownership / bus factor](#23-ownership-bus-factor)
+    - [2.4 Coupling and cohesion](#24-coupling-and-cohesion)
+    - [2.5 Unused requires](#25-unused-requires)
+  - [3. The generated page](#3-the-generated-page)
+    - [3.1 Compare two artifacts, in the page](#31-compare-two-artifacts-in-the-page)
+    - [3.2 Copy-link for the current view](#32-copy-link-for-the-current-view)
+    - [3.3 Print / PDF stylesheet](#33-print-pdf-stylesheet)
+    - [3.4 Keyboard navigation across the page](#34-keyboard-navigation-across-the-page)
+  - [4. The editor browser (`:DocBrowse`)](#4-the-editor-browser-docbrowse)
+    - [4.1 Telemetry mode (ECOSYSTEM step 8)](#41-telemetry-mode-ecosystem-step-8)
+    - [4.2 Picker integration](#42-picker-integration)
+    - [4.3 `K` — look up the notation under the cursor](#43-k-look-up-the-notation-under-the-cursor)
+    - [4.4 Breadcrumb in the statusline](#44-breadcrumb-in-the-statusline)
+  - [5. Framework and language conventions](#5-framework-and-language-conventions)
+    - [5.1 File-based routing — the other half of step 4](#51-file-based-routing-the-other-half-of-step-4)
+    - [5.2 OpenAPI generation from the endpoint inventory](#52-openapi-generation-from-the-endpoint-inventory)
+    - [5.3 Component conventions — Vue / Svelte SFCs](#53-component-conventions-vue-svelte-sfcs)
+    - [5.4 ORM models and migrations](#54-orm-models-and-migrations)
+  - [6. Integrations and output](#6-integrations-and-output)
+    - [6.1 SARIF output for CI](#61-sarif-output-for-ci)
+    - [6.2 A GitHub Action](#62-a-github-action)
+    - [6.3 Publishing the map to GitHub Pages](#63-publishing-the-map-to-github-pages)
+    - [6.4 Mermaid export](#64-mermaid-export)
+    - [6.5 Workspace symbols from the IR](#65-workspace-symbols-from-the-ir)
+    - [6.6 A generic CLI entry, no per-repo copy](#66-a-generic-cli-entry-no-per-repo-copy)
+    - [6.7 A REUSE.md recipe for "many repos, one config"](#67-a-reusemd-recipe-for-many-repos-one-config)
+  - [7. Scale and performance](#7-scale-and-performance)
+  - [8. Product shape](#8-product-shape)
+    - [8.1 A polished desktop/web-app version](#81-a-polished-desktopweb-app-version)
+    - [8.2 A checklist/task syntax with a runner and dashboard](#82-a-checklisttask-syntax-with-a-runner-and-dashboard)
+  - [9. Artifact and schema](#9-artifact-and-schema)
+
+---
+
+## Intro
+
 Brainstormed features, grouped by theme. **Nothing here is scheduled**, and
 nothing here has been costed the way [`ROADMAP.md`](../ROADMAP.md)'s entries
 have — this is the layer *before* that: ideas worth writing down so they are
@@ -33,6 +83,8 @@ ground.
 The 14 existing checks are the plugin's core. These are the gaps in that
 catalogue — ordered by how much of a real, silent problem each one catches.
 
+---
+
 ### 1.1 Code blocks in Markdown, checked against the real API
 
 `doc-references-missing` reads *inline code spans* in prose. It does not
@@ -53,6 +105,8 @@ exactly the way `docs_heuristic` already is — qualified calls only
 report at `info` severity, the same class `dead-function` sits in for the
 same reason.
 
+---
+
 ### 1.2 `@example` blocks that do not parse
 
 Same idea, one step easier: `@example` content is already extracted and
@@ -61,6 +115,8 @@ and reporting a syntax error is nearly free, and an `@example` that does not
 parse is unambiguously wrong — no judgement call, no false-positive class.
 
 Cheapest real check in this document. Probably the one to build first.
+
+---
 
 ### 1.3 API-surface change detection
 
@@ -80,6 +136,8 @@ itself returned from a factory is ambiguous. `dead_code`'s existing
 "published functions" notion is the closest thing to a definition this plugin
 already has, and this check would depend on it being right.
 
+---
+
 ### 1.4 Tests that name a function which no longer exists
 
 `tests_dir` already feeds `fn.tested`, so the mapping between tests and
@@ -88,6 +146,8 @@ function that has been renamed away — is the same class of drift
 `doc-references-missing` catches for prose, in the place it is most likely
 to rot unnoticed (a spec that still passes because it tests a shim).
 
+---
+
 ### 1.5 Orphaned `@class` / `@alias`
 
 A type declared, documented, and referenced by nothing. Structurally
@@ -95,12 +155,16 @@ identical to `unreferenced-module` (which already exists) one level down.
 Cheap once LuaLS enrichment has run, and genuinely useful in a tree that has
 accumulated types across a refactor.
 
+---
+
 ### 1.6 `@since` / version-tag drift
 
 If a function carries `@since 2.1` and the repository's own tags say 2.1
 never existed, that is checkable. Speculative — this tree does not use
 `@since` — but worth noting that the check is nearly free *if* the
 convention is ever adopted, which is an argument for adopting it.
+
+---
 
 ### 1.7 Cross-repository checks over `tag_files`
 
@@ -120,6 +184,8 @@ cannot be a panel at all (see `:DocMap churn`'s own entry in
 `FEATURES.md` for why: a committed artifact carrying history invalidates
 itself).
 
+---
+
 ### 2.1 Annotation adoption — generated, not hand-written
 
 [`docs/ANNOTATIONS.md`](../../ANNOTATIONS.md) is this analysis done **by
@@ -135,6 +201,8 @@ report rather than a crib sheet, and it cannot go stale.
 
 **Rank this highest of the panel ideas** for exactly that reason.
 
+---
+
 ### 2.2 Public API surface
 
 Every published function, in one list, with its documentation state and
@@ -148,6 +216,8 @@ module into its own plugin. `lib.nvim.docmap` → documentation.nvim and
 `lib.nvim.telemetry` → runtime-analysis.nvim were both preceded by exactly
 this question, answered by hand both times.
 
+---
+
 ### 2.3 Ownership / bus factor
 
 Per module: how many distinct authors, when it was last touched, what share
@@ -158,6 +228,8 @@ which already solved this constraint.
 Genuinely useful on a team. On a single-author repository it reports "1"
 everywhere, which is worth saying out loud before building it here.
 
+---
+
 ### 2.4 Coupling and cohesion
 
 Fan-in/fan-out already ships. The next metric up — how much a module's own
@@ -165,6 +237,8 @@ functions call *each other* versus reaching outward — is the one that
 identifies a module that should be split. Real analysis value; also the
 kind of metric that is easy to compute and hard to act on, so it earns its
 place only if the number turns out to point somewhere specific.
+
+---
 
 ### 2.5 Unused requires
 
@@ -175,6 +249,8 @@ cheap: the IR already has both the require edges and the symbol references.
 ---
 
 ## 3. The generated page
+
+---
 
 ### 3.1 Compare two artifacts, in the page
 
@@ -188,6 +264,8 @@ Needs no new extraction (every commit already carries its artifact), and
 `:DocMap serve` already solves the "fetch another commit's artifact"
 problem for the History tab.
 
+---
+
 ### 3.2 Copy-link for the current view
 
 The whole page state already lives in the URL fragment — that is what
@@ -195,11 +273,15 @@ The whole page state already lives in the URL fragment — that is what
 that URL. One-line feature, disproportionate usefulness for "look at this
 specific thing" in a PR comment.
 
+---
+
 ### 3.3 Print / PDF stylesheet
 
 A `@media print` block so the Tree tab and the Analysis panels print
 legibly. Low glamour, occasionally exactly what someone needs for a review,
 and it costs a stylesheet rather than a feature.
+
+---
 
 ### 3.4 Keyboard navigation across the page
 
@@ -211,6 +293,8 @@ reader.
 ---
 
 ## 4. The editor browser (`:DocBrowse`)
+
+---
 
 ### 4.1 Telemetry mode (ECOSYSTEM step 8)
 
@@ -229,6 +313,8 @@ Note the numbering: it lands as `MODES[8]`, not 7 — Endpoints took position
 7 in the actual list. `ECOSYSTEM.md` already records this to spare a future
 reader the confusion.
 
+---
+
 ### 4.2 Picker integration
 
 `pickers.nvim` (this ecosystem's own) or telescope/fzf-lua/snacks as an
@@ -239,12 +325,16 @@ me there" interaction, which is a different one.
 
 Cheap — the IR is already a flat, ordered list with locations attached.
 
+---
+
 ### 4.3 `K` — look up the notation under the cursor
 
 Vim's own "what is this" key, currently unbound in the browser and the
 first thing a Vim user would try. `ROADMAP.md`'s Reference-tab entry
 already names this as that feature's editor-side counterpart; noted here so
 the two do not get built as separate things.
+
+---
 
 ### 4.4 Breadcrumb in the statusline
 
@@ -263,6 +353,8 @@ where the remaining value is, and
 [`FRAMEWORK_CONVENTIONS.md`](../../FRAMEWORK_CONVENTIONS.md) is its design
 document.
 
+---
+
 ### 5.1 File-based routing — the other half of step 4
 
 `ECOSYSTEM.md` step 4 shipped call-based routing (Express/Fastify/Koa) as
@@ -270,6 +362,8 @@ an Analysis panel and explicitly left file-based routing
 (Next.js/SvelteKit/Nuxt/Remix) out, with a reason worth keeping: the
 directory nesting *is* the information, so it belongs in a **Hierarchy
 view**, not a flat panel. Different work, not a follow-up.
+
+---
 
 ### 5.2 OpenAPI generation from the endpoint inventory
 
@@ -285,6 +379,8 @@ methods and empty schemas may be worth less than it sounds. Costed at "one
 serialiser" and valued at "unclear" — that gap is the reason it is here
 rather than in `ROADMAP.md`.
 
+---
+
 ### 5.3 Component conventions — Vue / Svelte SFCs
 
 Single-file components are a real structural convention (template + script
@@ -292,6 +388,8 @@ Single-file components are a real structural convention (template + script
 the current node model has no shape for. Substantial work, entirely
 speculative, and gated behind whether this plugin is ever pointed at a
 frontend repository in earnest.
+
+---
 
 ### 5.4 ORM models and migrations
 
@@ -301,6 +399,8 @@ is structure, and it is invisible to every panel today. Same gate as §5.3.
 ---
 
 ## 6. Integrations and output
+
+---
 
 ### 6.1 SARIF output for CI
 
@@ -312,12 +412,16 @@ which is where a `missing-summary` finding actually gets fixed.
 The findings already have file, line, severity and message. This is a
 serialiser and a CI step, not analysis.
 
+---
+
 ### 6.2 A GitHub Action
 
 Package the existing `--check` gate so another repository can adopt it in
 three lines. [`REUSE.md`](../../REUSE.md) already documents the "copy two files
 and edit five lines" path; an action is the version that does not require
 copying anything.
+
+---
 
 ### 6.3 Publishing the map to GitHub Pages
 
@@ -326,6 +430,8 @@ step — which makes it a static site by construction. A workflow that
 publishes it on push is nearly free, and it turns "the map is in the repo"
 into "the map has a URL".
 
+---
+
 ### 6.4 Mermaid export
 
 `:DocMap dot` produces Graphviz. Mermaid's advantage is different and
@@ -333,12 +439,16 @@ specific: **GitHub renders it inline**, so a Mermaid dependency graph can
 live in a README or a PR comment and be *looked at* rather than downloaded.
 Same edges, third serialiser, and the cheapest of the three.
 
+---
+
 ### 6.5 Workspace symbols from the IR
 
 The IR knows every symbol and its location — the same thing an LSP
 workspace-symbol request answers. Whether this is worth building depends
 entirely on whether it beats `lua-language-server`, which most people
 already have. **Probably not**; noted so the question is not re-asked.
+
+---
 
 ### 6.6 A generic CLI entry, no per-repo copy
 
@@ -399,6 +509,8 @@ whether an *optional* `.docmap.lua` config file in the target repo — read
 when present, flags overriding it — is worth the extra surface over "just
 pass flags every time" for a repo visited more than once. Neither has an
 answer yet, which is the whole reason this is here and not in `scripts/`.
+
+---
 
 ### 6.7 A REUSE.md recipe for "many repos, one config"
 
@@ -467,6 +579,8 @@ analysis document rather than a paragraph here — the same
 `docs/ROADMAP/PORTABILITY.md`/`docs/ROADMAP/MULTILANG.md` pattern this backlog already
 uses for anything too large for one entry.
 
+---
+
 ### 8.1 A polished desktop/web-app version
 
 [`docs/IDEAS/DESKTOP_WEBAPP.md`](../../IDEAS/DESKTOP_WEBAPP.md) — costs out
@@ -478,6 +592,8 @@ standalone CLI, `docs/ROADMAP/PORTABILITY.md`'s ltreesitter research) but not
 finished; a hosted web app has no answer sketched anywhere for the trust
 question `editor/serve.lua`'s own `127.0.0.1`-only posture currently
 avoids having to answer at all.
+
+---
 
 ### 8.2 A checklist/task syntax with a runner and dashboard
 
@@ -505,3 +621,6 @@ existing check catalogue with new syntax.
   incidents are in `FEATURES.md`. A single builder, or a test asserting the
   two key sets match, would end that class of bug rather than documenting
   it a third time.
+
+---
+
