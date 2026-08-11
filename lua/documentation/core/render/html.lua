@@ -4724,6 +4724,18 @@ local JS = [[
       return;
     }
 
+    // Only the first view of this panel pays for a real fetch — after that,
+    // loadedSnapList is cached and the promise below settles synchronously.
+    // Without this, switching tabs to Loaded left whatever panel was on
+    // screen before sitting there, unchanged, for the length of the request
+    // — the toolbar's active button already said "Loaded" while the body
+    // still showed a different panel's table, which reads as the wrong
+    // panel's data rather than as "still loading". Telemetry already avoids
+    // this the same way; unlike Telemetry, this only needs to show once
+    // per page load rather than on every draw, since only Telemetry re-fetches
+    // on every view.
+    if(!loadedSnapLoaded) host.innerHTML = '<p class="hmsg">Loading…</p>';
+
     var snapListPromise = loadedSnapLoaded
       ? Promise.resolve(loadedSnapList)
       : fetch("/api/loaded/snapshots").then(function(r){ return r.json(); }).then(function(d){
