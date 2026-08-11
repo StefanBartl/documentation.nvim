@@ -19,7 +19,7 @@
 --- lives structurally outside it, not behind an exception written into the
 --- rule.
 ---
---- See `docs/ROADMAP/MULTILANG.md` for the task list this seam is Phase 0
+--- See `docs/ROADMAP/IDEAS/MULTILANG.md` for the task list this seam is Phase 0
 --- of, and `core/lang/lua.lua` for the reference registration — a thin
 --- wrapper, not a rewrite: `scan.lua`'s `parse_header` and `functions.lua`'s
 --- `scan_file` are unchanged, only which caller reaches them moved.

@@ -297,7 +297,7 @@ function M.scan(opts)
     -- The first registered backend whose `module_file` exists here owns this
     -- directory. Only Lua is registered today (`core/lang/lua.lua`), so this
     -- is exactly the `init.lua` check it replaces — see
-    -- `docs/ROADMAP/MULTILANG.md` Phase 0 for why the walk asks the registry
+    -- `docs/ROADMAP/IDEAS/MULTILANG.md` Phase 0 for why the walk asks the registry
     -- instead of assuming there is only ever one answer.
     local module_backend, module_abs
     for _, backend in ipairs(lang_registry.all()) do

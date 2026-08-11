@@ -20,7 +20,7 @@ Nothing in the pipeline knows about any particular repository. `opts.root` and
 directory layout, types directory, output directory — is an option with a
 default. `nvim --headless -l` is a Lua interpreter that happens to ship a
 parser, a filesystem library and a JSON codec, and `scripts/gen_map.lua` uses
-it as exactly that. See [`REUSE.md`](REUSE.md) for the two files to copy.
+it as exactly that. See [`REUSE.md`](../REUSE.md) for the two files to copy.
 
 The real precondition is not Neovim, it is **`---@module` on your files**.
 Without those the scan produces an empty tree, and nothing else in the

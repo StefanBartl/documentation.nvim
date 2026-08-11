@@ -64,7 +64,7 @@ Status vocabulary: **DONE** (nothing to do), **PARTIAL** (exists, gap named),
 | Every keymap also reachable as a usrcmd | **DONE** | Rationale written, in `docs/BINDINGS.md` and the central Keymaps cheatsheet: every key with a meaning outside the list already has a command (`gd`→source, `gq`/`gI`→`:DocMap impact`, `gO`→`:DocMap open`). The rest (`j/k`, `+`, `h/l`, `1…6`) move a cursor inside one buffer — a command form would have nothing to act on. |
 | Enforce `lib.nvim.selection` | **N/A** | This plugin has **zero** visual-mode mappings. Nothing can lose a selection. Record as N/A so it stops being re-asked. |
 | Security hardening pass | **DONE** (Phase 6) | Already strong and deliberate: `serve.lua` binds `127.0.0.1` only (`serve.lua:438`), validates SHAs against `^%x%x%x%x%x%x%x+$` with a length cap (`:141`), rejects `..` and separators in path names (`:302`), and every git call goes through `vim.system` argv — no shell, so no injection from a user-supplied `<ref>`. What is missing is the **audit record**, not the hardening. |
-| Compiled binaries evaluation | **DONE** | `docs/PORTABILITY.md` and `docs/MULTILANG.md` already answer this, with measurements (commit `d4d3a72`). |
+| Compiled binaries evaluation | **DONE** | `docs/ROADMAP/PORTABILITY.md` and `docs/ROADMAP/MULTILANG.md` already answer this, with measurements (commit `d4d3a72`). |
 | Tests under `TESTS/**` | **DONE** | Phase 3. `git mv docs/TESTS TESTS`, with `tests_dir`'s default, `coverage.lua`, `cli.lua`, `ci.sh`, the workflow and six documents updated in lockstep. |
 | GitHub Actions | **DONE** | `.github/workflows/ci.yml` — stylua, luacheck, tests, and a `map` drift job. |
 | Commit & push | **DONE** | |

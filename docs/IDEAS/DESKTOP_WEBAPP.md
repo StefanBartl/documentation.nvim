@@ -3,7 +3,7 @@
 Raised 2026-08-11: "a Desktop/Webapp version, building on this concept, but
 with everything refined, also with better View/UI/feature equipment."
 Analysis, not a proposal — the same posture
-[`PORTABILITY.md`](../PORTABILITY.md)/[`MULTILANG.md`](../MULTILANG.md)
+[`PORTABILITY.md`](../ROADMAP/PORTABILITY.md)/[`MULTILANG.md`](../ROADMAP/MULTILANG.md)
 already take, referenced from [`ROADMAP.md`](../ROADMAP/ROADMAP.md) rather
 than repeated there.
 
@@ -77,7 +77,7 @@ real this session, not assumed:
 - Packaging once generation is solved: `luastatic` links a Lua
   interpreter, the sources and any C modules into one binary — installed
   and tried this session, genuinely "the least interesting step"
-  ([`PORTABILITY.md`](../PORTABILITY.md)'s own words, confirmed rather
+  ([`PORTABILITY.md`](../ROADMAP/PORTABILITY.md)'s own words, confirmed rather
   than just asserted). A cross-platform build matrix (Windows/Linux/macOS)
   was scoped but not built.
 

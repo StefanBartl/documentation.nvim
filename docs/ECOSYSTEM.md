@@ -9,8 +9,9 @@ documentation.nvim gain a tab that appears when it is installed?*
 
 This answers **where each thing belongs and why**, not how to build it. A
 per-step implementation concept follows separately, in
-`docs/ROADMAP/ECOSYSTEM.md`, the same split `MULTILANG.md` already uses
-(analysis in `docs/`, task breakdown in `docs/ROADMAP/`).
+`docs/ROADMAP/ECOSYSTEM.md`, the same split `docs/ROADMAP/MULTILANG.md`/
+`docs/ROADMAP/IDEAS/MULTILANG.md` already use (cost analysis in
+`docs/ROADMAP/`, task breakdown in `docs/ROADMAP/IDEAS/`).
 
 **Decisions taken (§4–§8):** the plugin is worth it, named
 **`runtime-analysis.nvim`** and already created; it is a **Neovim plugin**,
@@ -751,8 +752,8 @@ property that makes this order safe to commit to now.
   merits, so the fourth plugin only starts costing once there is a reason
   for it to exist.
 - **`core/plugins.lua` passed nine hand-written fixtures and then produced
-  235 false positives against one real config** (`MULTILANG.md`'s own
-  Considerations section). Every recognizer proposed here — endpoints
+  235 false positives against one real config** (`docs/ROADMAP/IDEAS/
+  MULTILANG.md`'s own Considerations section). Every recognizer proposed here — endpoints
   especially — carries that risk profile. Real trees, not fixtures.
 - **Every framework-syntax claim above is unverified.** No Express, FastAPI
   or axum tree has been parsed here. Verify at implementation time, the way

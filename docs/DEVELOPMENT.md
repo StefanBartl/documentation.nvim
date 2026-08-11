@@ -218,7 +218,7 @@ to ignore the check.)
 so `:DocMap check` — and therefore CI — fails if a core module ever requires
 an editor one. That is the whole reason the directories exist: the pipeline
 has to stay runnable with no editor around it (see
-[PORTABILITY.md](PORTABILITY.md)), and nothing but a check keeps a boundary
+[PORTABILITY.md](ROADMAP/PORTABILITY.md)), and nothing but a check keeps a boundary
 like that from quietly rotting. Declaring the rule immediately found one real
 violation — `tagfiles.lua` reached into `command.lua` for `find_node`, a
 lookup that touches nothing but the IR, now `core/find.lua`.
@@ -262,7 +262,7 @@ real Neovim API rather than a language feature: `fs.read` (cli, tagfiles),
 `fs.mkdirp` (init, luals), `fs.collect_recursive` (coverage) and
 `cross.uv.spawn_capture` (luals). Every one of them would need replacing in a
 standalone build anyway, and each already appears in
-[PORTABILITY.md](PORTABILITY.md)'s count.
+[PORTABILITY.md](ROADMAP/PORTABILITY.md)'s count.
 
 What that rules out is the tempting direction: replacing small pure-Lua
 helpers in `core/` with `lib.nvim.*` calls. That trades five lines of Lua for

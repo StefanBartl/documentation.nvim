@@ -4,7 +4,7 @@
 --- same relationship `functions.lua` has to `core/lang/lua.lua`. One
 --- implementation, parametrized by grammar name, because the three
 --- grammars agree on every shape this module actually reads — verified
---- against real parses (see `docs/ROADMAP/MULTILANG.md`'s own warning that
+--- against real parses (see `docs/ROADMAP/IDEAS/MULTILANG.md`'s own warning that
 --- claims here are task descriptions until checked against something real;
 --- this module's shapes *have* been checked, unlike that document's).
 ---
@@ -102,7 +102,7 @@ end
 ---expose it as a public function, and this is real, working code rather
 ---than a refactor of Lua's own path. Unifying the two behind one shared
 ---helper is worth doing once a second language actually exists to prove the
----shared shape is right, not before — see `docs/ROADMAP/MULTILANG.md`.
+---shared shape is right, not before — see `docs/ROADMAP/IDEAS/MULTILANG.md`.
 ---@param def_node TSNode
 ---@return string shape
 ---@return integer size
@@ -374,7 +374,7 @@ end
 ---                                            models this as a dependency
 ---
 ---Verified against a real parse (see this file's own header and
----`docs/ROADMAP/MULTILANG.md`): `object`/`array` literals, `number`/
+---`docs/ROADMAP/IDEAS/MULTILANG.md`): `object`/`array` literals, `number`/
 ---`string`/`true`/`false` primitives (JS has no single "boolean" node type —
 ---`true` and `false` are distinct), `null`/`undefined` (JS-only shapes with
 ---no Lua equivalent; both fall through to "binding", the same as any other
