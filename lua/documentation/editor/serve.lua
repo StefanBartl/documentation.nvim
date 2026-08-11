@@ -742,6 +742,21 @@ local function handle(cfg, client, method, target)
   path = path or "/"
   query = query or ""
 
+  -- "Is a docmap server behind this origin?" — the one question the page
+  -- could not answer, and the reason a *published* copy of the map showed
+  -- the wrong error. `historyAvailable()` in the page tests the protocol,
+  -- so on GitHub Pages (`https:`) the four server-backed panels considered
+  -- themselves live, fetched, got the host's 404 and reported "Is it still
+  -- running? `:DocMap serve` starts it" — advice that is simply false there.
+  --
+  -- Deliberately trivial and unauthenticated, like every other route here:
+  -- this server binds 127.0.0.1 only, so answering "yes, I am a docmap
+  -- server" tells a caller nothing it could not already tell by fetching
+  -- any other endpoint.
+  if path == "/api/ping" then
+    return respond(client, 200, "application/json", vim.json.encode({ docmap = true }))
+  end
+
   if path == "/api/commits" then
     return route_commits(cfg, client, query)
   end
