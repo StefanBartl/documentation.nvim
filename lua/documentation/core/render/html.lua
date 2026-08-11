@@ -4385,8 +4385,11 @@ local JS = [[
       })
       .catch(function(e){
         if(token !== telReqToken) return;
-        host.innerHTML = '<p class="hmsg">Could not reach the map server: ' + esc(String(e)) +
-          '<br><br>Is it still running? <code>:DocMap serve</code> starts it.</p>';
+        explainFetchFailure(e, "the Telemetry panel").then(function(msg){
+          // The token is re-checked after the probe: a newer selection may
+          // have superseded this one while it was in flight.
+          if(token === telReqToken) host.innerHTML = msg;
+        });
       });
   }
 
@@ -4637,7 +4640,7 @@ local JS = [[
 
   // Verdict by "<file>:<line>", or null before the fetch resolves / when
   // there is no server to ask.
-  var checklistStatus = null;
+  var checklistStatus = null, checklistFailed = false;
   var checklistTried = false;
 
   function checklistStateLabel(st){
@@ -4665,7 +4668,12 @@ local JS = [[
       note = '<p class="ntext">' + (c.stale || 0) + ' stale, ' + (c.unverified || 0) +
         ' unverified, ' + (c.current || 0) + ' current, ' + (c.uncited || 0) +
         ' uncited — of ' + led.total + ' item' + (led.total === 1 ? "" : "s") + '.</p>';
-    } else if(!historyAvailable()){
+    } else if(!historyAvailable() || checklistFailed){
+      // `checklistFailed` covers the published copy: the protocol says
+      // fetching is possible, the enrichment still cannot be answered, and
+      // without this the note sat on "Reading history…" forever. The wording
+      // below is already right for both — the verdict needs git *and* a local
+      // server, neither of which a static host has.
       note = '<p class="ntext">' + led.done + ' of ' + led.total + ' done, ' + led.cited +
         ' cited. <em>Changed-since-verified needs git, so it is not in this file.</em> Run ' +
         '<code>:DocMap serve</code> and open the URL it prints to fill in the verdict — or ' +
@@ -4726,9 +4734,14 @@ local JS = [[
         document.getElementById("anbody").innerHTML = renderChecklistBody();
       }
     }).catch(function(){
-      // Silent: the panel above is already complete and correct without a
-      // verdict, and a scary error over a missing enrichment would overstate
-      // what went wrong.
+      // Still silent — the panel above is already complete and correct
+      // without a verdict, and a scary error over a missing enrichment would
+      // overstate what went wrong. But the note has to stop claiming it is
+      // still reading, which is what this flag is for.
+      checklistFailed = true;
+      if(state.tab === "analysis" && state.atool === "checklist"){
+        document.getElementById("anbody").innerHTML = renderChecklistBody();
+      }
     });
   }
 
@@ -4766,7 +4779,16 @@ local JS = [[
           loadedSnapLoaded = true;
           loadedSnapList = (d && d.snapshots) || [];
           return loadedSnapList;
-        }).catch(function(){ loadedSnapLoaded = true; loadedSnapList = []; return loadedSnapList; });
+        });
+    // No `.catch` swallowing the failure into an empty list, deliberately.
+    // A server that simply has no snapshots answers `{"snapshots":[]}` with
+    // a 200, so this promise only rejects when the request genuinely failed
+    // — and turning that into "No snapshots saved yet" states something
+    // about the *data* when the truth is about the *server*. On a published
+    // copy of the map that reading is plainly wrong, which is how it was
+    // found. Letting it reject hands it to the outer catch, which explains
+    // the real situation; `loadedSnapLoaded` staying false also means the
+    // next draw retries rather than caching a failure forever.
 
     snapListPromise.then(function(list){
       if(!state.lsnap){
@@ -4777,8 +4799,7 @@ local JS = [[
         renderAnalysisLoadedBody(d, list);
       });
     }).catch(function(e){
-      host.innerHTML = '<p class="hmsg">Could not reach the map server: ' + esc(String(e)) +
-        '<br><br>Is it still running? <code>:DocMap serve</code> starts it.</p>';
+      explainFetchFailure(e, "the Loaded panel").then(function(msg){ host.innerHTML = msg; });
     });
   }
 
@@ -4912,6 +4933,45 @@ local JS = [[
 
   function historyAvailable(){ return location.protocol === "http:" || location.protocol === "https:"; }
 
+  // Why a *served* page and a *published* one are not the same thing.
+  //
+  // `historyAvailable()` above tests the protocol, which answers "can this
+  // page fetch at all" and nothing more. That was enough while the only two
+  // cases were `file://` (cannot fetch) and `:DocMap serve` (a real docmap
+  // server). Publishing the map to a static host adds a third: `https:`,
+  // fetching works, and there is no server behind it. The four server-backed
+  // panels then reported "Could not reach the map server — is it still
+  // running? `:DocMap serve` starts it", which on a published page is advice
+  // for a problem the reader does not have.
+  //
+  // Asked only on the failure path, so the normal case pays nothing: by the
+  // time this runs a request has already failed, and one more tells the
+  // reader which of the two situations they are in. `/api/ping` answers
+  // `{"docmap":true}`; a static host answers its own 404, and any other
+  // origin answers something that is not that.
+  function explainFetchFailure(e, what){
+    var detail = esc(String(e));
+    return fetch("/api/ping", { cache: "no-store" })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(d && d.docmap === true){
+          // A docmap server is there; this particular request still failed.
+          return '<p class="hmsg">The map server is running, but ' + what +
+            ' failed: ' + detail + '</p>';
+        }
+        return null;
+      })
+      .catch(function(){ return null; })
+      .then(function(msg){
+        if(msg) return msg;
+        return '<p class="hmsg">This is a published copy of the map, so ' + what +
+          ' has nothing to ask.<br><br>' + what.charAt(0).toUpperCase() + what.slice(1) +
+          ' is computed on demand by a local server — it reads your working tree, your ' +
+          'git history and your runtime data, none of which exist here.<br><br>' +
+          'Run <code>:DocMap serve</code> in the repository and open the URL it prints.</p>';
+      });
+  }
+
   function histOffline(msg){
     document.getElementById("hist-list").innerHTML = "";
     document.getElementById("hist-detail").innerHTML = msg;
@@ -4940,8 +5000,7 @@ local JS = [[
         })
         .catch(function(e){
           histLoaded = false;
-          histOffline('<p class="hmsg">Could not reach the map server: ' + esc(String(e)) +
-            '<br><br>Is it still running? <code>:DocMap serve</code> starts it.</p>');
+          explainFetchFailure(e, "the History tab").then(histOffline);
         });
       return;
     }
@@ -4984,7 +5043,7 @@ local JS = [[
         wireCommitDetail(det);
       })
       .catch(function(e){
-        det.innerHTML = '<p class="hmsg">Request failed: ' + esc(String(e)) + "</p>";
+        explainFetchFailure(e, "the History tab").then(function(msg){ det.innerHTML = msg; });
       });
   }
 
@@ -6750,6 +6809,19 @@ function M.render(ir, findings, opts)
     -- check for exactly that falsy value.
     tools = ir.tools,
     features = ir.features,
+    -- The trap above claimed a third feature after all, and the comment
+    -- thread did not prevent it: `ir.checklist` is set by `scan_full` and
+    -- serialised by `documentation.to_json`, but never reached this list —
+    -- so the Checklist panel rendered "This repository has no checklist" on
+    -- every page, including one whose own `module_map.json` carried the
+    -- ledger and whose `/api/checklist` answered `available: true`. Found by
+    -- opening the served page and comparing the three against each other,
+    -- which is the same way the first two were found.
+    --
+    -- No empty-shape fallback, for the same reason as `tools`/`features`:
+    -- `nil` here is the real, common answer "this repo ships no
+    -- docs/CHECKLIST/", which `drawAnalysisChecklist` already handles.
+    checklist = ir.checklist,
   })
   -- `</script>` inside JSON would terminate the block early.
   payload = payload:gsub("</", "<\\/")
