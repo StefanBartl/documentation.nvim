@@ -385,6 +385,38 @@ considered for the same reason and set aside for the same one: it would
 be a new visual pattern with no precedent elsewhere on this page, and
 "looks right" is not verifiable without seeing it.
 
+**Slice 2 — a loading state for the Loaded panel.** Found by actually
+exercising the fetch-backed panels rather than reading their code and
+assuming they matched each other: Telemetry shows `"Loading telemetry…"`
+before its snapshot-list fetch starts; Loaded did not show anything before
+its own. Reproduced live rather than inferred — an artificially delayed
+`window.fetch` (3s) made the gap observable: switching the toolbar to
+"Loaded" flipped the active button immediately, but `#anbody` kept
+showing the *previous* panel's table, unchanged, for the length of the
+request. That reads as the wrong panel's data on screen, not as "still
+loading" — worse than a bare blank state. First attempt at verifying this
+actually caught a second bug in the verification itself: the in-app
+browser's navigation didn't bypass its HTTP cache, so an early check
+silently re-tested the pre-fix page and looked like the fix had failed;
+re-run with a cache-busting query string, confirmed clean.
+
+The fix is scoped tighter than Telemetry's own pattern rather than copying
+it verbatim: Telemetry re-fetches on every draw (its own live data changes
+per view), so it shows `"Loading…"` unconditionally every time; Loaded
+only fetches once per page load (`loadedSnapLoaded`), so the message is
+gated on that same flag — otherwise every *subsequent* view of an
+already-loaded panel would gain a needless flash that was never a problem
+before this fix. Verified both directions: the first visit shows
+`"Loading…"` during the delayed fetch, and a second visit in the same
+session does not.
+
+`docmap_checklist`'s own panel (Phase 2/3) was checked against the same
+question and left alone on purpose, not overlooked: it already renders the
+complete, correct ledger from the baked IR before its one-time fetch even
+starts, and the fetch only *enriches* that with the staleness column — a
+blocking "Loading…" there would replace real, useful content with a
+spinner for data that was never missing.
+
 ### Phase 5 — standalone → desktop app *(unblocked on Linux, 2026-08-11)*
 
 In order: full-fidelity standalone generation (the parser-less MVP in
