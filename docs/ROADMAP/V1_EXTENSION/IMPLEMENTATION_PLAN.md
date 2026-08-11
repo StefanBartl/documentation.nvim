@@ -338,13 +338,52 @@ running `nvim --headless -l scripts/mcp_server.lua` piped at this
 repository's own checklist, matching `:DocMap checklist`'s own numbers
 exactly (0 stale, 1 unverified, 7 current, of 8).
 
-### Phase 4 — UI polish
+### Phase 4 — UI polish — **ongoing, first slice landed 2026-08-11**
 
 Zero dependencies, and by `DESKTOP_WEBAPP.md`'s own assessment the highest
 leverage per hour in this folder: typography, information density, a real
 design pass over the Analysis panels' tables, better empty and loading
 states. Needs none of standalone generation, packaging, or a trust model.
 Can run in parallel with everything.
+
+Deliberately no fixed end-state — this is a track, not a ticket. Each
+slice below is scoped to what could be **measured against the real
+rendered page and verified**, not what looked plausible from the CSS
+alone; the session that shipped the first slice had no screenshot
+capability, which set the risk bar: only change what could be confirmed
+by real DOM measurements before and after.
+
+**Slice 1 — sticky headers on the Analysis tables.** Measured first: the
+"Tested" panel alone renders 79 rows with no `position:sticky` on
+`.antable th`, so scrolling past the first screenful loses the column
+labels entirely — a real, common case, not an edge one, on any tree past
+a couple dozen modules. `.cmptable` (the Compare tab) already solved this
+exact problem the same way (`position:sticky;top:0` plus an opaque
+`background`), so this slice ports that proven pattern to `.antable`
+rather than inventing a new one. Verified live, not just read off the
+CSS: before the fix, the header's `getBoundingClientRect().top` moved
+with the page; after, it pins at `0` once scrolled and the row that was
+about to sit under it is correctly occluded by the header's own opaque
+background, matching `.cmptable`'s existing, working behavior exactly —
+confirmed by scrolling a served copy of this repository's own map (1213px
+table width, 79 rows) with `document.elementFromPoint`-style checks
+before and after.
+
+**Deliberately not attempted in this slice**, and flagged rather than
+silently skipped: a full typographic scale pass. Measured the same page's
+CSS and found **16 distinct `font-size` values**, several only half a
+pixel apart (`11px`/`11.5px`, `12px`/`12.5px`, `13px`/`13.5px`) — real
+signal that the scale accreted rather than was designed, and exactly what
+"typography, information density" in this phase's own brief points at.
+Left alone here because it is a genuinely large, cross-cutting change
+(6,600+ lines) with real risk of a visual regression that this repository
+has no automated way to catch, and no screenshot tool was available this
+session to catch it by eye either — the right shape for that work is its
+own slice, with visual verification available, not folded into whatever
+else happens to be in flight. Zebra striping on `.antable` rows was
+considered for the same reason and set aside for the same one: it would
+be a new visual pattern with no precedent elsewhere on this page, and
+"looks right" is not verifiable without seeing it.
 
 ### Phase 5 — standalone → desktop app *(unblocked on Linux, 2026-08-11)*
 

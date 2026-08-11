@@ -324,7 +324,8 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .antable th.ansort:hover{color:var(--ink)}
 .antable th.ansort.active{color:var(--accent)}
 .antable th{text-align:left;font-weight:600;color:var(--muted);font-size:11px;
-  text-transform:uppercase;letter-spacing:.03em;padding:4px 8px;border-bottom:1px solid var(--line)}
+  text-transform:uppercase;letter-spacing:.03em;padding:4px 8px;border-bottom:1px solid var(--line);
+  background:var(--panel);position:sticky;top:0}
 .antable td{padding:5px 8px;border-bottom:1px dashed var(--line);font-family:var(--mono)}
 .anrow{cursor:pointer}
 .anrow:hover td{background:var(--accent-soft)}
