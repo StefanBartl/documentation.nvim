@@ -303,6 +303,22 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 #ixtoggle{margin-bottom:14px}
 #view-analysis{padding:22px 26px 60px}
 #antoggle{margin-bottom:14px}
+.cl-h{margin:18px 0 6px;font-size:14px}
+.cl-h .cl-src{font-weight:400;font-size:11.5px;color:var(--muted);margin-left:8px}
+.cl-list{list-style:none;margin:0;padding:0}
+.cl-item{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;padding:7px 10px;
+  border:1px solid var(--line);border-radius:7px;background:var(--panel);margin-bottom:6px}
+.cl-box{font-family:ui-monospace,monospace;color:var(--muted)}
+.cl-item.cl-done .cl-box{color:var(--accent)}
+.cl-text{flex:1 1 320px}
+.cl-ref,.cl-date,.cl-meta{font-size:11.5px;color:var(--muted)}
+.cl-ref{font-family:ui-monospace,monospace}
+.cl-state{font-size:11.5px;padding:1px 7px;border-radius:999px;border:1px solid var(--line)}
+.cl-stale{color:#b3261e;border-color:#b3261e}
+.cl-unverified{color:#8a6d00;border-color:#8a6d00}
+.cl-uncited,.cl-unknown{color:var(--muted)}
+.cl-current{color:var(--muted)}
+
 .antable{width:100%;border-collapse:collapse;font-size:12.5px}
 .antable th.ansort{cursor:pointer;user-select:none;white-space:nowrap}
 .antable th.ansort:hover{color:var(--ink)}
@@ -1380,6 +1396,7 @@ local JS = [[
       else if(k === "iview") s.iview = (v === "modules") ? "modules" : "functions";
       else if(k === "atool") s.atool = (v === "doc" || v === "deps" || v === "complexity" ||
         v === "duplicates" || v === "plugins" || v === "tools" || v === "hooks" ||
+        v === "checklist" ||
         v === "docs" || v === "endpoints" || v === "telemetry" || v === "loaded") ? v : "test";
       // Snapshot names are whatever runtime-analysis.telemetry's own
       // sanitizer allowed through when saved — not re-validated here, the
@@ -4216,7 +4233,7 @@ local JS = [[
       state.atool === "complexity" || state.atool === "duplicates" ||
       state.atool === "plugins" || state.atool === "tools" || state.atool === "hooks" ||
       state.atool === "docs" || state.atool === "endpoints" || state.atool === "telemetry" ||
-      state.atool === "loaded")
+      state.atool === "loaded" || state.atool === "checklist")
       ? state.atool : "test";
 
     document.querySelectorAll("#antoggle .anview-btn").forEach(function(b){
@@ -4235,6 +4252,18 @@ local JS = [[
     }
     if(atool === "loaded"){
       drawAnalysisLoaded();
+      return;
+    }
+    // Unlike Telemetry and Loaded above, this one is not fetch-*dependent*:
+    // the ledger is baked into the page and renders completely from
+    // `IR.checklist`. The fetch only adds the staleness verdict, so the
+    // panel is fully useful from `file://` and merely gains a column under
+    // `:DocMap serve`. It still takes the separate path rather than a case
+    // in `renderAnalysis`, for the same reason those two do — the cache
+    // below is for synchronous renders, and an enrichment that arrives
+    // later does not fit it.
+    if(atool === "checklist"){
+      drawAnalysisChecklist();
       return;
     }
 
@@ -4571,6 +4600,117 @@ local JS = [[
     return fetch("/api/loaded?snapshot=" + encodeURIComponent(name))
       .then(function(r){ return r.json(); })
       .then(function(d){ loadedCache[name] = d; return d; });
+  }
+
+  // ── Checklist ────────────────────────────────────────────────────────────
+  //
+  // The one Analysis panel whose data is baked but whose *verdict* is not.
+  // `IR.checklist` carries the whole ledger, so every item, citation and
+  // date renders from `file://` with no server. What cannot be baked is
+  // whether the cited files have moved since verification: that comes from
+  // `git log`, and core/churn.lua established that git data in a
+  // byte-compared artifact leaves the map with no fixed point.
+  //
+  // So the panel renders twice — immediately from the IR, then again with
+  // the verdict once `/api/checklist` answers. A reader on a static page
+  // gets a complete ledger and a one-line note saying what is missing and
+  // how to get it, rather than a blank panel.
+
+  // Verdict by "<file>:<line>", or null before the fetch resolves / when
+  // there is no server to ask.
+  var checklistStatus = null;
+  var checklistTried = false;
+
+  function checklistStateLabel(st){
+    if(!st) return { cls: "cl-unknown", text: "—" };
+    if(st.state === "stale"){
+      return { cls: "cl-stale", text: st.commits + " commit" + (st.commits === 1 ? "" : "s") + " since" };
+    }
+    if(st.state === "unverified") return { cls: "cl-unverified", text: "never verified" };
+    if(st.state === "uncited") return { cls: "cl-uncited", text: "no citation" };
+    return { cls: "cl-current", text: "unchanged" };
+  }
+
+  function renderChecklistBody(){
+    var led = IR.checklist;
+    if(!led){
+      return '<p class="ntext none">This repository has no checklist. Create ' +
+        '<code>docs/CHECKLIST/*.md</code> (or <code>docs/CHECKLIST.md</code>) — ' +
+        'see <code>docs/CHECKLIST_FORMAT.md</code>.</p>';
+    }
+
+    var out = [];
+    var note;
+    if(checklistStatus){
+      var c = checklistStatus.counts || {};
+      note = '<p class="ntext">' + (c.stale || 0) + ' stale, ' + (c.unverified || 0) +
+        ' unverified, ' + (c.current || 0) + ' current, ' + (c.uncited || 0) +
+        ' uncited — of ' + led.total + ' item' + (led.total === 1 ? "" : "s") + '.</p>';
+    } else if(!historyAvailable()){
+      note = '<p class="ntext">' + led.done + ' of ' + led.total + ' done, ' + led.cited +
+        ' cited. <em>Changed-since-verified needs git, so it is not in this file.</em> Run ' +
+        '<code>:DocMap serve</code> and open the URL it prints to fill in the verdict — or ' +
+        '<code>:DocMap checklist</code> for the same answer in the quickfix list.</p>';
+    } else {
+      note = '<p class="ntext">' + led.done + ' of ' + led.total + ' done, ' + led.cited +
+        ' cited. Reading history…</p>';
+    }
+    out.push(note);
+
+    (led.files || []).forEach(function(f){
+      (f.sections || []).forEach(function(sec){
+        if(!sec.items || sec.items.length === 0) return;
+        var heading = sec.name || f.name;
+        out.push('<h3 class="cl-h">' + esc(heading) +
+          ' <span class="cl-src">' + esc(f.path) + '</span></h3>');
+        out.push('<ul class="cl-list">');
+        sec.items.forEach(function(it){
+          var st = checklistStatus && checklistStatus.status
+            ? checklistStatus.status[it.file + ":" + it.line] : null;
+          var lab = checklistStateLabel(st);
+          var bits = [];
+          bits.push('<li class="cl-item ' + (it.done ? "cl-done" : "cl-open") + '">');
+          bits.push('<span class="cl-box">' + (it.done ? "✓" : " ") + '</span>');
+          bits.push('<span class="cl-text">' + esc(it.text) + '</span>');
+          if(it.ref){
+            bits.push('<span class="cl-ref">' + esc(it.ref) +
+              (it.ref_line ? ":" + it.ref_line : "") + '</span>');
+          }
+          if(it.verified) bits.push('<span class="cl-date">verified ' + esc(it.verified) + '</span>');
+          if(st) bits.push('<span class="cl-state ' + lab.cls + '">' + esc(lab.text) + '</span>');
+          (it.meta || []).forEach(function(m){
+            bits.push('<span class="cl-meta"><b>@' + esc(m.key) + '</b> ' + esc(m.value) + '</span>');
+          });
+          bits.push('</li>');
+          out.push(bits.join(""));
+        });
+        out.push('</ul>');
+      });
+    });
+
+    return out.join("");
+  }
+
+  function drawAnalysisChecklist(){
+    var host = document.getElementById("anbody");
+    host.innerHTML = renderChecklistBody();
+
+    // One fetch per page load, not per panel open: the answer only changes
+    // when someone commits, and re-asking on every tab switch would spawn a
+    // whole-history `git log` each time.
+    if(!IR.checklist || checklistTried || !historyAvailable()) return;
+    checklistTried = true;
+
+    fetch("/api/checklist").then(function(r){ return r.json(); }).then(function(d){
+      if(d && d.available) checklistStatus = d;
+      if(state.tab === "analysis" && state.atool === "checklist"){
+        document.getElementById("anbody").innerHTML = renderChecklistBody();
+      }
+    }).catch(function(){
+      // Silent: the panel above is already complete and correct without a
+      // verdict, and a scary error over a missing enrichment would overstate
+      // what went wrong.
+    });
   }
 
   function drawAnalysisLoaded(){
@@ -6569,6 +6709,7 @@ function M.render(ir, findings, opts)
     '<button class="anview-btn plugin-gated" data-atool="tools" title="Populated from docs/install.json (lib.nvim.deps manifest) when the scanned repo declares one">Tools</button>',
     '<button class="anview-btn plugin-gated" data-atool="telemetry" title="Needs runtime-analysis.nvim and :DocMap serve — call counts change between runs, so this is never baked into the committed map">Telemetry</button>',
     '<button class="anview-btn plugin-gated" data-atool="loaded" title="Needs runtime-analysis.nvim, a saved :RA loaded snapshot, and :DocMap serve — a loaded-vs-declared diff is a property of some live session, so this reads a named snapshot, never a live aggregate">Loaded</button>',
+    '<button class="anview-btn" data-atool="checklist" title="Hand-verified facts, each cited to a file. The ledger is baked into this page; the changed-since-verified verdict needs git, so it fills in under :DocMap serve">Checklist</button>',
     '<button class="anview-btn" data-atool="hooks">Hooks</button>',
     '<button class="anview-btn" data-atool="docs">Docs</button>',
     '<button class="anview-btn" data-atool="endpoints">Endpoints</button>',

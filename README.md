@@ -505,6 +505,7 @@ Repository-specific checks go in `opts.extra_checks`.
 | [docs/COMMANDS.md](docs/COMMANDS.md) | `:DocMap` and `:DocBrowse`, subcommand by subcommand. |
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | Using it day to day: which panel answers which question, reading the Telemetry join's badges correctly, Trail vs filter vs fuzzy jump. |
 | [docs/REUSE.md](docs/REUSE.md) | Generating a map for your own plugin. |
+| [docs/CHECKLIST_FORMAT.md](docs/CHECKLIST_FORMAT.md) | The hand-verified ledger: a syntax for facts a scanner cannot decide, watched for staleness by their citation rather than re-derived. |
 | [docs/CALL_HIERARCHY.md](docs/CALL_HIERARCHY.md) | Incoming/outgoing calls in Neovim, alongside LuaLS (which has none): setup, keymaps, and how to tell an unattached client from a function with no callers. |
 | [docs/MCP.md](docs/MCP.md) | The MCP server: exposing the module tree, require graph, call graph and drift findings to a coding agent as tools. |
 | [docs/ROADMAP/V1_EXTENSION/PORTABILITY.md](docs/ROADMAP/V1_EXTENSION/PORTABILITY.md) | Mapping a Lua project that is not a Neovim plugin — and what a Neovim-free port would actually cost. |

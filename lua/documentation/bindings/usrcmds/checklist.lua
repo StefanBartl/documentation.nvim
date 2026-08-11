@@ -21,8 +21,11 @@ local M = {}
 ---One `git log` for the whole tree rather than one per cited path: a ledger
 ---with fifty items would otherwise spawn fifty processes, and the whole-tree
 ---walk is the same shape `usrcmds/churn.lua` already runs and already found
----acceptable. `%cs` is git's own short committer date — `YYYY-MM-DD`, already
----the format `@verified` is written in, so nothing has to parse a date.
+---acceptable.
+---
+---Only the subprocess lives here; the parsing is `core/checklist.lua`'s
+---`parse_history`, shared with the serve tier's `/api/checklist` route, which
+---runs git a different way and would otherwise carry a second copy of it.
 ---@param cwd string
 ---@param out_dir string Excluded: in a repo that commits its own map, it is touched by nearly every commit.
 ---@return table<string, string[]>? dates
@@ -54,27 +57,7 @@ local function commit_dates(cwd, out_dir)
     return nil, "git log failed: " .. vim.trim(proc.stderr or "")
   end
 
-  local dates = {}
-  for record in (proc.stdout or ""):gmatch("[^\30]+") do
-    local date
-    for line in record:gmatch("[^\r\n]+") do
-      local text = vim.trim(line)
-      if text ~= "" then
-        if not date then
-          date = text
-        else
-          local list = dates[text]
-          if not list then
-            list = {}
-            dates[text] = list
-          end
-          list[#list + 1] = date
-        end
-      end
-    end
-  end
-
-  return dates, nil
+  return require("documentation.core.checklist").parse_history(proc.stdout or ""), nil
 end
 
 ---@param status Documentation.Checklist.Status

@@ -222,6 +222,7 @@ function M.parse(text, path)
         -- rest of this branch tests. Written as a value rather than as a
         -- `goto continue`: the label would have to sit past the `local tag`
         -- below, and jumping forward into a local's scope is not legal Lua.
+        ---@type string?
         local logical = line
         if pending then
           pending = pending .. " " .. trim(line)
@@ -348,6 +349,43 @@ function M.resolve(root)
   end
 
   return { source = source, files = files, total = total, done = done, cited = cited }
+end
+
+---Turn `git log --format=%x1e%cs --name-only` output into the `path -> dates`
+---table `status` wants.
+---
+---Pure string work over a buffer somebody else obtained, which is the point:
+---two callers need this table (`:DocMap checklist` and the serve tier's
+---`/api/checklist`), they invoke git differently, and the part worth sharing
+---— and worth testing — is the parsing, not the subprocess.
+---
+---`%cs` is git's own short committer date, already `YYYY-MM-DD`, so nothing
+---here parses a date. Records are separated by `\30` (git's `%x1e`); within a
+---record the first line is the date and the rest are the paths that commit
+---touched.
+---@param stdout string
+---@return table<string, string[]> dates Repo-relative path -> ISO dates, newest-first as git emitted them.
+function M.parse_history(stdout)
+  local dates = {}
+  for record in (stdout or ""):gmatch("[^\30]+") do
+    local date
+    for line in record:gmatch("[^\r\n]+") do
+      local text = line:match("^%s*(.-)%s*$")
+      if text ~= "" then
+        if not date then
+          date = text
+        else
+          local list = dates[text]
+          if not list then
+            list = {}
+            dates[text] = list
+          end
+          list[#list + 1] = date
+        end
+      end
+    end
+  end
+  return dates
 end
 
 ---Pair every item with a staleness verdict.

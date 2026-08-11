@@ -185,6 +185,86 @@ local function current_ir(cfg)
   return require("documentation.editor.browse.source").rehydrate(doc)
 end
 
+---`GET /api/checklist` — the staleness verdict for the Analysis -> Checklist
+---panel.
+---
+---The panel's *content* is baked into the page, unlike Telemetry's: a ledger
+---is parsed Markdown and `ir.checklist` carries it. What cannot be baked is
+---exactly this — whether the cited files have moved since the items were
+---verified — because it comes from `git log`, and `core/churn.lua` already
+---established that git data in a byte-compared artifact leaves the map with
+---no fixed point. So this route answers one question and no others, and the
+---page renders a complete, useful panel without it.
+---
+---Every "nothing to show" case answers 200 with `available: false` and a
+---`reason`, the identical posture `route_telemetry` and `route_loaded` take —
+---a panel that says why it is empty beats one that is silently blank.
+---@param cfg table
+---@param client userdata
+local function route_checklist(cfg, client)
+  local ir = current_ir(cfg)
+  if not ir then
+    return respond(
+      client,
+      200,
+      "application/json",
+      vim.json.encode({ available = false, reason = "no map generated yet" })
+    )
+  end
+
+  local ledger = ir.checklist
+  if not ledger then
+    return respond(
+      client,
+      200,
+      "application/json",
+      vim.json.encode({ available = false, reason = "this repository has no checklist" })
+    )
+  end
+
+  local out, err = git(cfg, {
+    "log",
+    "--no-merges",
+    "--format=%x1e%cs",
+    "--name-only",
+    "--",
+    ".",
+    (":(exclude)%s"):format(cfg.out_dir or "docs/map"),
+  })
+  if not out then
+    return respond(
+      client,
+      200,
+      "application/json",
+      vim.json.encode({ available = false, reason = err or "git log failed" })
+    )
+  end
+
+  local checklist = require("documentation.core.checklist")
+  local statuses = checklist.status(ledger, checklist.parse_history(out))
+
+  -- Keyed by `file:line`, not sent as an array: the page already holds every
+  -- item from the baked ledger and only needs the verdict to attach to each
+  -- one. Sending the items back would duplicate what the page has and make
+  -- the two copies able to disagree.
+  local by_key, counts = {}, { stale = 0, unverified = 0, uncited = 0, current = 0 }
+  for _, status in ipairs(statuses) do
+    by_key[("%s:%d"):format(status.item.file, status.item.line)] = {
+      state = status.state,
+      commits = status.commits,
+      last_commit = status.last_commit,
+    }
+    counts[status.state] = (counts[status.state] or 0) + 1
+  end
+
+  return respond(
+    client,
+    200,
+    "application/json",
+    vim.json.encode({ available = true, counts = counts, status = by_key })
+  )
+end
+
 ---`GET /api/commits?n=N` — the list the History tab opens with.
 ---@param cfg table
 ---@param client userdata
@@ -680,6 +760,10 @@ local function handle(cfg, client, method, target)
 
   if path == "/api/loaded/snapshots" then
     return route_loaded_snapshots(cfg, client)
+  end
+
+  if path == "/api/checklist" then
+    return route_checklist(cfg, client)
   end
 
   local sha_part = path:match("^/api/commit/(.+)$")
