@@ -27,7 +27,26 @@
 require("standalone.vim_shim") -- installs _G.vim before anything requires it
 
 local root = (arg[1] or "."):gsub("\\", "/"):gsub("/+$", "")
-if root:sub(1, 1) == "-" then
+
+-- `--capabilities` is recognised in the **root** position, and that is not a
+-- style choice.
+--
+-- Every unrecognised `--flag` *after* the root falls through to
+-- `core/cli.run` as an ordinary argv entry. So an older binary asked "do you
+-- support X?" that way does not answer — it **generates the map**, writing
+-- into the caller's repository and exiting 0 with output that is not JSON.
+-- Measured, not imagined: that is exactly what the shipped binary did the
+-- first time it was handed `--api=telemetry`, and a viewer polling a panel
+-- would have rewritten a user's `docs/map` on every fetch.
+--
+-- A flag in root position is the one probe that is safe against both
+-- versions: an older binary rejects it immediately below, before doing any
+-- work, and a newer one answers after its dependencies are on the path. So
+-- "this engine has no capabilities" and "this engine is too old" are a
+-- single observation, which is what a host actually needs.
+local capabilities_only = (root == "--capabilities")
+
+if not capabilities_only and root:sub(1, 1) == "-" then
   io.stderr:write(
     "standalone/docmap.lua: usage: lua standalone/docmap.lua <root> [--source=...] [--check] [--lenient]\n"
   )
@@ -78,6 +97,21 @@ end
 package.path = self_root .. "/lua/?.lua;" .. self_root .. "/lua/?/init.lua;" .. package.path
 ensure("lib.nvim.fs.read", "lib.nvim")
 ensure("documentation.core.cli", "documentation.nvim")
+
+-- What a host asks before trusting this binary with anything else.
+--
+-- Answered here rather than parsed out of a `--help` string, and read off
+-- `core/api.routes` rather than restated, so a route added there is
+-- advertised without this file being told.
+if capabilities_only then
+  local names = {}
+  for name in pairs(require("documentation.core.api").routes) do
+    names[#names + 1] = name
+  end
+  table.sort(names)
+  print(require("documentation.core.json").encode({ capabilities = { "api" }, routes = names }))
+  os.exit(0)
+end
 
 local argv = {}
 -- `--repo-url`/`--branch` are options rather than defaults because this CLI
