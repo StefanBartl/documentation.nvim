@@ -1,0 +1,59 @@
+# Publish the generated module map to GitHub Pages.
+#
+# The page is self-contained, offline-capable HTML with no build step — a
+# static site by construction — so this uploads `docs/map/` as it is
+# committed and deploys it. Nothing is generated here: the `map` job in
+# `ci.yml` already fails the build when the committed artifact is stale, so
+# publishing a *different* map than the one under review would be the only
+# way for the two to disagree, and that job prevents it.
+#
+# `actions/deploy-pages` rather than `scripts/publish_map.sh`'s orphan
+# `gh-pages` branch. That script's own reasoning — "the map is derived
+# output, its history has no value, and letting it accumulate would grow the
+# repo for nothing" — argues for this even more strongly: the artifact never
+# becomes a branch at all. The script stays as the manual path for anyone
+# publishing from a checkout without Actions.
+#
+# What the published copy can and cannot do is a real distinction the page
+# itself now draws: the Tree, Hierarchy, Analysis, Index, Notes and Compare
+# tabs need no server and work fully. History, Telemetry and Loaded are
+# computed on demand from git and from runtime data on the machine that ran
+# the scan — they say so plainly when opened here, rather than reporting a
+# network error. See `/api/ping` and `explainFetchFailure` in
+# `core/render/html.lua`.
+
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/map/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+# One concurrent deployment; a queued run supersedes an older one rather
+# than racing it. `cancel-in-progress: false` so a deploy that has already
+# started is allowed to finish — a half-published site is worse than a
+# slightly stale one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/map
+      - id: deployment
+        uses: actions/deploy-pages@v4
