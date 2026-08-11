@@ -175,12 +175,35 @@ function M.check()
   -- is built entirely on Neovim's own LSP client (`vim.lsp.start()` with a
   -- function `cmd`, no external process) and `handle.callers`/`callees`,
   -- which already exist on every installed handle regardless of this
-  -- option. Informational only: states how to turn it on, since there is
-  -- nothing here that can be missing or broken the way a soft dependency
-  -- can.
-  h_ok(
-    "Call hierarchy (opts.callhierarchy) — no external dependency, set true on install() to attach it"
-  )
+  -- option.
+  --
+  -- Reports whether the client is actually *running*, not merely that the
+  -- option exists. The failure mode this covers is silent and easy to
+  -- misread: with no client attached, `vim.lsp.buf.incoming_calls()` opens
+  -- nothing, which looks exactly like "this function has no callers"
+  -- rather than like a configuration problem. Asking Neovim's own client
+  -- list is the only answer that cannot be wrong — an installed handle's
+  -- `opts.callhierarchy` says what was *requested*, and the client attaches
+  -- on `BufReadPost`, so a buffer opened before `setup()` ran has the
+  -- option set and no client. See docs/CALL_HIERARCHY.md.
+  local ch_clients = vim.lsp.get_clients({ name = "docmap-callhierarchy" })
+  if #ch_clients > 0 then
+    local buffers = 0
+    for _, client in ipairs(ch_clients) do
+      for _ in pairs(client.attached_buffers or {}) do
+        buffers = buffers + 1
+      end
+    end
+    h_ok(
+      ("Call hierarchy (opts.callhierarchy) — running, attached to %d buffer(s)"):format(buffers)
+    )
+  else
+    h_info(
+      "Call hierarchy (opts.callhierarchy) — not attached. Set it true in setup()/install(); "
+        .. "the client attaches on BufReadPost to Lua buffers under source/, so an already-open "
+        .. "buffer needs :e. No external dependency. See docs/CALL_HIERARCHY.md."
+    )
+  end
 
   -- Same posture as call hierarchy directly above: no external dependency,
   -- nothing here that can be missing or broken.
