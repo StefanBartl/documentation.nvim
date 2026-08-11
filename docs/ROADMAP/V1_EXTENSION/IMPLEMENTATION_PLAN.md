@@ -659,9 +659,13 @@ still opens its popup.
 
 In order: full-fidelity standalone generation (the parser-less MVP in
 `standalone/` already works for everything that does not need per-function
-facts) → a project switcher (genuinely unscoped; touches state and URL
-scheme, not just a screen) → packaging via `luastatic` (`PORTABILITY.md`
-confirmed this is the least interesting step, having actually tried it).
+facts) → ~~a project switcher~~ → packaging via `luastatic`
+(`PORTABILITY.md` confirmed this is the least interesting step, having
+actually tried it).
+
+**The project switcher is no longer part of this phase (decided
+2026-08-11).** See "A switcher belongs to the shell" below: it is a
+property of whatever hosts the map, not a feature of this plugin.
 
 Worth keeping in view: "open it in the user's default browser" is already
 what `:DocMap open` does, and is arguably shell enough — a browser tab *is*
@@ -695,10 +699,48 @@ and a pre-commit hook fails on it, "same tree, different Lua, reads as
 stale" was a real defect waiting for its first non-Neovim run. Detail in
 [`PORTABILITY.md`](PORTABILITY.md#step-3-is-done-the-standalone-build-is-byte-identical-to-neovim-2026-08-11).
 
-**Remaining in this phase:** the project switcher (still genuinely
-unscoped — it touches state and the URL scheme, not just a screen) and
-`luastatic` packaging (`PORTABILITY.md` already rates it the least
-interesting step, having tried it).
+**Remaining in this phase:** `luastatic` packaging, and only that.
+`PORTABILITY.md` already rates it the least interesting step, having
+tried it.
+
+#### A switcher belongs to the shell, not to this plugin (decided 2026-08-11)
+
+The open question this plan carried — *is the project switcher a
+documentation.nvim feature at all, or a property of whatever shell hosts
+it?* — is answered: **the shell.** The principle it turns on is short:
+
+> A switcher belongs wherever there is no editor to answer "which
+> project?".
+
+**In Neovim there is one, and it does not merely let you say which
+project — it resolves it automatically.** `buffer_root()` in
+`bindings/usrcmds/init.lua` walks up from the current buffer to the
+nearest `.git`, *per invocation*. That function's own comment records the
+bug that existed when the root was resolved once in `setup()` instead:
+because the plugin is `cmd`-lazy, "once" meant the first `:DocMap` of the
+session, and every later call silently regenerated that first repository.
+So "which project" is not a question the editor path needs a UI for — the
+place you are working *is* the answer, and a switcher there would be a
+second, worse answer to a question already settled.
+
+**A consequence worth stating explicitly, because it constrains any
+future portal:** it must not be built into the per-repo artifact.
+`index.html` cannot know how it was reached, so a switcher baked into it
+would also appear in the case Neovim has already answered — including
+`:DocMap serve`, which is equally "a browser opened from the editor". A
+portal is therefore its own artifact, or nothing.
+
+**Where it does belong:** the desktop shell (Phase 5's "a shell to run
+in") and the hosted web tier (Phase 6). In the second there is no editor
+even in principle, so a project list is not a nice extra there but a
+requirement.
+
+An editor-side picker remains *possible* — reading each known project's
+committed `module_map.json`, or just opening its `docs/map/index.html` —
+but is deliberately not planned. It must not go through `:DocBrowse`,
+which needs an installed handle and therefore a full scan per repository;
+and the need it serves ("show me a project I have no file open in") is
+thin next to that cost.
 
 ### Phase 6 — hosted web tier *(largest, least developed)*
 
@@ -742,11 +784,17 @@ marked accordingly.
   segfault? That is the next experiment, and it decides between "fix the
   toolchain" and the more expensive fallbacks (patch and vendor, fix
   upstream, or generate inside WSL and ship the viewer natively).
-- **Whether the project switcher (Phase 5) is a documentation.nvim feature
-  at all**, or a property of whatever shell hosts it. It has no analogue in
-  the current single-repo model.
-- **Multi-repo scope**, deferred out of Phase 2 above, is the same shape of
-  question as the project switcher — worth noticing that two independent
-  phases both stall on "this tool models one repository at a time", which
-  may mean `IDEAS.md` §6.6/§6.7 is more load-bearing than its own section
-  suggests.
+- ~~**Whether the project switcher (Phase 5) is a documentation.nvim
+  feature at all**, or a property of whatever shell hosts it.~~
+  **Answered 2026-08-11: the shell.** A switcher belongs wherever there is
+  no editor to answer "which project?", and in Neovim `buffer_root()`
+  already answers it automatically. See
+  [Phase 5](#a-switcher-belongs-to-the-shell-not-to-this-plugin-decided-2026-08-11).
+- **Multi-repo scope**, deferred out of Phase 2 above, *looked* like the
+  same question as the switcher, and the note here used to say two
+  independent phases were stalling on "this tool models one repository at
+  a time". Half of that is now resolved rather than stalled: for the
+  switcher, one-repo-at-a-time turned out to be the correct design, not a
+  limitation. Multi-repo scope does **not** inherit that answer — it is a
+  question about the *analysis*, not about the shell, and `IDEAS.md`
+  §6.6/§6.7 stays as load-bearing as before for it.
