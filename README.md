@@ -43,6 +43,8 @@ plugin](docs/PIPELINE.md#why-this-is-its-own-plugin).
 - [Health](#health)
 - [Headless / CI](#headless--ci)
 - [Live handle instead of files](#live-handle-instead-of-files)
+- [MCP server — the map as tools for a coding agent](#mcp-server--the-map-as-tools-for-a-coding-agent)
+- [Desktop app — browsing maps without Neovim](#desktop-app--browsing-maps-without-neovim)
 - [Drift checks](#drift-checks)
 - [Documentation](#documentation)
 
@@ -490,6 +492,18 @@ Client configuration, the tool table, and the five decisions worth knowing
 about (why file watching is off, why no tool returns a raw IR node, why a
 failing tool is a *result* rather than a transport error, why there is no
 verify tool) are in [docs/MCP.md](docs/MCP.md).
+
+## Desktop app — browsing maps without Neovim
+
+[`docmap-desktop`](https://github.com/StefanBartl/docmap-desktop) is a small
+Tauri app that hosts generated maps for several projects side by side, for
+anyone reading them who is not sitting in Neovim. It runs this plugin's
+standalone binary (see [PORTABILITY.md](docs/ROADMAP/V1_EXTENSION/PORTABILITY.md))
+as a subprocess and serves the page over a real `http://127.0.0.1` origin,
+so the Telemetry and Loaded panels below work the same way they do in the
+editor — real data when [`runtime-analysis.nvim`](https://github.com/StefanBartl/runtime-analysis.nvim)
+has collected any, an honest "no host" message otherwise, never a blank
+panel.
 
 ## Drift checks
 

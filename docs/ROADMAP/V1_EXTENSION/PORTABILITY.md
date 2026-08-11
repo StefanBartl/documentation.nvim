@@ -722,6 +722,52 @@ scanner reads **every** `.md` in the tree, so writing a comparison map into
 difference that is the measurement's own doing. Compare with `--check` and
 the real `out_dir`, or generate outside the tree.
 
+### Step 4 — the binary answers `/api/*`, not just `--check` (2026-08-11)
+
+Everything above proves the *scan* half is portable: same source, same
+`module_map.json`, on any host. The generated page also fetches four
+`/api/*` routes at runtime — `telemetry`, `telemetry/snapshots`, `loaded`,
+`loaded/snapshots` — and until now only `editor/serve.lua` inside Neovim
+could answer them. `docmap-desktop` (a Tauri desktop app hosting maps for
+several projects, [github.com/StefanBartl/docmap-desktop](https://github.com/StefanBartl/docmap-desktop))
+needed the same answers from a process with no editor at all.
+
+The answers moved to `core/api.lua`, reachable from the standalone build the
+same way `core/scan.lua` already was — a plain Lua module with no socket
+and no editor dependency. `editor/serve.lua` kept its socket, its security
+checks and its response encoding, and stopped computing the bodies itself;
+`standalone/docmap.lua` gained `--api=<route> [--snapshot=NAME]`, printing
+one route's JSON and exiting. One route per invocation, deliberately: a
+request is one question, and a process answering several would need a
+protocol to say which answer is which.
+
+**This needed one more piece of portable state than the scan half does.**
+`runtime-analysis.nvim`'s telemetry store resolves its cache root from
+`vim.fn.stdpath("cache")` at module load time, so `standalone/vim_shim.lua`
+gained a real implementation — verified against a real `nvim --headless` on
+this platform rather than read off documentation, since a shim that
+resolves a *different* directory than the running editor would silently
+report "no telemetry data" for data sitting on disk. On Windows `cache` is
+`$TEMP/nvim`, not the intuitive `%LOCALAPPDATA%`.
+
+**A version check turned out to be load-bearing, not optional.** An engine
+built before `--api=` existed does not decline the flag — every
+unrecognised `--flag` after the root falls through to `core/cli.run` as an
+ordinary argv entry, so the old binary treated `--api=telemetry` as an
+argument, *regenerated the map*, and exited 0 with output that was not
+JSON. It overwrote this repository's own committed map the first time it
+was tried. `--capabilities`, recognised in the *root*-argument position
+(the one spot an older binary rejects immediately, before doing any work,
+independent of whether it recognises the flag), is what a caller checks
+first — verified non-destructive against the previously shipped binary.
+
+Same "closure is a property of one *run*" rule as the manifest section
+above, extended to a third probe: a scan run never loads `core/api`,
+`core/artifact` or `core/loaded_diff`, so `scripts/bundle_manifest.lua` now
+runs the `--api=` mode too, or a binary built from the first two probes
+alone would die with `module not found` on its first Telemetry request from
+a real host.
+
 ## Why this is not scheduled
 
 Because the first question is already answered, and it is the one people
