@@ -164,6 +164,31 @@ fix it upstream, or run generation inside WSL and ship the viewer natively
 — stay open, but the MSVC test should come first because it is cheapest
 and because its result narrows every other option.
 
+> **Superseded 2026-08-11, later the same day: the MSVC experiment was
+> never needed, because the Windows failure does not reproduce.** Re-running
+> the crashing call against the *same* mingw-built artifact — same file,
+> built at 03:16, hours before the bug report that describes it was
+> committed at 08:47 — passes, as does the whole pipeline, against a
+> grammar built from source with no Neovim involved. Three candidate
+> explanations were checked and none survives (static `libtree-sitter`,
+> single `lua54.dll`, one compiler on both sides of the call), so the cause
+> of the original observation is genuinely unexplained rather than fixed.
+> Full detail and the exact output in
+> [`PORTABILITY.md`](PORTABILITY.md#and-then-it-did-not-reproduce-on-windows-either-2026-08-11-later-the-same-day).
+>
+> **Consequence: Windows is no longer the critical path, because it is no
+> longer a known-broken target.** The platform-priority reasoning above
+> still stands as reasoning — Windows is what this is built for, so it is
+> the platform whose breakage would matter most — it simply has no breakage
+> left to prioritise. The MSVC probe stays on the shelf rather than struck
+> out, in case the crash returns.
+>
+> The durable outcome is not the result but the harness:
+> [`standalone/check_treesitter.lua`](../../../standalone/check_treesitter.lua)
+> now answers this question on demand, on any machine, against a stated
+> expected result — which is what the two prior hand-run investigations,
+> whose commands were thrown away, could not do.
+
 The `127.0.0.1`-only posture is worth restating precisely, because it is
 easy to read as an obstacle and it is not: it is a deliberate property of
 the *current, single-user, personal-machine server*, and the reason that
@@ -630,7 +655,7 @@ Tree, Enter on a sort header re-sorts, and the Slice 5 controls are
 untouched: Index links still navigate, `.marki` still toggles, `.sigi`
 still opens its popup.
 
-### Phase 5 — standalone → desktop app *(unblocked on Linux, 2026-08-11)*
+### Phase 5 — standalone → desktop app *(unblocked on Linux and Windows, 2026-08-11)*
 
 In order: full-fidelity standalone generation (the parser-less MVP in
 `standalone/` already works for everything that does not need per-function
@@ -642,6 +667,15 @@ Worth keeping in view: "open it in the user's default browser" is already
 what `:DocMap open` does, and is arguably shell enough — a browser tab *is*
 the chrome most users of a dev tool already trust. Tauri/Electron is a
 choice to defer, not a precondition.
+
+**Prerequisite status (2026-08-11):** the real-parsing question this phase
+was gated on is answered on both tested platforms — `lua-tree-sitter` runs
+the full parse → query → cursor → captures → byte-offset pipeline on Linux
+*and* natively on Windows, against a grammar built from source, with no
+Neovim present. Verify on any machine with
+`lua standalone/check_treesitter.lua <grammar> lua`. macOS is untested and
+is now the only unknown platform, which makes it a cheap thing to check
+rather than a risk to plan around.
 
 ### Phase 6 — hosted web tier *(largest, least developed)*
 
