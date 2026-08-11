@@ -92,9 +92,20 @@ real this session, not assumed:
 - **A project switcher.** Today one map is one `index.html` for one repo.
   A desktop app browsing "my dozen personal plugins" wants one shell with
   a list of projects, not a dozen browser tabs pointed at a dozen files.
-  No design work has happened on this at all — it is a real, unscoped
-  gap, not a small one: it touches state/URL scheme, not just a new
-  screen.
+  **Scoped 2026-08-11, and it lands here rather than in the plugin:** a
+  switcher belongs wherever there is no editor to answer "which project?",
+  and in Neovim `buffer_root()` resolves that automatically from the
+  current buffer. So this is a requirement *on the shell* — one of the two
+  things a desktop app needs that the current page does not — not a
+  feature to add to the generated map. It also must not be built into the
+  per-repo artifact: `index.html` cannot tell how it was reached, so a
+  switcher inside it would also appear when Neovim opened it. See
+  [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md#a-switcher-belongs-to-the-shell-not-to-this-plugin-decided-2026-08-11).
+  The cost is real and unchanged: the IR is inlined into each page (1.18 MB
+  of a 1.50 MB artifact for this repository), node ids are repo-relative
+  paths that collide across projects, and `localStorage` for marks, hidden
+  sets and saved trails is deliberately keyed to `location.pathname`
+  precisely so two projects' maps cannot leak into each other.
 - **A shell to run in.** Once generation works standalone, "desktop app"
   still needs *something* to open the HTML in with app-like chrome (a
   window, not a browser tab) — Tauri/Electron-class tooling, or simply
@@ -175,9 +186,10 @@ Not one project. Three, in decreasing order of what's already solved:
    verified, so the defect recorded above is Windows-specific rather than
    a property of the binding. See
    [`PORTABILITY.md`](PORTABILITY.md#that-next-step-was-taken-2026-08-11-it-works-on-linux).
-   What remains is real but ordinary: a small API-shape shim, a project
-   switcher (still genuinely unscoped), a packaging pass, and a decision
-   about whether Windows ships day one. This moves from "blocked" to "the
+   What remains is real but ordinary: ~~a small API-shape shim~~ (done —
+   `standalone/treesitter.lua`, byte-identical output), a project switcher
+   (now scoped as a property of the shell, above), a packaging pass, and
+   ~~a decision about whether Windows ships day one~~ (Windows works). This moves from "blocked" to "the
    largest available piece of new capability in this folder".
 3. **A hosted web app** — the least developed of the three, and the one
    whose hardest question (a real multi-tenant trust model) has no answer
