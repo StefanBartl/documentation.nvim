@@ -177,7 +177,7 @@ flowchart LR
 
 | Severity | Check | Message |
 |---|---|---|
-| warn | `doc-references-missing` | docs/ROADMAP/IDEAS/IDEAS.md:52 references 'documentation.core.scan.something', but documentation.core.scan has no 'something' |
+| warn | `doc-references-missing` | docs/ROADMAP/IDEAS/IDEAS.md:105 references 'documentation.core.scan.something', but documentation.core.scan has no 'something' |
 
 <details>
 <summary>8 informational findings</summary>

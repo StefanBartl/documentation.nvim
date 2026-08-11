@@ -3,8 +3,8 @@
 Raised 2026-08-11: "a Desktop/Webapp version, building on this concept, but
 with everything refined, also with better View/UI/feature equipment."
 Analysis, not a proposal — the same posture
-[`PORTABILITY.md`](../ROADMAP/PORTABILITY.md)/[`MULTILANG.md`](../ROADMAP/MULTILANG.md)
-already take, referenced from [`ROADMAP.md`](../ROADMAP/ROADMAP.md) rather
+[`PORTABILITY.md`](../PORTABILITY.md)/[`MULTILANG.md`](../MULTILANG.md)
+already take, referenced from [`ROADMAP.md`](../ROADMAP.md) rather
 than repeated there.
 
 **Two different products are bundled under one idea, and they cost
@@ -62,22 +62,28 @@ real this session, not assumed:
   tree, require graph, most drift checks, all renderers — for everything
   that doesn't need per-function facts.
 - The actual blocker for a **full-fidelity** desktop app is
-  `vim.treesitter`. Real research this session (not assumption): a
-  standalone Lua binding to `libtree-sitter`
-  ([`ltreesitter`](https://github.com/euclidianAce/ltreesitter)) exists,
-  is maintained, vendors libtree-sitter itself (no separate system
-  dependency), and its API shape matches what `core/*.lua` calls almost
-  exactly — with one real gap (`node:parent()` does not exist in the
-  binding, confirmed from its actual C source, not its docs), closable
-  with a ~30-line pure-Lua parent-index shim rather than a C patch. This
-  makes a full-fidelity standalone build **buildable**, not blocked — but
-  the treesitter-backed half was never actually built this session
-  (parser-less MVP shipped; the real-parsing path did not), so "buildable"
-  is not "built".
+  `vim.treesitter`, and as of 2026-08-11 it is a **harder** blocker than
+  an earlier draft of this document claimed. That draft said a standalone
+  Lua binding to `libtree-sitter` made this "buildable, not blocked",
+  based on reading [`ltreesitter`](https://github.com/euclidianAce/ltreesitter)'s
+  API surface. **That was wrong** — it checked whether the API *shape*
+  fits, never whether the binding builds and runs. Both available
+  bindings were then actually installed and exercised, and both fail on
+  Windows: `ltreesitter` does not compile at all (a real upstream
+  `DWORD`-to-`const char *` bug in its `_WIN32` branch, present on
+  `main`), and `lua-tree-sitter` compiles only after two local packaging
+  fixes and then segfaults in `tree:root_node()` — reproducibly, against
+  two independently built grammars, so not an ABI-version mismatch.
+  [`PORTABILITY.md`](../PORTABILITY.md)'s own "That question was answered
+  empirically" section has the full detail, including the two side
+  findings worth keeping (Neovim's shipped grammar loads fine through a
+  third-party binding; building the grammar from source is one `gcc`
+  command). Neither binding was tested on Linux/macOS — that is the
+  obvious next step, not a claim that it works there.
 - Packaging once generation is solved: `luastatic` links a Lua
   interpreter, the sources and any C modules into one binary — installed
   and tried this session, genuinely "the least interesting step"
-  ([`PORTABILITY.md`](../ROADMAP/PORTABILITY.md)'s own words, confirmed rather
+  ([`PORTABILITY.md`](../PORTABILITY.md)'s own words, confirmed rather
   than just asserted). A cross-platform build matrix (Windows/Linux/macOS)
   was scoped but not built.
 
@@ -119,7 +125,7 @@ different program wearing the same HTML.
 
 **The honest reading of "web app" that costs the least:** the same static
 page, published somewhere reachable (GitHub Pages, already sketched as
-idea 6.3 in [`ROADMAP.md`'s idea backlog](../ROADMAP/IDEAS.md#63-publishing-the-map-to-github-pages)),
+idea 6.3 in [`ROADMAP.md`'s idea backlog](IDEAS.md#63-publishing-the-map-to-github-pages)),
 for the panels that don't need a server at all. Everything server-backed
 (History, Telemetry, Loaded) stays a local, personal-machine feature under
 this reading — which is arguably already "a web app" in the sense most
@@ -144,10 +150,12 @@ Not one project. Three, in decreasing order of what's already solved:
 1. **UI polish on the current page** — cheap, available now, no
    dependency on anything else here.
 2. **A real standalone desktop app** — the hard half (generation without
-   Neovim) is researched and partially built (parser-less MVP shipped,
-   real-parsing path scoped as buildable but not built); the UI half
-   mostly exists; a project switcher and a packaging pass are the real
-   remaining work, roughly in that order of cost.
+   Neovim) is partly built and partly **blocked**: the parser-less MVP
+   ships and works, but the full-fidelity path is blocked on upstream
+   defects in both Lua `libtree-sitter` bindings (Windows-confirmed;
+   Linux/macOS untested — see above). The UI half mostly exists; a
+   project switcher and a packaging pass are the remaining work *after*
+   the parsing blocker is resolved or the target platform narrowed.
 3. **A hosted web app** — the least developed of the three, and the one
    whose hardest question (a real multi-tenant trust model) has no answer
    sketched anywhere in this ecosystem yet. Costed here only as "genuinely

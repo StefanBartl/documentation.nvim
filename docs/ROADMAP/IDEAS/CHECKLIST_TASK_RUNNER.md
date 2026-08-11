@@ -36,7 +36,7 @@ can already verify without a human: "every public module has a README"
 (this repo's own `missing-readme` check, already exists), "every
 `<leader>`-prefixed keymap has a `desc`", "every `:RA`-shaped usrcmd has a
 `docs/COMMANDS.md` entry". This fits documentation.nvim's own stated
-filter exactly — [`IDEAS.md`](../ROADMAP/IDEAS/IDEAS.md)'s own words: *"this
+filter exactly — [`IDEAS.md`](IDEAS.md)'s own words: *"this
 plugin's value is detecting where documentation and code stop
 agreeing"* — because every item in this scope reduces to a drift check,
 just phrased as a checklist line instead of a fixed catalogue entry.
@@ -89,7 +89,7 @@ answer, the identical split `docs/ECOSYSTEM.md` already draws between the
 two plugins for every other feature.
 
 Concretely, this would most likely land as a **tenth Analysis panel**
-(nine exist today, see [`IDEAS.md` §2](../ROADMAP/IDEAS/IDEAS.md#2-new-analysis-panels))
+(nine exist today, see [`IDEAS.md` §2](IDEAS.md#2-new-analysis-panels))
 or a promoted feature tab (the `Tab: true` mechanism `docs/FEATURES/CORE.md`
 already documents, built for exactly "a feature that outgrows a panel").
 Not a new top-level tab from scratch — the toolbar-of-panels pattern
@@ -144,7 +144,7 @@ all open.
   one repo at a time. A checklist naming facts across many repos (as
   `RULES/themes/*.md` does) does not fit a single project's own generated
   map at all — it would need the "many repos, one config" shape
-  [`IDEAS.md` §6.6/§6.7](../ROADMAP/IDEAS/IDEAS.md#66-a-generic-cli-entry-no-per-repo-copy)
+  [`IDEAS.md` §6.6/§6.7](IDEAS.md#66-a-generic-cli-entry-no-per-repo-copy)
   already scopes (also unbuilt), or it stays a per-repo feature and the
   cross-repo view stays what `RULES/` already is: hand-maintained
   Markdown, which is not obviously wrong for something this infrequent.
