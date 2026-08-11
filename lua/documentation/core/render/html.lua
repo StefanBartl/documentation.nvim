@@ -221,6 +221,9 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .nlist .nfn{font-family:var(--mono);font-size:12.5px;color:var(--accent);
   text-decoration:none;font-weight:600;cursor:pointer}
 .nlist .nfn:hover{text-decoration:underline}
+.nlist .nfn:focus-visible{outline:2px solid var(--accent-soft);outline-offset:2px}
+.feat-name[data-node]:focus-visible,.feat-tab-name[data-node]:focus-visible{
+  outline:2px solid var(--accent-soft);outline-offset:2px}
 .nlist .nwhere{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:8px}
 .nlist .ntext{font-size:12.5px;color:var(--ink);margin-top:2px}
 /* Unscoped variant: the Analysis panels' empty-state paragraphs
@@ -2874,7 +2877,7 @@ local JS = [[
       }
       parts.push('<ul class="nlist">');
       items.forEach(function(it){
-        parts.push('<li><a class="nfn" data-node="' + esc(it.node.id) + '">' +
+        parts.push('<li><a class="nfn" tabindex="0" role="button" data-node="' + esc(it.node.id) + '">' +
           esc(it.fn.signature) + '</a>' +
           sigTrigger(it.node.id, it.fn.name) + docTrigger(fnKey(it.node.id, it.fn.name)) +
           '<span class="nwhere">' + esc(it.node.module || it.node.path) +
@@ -3332,7 +3335,7 @@ local JS = [[
         '<span class="ncount">' + built.buckets[c].length + '</span></h3>');
       parts.push('<ul class="nlist ixlist">');
       built.buckets[c].forEach(function(e){
-        parts.push('<li><a class="nfn" data-node="' + esc(e.node.id) + '">' +
+        parts.push('<li><a class="nfn" tabindex="0" role="button" data-node="' + esc(e.node.id) + '">' +
           esc(e.fn.signature) + '</a>' +
           sigTrigger(e.node.id, e.fn.name) + docTrigger(fnKey(e.node.id, e.fn.name)) +
           (e.fn.internal ? '<span class="ixtag">internal</span>' : '') +
@@ -3383,7 +3386,7 @@ local JS = [[
       parts.push('<ul class="nlist ixlist">');
       built.buckets[c].forEach(function(e){
         var fnCount = (e.node.functions || []).length;
-        parts.push('<li><a class="nfn" data-node="' + esc(e.node.id) + '">' +
+        parts.push('<li><a class="nfn" tabindex="0" role="button" data-node="' + esc(e.node.id) + '">' +
           esc(e.label) + '</a>' + docTrigger(e.node.id) +
           '<span class="ixtag">' + esc(e.node.kind) + '</span>' +
           '<span class="nwhere">' + fnCount + (fnCount === 1 ? " function" : " functions") +
@@ -6439,6 +6442,38 @@ local JS = [[
     if(!el || !el.dataset || !el.dataset.mark) return;
     ev.preventDefault();
     toggleMark(el.dataset.mark);
+  });
+
+  // Keyboard parity for the third affordance on those same rows: the link
+  // itself. `.marki` and `.sigi` above each got a tabindex and their own
+  // Enter/Space handler; the `data-node` element they decorate did not, so
+  // tabbing the Index reached all 456 "mark" toggles and all 456 `ⓘ`
+  // triggers and none of the 456 function links they belong to — every
+  // accessory keyboard-operable, the primary action not.
+  //
+  // One delegated listener rather than a per-element one at each of the
+  // render sites, for the reason the graph's own click handler gives: these
+  // lists are rebuilt wholesale on every redraw, and re-binding per element
+  // would stack duplicates on whatever survives.
+  //
+  // Disjoint from the two handlers above by construction — they key on
+  // `data-mark`/`data-sig`/`data-doc`, this on `data-node`, and no element
+  // carries both. `.feat-name`/`.feat-tab-name` are covered by the same
+  // listener: they already shipped `tabindex="0" role="button"` but had only
+  // a click listener, so they took a tab stop and announced themselves as
+  // buttons while doing nothing when operated — `role="button"` does not
+  // make a non-button activate on Enter, which was measured rather than
+  // assumed before this was written.
+  document.addEventListener("keydown", function(ev){
+    if(ev.key !== "Enter" && ev.key !== " ") return;
+    var el = document.activeElement;
+    if(!el || !el.dataset || !el.dataset.node) return;
+    // A real <input>/<textarea> that happened to carry data-node keeps its
+    // own meaning for Space; nothing renders that today, and guarding costs
+    // one test.
+    if(/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+    ev.preventDefault();
+    navigate({ tab: "tree", id: el.dataset.node });
   });
 
   // =====================================================================
