@@ -1019,6 +1019,26 @@ to the same width. Log-scaled so one outlier pair (a config module calling
 `vim.notify` forty times) doesn't compress every other, genuinely
 interesting weight difference down to visually-identical hairlines.
 
+**Thickness ranks well and reads badly, so the number is one hover away.**
+"Thicker than that one" is not a count, and the log scaling that stops an
+outlier flattening the rest also compresses exactly the difference the eye
+is being asked to judge — the two properties are in direct tension and no
+choice of scale resolves both. Hovering an edge shows a small readout with
+the real number and the direction (`N calls a → b`), plus **the reverse
+count when the pair calls both ways** — the one thing thickness cannot
+express at all, since two mutually-calling modules draw two separate edges
+(`pairKey` is `from + " " + to`, directional) and which of them is under
+the cursor is otherwise guesswork.
+
+Two details that are not incidental. The hover target is a **separate,
+transparent 14px-wide companion path** per weighted edge, appended after
+its own edge so it wins the pointer: a 1.5px line is a 1.5px hover target,
+and the thinnest edges — the ones whose count is least readable from
+thickness — were the hardest to point at. And the hovered edge is widened
+via an *inline* style that is saved and restored, for the same specificity
+reason the thickness itself is set inline: a `.hot` class could not
+override the inline `stroke-width` already on every weighted edge.
+
 ### Hiding root levels (Modules view)
 
 Session 2026-08-10. A vertical slider next to the diagram — `+` at the top
