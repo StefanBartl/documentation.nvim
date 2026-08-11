@@ -1240,7 +1240,7 @@ binding a bare name directly into scope) and class-method owning-scope
 
 ## The annotation popup (2026-08-03)
 
-Step 1 of [`docs/ECOSYSTEM.md`](../ECOSYSTEM.md)'s sequencing, and chosen to
+Step 1 of [`docs/ROADMAP/FEATURES/ECOSYSTEM.md`](ECOSYSTEM.md)'s sequencing, and chosen to
 be first for a specific reason: **it needed no new extraction at all.** Every
 list in this map — Index, Notes, Complexity, Duplicates, Hooks — showed a
 function as its signature and nothing else, while the params, returns,
@@ -1298,7 +1298,7 @@ keyboard focus, and resolves to the right annotation.
 
 ## The documentation corpus — `core/docs.lua` (2026-08-03)
 
-Step 2 of [`docs/ECOSYSTEM.md`](../ECOSYSTEM.md), and the largest genuinely
+Step 2 of [`docs/ROADMAP/FEATURES/ECOSYSTEM.md`](ECOSYSTEM.md), and the largest genuinely
 new *extraction* since the JS/TS backend. Everything else in this plugin
 reads source — annotations sitting next to the code they describe. This reads
 the other half: the `.md` files that describe the same tree from outside.

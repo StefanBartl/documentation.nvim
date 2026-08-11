@@ -1,6 +1,23 @@
 # Ecosystem architecture — where docs, static analysis and runtime each belong
 
-**Status: architectural concept, agreed. Nothing here is implemented.**
+> **Status (2026-08-11): steps 1–8 of §8's sequencing have all shipped.**
+> Only step 9 (full-file previews / a browser request runner / a Runtime tab
+> under `serve`) is still open, and it is gated on the serve tier. This
+> document is therefore a **decision record**, not a backlog — which is why
+> it lives here in `docs/ROADMAP/FEATURES/` alongside
+> [`FEATURES.md`](FEATURES.md) (the same genre: why something was built the
+> way it was) rather than in `docs/ROADMAP/V1_EXTENSION/`, where its
+> presence made ~half that folder look like pending work when it is not.
+> Its original header — "architectural concept, agreed. Nothing here is
+> implemented" — was true when written and is preserved below for the
+> record; per-step "Done" markers in §8 are the current truth.
+>
+> Earlier paths: `docs/ECOSYSTEM.md`, then
+> `docs/ROADMAP/V1_EXTENSION/ECOSYSTEM.md`. Prose references to either in
+> dated entries elsewhere mean this file.
+
+**Original status line, as written:** *architectural concept, agreed.
+Nothing here is implemented.*
 Written in response to a feature list (API endpoint inventory, a
 Postman-lite request runner, docs cross-references with previews, a
 docs-only view, file/snippet hover previews) plus the questions that came
