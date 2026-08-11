@@ -226,10 +226,24 @@ This plugin's own module map: [docs/map/overview.md](docs/map/overview.md)
 Link `overview.md`, not `index.html`: GitHub renders Markdown inline in the
 repo view, so `overview.md` is useful the moment it is committed. `index.html`
 is real HTML — GitHub shows it as source, not rendered — so it only pays off
-once you actually publish it somewhere a browser can load it directly (locally
-via `:DocMap open`, or `scripts/publish_map.sh` to Pages, see
-[FINISH_PLAN.md](ROADMAP/FINISH_PLAN.md)). Nothing stops you linking both; just
-know which one works today and which one is a promise for later.
+once you publish it somewhere a browser loads it directly.
+
+**Both of this project's own repositories now do publish it**, via
+`.github/workflows/pages.yml` (copy it; it uploads `docs/map/` as committed
+and needs no build step). Once yours does too, link the published URL rather
+than the file — that is the version a reader can actually click:
+
+```markdown
+This plugin's own module map: https://<user>.github.io/<repo>/
+```
+
+Worth knowing before you publish: the Tree, Hierarchy, Analysis, Index, Notes
+and Compare tabs work fully with no server. History, Telemetry and Loaded are
+computed on demand from git and from runtime data on the machine that ran the
+scan — a published copy says so plainly instead of reporting a network error.
+And the map embeds source snippets and signatures, so publishing it publishes
+those; on a public repository that changes nothing, on a private one it would
+be a leak.
 
 ## What the tree has to look like
 
