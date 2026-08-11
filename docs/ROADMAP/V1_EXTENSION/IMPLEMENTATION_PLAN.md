@@ -499,6 +499,64 @@ the hardcoded `max-height:calc(100vh - 132px)` on the four panes: that
 value is already overridden to `none` by the `max-width:860px` rules
 everywhere a wrap can occur.
 
+**Slice 5 — keyboard parity, applied to the one control it had skipped.**
+Chosen because it is the remaining part of "UI polish" that is fully
+verifiable without a screenshot: focus and activation are DOM facts, not
+matters of taste. Measured across every tab by enumerating elements that
+signal themselves clickable (`cursor:pointer`) and are not
+keyboard-reachable. The sharpest result was on the Index tab: **481
+anchors, 456 of them carrying `data-node`, and none focusable** — no
+`href`, no `tabindex` — while on those very same rows all 456 `.marki`
+("mark for comparison") toggles and all 456 `.sigi` (`ⓘ` annotations)
+triggers *were* reachable. Every accessory keyboard-operable, the primary
+action — follow the link — not.
+
+The page had already named and solved this: "**Keyboard parity**" is its
+own term, used in two places, and the complete pattern is three parts —
+`tabindex="0" role="button"`, a focus style, and a delegated `keydown`
+matching Enter/Space against `document.activeElement`'s dataset that
+calls the same function the click handler does. `.marki`, `.sigi` and
+`.doci` each have all three. So this slice ports an in-house pattern
+rather than inventing one, exactly as Slices 1 and 4 did.
+
+A second defect fell out of the same measurement, and it is the more
+interesting one: `.feat-name`/`.feat-tab-name` already shipped
+`tabindex="0" role="button"` — but their only listener was `click`. They
+took a tab stop, announced themselves to assistive technology as
+buttons, and did nothing when operated. `role="button"` does **not** make
+a non-button element activate on Enter; that was confirmed by dispatching
+real key events against the pre-fix page rather than asserted from spec
+knowledge. Focusable-but-dead is worse than not focusable, because the
+role is a promise.
+
+Fixed with one delegated listener covering both cases, keyed on
+`data-node`. It is disjoint from the two existing handlers by
+construction — they key on `data-mark`/`data-sig`/`data-doc`, and no
+element carries both — and delegated rather than bound per element for
+the reason the graph's own click handler already gives: these lists are
+rebuilt wholesale on redraw, so per-element binding stacks duplicates on
+whatever survives. Plus `tabindex="0" role="button"` at the three `.nfn`
+render sites and a `:focus-visible` outline ported from `.stat-link`'s.
+
+**A measurement mistake worth recording, because it nearly shipped a
+wrong claim.** The first verification used `location.hash` as the
+success signal and reported that Space did not activate `.feat-name`.
+That was an artifact: `navigate()` goes through `pushState`, and the test
+harness had written `location.hash` synchronously just before, so the
+read raced. Re-running against the actual rendered state — which `.view`
+carries `active` — showed Enter *and* Space both working all along. The
+pre-fix baseline was then re-established from the committed artifact
+itself rather than from the flaky signal: `git show HEAD:docs/map/
+index.html` contains three `.nfn` render sites with **zero** `tabindex`,
+and exactly **two** Enter/Space handlers, keyed on `dataset.sig`/`doc`
+and `dataset.mark` — none on `dataset.node`. Static proof of both halves.
+
+Final state, verified on the rendered view rather than the URL: Index
+links focus and navigate to the Tree view on both Enter and Space, at the
+correct target node; `.feat-name` likewise; and neither existing handler
+regressed — `.marki` still toggles `marki` → `marki on` and back without
+navigating, `.sigi` still opens its popup, both staying on the Index tab.
+
 ### Phase 5 — standalone → desktop app *(unblocked on Linux, 2026-08-11)*
 
 In order: full-fidelity standalone generation (the parser-less MVP in
