@@ -198,6 +198,37 @@ return function(H)
     eq(checklist.resolve(root), nil, "resolve: nil for a repo with no checklist — not an error")
   end
 
+  -- ── parse_history ────────────────────────────────────────────────────────
+
+  do
+    -- The shape `git log --format=%x1e%cs --name-only` emits: a `\30`
+    -- separator, the commit date, then the paths that commit touched. Shared
+    -- by `:DocMap checklist` and the serve tier's /api/checklist, which
+    -- invoke git differently — this is the part worth having in one place,
+    -- and the part worth testing without a repository.
+    local stdout = table.concat({
+      "\30" .. "2026-08-11",
+      "lua/a.lua",
+      "lua/b.lua",
+      "\30" .. "2026-07-01",
+      "lua/a.lua",
+    }, "\n")
+
+    local dates = checklist.parse_history(stdout)
+    eq(#dates["lua/a.lua"], 2, "parse_history: a path touched twice gets both dates")
+    eq(dates["lua/a.lua"][1], "2026-08-11", "parse_history: newest first, as git emits")
+    eq(#dates["lua/b.lua"], 1, "parse_history: a path touched once gets one")
+    eq(dates["lua/c.lua"], nil, "parse_history: an untouched path is absent, not empty")
+  end
+
+  do
+    eq(
+      next(checklist.parse_history("")),
+      nil,
+      "parse_history: empty output is an empty table, not an error"
+    )
+  end
+
   -- ── status ───────────────────────────────────────────────────────────────
 
   local function ledger(items)

@@ -111,12 +111,25 @@ So `core/checklist.lua` is pure and never runs git. `status()` takes a
 lets every staleness case be tested with no repository, no commits and no clock
 involved.
 
-## Try it
+## Two ways to read it
 
 ```
-:DocMap checklist        " stale and unverified only
+:DocMap checklist        " stale and unverified only, into the quickfix list
 :DocMap checklist all    " everything, including what is still current
 ```
+
+Or **Analysis → Checklist** in the generated page. That panel is unusual
+among the Analysis panels: its *data* is baked in, so the whole ledger —
+every item, citation and date — renders from `file://` with no server. Only
+the verdict column is missing there, and the panel says so and tells you how
+to get it. Under `:DocMap serve` it fetches `/api/checklist` once per page
+load and fills the column in.
+
+That is the opposite arrangement from Telemetry and Loaded, which have no
+baked content at all and are blank without a server. Worth knowing when
+reading either: a blank Telemetry panel means "ask a server", a Checklist
+panel without verdicts means "the ledger is right here, the git part is
+not".
 
 This repository keeps its own ledger in
 [`docs/CHECKLIST/architecture.md`](CHECKLIST/architecture.md) — eight facts

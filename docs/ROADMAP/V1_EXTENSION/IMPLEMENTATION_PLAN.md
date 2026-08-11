@@ -179,7 +179,7 @@ line one. Nothing about building one invalidates the local server's choice.
 Phase 0  treesitter binding on Linux      DONE ✓   works on Linux
    │
    ├─ Phase 1  MCP server                 DONE ✓   shipped 2026-08-11
-   ├─ Phase 2  Checklist ledger, scope (b) days    no dependencies
+   ├─ Phase 2  Checklist ledger, scope (b) DONE ✓  shipped 2026-08-11
    ├─ Phase 4  UI polish                  ongoing  no dependencies
    │     │
    │  Phase 3  Agent integration          small    needs 1 + 2
@@ -263,7 +263,7 @@ revision, because the surface used (`initialize`, `tools/list`,
 `protocol.SUPPORTED` is therefore a compatibility *claim*, deliberately
 conservative: adding a revision means checking it, not guessing forward.
 
-### Phase 2 — checklist ledger, scope (b) only
+### Phase 2 — checklist ledger, scope (b) only — **done 2026-08-11**
 
 `CHECKLIST_TASK_RUNNER.md`'s own recommendation, followed exactly: build
 **(b)**, the curated ledger with staleness detection, and not **(a)**, the
@@ -282,6 +282,29 @@ settled **before** building, since two of them change the schema:
 3. **Verification by hand-editing Markdown, or a command?** The `RULES/`
    precedent was hand-edited throughout, and no need for more has been
    stated → hand-edit.
+
+Built as specified. `core/checklist.lua` (parser + `status` + `parse_history`),
+`bindings/usrcmds/checklist.lua` (`:DocMap checklist [all]`), an
+`/api/checklist` serve route and an Analysis panel; format documented in
+[`docs/CHECKLIST_FORMAT.md`](../../CHECKLIST_FORMAT.md), dogfooded in
+`docs/CHECKLIST/architecture.md`.
+
+**A fourth decision the three above did not anticipate, and it overturned this
+document's own placement suggestion.** `CHECKLIST_TASK_RUNNER.md` proposed "a
+tenth Analysis panel". Analysis panels bake into the committed page, and
+`core/churn.lua` had already established that git data cannot enter a
+byte-compared artifact without the map losing its fixed point — so the
+staleness verdict, which is the whole feature, could not live there. The
+resolution splits content from verdict: the ledger is parsed Markdown and
+bakes into `module_map.json` happily, while the verdict is computed live. The
+panel therefore renders *completely* from `file://` and gains one column under
+`:DocMap serve` — the inverse of Telemetry and Loaded, which are blank without
+a server.
+
+Two parser bugs were found by running against a real ledger rather than only
+fixtures, and both are the kind only real data produces: multi-line items lost
+everything after their first line, and a wrapped `<!-- @note -->` leaked into
+the item text. Both fixed with tests.
 
 Deliberately out of scope: **multi-repo**. `RULES/` spans 33 repos;
 documentation.nvim scans one. That needs `IDEAS.md` §6.6/§6.7 (both
