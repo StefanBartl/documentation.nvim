@@ -129,6 +129,13 @@ by default in a personal config once the combination has earned its
 keep; the two are unrelated to each other (one is call graphs, one is
 findings), so either is useful alone too.
 
+The setup for the call-hierarchy half is one option and two keymaps —
+Neovim ships no default binding for incoming/outgoing calls, so nothing
+happens until you add one. That, plus how to tell an unattached client
+from a function that genuinely has no callers (the two look identical:
+an empty quickfix list), is in
+[docs/CALL_HIERARCHY.md](CALL_HIERARCHY.md).
+
 ## Trail is a session tool, not a bookmark you'll remember weeks later
 
 `p` pins, `6` lists, `<CR>` restores the *exact view* (mode, direction,

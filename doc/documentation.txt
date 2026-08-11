@@ -776,7 +776,19 @@ scan_full({opts})       `scan` + optional LuaLS merge + `check`, in one call —
                         the enrichment wiring exists in exactly one place.
                         Returns `ir, findings`.
 
-                                                       *documentation.install()*
+                                                 *documentation-callhierarchy*
+`opts.callhierarchy = true` attaches a second, narrow LSP client alongside
+LuaLS — which has no call-hierarchy support at all — answering only
+`textDocument/prepareCallHierarchy`, `callHierarchy/incomingCalls`,
+`callHierarchy/outgoingCalls`, and injecting a caller/callee count into
+hover. `vim.lsp.buf.incoming_calls()` and |vim.lsp.buf.outgoing_calls()|
+then work in Lua buffers under `source/`; Neovim has no default keymap for
+either, so bind them yourself. `:checkhealth documentation` reports whether
+the client is actually running — an unattached client and a function with
+no callers both produce an empty quickfix list. Setup, keymaps and the
+resolution limits: `docs/CALL_HIERARCHY.md` in the repository.
+
+                                                      *documentation.install()*
 install({opts})         A live |Documentation.Handle|: a scanned IR kept in
                         memory, optionally rescanned on save, with
                         subscribers. What another plugin's code reaches for
