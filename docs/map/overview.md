@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**4 modules** · 5 namespaces · 76 helper files
+**5 modules** · 5 namespaces · 78 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -22,6 +22,7 @@ flowchart LR
   nlua_documentation_core_render["render"]
   nlua_documentation_editor["editor"]
   nlua_documentation_editor_browse["browsebr/small`:DocBrowse` — the module map inside the…/small"]
+  nlua_documentation_mcp["mcpbr/smallAn MCP (Model Context Protocol) server…/small"]
   nlua_documentation --> nlua_documentation_bindings
   nlua_documentation_bindings --> nlua_documentation_bindings_usrcmds
   nlua_documentation --> nlua_documentation_config
@@ -30,6 +31,7 @@ flowchart LR
   nlua_documentation_core --> nlua_documentation_core_render
   nlua_documentation --> nlua_documentation_editor
   nlua_documentation_editor --> nlua_documentation_editor_browse
+  nlua_documentation --> nlua_documentation_mcp
 ```
 
 
@@ -82,6 +84,8 @@ flowchart LR
   nlua_documentation_editor_health_lua["documentation.editor.health"]
   nlua_documentation_editor_registry_lua["documentation.editor.registry"]
   nlua_documentation_editor_serve_lua["documentation.editor.serve"]
+  nlua_documentation_mcp_protocol_lua["documentation.mcp.protocol"]
+  nlua_documentation_mcp_tools_lua["documentation.mcp.tools"]
   nlua_documentation_bindings_docs_lua --> nlua_documentation_bindings_autocmds_lua
   nlua_documentation_bindings_docs_lua --> nlua_documentation_editor_browse
   nlua_documentation_bindings_usrcmds --> nlua_documentation_bindings_progress_lua
@@ -155,6 +159,8 @@ flowchart LR
   nlua_documentation_editor_serve_lua --> nlua_documentation_core_loaded_diff_lua
   nlua_documentation_editor_serve_lua --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_editor_serve_lua --> nlua_documentation_editor_browse
+  nlua_documentation_mcp_protocol_lua --> nlua_documentation_mcp_tools_lua
+  nlua_documentation_mcp_tools_lua --> nlua_documentation_core_json_lua
 ```
 
 
@@ -170,21 +176,23 @@ flowchart LR
 | &nbsp;&nbsp;`render` |  |  |  |
 | `editor` |  |  | [README](../../lua/documentation/editor/README.md) |
 | &nbsp;&nbsp;`documentation.editor.browse` | `:DocBrowse` — the module map inside the editor. | 37 | [README](../../lua/documentation/editor/browse/README.md) · [src](../../lua/documentation/editor/browse/init.lua) |
+| `documentation.mcp` | An MCP (Model Context Protocol) server exposing this repository's module map to a coding agent. | 1 | [src](../../lua/documentation/mcp/init.lua) |
 
 ## Drift
 
-0 errors · 1 warnings · 8 info
+0 errors · 1 warnings · 10 info
 
 | Severity | Check | Message |
 |---|---|---|
 | warn | `doc-references-missing` | docs/ROADMAP/IDEAS/IDEAS.md:105 references 'documentation.core.scan.something', but documentation.core.scan has no 'something' |
 
 <details>
-<summary>8 informational findings</summary>
+<summary>10 informational findings</summary>
 
 
 | Check | Message |
 |---|---|
+| `missing-readme` | lua/documentation/mcp has no README.md |
 | `undocumented-param` | complexity has 3 parameter(s) but only 2 @param line(s) |
 | `unreferenced-module` | documentation.bindings.docs is required by no other file in the tree |
 | `unreferenced-module` | documentation.core.config is required by no other file in the tree |
@@ -193,5 +201,6 @@ flowchart LR
 | `unreferenced-module` | documentation.core.lang.ts is required by no other file in the tree |
 | `unreferenced-module` | documentation.core.lang.tsx is required by no other file in the tree |
 | `unreferenced-module` | documentation.editor.health is required by no other file in the tree |
+| `unreferenced-module` | documentation.mcp is required by no other file in the tree |
 
 </details>

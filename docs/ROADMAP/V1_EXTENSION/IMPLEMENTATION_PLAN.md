@@ -178,7 +178,7 @@ line one. Nothing about building one invalidates the local server's choice.
 ```
 Phase 0  treesitter binding on Linux      DONE ✓   works on Linux
    │
-   ├─ Phase 1  MCP server                 days     no dependencies
+   ├─ Phase 1  MCP server                 DONE ✓   shipped 2026-08-11
    ├─ Phase 2  Checklist ledger, scope (b) days    no dependencies
    ├─ Phase 4  UI polish                  ongoing  no dependencies
    │     │
@@ -220,7 +220,7 @@ footnote. The upside is that Phase 0 turned it into a *controlled* problem:
 identical source, one build working and one not, toolchain the only
 variable. The MSVC experiment named above follows directly from that.
 
-### Phase 1 — MCP server
+### Phase 1 — MCP server — **done 2026-08-11**
 
 The only one of `PROTOCOLS_AND_AGENTS.md`'s four ideas that is *cheap*, for
 a checkable reason: the tool surface already exists, tested, as
@@ -228,13 +228,40 @@ a checkable reason: the tool surface already exists, tested, as
 `callees`, `findings`, `rescan`). The server is a thin adapter over an
 existing interface, not new extraction.
 
-- **stdio transport.** Sidesteps every question the hosted-web-app idea
-  drowns in — no ports, no auth, no trust boundary; the agent spawns the
-  server as a subprocess.
-- **Host: `nvim --headless -l`.** Sufficient for this ecosystem's own use.
-  A standalone host is a Phase-0-dependent improvement, not a precondition.
-- **Risk:** MCP's spec is still moving. The mitigation is what the adapter
-  already is — thin.
+Built exactly as costed — stdio transport, `nvim --headless -l` host, eight
+tools that are each a projection of a handle method. Full detail in
+[`docs/MCP.md`](../../MCP.md); the code is `lua/documentation/mcp/`
+(`tools.lua`, `protocol.lua`, `init.lua`), the entry point
+`scripts/mcp_server.lua`, the tests `TESTS/mcp_spec.lua`.
+
+Four things the estimate did not name, all decided while building:
+
+- **`protocol.lua` is split from `init.lua`.** A message handler that reads
+  and writes files can only be tested by starting a subprocess and talking
+  to it; `protocol.dispatch(server, line)` is a function from a string to a
+  string, so the spec drives the whole protocol — handshake, every tool,
+  every error path — in-process. The transport is then a `while io.read`
+  loop short enough to read.
+- **Watching is off, and `docmap_rescan` exists because of it.** A watch
+  callback firing mid-request would swap the IR out from under a tool call
+  that had already read it, so a client could get a node list from one scan
+  and edges from the next. Making the refresh an explicit tool moves that
+  moment into the client's control.
+- **No tool returns a raw IR node.** A node carries parser-internal and
+  render-only fields an agent pays for in tokens and can almost never use;
+  each tool returns a named projection instead, so growing the IR does not
+  silently grow every tool result. The spec asserts this rather than
+  trusting it.
+- **A failing tool is a result, not a transport error.** An unknown node id
+  comes back as `isError`, which the model sees and can correct, rather
+  than a JSON-RPC error the client's plumbing swallows.
+
+The costed risk stands unchanged and is now the only one: **MCP's spec is
+still moving.** The mitigation held — nothing branches on the protocol
+revision, because the surface used (`initialize`, `tools/list`,
+`tools/call`, `ping`) is identical across every revision the server claims.
+`protocol.SUPPORTED` is therefore a compatibility *claim*, deliberately
+conservative: adding a revision means checking it, not guessing forward.
 
 ### Phase 2 — checklist ledger, scope (b) only
 
