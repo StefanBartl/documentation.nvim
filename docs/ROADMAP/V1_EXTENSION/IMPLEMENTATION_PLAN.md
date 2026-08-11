@@ -94,6 +94,76 @@ Two consequences that change verdicts recorded elsewhere in this folder:
   inherits the treesitter problem twice, and the hosted trust model is still
   undesigned. It is correctly last, but it is no longer parked.
 
+## Finding 3 — one application instead of several tools
+
+Added 2026-08-11, and it is the strongest argument for the desktop tier so
+far — stronger than Finding 2, because it survives even for someone who
+*does* use Neovim.
+
+Today this ecosystem is a set of cooperating plugins, and
+[`../FEATURES/ECOSYSTEM.md`](../FEATURES/ECOSYSTEM.md) §7 decided
+deliberately that they **meet in the editor**: documentation.nvim knows what
+exists, runtime-analysis.nvim knows what ran, and `:DocBrowse`'s telemetry
+mode is where the two cross. That decision was right for the editor, and it
+quietly fixes the ceiling: everything that wants to join this data has to
+be a Neovim plugin, loaded in the same session, speaking Lua.
+
+A desktop application is a **second meeting point that has no such
+ceiling** — static structure, runtime evidence, profiling data and whatever
+comes later, in one program rather than three tools a reader alt-tabs
+between. That is a product argument, not a packaging one, and nothing in
+this folder had made it.
+
+**The one hard constraint on it, stated precisely so the idea is not
+oversold.** `ECOSYSTEM.md` §6 established that telemetry *cannot* be
+anything but in-process Lua — it replaces entries in live function tables,
+which requires being inside the same Lua state as the code being measured.
+That has not changed and cannot. So the honest shape of a unified
+application is:
+
+- **Collection stays in-process.** A running Neovim (or, later, any other
+  in-process agent) is what records call counts, timings and load order.
+  A desktop app cannot do this for a Neovim session it is not inside.
+- **Everything else can move.** Static analysis runs standalone already
+  (Phase 0/5). And crucially, runtime data is *already* readable without a
+  live instance: `runtime-analysis.telemetry.load(namespace)` reads a
+  persisted namespace off disk with no instance at all, which is exactly
+  what the existing Telemetry and Loaded panels already do through the
+  serve tier.
+
+So the unified app is a **viewer and analyser over everything**, with
+collection remaining wherever the code actually runs. That is not a
+watered-down version of the idea — it is the same split this ecosystem
+already runs on, with the join moved somewhere that is not obliged to be a
+plugin. A profiler fits the same shape: whatever collects it must be
+in-process, but nothing forces the thing that *reads and correlates* it to
+live in an editor.
+
+## Platform priority: Windows first (decided 2026-08-11)
+
+Stated by the author directly: this is primarily built for their own use,
+and they primarily work on Windows. That **inverts the platform question**
+from "which target is easiest" to "the one confirmed-broken target is the
+one that matters", and it makes the Windows binding the critical path for
+Phases 5 and 6 rather than a separable problem.
+
+**Phase 0 improved that position substantially even though it ran on
+Linux**, which is worth stating because it looks like the opposite: there
+is now a **working build and a failing build of identical source**, and the
+only variable between them is the toolchain. That is a controlled diff, not
+a mystery — a much sharper debugging position than the one
+[`PORTABILITY.md`](PORTABILITY.md) recorded when both platforms were
+unknown.
+
+The concrete next experiment follows directly from the recorded hypothesis
+(a mingw struct-by-value ABI problem returning a 32-byte `TSNode`):
+**rebuild the binding on Windows with MSVC instead of mingw.** If the
+hypothesis holds, that alone fixes it, and it is the same size of
+experiment Phase 0 was. Other options — patch and vendor the binding,
+fix it upstream, or run generation inside WSL and ship the viewer natively
+— stay open, but the MSVC test should come first because it is cheapest
+and because its result narrows every other option.
+
 The `127.0.0.1`-only posture is worth restating precisely, because it is
 easy to read as an obstacle and it is not: it is a deliberate property of
 the *current, single-user, personal-machine server*, and the reason that
@@ -143,11 +213,12 @@ the outcome in short:
 - **No LuaRocks and no root required** — plain `gcc` against system
   LuaJIT, the same shape a `luastatic` link would take.
 
-**Consequence for this plan: Phases 5 and 6 are unblocked on Linux**, and
-Windows becomes a separable, known problem (target Linux first, fix the
-binding upstream, or vendor a patched one) rather than a wall. macOS is
-untested, but the blocking failure is a mingw hypothesis, so it is more
-likely to resemble Linux than Windows.
+**Consequence for this plan: Phases 5 and 6 are unblocked on Linux.**
+Windows remains broken and — per "Platform priority" above — is the target
+that actually matters here, so it is the critical path rather than a
+footnote. The upside is that Phase 0 turned it into a *controlled* problem:
+identical source, one build working and one not, toolchain the only
+variable. The MSVC experiment named above follows directly from that.
 
 ### Phase 1 — MCP server
 
@@ -259,12 +330,12 @@ marked accordingly.
 
 ## Open questions this plan does not answer
 
-- **Which platform the desktop app targets first.** Now a live question
-  rather than a hypothetical: Phase 0 succeeded on Linux and Windows stays
-  broken. Shipping Linux-first, fixing `lua-tree-sitter` upstream, and
-  vendoring a patched binding are three answers with different costs, and
-  none is obviously right. Testing macOS would narrow it — and is cheap,
-  the same experiment on different hardware.
+- ~~**Which platform the desktop app targets first.**~~ **Answered: Windows**
+  (see "Platform priority" above). The open question underneath it is now
+  narrower and technical: does an MSVC build of `lua-tree-sitter` avoid the
+  segfault? That is the next experiment, and it decides between "fix the
+  toolchain" and the more expensive fallbacks (patch and vendor, fix
+  upstream, or generate inside WSL and ship the viewer natively).
 - **Whether the project switcher (Phase 5) is a documentation.nvim feature
   at all**, or a property of whatever shell hosts it. It has no analogue in
   the current single-repo model.

@@ -143,6 +143,25 @@ available today, and arguably the highest-leverage single piece of "better
 View/UI/feature equipment" per hour spent, precisely because it doesn't
 wait on anything else in this document.
 
+## A third argument, added 2026-08-11: one application instead of several tools
+
+The two sections above weigh the desktop tier as *a different way to reach
+the same map*. A third framing makes a stronger case and appears in neither:
+a desktop application is a place where documentation.nvim's static
+structure, runtime-analysis.nvim's runtime evidence, a profiler and whatever
+comes later are **one program** rather than several tools alt-tabbed
+between. `docs/ROADMAP/FEATURES/ECOSYSTEM.md` §7 deliberately made the
+editor that meeting point — correct for the editor, and it sets a ceiling:
+anything joining this data has to be a Neovim plugin in the same session.
+
+The constraint that keeps this honest, from `ECOSYSTEM.md` §6: telemetry
+**must** be in-process Lua, so collection cannot move. But reading can and
+already has — `telemetry.load(namespace)` reads a persisted namespace with
+no live instance, which is exactly what the serve tier's Telemetry and
+Loaded panels already do. So the unified app is a *viewer and analyser over
+everything*, with collection staying wherever the code runs. See
+[`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md)'s Finding 3.
+
 ## Verdict
 
 Not one project. Three, in decreasing order of what's already solved:
