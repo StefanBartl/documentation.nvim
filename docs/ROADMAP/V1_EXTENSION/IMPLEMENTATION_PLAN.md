@@ -709,10 +709,23 @@ now records the three obstacles that only appear when you run it —
 required), an unquoted `nm` call that breaks on any library path with a
 space, and a C-compiler probe that fails on Windows even with `CC` set.
 
+**And the build is a script, not a recipe (2026-08-11).**
+[`scripts/package.lua`](../../../scripts/package.lua) runs manifest →
+staging → `luastatic` → compile → verify, encoding every workaround so
+none has to be rediscovered. Writing it turned up two further defects of
+the same family, both silent until run: the same unquoted-command bug this
+project had just criticised `luastatic` for, reproduced by accident one
+file later; and a catch-all in the path mapping that registered every
+module flat (`calls`, `check`, `init`), reported a successful build, and
+produced a binary that died at its first `require`. The `verify` step
+exists because a binary that links is not a binary that runs — and it is
+what caught that one.
+
 **Remaining in this phase:** a *full-fidelity* binary, which needs
 `lua_tree_sitter` and `libtree-sitter` as static libraries plus a bundled
 grammar per language. Nothing about it is unknown now — it is the same
-shape as the `lfs` static build, one size larger.
+shape as the `lfs` static build, one size larger, and `package.lua` already
+links every `.a` it finds in `$DOCMAP_STATIC_LIBS`.
 
 #### A switcher belongs to the shell, not to this plugin (decided 2026-08-11)
 

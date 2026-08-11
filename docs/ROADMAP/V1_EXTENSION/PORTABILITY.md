@@ -201,8 +201,40 @@ lines is wrong in both directions — it would bundle the editor-only
 not even be a build error: it would be a binary that silently produces no
 function-level data for JS/TS files.
 
+**The build itself is now a script, for the same reason the manifest is.**
+[`scripts/package.lua`](../../../scripts/package.lua) does manifest →
+staging → `luastatic` → compile → verify, and encodes all four workarounds
+above so they never have to be rediscovered. It runs under PUC Lua rather
+than Neovim, deliberately: `luastatic` is a PUC-Lua program and a C
+toolchain is required anyway, so demanding Neovim for a script whose whole
+output is a Neovim-free artifact would be gratuitous.
+
+```
+LUA_INCDIR=… LUA_LIBA=…/liblua.a DOCMAP_STATIC_LIBS=…/libs CC=gcc \
+  lua scripts/package.lua --out=build
+```
+
+Writing it turned up two more defects, both of the same family as the ones
+already listed — silent until run:
+
+- **The same unquoted-command bug, in this script.** `cmd.exe` strips the
+  first and last quote of a command line, so a quoted interpreter path
+  under `C:\Program Files (x86)\…` arrives broken and reports
+  `'C:\Program' is not recognized`. It needs an *extra* pair of quotes
+  around the whole line. Exactly what `luastatic`'s `nm` call gets wrong,
+  reproduced by accident one file later.
+- **A silent catch-all in the path mapping**, which is the one worth
+  keeping. The manifest yields repo-relative paths when run from the
+  repository and absolute ones when run from a build directory; the
+  mapping matched only the former and fell through to the basename for
+  everything else. Every module was registered flat — `calls`, `check`,
+  `init` — the build reported success, and the binary died at its first
+  `require`. The mapping now returns nil rather than guessing, and the
+  `verify` step exists precisely because a binary that links is not a
+  binary that runs. That step is what caught it.
+
 **And the manifest must be built in the configuration you intend to
-ship**, which is a second instance of the same hazard. The closure is not
+ship**, which is a further instance of the same hazard. The closure is not
 one fixed list: `core/functions.lua`'s `scan_file` returns early when no
 parser is available, so `core/plugins.lua` and `core/symbols.lua` — both
 required below that point — never load. Measured: **43 files parser-less
