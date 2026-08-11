@@ -201,6 +201,56 @@ lines is wrong in both directions — it would bundle the editor-only
 not even be a build error: it would be a binary that silently produces no
 function-level data for JS/TS files.
 
+### The full-fidelity binary works too (2026-08-11)
+
+**`docmap.exe` (1.7 MB) plus one grammar shared library (146 KB), with no
+Lua, no LuaRocks tree and no Neovim, produces a map byte-identical to
+`nvim --headless -l scripts/gen_map.lua`.** Verified the only way that
+means anything: let the binary write into `docs/map` exactly as
+`gen_map.lua` does, then `git diff` against the committed artifacts —
+empty.
+
+What it needed beyond the parser-less build:
+
+- **One static library for the binding *and* its vendored tree-sitter.**
+  `lua-tree-sitter`'s 15 C sources plus `tree-sitter/lib/src/lib.c` (which
+  `#include`s the rest of libtree-sitter) compile into a single
+  `lua_tree_sitter.a`. The include path needs `tree-sitter/lib/src` — the
+  same omission this document already records as one of the published
+  rock's two packaging defects.
+- **The grammar stays an external shared library**, and that is not a
+  shortcut: `Language.load(path, lang)` resolves the grammar by `dlopen`
+  at runtime, so there is nothing for a static link to attach to. Ship the
+  binary alongside a directory of grammars and point `$DOCMAP_TS_DIR` at
+  it. Loading a grammar built independently into a process whose
+  libtree-sitter is statically linked works — a grammar depends only on
+  `tree_sitter/parser.h` and hands back a struct pointer.
+
+**And one more `luastatic` defect, this one squarely a bug.** It derives a
+bundled C module's name from its `luaopen_<name>` symbol and then rewrites
+**every** underscore to a dot, so `lua_tree_sitter` is registered as
+`lua.tree.sitter`. `lfs` survives only because it has no underscore. The
+binary therefore fell through to the LuaRocks `.dll` on `$LUA_CPATH` — a
+shared library built against `lua54.dll`, which cannot load into a
+statically linked host — and silently degraded to the parser-less result
+with a perfectly good binding compiled in. `standalone/treesitter.lua` now
+tries both names, which is a three-line fix in this repository rather than
+surgery on luastatic's generated C.
+
+**That bug also produced the one real usability finding.** Degrading
+silently is right for the product, and awful to debug: the binary reported
+the parser-less result and nothing said why. `DOCMAP_TS_DEBUG=1` now
+prints the reason to stderr, and it is what located the defect above in
+one run.
+
+**A trap in the verification method, worth recording because it looked
+like a fidelity gap.** Comparing the binary's output against the committed
+map showed a 1,023-byte difference — an extra prose entry for
+`docs/map/overview.md`. Not a defect: the docs scanner excludes its own
+`out_dir`, so a run writing to `.deps/binfull` counts `docs/map/` as
+documentation while a run writing to `docs/map` does not. Two runs are
+only comparable when their `out_dir` matches.
+
 **The build itself is now a script, for the same reason the manifest is.**
 [`scripts/package.lua`](../../../scripts/package.lua) does manifest →
 staging → `luastatic` → compile → verify, and encodes all four workarounds
