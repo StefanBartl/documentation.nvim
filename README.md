@@ -461,6 +461,28 @@ Built entirely client-side from each function's already-serialized
 functions' snippets, an approximation of the file rather than a
 byte-perfect one, which is why this ships marked experimental.
 
+## MCP server — the map as tools for a coding agent
+
+The same `Documentation.Handle`, reachable from outside Neovim by an agent
+that speaks [MCP](https://modelcontextprotocol.io):
+
+```
+nvim --headless -l scripts/mcp_server.lua
+```
+
+An MCP client spawns that as a subprocess and talks JSON-RPC over its
+stdin/stdout — nothing listens on a port and nothing authenticates, because
+with stdio the client *is* the parent process. Eight tools: `docmap_modules`,
+`docmap_node`, `docmap_requires`, `docmap_required_by`, `docmap_callers`,
+`docmap_callees`, `docmap_findings`, `docmap_rescan`. Each is a projection of
+a handle method — the agent asks "what calls this function" instead of
+grepping for the name and guessing which hits are real.
+
+Client configuration, the tool table, and the four decisions worth knowing
+about (why file watching is off, why no tool returns a raw IR node, why a
+failing tool is a *result* rather than a transport error) are in
+[docs/MCP.md](docs/MCP.md).
+
 ## Drift checks
 
 The rendered map is the visible half; the checks are the half that catches
@@ -483,13 +505,14 @@ Repository-specific checks go in `opts.extra_checks`.
 | [docs/COMMANDS.md](docs/COMMANDS.md) | `:DocMap` and `:DocBrowse`, subcommand by subcommand. |
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | Using it day to day: which panel answers which question, reading the Telemetry join's badges correctly, Trail vs filter vs fuzzy jump. |
 | [docs/REUSE.md](docs/REUSE.md) | Generating a map for your own plugin. |
-| [docs/ROADMAP/PORTABILITY.md](docs/ROADMAP/PORTABILITY.md) | Mapping a Lua project that is not a Neovim plugin — and what a Neovim-free port would actually cost. |
+| [docs/MCP.md](docs/MCP.md) | The MCP server: exposing the module tree, require graph, call graph and drift findings to a coding agent as tools. |
+| [docs/ROADMAP/V1_EXTENSION/PORTABILITY.md](docs/ROADMAP/V1_EXTENSION/PORTABILITY.md) | Mapping a Lua project that is not a Neovim plugin — and what a Neovim-free port would actually cost. |
 | [docs/ROADMAP/MULTILANG.md](docs/ROADMAP/MULTILANG.md) | What supporting other languages would take, and how much of the code survives it. |
 | [docs/FRAMEWORK_CONVENTIONS.md](docs/FRAMEWORK_CONVENTIONS.md) | The layer above language support — recognizing one ecosystem's structural convention (lazy.nvim specs today; Next.js-style file routing and React hooks costed as the web-ecosystem case). |
-| [docs/ECOSYSTEM.md](docs/ECOSYSTEM.md) | **Architectural concept**, agreed, nothing implemented: where docs cross-references, API-endpoint inventory, hover previews and an API request runner each belong — and why the runtime half is its own plugin (`runtime-analysis.nvim`), a Neovim plugin rather than a binary, meeting this one in the editor rather than in the committed artifact. |
+| [docs/ECOSYSTEM.md](docs/ROADMAP/FEATURES/ECOSYSTEM.md) | **Architectural concept**, agreed, nothing implemented: where docs cross-references, API-endpoint inventory, hover previews and an API request runner each belong — and why the runtime half is its own plugin (`runtime-analysis.nvim`), a Neovim plugin rather than a binary, meeting this one in the editor rather than in the committed artifact. |
 | [docs/ANNOTATION_TAGS.md](docs/ANNOTATION_TAGS.md) | **Annotating your own plugin**: what each tag buys you here, the minimum viable set, and which custom tags would be worth adding. |
 | [docs/ANNOTATIONS.md](docs/ANNOTATIONS.md) | The inventory — which LuaCATS tags this tree actually uses, counted. |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Running the specs, the linters and the map locally. |
-| [docs/ROADMAP/](docs/ROADMAP/) | [FEATURES.md](docs/ROADMAP/FEATURES.md) — what shipped and why it was built that way. [ROADMAP.md](docs/ROADMAP/ROADMAP.md) — what is open, and what was considered and turned down (with the condition that would reopen it). |
+| [docs/ROADMAP/](docs/ROADMAP/) | [FEATURES.md](docs/ROADMAP/FEATURES/FEATURES.md) — what shipped and why it was built that way. [ROADMAP.md](docs/ROADMAP/ROADMAP.md) — what is open, and what was considered and turned down (with the condition that would reopen it). |
 | [lua/documentation/editor/browse/README.md](lua/documentation/editor/browse/README.md) | The editor-side browser in detail. |
 | `:help documentation.nvim` | The same, in Vim help format. |

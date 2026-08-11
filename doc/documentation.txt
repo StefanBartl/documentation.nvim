@@ -21,9 +21,10 @@ CONTENTS                                                *documentation-contents*
     7. Drift checks .................... |documentation-checks|
     8. Lua API ......................... |documentation-api|
     9. Headless / CI ................... |documentation-headless|
-   10. Reuse in your own plugin ........ |documentation-reuse|
-   11. Annotations .................... |documentation-annotations|
-   12. Credits ........................ |documentation-credits|
+   10. MCP server ..................... |documentation-mcp|
+   11. Reuse in your own plugin ........ |documentation-reuse|
+   12. Annotations .................... |documentation-annotations|
+   13. Credits ........................ |documentation-credits|
 
 ==============================================================================
 1. INTRODUCTION                                     *documentation-introduction*
@@ -838,7 +839,59 @@ output produces diffs the author never intended and interacts badly with
 |:amend| and rebase, so regeneration stays explicit.
 
 ==============================================================================
-10. REUSE IN YOUR OWN PLUGIN                                *documentation-reuse*
+10. MCP SERVER                                                *documentation-mcp*
+
+The same |Documentation.Handle|, reachable from outside Neovim by a coding
+agent that speaks MCP (Model Context Protocol): >bash
+
+    nvim --headless -l scripts/mcp_server.lua
+<
+Not meant to be run by hand — an MCP client spawns it as a subprocess and
+talks JSON-RPC over its stdin/stdout. Run interactively it looks like it has
+hung, because it is doing exactly what it should: waiting for a line.
+
+Nothing listens on a port and nothing authenticates, because with stdio there
+is nobody to authenticate: the client *is* the parent process, and the trust
+boundary is the one the operating system already draws around a subprocess.
+
+Eight tools, each a projection of a handle method:
+
+    docmap_modules       Every module: id, kind, declared `@module`, summary.
+                         `prefix` scopes to a subtree, `limit` caps the result.
+    docmap_node          One module: summary, prose, documented functions,
+                         what it requires and is required by.
+    docmap_requires      Require edges out of a module.
+    docmap_required_by   Require edges in. Ask before changing an export.
+    docmap_callees       Call edges out of one function, keyed
+                         `<node id>#<declared name>`.
+    docmap_callers       Call edges in. Ask before changing a signature.
+    docmap_findings      Drift findings, filtered by severity, check or node.
+    docmap_rescan        Re-scan from disk and report the new counts.
+
+Four decisions worth knowing about:
+
+    * Answers come from a scan held in memory, and file watching is off. A
+      watch callback firing mid-request would swap the IR out from under a
+      tool call that had already read it, so a client could get a node list
+      from one scan and edges from the next. `docmap_rescan` exists so that
+      moment is the client's choice rather than an invisible race.
+    * No tool returns a raw IR node. A node carries parser-internal and
+      render-only fields an agent pays for in tokens and can almost never
+      use; each tool returns a named projection instead.
+    * A failing tool is a result, not a transport error. An unknown node id
+      comes back as an `isError` tool result the model sees and can correct,
+      not a JSON-RPC error the client's plumbing swallows.
+    * stdout carries the protocol and nothing else — one JSON object per
+      line, no framing headers (that is LSP; MCP delimits by newline). Every
+      diagnostic, |vim.notify| included, is pinned to stderr.
+
+`scripts/mcp_server.lua` hardcodes only this repository's own layout; another
+plugin copies it and changes the options table at the bottom, the same
+arrangement `scripts/gen_map.lua` uses. See `docs/MCP.md` for client
+configuration and the module layout.
+
+==============================================================================
+11. REUSE IN YOUR OWN PLUGIN                                *documentation-reuse*
 
 Nothing here knows about any particular repository's layout. Two files to copy
 and five lines to edit — see `docs/REUSE.md` in the repository for the full
@@ -891,7 +944,7 @@ counted in the same pass `core/calls.lua` already resolves internal calls
 in, off `node.calls_external`.
 
 ==============================================================================
-11. ANNOTATIONS                                      *documentation-annotations*
+12. ANNOTATIONS                                      *documentation-annotations*
 
 The scanner reads each file's leading comment block — everything before the
 first non-comment line — and stops. It does not parse Lua. The only hard
@@ -930,7 +983,7 @@ that do not exist yet. `docs/ANNOTATIONS.md` is the counted inventory of what
 this tree itself uses.
 
 ==============================================================================
-12. CREDITS                                              *documentation-credits*
+13. CREDITS                                              *documentation-credits*
 
 Author:   Stefan Bartl
 Repo:     https://github.com/StefanBartl/documentation.nvim
