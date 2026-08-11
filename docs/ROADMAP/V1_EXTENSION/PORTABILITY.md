@@ -262,6 +262,64 @@ above are Windows-neutral (they would bite any platform) while its
 segfault may well be Windows-specific. Testing that is the obvious next
 step if this is picked up again.
 
+### That next step was taken (2026-08-11): **it works on Linux**
+
+Run under WSL/Arch on the same machine the Windows failures above were
+recorded on — so the two results differ by platform and nothing else.
+`lua-tree-sitter`, built against the system LuaJIT.
+
+**Both documented packaging fixes were necessary and sufficient**, which
+independently confirms the diagnosis above rather than merely repeating
+it: a `--recurse-submodules` clone supplies the ICU `unicode/*.h` the
+published rock omits, and adding `tree-sitter/lib/src` to the include
+path fixes the second. With both applied, `libtree-sitter` and the
+binding compile clean.
+
+**`tree:root_node()` returns normally** and prints a complete, correct
+S-expression. **The Windows segfault is therefore platform-specific**,
+which supports the mingw struct-by-value hypothesis recorded above
+(`ts_tree_root_node` returning a 32-byte `TSNode` by value) — still not
+*proven*, but no longer competing with "the binding is simply broken".
+
+The whole pipeline was exercised, not just the crashing call:
+`Language.load` → `Parser.new`/`set_language` → `parse_string` →
+`root_node` → `Query.new` → `Query.Cursor.new` → `next_capture` → byte
+offsets → source text. A two-function fixture returned exactly its two
+expected captures with correct names, node types and positions.
+
+**Two findings that change the shim estimate, both in the good direction:**
+
+- **`node:parent()` exists on this binding.** The ~30-line parent-index
+  shim costed above was for `ltreesitter`'s gap; `lua-tree-sitter` has
+  `parent`, `next_sibling`, `prev_sibling`, `next_named_sibling`,
+  `prev_named_sibling` natively. That shim is not needed.
+- **No LuaRocks, and no root, were required.** Plain `gcc` against
+  `pkg-config --cflags --libs luajit`. That matters for the packaging
+  story: it is the same shape a `luastatic` link would take.
+
+**What a shim does still have to cover** — all API *shape*, none of it a
+capability gap, and all of it composable from methods that exist:
+
+| Neovim API this code calls | `lua-tree-sitter` equivalent |
+|---|---|
+| `node:range()` → 4 numbers | compose from `start_point`/`end_point` (or `start_byte`/`end_byte`) |
+| `node:start_point()` → `row, col` | returns a `Point` object, not a tuple |
+| `query:iter_captures()` generator | `Query.Cursor.new(q, node)` + imperative `cursor:next_capture()` |
+| `vim.treesitter.get_node_text` | `src:sub(node:start_byte() + 1, node:end_byte())` |
+
+Node methods confirmed present and used by this repository's 27
+navigation call sites: `child`, `child_count`, `parent`, `type`,
+`named_child`, `named_child_count`, `start_byte`, `end_byte`,
+`start_point`, `end_point`, plus `is_named`/`is_missing`/`has_error`.
+
+**Revised status: the full-fidelity standalone path is viable on Linux
+and blocked on Windows.** Not blocked as such. macOS remains untested,
+but the failure mode that blocked Windows is a mingw hypothesis, so
+macOS is more likely to resemble Linux than Windows.
+
+Reproduction lives in `~/ts-test` inside the WSL instance (both repos
+cloned, both artifacts built) if this is picked up again.
+
 **What is not blocked:** the parser-less MVP (`standalone/vim_shim.lua` +
 `standalone/docmap.lua`) works today, verified end to end against this
 repository's own tree — module tree, require graph, and every check and
@@ -279,10 +337,21 @@ generating — for removing a dependency that costs almost nothing.
 
 The case would change if the goal were a LuaRocks package usable from a
 non-Neovim toolchain, or if a Lua binding to `libtree-sitter` turned out to
-match the API surface this code is written against. Neither is true today —
-and as of 2026-08-11 the second one is answered with evidence rather than
-assumed: the API surface does match, but neither binding actually works on
-Windows (see the section above for exactly how each one fails).
+match the API surface this code is written against.
+
+**As of 2026-08-11 the second condition is met on Linux.** The API surface
+matches, and `lua-tree-sitter` builds and runs correctly there — the
+Windows failure recorded above is platform-specific, not a property of the
+binding. See the section above for the verified pipeline and the exact
+(small, purely shape-level) shim that remains.
+
+That removes the *technical* reason this was not scheduled. The
+*motivational* one above still stands on its own terms — `nvim --headless`
+is a cheap dependency for someone who already uses Neovim — but it no
+longer applies to the case that actually motivates this work:
+[`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md)'s Finding 2, that
+reaching people who do **not** use Neovim is the point, and for them the
+dependency is not cheap but total.
 
 **Step 1 is worth doing on its own merits, though**, and does not depend on any
 of the rest: the split already exists, and making it enforceable costs a rename

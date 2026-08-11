@@ -149,13 +149,17 @@ Not one project. Three, in decreasing order of what's already solved:
 
 1. **UI polish on the current page** — cheap, available now, no
    dependency on anything else here.
-2. **A real standalone desktop app** — the hard half (generation without
-   Neovim) is partly built and partly **blocked**: the parser-less MVP
-   ships and works, but the full-fidelity path is blocked on upstream
-   defects in both Lua `libtree-sitter` bindings (Windows-confirmed;
-   Linux/macOS untested — see above). The UI half mostly exists; a
-   project switcher and a packaging pass are the remaining work *after*
-   the parsing blocker is resolved or the target platform narrowed.
+2. **A real standalone desktop app** — **no longer blocked as such
+   (updated 2026-08-11).** The parser-less MVP ships and works, and the
+   full-fidelity path was tested on Linux the day after this was written:
+   `lua-tree-sitter` builds and runs correctly there, whole pipeline
+   verified, so the defect recorded above is Windows-specific rather than
+   a property of the binding. See
+   [`PORTABILITY.md`](PORTABILITY.md#that-next-step-was-taken-2026-08-11-it-works-on-linux).
+   What remains is real but ordinary: a small API-shape shim, a project
+   switcher (still genuinely unscoped), a packaging pass, and a decision
+   about whether Windows ships day one. This moves from "blocked" to "the
+   largest available piece of new capability in this folder".
 3. **A hosted web app** — the least developed of the three, and the one
    whose hardest question (a real multi-tenant trust model) has no answer
    sketched anywhere in this ecosystem yet. Costed here only as "genuinely
@@ -164,10 +168,23 @@ Not one project. Three, in decreasing order of what's already solved:
 
 ## Revisit if
 
-(2): once the treesitter Lua-binding path is actually built (not just
-scoped) and there's a real want for "run this without opening Neovim at
-all" beyond the convenience the current `:DocMap`/`:DocMap serve` flow
-already gives inside an editor session that's usually open anyway. (3):
-if a genuine multi-person/multi-team use case shows up — nothing in this
-ecosystem's current single-author, single-machine posture asks for it
-today.
+**(2): both conditions are now met — this section is spent (2026-08-11).**
+It asked for two things. *"Once the treesitter Lua-binding path is actually
+built (not just scoped)"* — done, and it works on Linux
+([`PORTABILITY.md`](PORTABILITY.md#that-next-step-was-taken-2026-08-11-it-works-on-linux)).
+*"A real want for run-this-without-opening-Neovim beyond the convenience the
+current flow already gives"* — stated directly, and the framing above
+("beyond the convenience") turned out to understate it: the want is not
+convenience for someone who has Neovim open, it is **access for someone who
+does not use Neovim at all**, for whom the dependency is not cheap but
+total. That is a different audience, not a nicer path to the same one — see
+[`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md)'s Finding 2, which
+records this as a gap in *this document's* own reasoning: it answered "can
+you view a map in a browser" (yes, twice in-house) and never asked "can a
+non-Neovim user get a map at all" (no).
+
+(3): if a genuine multi-person/multi-team use case shows up. Partially
+moved too — the delivery-mode argument above justifies a *hosted* tier's
+existence, but the hardest question it raises (a real multi-tenant trust
+model) remains entirely undesigned, so this stays the most expensive of
+the three. The static-publish slice remains the cheap honest first step.
