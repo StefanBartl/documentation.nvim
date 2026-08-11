@@ -27,18 +27,32 @@ function M.run(ctx, arg)
     return
   end
 
-  local already = serve.is_running()
+  -- Which tree the server was answering for *before* this call, so the
+  -- message can tell "already running" apart from "moved to this repo".
+  local before = serve.info()
   local url, err = serve.start(ctx.cfg)
   if not url then
     ctx.notify.warn("Could not start the map server: " .. tostring(err))
     return
   end
-  ctx.notify.info(
-    (already and "Map server already running at %s" or "Map server listening at %s"):format(url)
-      .. "  (:"
-      .. ctx.command_name
-      .. " serve stop to close)"
-  )
+
+  local root = (ctx.cfg.root or ""):gsub("\\", "/"):gsub("/+$", "")
+  local repo = root:match("([^/]+)$") or root
+
+  -- Naming the repository is the whole point of this message, not decoration.
+  -- Without it, a server left running for another tree reported "already
+  -- running at <url>" — and that URL answered for somewhere else, which read
+  -- as a broken map rather than as the wrong repository.
+  local state
+  if not before then
+    state = "Map server listening at %s for %s"
+  elseif (before.root or ""):gsub("\\", "/"):gsub("/+$", "") == root then
+    state = "Map server already running at %s for %s"
+  else
+    state = "Map server moved to %s for %s (it was serving another repository)"
+  end
+
+  ctx.notify.info(state:format(url, repo) .. "  (:" .. ctx.command_name .. " serve stop to close)")
 end
 
 return M

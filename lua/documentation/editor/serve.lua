@@ -56,6 +56,18 @@ local uv = vim.uv or vim.loop
 ---@type { server: userdata, port: integer, cfg: table, clients: table<userdata, boolean>, augroup: integer? }|nil
 local current = nil
 
+---Two paths name the same repository when they normalise the same.
+---
+---Separator and trailing-slash only. Not `fs.canonicalize`: comparing a
+---running server's root against the one just resolved must not touch the
+---filesystem — the old root may have been renamed or unmounted since, and a
+---comparison that can fail is worse than one that is merely textual.
+---@param p string?
+---@return string
+local function normalize_root(p)
+  return (tostring(p or ""):gsub("\\", "/"):gsub("/+$", ""))
+end
+
 ---@param code integer
 ---@return string
 local function status_text(code)
@@ -844,12 +856,18 @@ function M.is_running()
   return current ~= nil
 end
 
----@return { port: integer, url: string }|nil
+---@return { port: integer, url: string, root: string }|nil
 function M.info()
   if not current then
     return nil
   end
-  return { port = current.port, url = ("http://127.0.0.1:%d/"):format(current.port) }
+  return {
+    port = current.port,
+    url = ("http://127.0.0.1:%d/"):format(current.port),
+    -- Which tree it answers for. Callers need this to say so, and `start`
+    -- needs it to notice that the answer has gone stale.
+    root = current.cfg and current.cfg.root or "",
+  }
 end
 
 ---Start the server. Idempotent: an already-running server is returned as is
@@ -859,8 +877,28 @@ end
 ---@return string|nil url
 ---@return string|nil err
 function M.start(cfg)
+  -- A running server answers for the tree it was started with, and for no
+  -- other. Returning its URL for a *different* repository is the same defect
+  -- `bindings/usrcmds/init.lua`'s `buffer_root` documents for `:DocMap`
+  -- itself: "which project am I looking at" answered once, then silently
+  -- wrong from the second invocation on.
+  --
+  -- Here it was worse than silent, because it looked like a bug in the map.
+  -- Start the server in repository A, run `:DocMap serve` again from
+  -- repository B, and the notification says "already running at
+  -- http://127.0.0.1:PORT" — an URL that serves A. If A has no `docs/map`
+  -- yet, opening it answers `{"error":"not found: index.html"}`, which reads
+  -- as "the map is broken" rather than "you are looking at the wrong tree".
+  --
+  -- So: same root, same server; different root, restart on the new one. The
+  -- caller is told which of the two happened so the message can name the
+  -- repository, the way every other report in this plugin does.
   if current then
-    return M.info().url
+    local same = normalize_root(current.cfg and current.cfg.root) == normalize_root(cfg.root)
+    if same then
+      return M.info().url
+    end
+    M.stop()
   end
 
   local server = uv.new_tcp()
