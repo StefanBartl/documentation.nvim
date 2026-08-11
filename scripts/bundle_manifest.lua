@@ -50,6 +50,17 @@ end
 local self_dir = (debug.getinfo(1, "S").source:sub(2):match("(.*)[/\\]")) or "."
 local repo = self_dir .. "/.."
 
+-- `standalone/docmap.lua` requires `standalone.vim_shim` by module name, which
+-- only resolves when the repository root is on `package.path`. That happens by
+-- accident when this script is run from the repository and not otherwise —
+-- and `scripts/package.lua` runs it from a build directory, which is exactly
+-- the case that used to fail with a twenty-line "module not found" trace.
+package.path = table.concat({
+  repo .. "/?.lua",
+  repo .. "/?/init.lua",
+  package.path,
+}, ";")
+
 -- Run the standalone entry point exactly as a user would, into a throwaway
 -- directory. `os.exit` is intercepted rather than avoided: `docmap.lua` ends
 -- with it, and letting it fire would take this script's own reporting with
