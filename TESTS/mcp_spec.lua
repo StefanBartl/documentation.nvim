@@ -170,6 +170,7 @@ return function(H)
       "docmap_callees",
       "docmap_findings",
       "docmap_rescan",
+      "docmap_checklist",
     }) do
       ok(tool_names[name], "tools/list: exposes " .. name)
     end
@@ -329,6 +330,141 @@ return function(H)
   do
     local res = send({ jsonrpc = "2.0", id = 13, method = "ping" })
     ok(res.result, "ping: answered, so a client's keepalive does not look like a hang")
+  end
+
+  -- ── docmap_checklist ─────────────────────────────────────────────────────
+  --
+  -- A separate root and server, deliberately: this tool alone shells out to
+  -- git, and the fixture above was never meant to be a repository. Building
+  -- one for real — `git init`, real commits, real dates — is the only way to
+  -- exercise the actual wiring (`ctx.out_dir` reaching the tool,
+  -- `handle.root` reaching the subprocess, `core/checklist.lua`'s `status`
+  -- reached through two more layers of plumbing than `checklist_spec.lua`
+  -- ever puts it through) rather than re-testing `status()` itself, which
+  -- already has its own pure, git-free coverage.
+  --
+  -- Commit dates are pinned via `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE`, not
+  -- left to whenever the test happens to run, so "is this item stale" is a
+  -- fact about the fixture rather than about today's date.
+  do
+    local function git(gr, args, env)
+      local cmd = { "git", "-c", "user.name=docmap-spec", "-c", "user.email=docmap-spec@test" }
+      vim.list_extend(cmd, args)
+      local opts = { cwd = gr, text = true }
+      if env then
+        opts.env = env
+      end
+      return vim.system(cmd, opts):wait()
+    end
+
+    local function commit(gr, date)
+      local add = git(gr, { "add", "-A" })
+      ok(add.code == 0, "checklist tool fixture: git add: " .. tostring(add.stderr))
+      local c = git(
+        gr,
+        { "commit", "-m", "c" },
+        { GIT_AUTHOR_DATE = date, GIT_COMMITTER_DATE = date }
+      )
+      ok(c.code == 0, "checklist tool fixture: git commit: " .. tostring(c.stderr))
+    end
+
+    local cl_root = H.tmpfile("_mcp_checklist")
+    vim.fn.mkdir(cl_root, "p")
+    local init = git(cl_root, { "init", "-q" })
+    local have_git = init.code == 0
+
+    if not have_git then
+      -- No git on this machine/CI image at all — the tool's own degrade path
+      -- (below, against the fixture-less root) still covers the "git log
+      -- fails" branch, so this is a reduced run, not a skipped one.
+      ok(true, "checklist tool: git unavailable, real-repo assertions skipped")
+    else
+      dwrite(cl_root, "lua/demo/a.lua", { "---@module 'demo.a'", "-- a" })
+      commit(cl_root, "2019-06-01T00:00:00")
+
+      dwrite(cl_root, "docs/CHECKLIST/x.md", {
+        "## S",
+        "- [x] cited and later stale",
+        "      <!-- @ref lua/demo/a.lua -->",
+        "      <!-- @verified 2020-01-01 -->",
+        "- [ ] never verified",
+        "      <!-- @ref lua/demo/a.lua -->",
+        "- [ ] cites nothing",
+      })
+      commit(cl_root, "2020-01-01T00:00:00")
+
+      -- Touches lua/demo/a.lua again, after the @verified date above — the
+      -- one commit that must make the first item stale.
+      dwrite(cl_root, "lua/demo/a.lua", { "---@module 'demo.a'", "-- a, edited" })
+      commit(cl_root, "2025-01-01T00:00:00")
+
+      local cl_handle = docmap.install({ root = cl_root, source = "lua/demo", lua_root = "lua" })
+      local cl_server = protocol.new(cl_handle, { name = "cl.nvim", out_dir = "docs/map" })
+
+      local function cl_call(args)
+        local res = protocol.dispatch(
+          cl_server,
+          vim.json.encode({
+            jsonrpc = "2.0",
+            id = 1,
+            method = "tools/call",
+            params = { name = "docmap_checklist", arguments = args or vim.empty_dict() },
+          })
+        )
+        local decoded = vim.json.decode(res)
+        ok(decoded.result and not decoded.result.isError, "docmap_checklist: not isError")
+        return vim.json.decode(decoded.result.content[1].text)
+      end
+
+      local default_view = cl_call()
+      ok(default_view.available, "docmap_checklist: available against a real repo")
+      eq(default_view.total, 3, "docmap_checklist: total counts every item, not only returned")
+      eq(default_view.counts.stale, 1, "docmap_checklist: the touched-after-verified item is stale")
+      eq(default_view.counts.unverified, 1, "docmap_checklist: the never-verified item counted")
+      eq(default_view.counts.uncited, 1, "docmap_checklist: the citation-less item counted")
+      eq(
+        default_view.returned,
+        2,
+        "docmap_checklist: default view is stale + unverified only, same as the usrcmd"
+      )
+
+      local stale = nil
+      for _, it in ipairs(default_view.items) do
+        if it.state == "stale" then
+          stale = it
+        end
+      end
+      ok(stale, "docmap_checklist: the stale item is in the default view")
+      eq(stale.text, "cited and later stale", "docmap_checklist: item text carried through")
+      eq(stale.commits, 1, "docmap_checklist: exactly the one later commit, not both")
+      eq(stale.last_commit, "2025-01-01", "docmap_checklist: newest commit date reported")
+
+      local all_view = cl_call({ state = "all" })
+      eq(all_view.returned, 3, 'docmap_checklist: state="all" returns every item')
+
+      local current_view = cl_call({ state = "current" })
+      eq(current_view.returned, 0, "docmap_checklist: nothing is current in this fixture")
+
+      local limited = cl_call({ state = "all", limit = 1 })
+      eq(limited.returned, 1, "docmap_checklist: limit caps the returned page")
+      eq(limited.total, 3, "docmap_checklist: ...but not the total")
+
+      cl_handle.uninstall()
+    end
+  end
+
+  do
+    -- No checklist at all in the original fixture root — the other real
+    -- "nothing to show" case, and one that needs no git repo to exercise.
+    local res = send({
+      jsonrpc = "2.0",
+      id = 14,
+      method = "tools/call",
+      params = { name = "docmap_checklist", arguments = vim.empty_dict() },
+    })
+    local payload = vim.json.decode(res.result.content[1].text)
+    eq(payload.available, false, "docmap_checklist: unavailable when the repo has no checklist")
+    ok(payload.reason:find("no checklist", 1, true) ~= nil, "docmap_checklist: the reason says why")
   end
 
   handle.uninstall()

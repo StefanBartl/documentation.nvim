@@ -163,6 +163,7 @@ flowchart LR
   nlua_documentation_editor_serve_lua --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_editor_serve_lua --> nlua_documentation_editor_browse
   nlua_documentation_mcp_protocol_lua --> nlua_documentation_mcp_tools_lua
+  nlua_documentation_mcp_tools_lua --> nlua_documentation_core_checklist_lua
   nlua_documentation_mcp_tools_lua --> nlua_documentation_core_json_lua
 ```
 

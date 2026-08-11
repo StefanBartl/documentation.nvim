@@ -68,17 +68,19 @@ end
 ---@class Documentation.Mcp.Server
 ---@field handle Documentation.Handle
 ---@field name string
+---@field out_dir? string Repo-relative output directory — the one piece of `Documentation.Opts` a tool call needs that `handle` does not carry. See `mcp/tools.lua`'s `docmap_checklist`.
 ---@field initialized boolean Set by the `initialized` notification; informational only — see `request` for why nothing is gated on it.
 
 ---Build a server bound to one installed handle.
 ---@param handle Documentation.Handle
----@param opts { name?: string }?
+---@param opts { name?: string, out_dir?: string }?
 ---@return Documentation.Mcp.Server
 function M.new(handle, opts)
   opts = opts or {}
   return {
     handle = handle,
     name = opts.name or "documentation.nvim",
+    out_dir = opts.out_dir,
     initialized = false,
   }
 end
@@ -175,7 +177,8 @@ function M.request(server, msg)
     -- model, which can then correct the argument it got wrong. "No such
     -- node" is the model's mistake to fix, so it has to be the model that
     -- hears about it.
-    local success, res = pcall(tools.call, server.handle, params.name, args)
+    local success, res =
+      pcall(tools.call, server.handle, params.name, args, { out_dir = server.out_dir })
     if success then
       return ok(id, res)
     end
