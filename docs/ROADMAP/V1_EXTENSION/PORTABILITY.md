@@ -320,6 +320,69 @@ macOS is more likely to resemble Linux than Windows.
 Reproduction lives in `~/ts-test` inside the WSL instance (both repos
 cloned, both artifacts built) if this is picked up again.
 
+### And then it did not reproduce on Windows either (2026-08-11, later the same day)
+
+The planned next experiment was to rebuild the binding with MSVC instead
+of mingw, to test the struct-by-value hypothesis. **That experiment was
+never needed: re-running the failing call against the same mingw-built
+artifact passed.** Not a rebuild, not a newer version — the same file.
+`lua_tree_sitter.dll` carries a build timestamp of 03:16 that day, while
+the failure above was committed at 08:47 and 09:16, so the binary predates
+its own bug report by hours and has not been touched since.
+
+Everything Phase 0 verified under WSL now also passes natively on Windows,
+against **a grammar built from source in this session** — `gcc -O2 -shared
+-o lua_grammar.dll src/parser.c src/scanner.c -Isrc` against a plain
+`tree-sitter-lua` checkout — with **no Neovim involved anywhere**, which is
+the configuration the standalone premise actually requires. The earlier
+successful `Language.load` of Neovim's own shipped `parser/lua.dll` was
+explicitly discounted above for that reason; it is kept here only as a
+control, and both now pass identically:
+
+```
+require lua_tree_sitter            ok
+Language.load                      ok  ABI 15
+Parser:parse_string                ok
+Tree:root_node                     ok  chunk
+Node:parent                        ok
+query -> captures -> source text   ok  got [alpha beta gamma gamma]
+Cursor:set_byte_range              ok  1 capture(s), expected 1
+```
+
+**Why the original run failed could not be reconstructed, and nothing here
+should be read as having fixed it.** Three candidate explanations were
+checked and none holds: the binding statically links `libtree-sitter`
+(its only imports are `KERNEL32`, `msvcrt` and `lua54.dll`, and there is
+no `libtree-sitter.dll` anywhere on `PATH`), so a stray-DLL mix-up is
+ruled out; there is exactly one `lua54.dll` on the machine, sitting beside
+the interpreter that loads it, so the "two Lua runtimes in one process"
+failure mode is ruled out too; and both sides of the struct-by-value call
+come from the same mingw build, so the two compilers cannot disagree
+across it. The honest summary is *does not reproduce*, with the cause of
+the original observation unexplained — most likely something about how
+that particular run was invoked, which was not written down at the time.
+
+**That is exactly why this is now a script and not a paragraph.**
+[`standalone/check_treesitter.lua`](../../../standalone/check_treesitter.lua)
+runs the whole pipeline against a fixture whose expected captures are
+stated before anything executes, so a pass means "produced this exact
+answer" rather than "did not crash", and exits non-zero naming the stage
+that failed. It is deliberately not wired into `TESTS/run.lua`: it needs a
+`lua-tree-sitter` rock and a compiled grammar, and CI should not grow a
+dependency on either. Run it on a machine you are asking the question
+about:
+
+```
+lua standalone/check_treesitter.lua /path/to/lua_grammar.dll lua
+```
+
+**Revised status again: the full-fidelity standalone path is not currently
+blocked on any tested platform.** Windows and Linux both pass; macOS
+remains untested. The MSVC experiment stays on the shelf rather than being
+struck out — if the crash returns, it is still the cheapest next probe,
+and the script above is now what would catch the regression instead of a
+hand-run session nobody kept.
+
 **What is not blocked:** the parser-less MVP (`standalone/vim_shim.lua` +
 `standalone/docmap.lua`) works today, verified end to end against this
 repository's own tree — module tree, require graph, and every check and
