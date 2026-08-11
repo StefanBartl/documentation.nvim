@@ -377,11 +377,64 @@ lua standalone/check_treesitter.lua /path/to/lua_grammar.dll lua
 ```
 
 **Revised status again: the full-fidelity standalone path is not currently
-blocked on any tested platform.** Windows and Linux both pass; macOS
-remains untested. The MSVC experiment stays on the shelf rather than being
-struck out — if the crash returns, it is still the cheapest next probe,
-and the script above is now what would catch the regression instead of a
-hand-run session nobody kept.
+blocked on any tested platform.** Windows and Linux both pass. The MSVC
+experiment stays on the shelf rather than being struck out — if the crash
+returns, it is still the cheapest next probe, and the script above is now
+what would catch the regression instead of a hand-run session nobody kept.
+
+**macOS is out of scope, by decision rather than by omission
+(2026-08-11).** It is not a target for this project; earlier notes above
+that call it "untested" should be read as "not going to be tested", so
+that it stops reappearing as an open question in every status pass.
+
+### Step 3 is done: the standalone build is byte-identical to Neovim (2026-08-11)
+
+[`standalone/treesitter.lua`](../../../standalone/treesitter.lua) replaces
+`vim_shim.lua`'s inert parser stub with a real `vim.treesitter` backed by
+`lua-tree-sitter`. **No `core/*.lua` file changed to accommodate it** —
+that was the whole premise of the split enforced in Step 1, and this is
+the first time it has actually been tested rather than asserted.
+
+The acceptance test is not a judgement call: generate this repository's own
+map both ways and compare bytes.
+
+| Artifact | Result |
+|---|---|
+| `module_map.json` | **identical** (953,400 bytes) |
+| `index.html` | **identical** (1,504,097 bytes) |
+| `overview.md` | **identical** (13,433 bytes) |
+
+```
+nvim --headless -l scripts/gen_map.lua
+DOCMAP_TS_DIR=/path/to/grammars lua standalone/docmap.lua . \
+  --source=lua/documentation --repo-url=… --branch=main
+```
+
+**Four API gaps had to be bridged, and three of them are exactly the kind
+that reading documentation gets wrong** — each was measured against a real
+parser first: `capture:index()` is 0-based while Neovim's `query.captures`
+is a 1-based array; `match:captures_to_table()` returns a flat array of
+`Capture` objects rather than Neovim's capture-id → node-array mapping;
+`node:range()` and `node:field()` do not exist and are composed from
+`start_point`/`end_point` and `field_name_for_child`. A fifth,
+`node:iter_children()`, was found the honest way — by running the real
+generator and watching it stop in `core/plugins.lua`.
+
+**Two latent determinism bugs in the *plugin itself* surfaced from this**,
+both the same root cause and neither visible from inside Neovim: LuaJIT
+renders an integral float as `100`, PUC Lua 5.3+ as `100.0`, and both
+leaked into the byte-compared artifact — once through `core/json.lua`
+encoding values, once through `core/quicks.lua` building pre-formatted
+`detail` strings with `%s`. Fixed in both places. Under LuaJIT the output
+is unchanged, verified by regenerating and confirming no value-formatting
+byte moved. This is the artifact `--check` compares and a pre-commit hook
+fails on, so "the same tree scanned by a different Lua reads as stale" was
+a real defect waiting for its first non-Neovim run.
+
+**The fallback is intact and was tested, not assumed:** with no binding
+installed, or a binding but no reachable grammar, the build degrades to
+the parser-less MVP and exits 0 rather than failing. A machine without the
+rock still gets a working, smaller build.
 
 **What is not blocked:** the parser-less MVP (`standalone/vim_shim.lua` +
 `standalone/docmap.lua`) works today, verified end to end against this

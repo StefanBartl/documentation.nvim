@@ -499,13 +499,27 @@ local function judge(p, th)
     return nil
   end
 
+  -- `%s`/`tostring` on a number is host-Lua-specific: LuaJIT renders an
+  -- integral float as `100`, PUC Lua 5.3+ as `100.0`. That leaked into the
+  -- byte-compared artifact as `"detail":"100.0% — 85 of 85"`, which is the
+  -- same defect `core/json.lua` fixes for *values* — this is the second
+  -- place it surfaces, because these details are pre-formatted strings
+  -- rather than numbers the encoder ever sees. `%.14g` renders an integral
+  -- value without a fractional part and a real one with it, matching what
+  -- LuaJIT's `tostring` produced here.
+  ---@param n number
+  ---@return string
+  local function numstr(n)
+    return (("%.14g"):format(n))
+  end
+
   local detail
   if p.unit == "percent" and p.total then
-    detail = ("%s%% — %d of %d"):format(p.value, p.n, p.total)
+    detail = ("%s%% — %d of %d"):format(numstr(p.value), p.n, p.total)
   elseif p.unit == "percent" then
-    detail = ("%s%%"):format(p.value)
+    detail = ("%s%%"):format(numstr(p.value))
   else
-    detail = tostring(p.value)
+    detail = numstr(p.value)
   end
 
   ---@type Documentation.Quick

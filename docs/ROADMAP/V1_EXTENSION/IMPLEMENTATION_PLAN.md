@@ -673,9 +673,32 @@ was gated on is answered on both tested platforms — `lua-tree-sitter` runs
 the full parse → query → cursor → captures → byte-offset pipeline on Linux
 *and* natively on Windows, against a grammar built from source, with no
 Neovim present. Verify on any machine with
-`lua standalone/check_treesitter.lua <grammar> lua`. macOS is untested and
-is now the only unknown platform, which makes it a cheap thing to check
-rather than a risk to plan around.
+`lua standalone/check_treesitter.lua <grammar> lua`. **macOS is out of
+scope by decision, not by omission** — it is not a target for this
+project, so it should stop appearing as an open question.
+
+**First bullet: done (2026-08-11).** Full-fidelity standalone generation
+works. [`standalone/treesitter.lua`](../../../standalone/treesitter.lua)
+replaces the inert parser stub with a real `vim.treesitter`, and **no
+`core/*.lua` file changed to accommodate it** — the Step 1 split holding
+under a second host is the actual result here, tested rather than
+asserted. Acceptance was a byte comparison rather than a judgement:
+this repository's own map, generated both ways, is identical in all three
+artifacts (`module_map.json` 953,400 B, `index.html` 1,504,097 B,
+`overview.md` 13,433 B).
+
+Two latent determinism bugs in the plugin itself fell out of it, both
+invisible from inside Neovim: LuaJIT writes an integral float as `100`,
+PUC Lua 5.3+ as `100.0`, and both leaked into the byte-compared artifact
+via `core/json.lua` and `core/quicks.lua`. Since `--check` byte-compares
+and a pre-commit hook fails on it, "same tree, different Lua, reads as
+stale" was a real defect waiting for its first non-Neovim run. Detail in
+[`PORTABILITY.md`](PORTABILITY.md#step-3-is-done-the-standalone-build-is-byte-identical-to-neovim-2026-08-11).
+
+**Remaining in this phase:** the project switcher (still genuinely
+unscoped — it touches state and the URL scheme, not just a screen) and
+`luastatic` packaging (`PORTABILITY.md` already rates it the least
+interesting step, having tried it).
 
 ### Phase 6 — hosted web tier *(largest, least developed)*
 

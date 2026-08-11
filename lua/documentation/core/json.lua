@@ -35,7 +35,25 @@ function M.encode(value)
   if value == nil then
     return "null"
   end
-  if ty == "boolean" or ty == "number" then
+  if ty == "number" then
+    -- Determinism across host Lua implementations, not just across runs.
+    --
+    -- Every number in the IR that came out of a division is a float, and
+    -- LuaJIT (what Neovim embeds) writes an integral float as `100` while
+    -- PUC Lua 5.3+ writes `100.0`. Since `--check` byte-compares the
+    -- artifact, that difference is not cosmetic: the same tree scanned by
+    -- `nvim --headless` and by `standalone/docmap.lua` produced maps that
+    -- differed in exactly these characters and nothing else, which reads as
+    -- "the map is stale" rather than as "two Lua versions print floats
+    -- differently". Normalising here keeps the guarantee this module exists
+    -- for. Under LuaJIT it changes no byte — `%d` and `%.14g` agree on an
+    -- integral value — so the committed artifact is unaffected.
+    if value == value and value - value == 0 and value % 1 == 0 and math.abs(value) < 2 ^ 53 then
+      return string.format("%d", value)
+    end
+    return vim.json.encode(value)
+  end
+  if ty == "boolean" then
     return vim.json.encode(value)
   end
   if ty == "string" then

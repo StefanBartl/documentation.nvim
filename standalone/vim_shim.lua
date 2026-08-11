@@ -345,7 +345,7 @@ local inert_query = {
   end,
 }
 
-vim.treesitter = {
+local inert_treesitter = {
   query = {
     parse = function()
       return inert_query
@@ -363,6 +363,16 @@ vim.treesitter = {
     end,
   },
 }
+
+-- A real parser when one is installed and a grammar is reachable, the inert
+-- stub above otherwise. The fallback is the point: a machine without the
+-- `lua-tree-sitter` rock still gets the parser-less MVP exactly as before,
+-- rather than a build that refuses to start. See `standalone/treesitter.lua`
+-- for the grammar-resolution rules and for why the API needs translating.
+local ok_real, real = pcall(function()
+  return require("standalone.treesitter").build()
+end)
+vim.treesitter = (ok_real and real) or inert_treesitter
 
 _G.vim = vim
 
