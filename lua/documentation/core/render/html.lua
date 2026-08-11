@@ -222,6 +222,14 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
   text-decoration:none;font-weight:600;cursor:pointer}
 .nlist .nfn:hover{text-decoration:underline}
 .nlist .nfn:focus-visible{outline:2px solid var(--accent-soft);outline-offset:2px}
+.godi-wrap{position:relative;display:inline-block}
+.godi-tip{display:none;position:absolute;z-index:40;left:0;top:calc(100% + 6px);
+  width:min(46ch,80vw);padding:9px 11px;border:1px solid var(--line);border-radius:8px;
+  background:var(--panel);color:var(--ink);font-size:12px;line-height:1.45;
+  box-shadow:0 6px 20px rgba(0,0,0,.18)}
+.godi-tip b{color:var(--accent)}
+/* Hover *and* focus: a warning only a mouse can see is not a warning. */
+.godi-wrap:hover .godi-tip,.godi-wrap:focus-within .godi-tip{display:block}
 .godi-off{opacity:.55;text-decoration:line-through}
 .godi-note{margin-top:4px;font-size:11.5px;color:var(--muted);max-width:62ch}
 .feat-name[data-node]:focus-visible,.feat-tab-name[data-node]:focus-visible{
@@ -1026,11 +1034,24 @@ local JS = [[
   // page load, for a link most readers will never click, would be
   // needless work — `kind`/`key` are carried on the element instead, and
   // the real URL is built once, lazily, in the click handler below.
+  // Functions only. `kind` is kept on the element because the click handler
+  // reads it, not because there is a second kind left to pass.
+  //
+  // The notice is a real box on hover and on focus, not a `title`. What it
+  // has to say is that clicking sends this function's source to a third
+  // party — a `title` tooltip is the wrong weight for that, it appears after
+  // a delay, never appears for keyboard users, and cannot be read by anyone
+  // who is deciding whether to click.
   function godboltTrigger(kind, key){
     if(!IR.meta.godbolt) return "";
-    return '<a href="#" class="godi" data-godbolt="' + kind + '" data-godbolt-key="' +
-      esc(key) + '" title="Open in Compiler Explorer (experimental) — real Lua bytecode, compiled on their servers, not this map’s own data">' +
-      '⚙ Compiler Explorer ↗</a>';
+    return '<span class="godi-wrap"><a href="#" class="godi" data-godbolt="' + kind +
+      '" data-godbolt-key="' + esc(key) + '">⚙ Compiler Explorer ↗</a>' +
+      '<span class="godi-tip" role="note"><b>Experimental — leaves your machine.</b> ' +
+      'Opens Compiler Explorer in a new tab and hands it this function’s source, so ' +
+      'godbolt.org compiles it and shows you real <code>luac</code> bytecode. The code ' +
+      'travels inside the link itself: nothing is uploaded ahead of time and nothing is ' +
+      'stored there. It is still someone else’s server, and this map has no other ' +
+      'outbound request anywhere.</span></span>';
   }
 
   // Where a mention lives, and the line it sits on. Rendered into the same
@@ -1675,11 +1696,24 @@ local JS = [[
     }
     if((n.functions||[]).length){
       links.push('<a href="#" data-goto="calls">Calls ↳</a>');
-      // A module's own link, not one per function — that one is rendered
-      // beside each function's own block below instead, where "this one
-      // function" is unambiguous. Both read the same `fn.snippet` data.
-      var godboltNode = godboltTrigger("node", n.id);
-      if(godboltNode) links.push(godboltNode);
+      // No module-level Compiler Explorer link, deliberately — removed
+      // rather than repaired, for two independent reasons.
+      //
+      // It could not work: the source travels base64-encoded in the URL and
+      // godbolt.org rejects a request line over 8 KB, while this
+      // repository's largest module came to 33,332 characters. A shortener
+      // API exists and was verified to handle that size — but it uploads the
+      // source and keeps it under a public short link, which is a different
+      // act from opening a stateless URL.
+      //
+      // And it should not work: a module link concatenated every function's
+      // snippet, which is an approximation of the file and not the file —
+      // no requires, no comments, nothing at module scope. `luac` compiles
+      // one real file and has no project mode to approximate. Making a
+      // meaningless view work is not a fix.
+      //
+      // Per function it is exact and small (2,880 characters at this
+      // repository's worst), and that link is rendered beside each function.
     }
     if(links.length) h.push('<div class="links">'+links.join("")+'</div>');
 
@@ -6220,20 +6254,8 @@ local JS = [[
     if(!el) return;
     ev.preventDefault();
     var key = el.dataset.godboltKey;
-    var source = null;
-    if(el.dataset.godbolt === "fn"){
-      var entry = fnByKey[key];
-      source = entry && entry.fn.snippet;
-    } else {
-      var node = byId[key];
-      if(node){
-        var parts = [];
-        (node.functions || []).forEach(function(fn){
-          if(fn.snippet) parts.push(fn.snippet);
-        });
-        if(parts.length) source = parts.join("\n\n");
-      }
-    }
+    var entry = fnByKey[key];
+    var source = entry && entry.fn.snippet;
     if(!source) return; // no snippet to show — a trigger with nothing behind it is inert, not a dead link to godbolt.org with an empty editor
 
     // The whole source travels in the URL, base64-encoded, and godbolt.org
