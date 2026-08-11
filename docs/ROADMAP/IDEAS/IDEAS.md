@@ -44,6 +44,7 @@
   - [8. Product shape](#8-product-shape)
     - [8.1 A polished desktop/web-app version](#81-a-polished-desktopweb-app-version)
     - [8.2 A checklist/task syntax with a runner and dashboard](#82-a-checklisttask-syntax-with-a-runner-and-dashboard)
+    - [8.3 Modern protocols, WASM, and agent integration](#83-modern-protocols-wasm-and-agent-integration)
   - [9. Artifact and schema](#9-artifact-and-schema)
 
 ---
@@ -583,13 +584,15 @@ uses for anything too large for one entry.
 
 ### 8.1 A polished desktop/web-app version
 
-[`docs/IDEAS/DESKTOP_WEBAPP.md`](../../IDEAS/DESKTOP_WEBAPP.md) — costs out
+[`DESKTOP_WEBAPP.md`](DESKTOP_WEBAPP.md) — costs out
 "desktop app" and "web app" separately (they share a UI, not a trust
 model or a distribution story). Short version: most of "a rich browser
 UI" already exists (the generated page); a real standalone desktop build
-is researched and partially built this session (the parser-less
-standalone CLI, `docs/ROADMAP/PORTABILITY.md`'s ltreesitter research) but not
-finished; a hosted web app has no answer sketched anywhere for the trust
+is partly built (the parser-less standalone CLI works) and partly
+**blocked** — the full-fidelity path needs a working Lua
+`libtree-sitter` binding, and both available ones fail on Windows, one
+refusing to compile and one segfaulting (verified 2026-08-11, see
+`docs/ROADMAP/PORTABILITY.md`); a hosted web app has no answer sketched anywhere for the trust
 question `editor/serve.lua`'s own `127.0.0.1`-only posture currently
 avoids having to answer at all.
 
@@ -597,7 +600,7 @@ avoids having to answer at all.
 
 ### 8.2 A checklist/task syntax with a runner and dashboard
 
-[`docs/IDEAS/CHECKLIST_TASK_RUNNER.md`](../../IDEAS/CHECKLIST_TASK_RUNNER.md)
+[`CHECKLIST_TASK_RUNNER.md`](CHECKLIST_TASK_RUNNER.md)
 — grounded against a real example (the nvim-config repo's own
 `docs/ROADMAP/RULES/` systematic audit). Short version: most of what such
 an audit actually contains is a **hand-verified fact pinned to a
@@ -605,6 +608,23 @@ file:line**, not something a scanner can re-derive — so the idea that
 earns its keep is a curated ledger with staleness detection ("this cited
 line changed since it was last verified"), not a re-implementation of the
 existing check catalogue with new syntax.
+
+---
+
+### 8.3 Modern protocols, WASM, and agent integration
+
+[`PROTOCOLS_AND_AGENTS.md`](PROTOCOLS_AND_AGENTS.md) — four ideas raised
+together ("cutting-edge tech / new future-protocols"), costed apart
+because they differ by an order of magnitude in effort. Short version:
+an **MCP server** is the strongest and by far the cheapest (a thin
+adapter over `Documentation.Handle`/`core/cli.lua`, which already exist;
+stdio transport sidesteps every trust question) and it is the enabler for
+**agent-driven checklists**, which need no native rewrite. **WASM** is
+well-precedented in-house (mdview) but inherits two treesitter problems
+and answers a question nobody has asked. **WebSocket/WebTransport** is a
+no on current requirements — every existing `serve` endpoint is
+request/response-shaped, and the protocol should follow a push-shaped
+feature rather than lead it.
 
 ---
 

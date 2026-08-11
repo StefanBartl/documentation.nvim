@@ -210,6 +210,65 @@ That is the one genuinely unresolved question, and it is sharper than
 to be written over it? Answer that before anything else in this document is
 worth starting.
 
+### That question was answered empirically (2026-08-11), and the answer is "not on Windows"
+
+**The API-shape question turned out to be the easy half, and answering only
+it produced a wrong conclusion.** An earlier pass this same session read
+[`ltreesitter`](https://github.com/euclidianAce/ltreesitter)'s C source,
+confirmed its method surface lines up almost exactly with what `core/*.lua`
+calls (one real gap — no `node:parent()`, closable with a ~30-line
+pure-Lua parent-index shim), and concluded a full-fidelity standalone
+build was "buildable, not blocked". **That conclusion was wrong**, because
+checking an API's *shape* is not checking that it *builds and runs*. Both
+available Lua bindings to `libtree-sitter` were then actually installed
+and exercised. Both fail on Windows, in different ways:
+
+| Binding | Result | Detail |
+|---|---|---|
+| [`ltreesitter`](https://github.com/euclidianAce/ltreesitter) | **Does not compile** | `csrc/dynamiclib.c`'s `_WIN32` branch does `*out_error = GetLastError()` — assigning a `DWORD` to a `const char *`. Present on `main`, not only the 0.3.0 release, so this has effectively never built on Windows. |
+| [`lua-tree-sitter`](https://github.com/xcb-xwii/lua-tree-sitter) | **Compiles (after two local fixes), then segfaults** | Its published `.src.rock` ships an incomplete vendored tree-sitter (the bundled ICU `unicode/*.h` are missing — building from a `--recurse-submodules` checkout fixes that), and its rockspec omits `tree-sitter/lib/src` from `incdirs` (a one-line fix). With both applied it builds and installs cleanly — and then `tree:root_node()` segfaults. |
+
+**The segfault is grammar-independent**, which is worth recording because
+it rules out the obvious first suspect: it reproduces identically against
+Neovim's own shipped `parser/lua.dll` *and* against `tree-sitter-lua`
+compiled from source locally. Both report ABI version 15; the vendored
+`libtree-sitter` declares `TREE_SITTER_LANGUAGE_VERSION 15` with a minimum
+of 13, so the versions genuinely match. The node metatable is registered
+correctly (`LTS_setup_node` runs in `luaopen_lua_tree_sitter`). The
+remaining likely cause is a struct-by-value ABI problem in the mingw
+build — `ts_tree_root_node` returns a 32-byte `TSNode` by value, which
+`LTS_push_node` then takes by value — but that was **not** proven, and is
+recorded as a hypothesis, not a finding.
+
+**Two useful side findings from the same pass:**
+
+- Neovim's own shipped grammar `.dll` loads fine through a third-party
+  binding (`Language.load(path, "lua")` succeeds, reports ABI 15). Not
+  usable for this purpose regardless — a build whose whole premise is
+  "runs without Neovim" cannot depend on Neovim's parser being installed —
+  but it does confirm grammar loading itself is not the hard part.
+- **Building the grammar from source is trivial**, contrary to any worry
+  that it needs the `tree-sitter` CLI or a Node toolchain: one
+  `gcc -O2 -shared -o lua_grammar.dll src/parser.c src/scanner.c -Isrc`
+  against a plain `tree-sitter-lua` checkout, worked first try. The
+  generated `parser.c` needs only `tree_sitter/parser.h`, which the
+  grammar repo vendors itself.
+
+**Status: the real-parsing standalone path is blocked on Windows**, on
+upstream defects in both bindings rather than on anything in this
+repository. Nothing here says it is blocked on Linux/macOS — neither
+binding was tested there, and `lua-tree-sitter`'s two packaging bugs
+above are Windows-neutral (they would bite any platform) while its
+segfault may well be Windows-specific. Testing that is the obvious next
+step if this is picked up again.
+
+**What is not blocked:** the parser-less MVP (`standalone/vim_shim.lua` +
+`standalone/docmap.lua`) works today, verified end to end against this
+repository's own tree — module tree, require graph, and every check and
+renderer that does not need per-function facts, byte-identical to a real
+`nvim --headless` run apart from the function-level data it honestly
+reports as absent.
+
 ## Why this is not scheduled
 
 Because the first question is already answered, and it is the one people
@@ -220,7 +279,10 @@ generating — for removing a dependency that costs almost nothing.
 
 The case would change if the goal were a LuaRocks package usable from a
 non-Neovim toolchain, or if a Lua binding to `libtree-sitter` turned out to
-match the API surface this code is written against. Neither is true today.
+match the API surface this code is written against. Neither is true today —
+and as of 2026-08-11 the second one is answered with evidence rather than
+assumed: the API surface does match, but neither binding actually works on
+Windows (see the section above for exactly how each one fails).
 
 **Step 1 is worth doing on its own merits, though**, and does not depend on any
 of the rest: the split already exists, and making it enforceable costs a rename
