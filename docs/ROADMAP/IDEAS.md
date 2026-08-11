@@ -460,7 +460,39 @@ one will make all of it urgent at once.
 
 ---
 
-## 8. Artifact and schema
+## 8. Product shape
+
+Two bigger-picture ideas, each substantial enough to warrant a full
+analysis document rather than a paragraph here — the same
+`docs/PORTABILITY.md`/`docs/MULTILANG.md` pattern this backlog already
+uses for anything too large for one entry.
+
+### 8.1 A polished desktop/web-app version
+
+[`docs/IDEAS/DESKTOP_WEBAPP.md`](../IDEAS/DESKTOP_WEBAPP.md) — costs out
+"desktop app" and "web app" separately (they share a UI, not a trust
+model or a distribution story). Short version: most of "a rich browser
+UI" already exists (the generated page); a real standalone desktop build
+is researched and partially built this session (the parser-less
+standalone CLI, `docs/PORTABILITY.md`'s ltreesitter research) but not
+finished; a hosted web app has no answer sketched anywhere for the trust
+question `editor/serve.lua`'s own `127.0.0.1`-only posture currently
+avoids having to answer at all.
+
+### 8.2 A checklist/task syntax with a runner and dashboard
+
+[`docs/IDEAS/CHECKLIST_TASK_RUNNER.md`](../IDEAS/CHECKLIST_TASK_RUNNER.md)
+— grounded against a real example (the nvim-config repo's own
+`docs/ROADMAP/RULES/` systematic audit). Short version: most of what such
+an audit actually contains is a **hand-verified fact pinned to a
+file:line**, not something a scanner can re-derive — so the idea that
+earns its keep is a curated ledger with staleness detection ("this cited
+line changed since it was last verified"), not a re-implementation of the
+existing check catalogue with new syntax.
+
+---
+
+## 9. Artifact and schema
 
 - **Version the JSON schema explicitly.** `module_map.json` has grown
   fields steadily (`duplicates`, `docs`, `endpoints`, `snippet`), and
