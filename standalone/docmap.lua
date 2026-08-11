@@ -85,18 +85,21 @@ local argv = {}
 -- own wrapper and can hardcode both. Without them the two produce maps that
 -- differ in `meta.repo_url` — correct on each side, and an apples-to-oranges
 -- comparison when checking that this build is byte-faithful to a Neovim run.
-local source, repo_url, branch
+local source, repo_url, branch, out_dir
 for i = 2, #arg do
   local a = arg[i]
   local src = a:match("^%-%-source=(.+)$")
   local url = a:match("^%-%-repo%-url=(.+)$")
   local br = a:match("^%-%-branch=(.+)$")
+  local out = a:match("^%-%-out%-dir=(.+)$")
   if src then
     source = src
   elseif url then
     repo_url = url
   elseif br then
     branch = br
+  elseif out then
+    out_dir = out
   else
     argv[#argv + 1] = a
   end
@@ -106,6 +109,10 @@ local opts = require("documentation.config").build(root, {
   source = source, -- nil: config.build auto-detects, same as scripts/gen_map.lua's callers that omit it
   repo_url = repo_url,
   branch = branch,
+  -- `--out-dir` exists for the parity gate in `scripts/ci.lua`: comparing this
+  -- build's output against the committed map must not overwrite the committed
+  -- map to do it. Left nil, `config.build`'s own default applies as before.
+  out_dir = out_dir,
   layers = {
     {
       from = "documentation.core",

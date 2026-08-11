@@ -2,7 +2,7 @@
 #
 # Every gate CI runs, in one command.
 #
-#   scripts/ci.sh              all four, in order, stopping at the first failure
+#   scripts/ci.sh              all five, in order, stopping at the first failure
 #   scripts/ci.sh stylua       one gate
 #   scripts/ci.sh luacheck
 #   scripts/ci.sh tests

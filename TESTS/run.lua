@@ -88,6 +88,7 @@ local specs = {
   "check_type_vs_class_spec.lua",
   "check_overload_credit_spec.lua",
   "annotate_spec.lua",
+  "host_lua_determinism_spec.lua",
   "tools_spec.lua",
   "features_spec.lua",
   "calls_external_spec.lua",

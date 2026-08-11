@@ -436,6 +436,34 @@ installed, or a binding but no reachable grammar, the build degrades to
 the parser-less MVP and exits 0 rather than failing. A machine without the
 rock still gets a working, smaller build.
 
+### The determinism defect now has a gate (2026-08-11)
+
+Finding a defect that four green gates could not see is an argument about
+the gates, not just about the defect. Every one of them runs inside
+Neovim, so none could express the bug at all.
+
+A fifth gate, `scripts/ci.lua`'s `standalone`, runs the build under a Lua
+that is **not** LuaJIT and asserts the artifact carries no host-dependent
+number formatting. It uses the **parser-less** build on purpose: that
+needs only `lfs` and `dkjson`, both ordinary rocks, while the
+full-fidelity path needs `lua-tree-sitter`, whose published rock has the
+two packaging defects recorded above. Gating `main` on that would be a
+check that goes red without anyone touching anything — the same advice
+this project gives adopters in [`REUSE.md`](../../REUSE.md#repository-specific-drift-checks).
+Full byte-parity against a Neovim run therefore stays a local gate, run
+the way this session ran it.
+
+**The gate was verified by breaking it**, not by watching it pass:
+reverting one of the two `core/quicks.lua` fixes turns it red with the
+offending string quoted, and restoring the fix turns it green. A gate
+that has never failed is a gate nobody has tested.
+
+`TESTS/host_lua_determinism_spec.lua` locks the same invariant as a unit
+test. It is honest about its own limit: under LuaJIT those assertions
+pass whether or not the fix is present, because LuaJIT never had the bug.
+It is a specification lock for the next reader, and the `standalone` gate
+is the thing that actually catches a regression.
+
 **What is not blocked:** the parser-less MVP (`standalone/vim_shim.lua` +
 `standalone/docmap.lua`) works today, verified end to end against this
 repository's own tree — module tree, require graph, and every check and
