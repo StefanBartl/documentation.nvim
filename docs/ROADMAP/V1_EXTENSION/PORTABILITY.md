@@ -151,11 +151,66 @@ point of the core existing; only the other direction costs anything.
 `init.lua` sits outside the rule and reaches both, which is what a facade is
 for.
 
-### Step 2 — a binary
+### Step 2 — a binary — **done 2026-08-11, and it was not the least interesting step**
 
 `luastatic` links a Lua interpreter, your `.lua` sources and any C libraries
-into one executable. Nothing here makes that hard; it is the least
-interesting step.
+into one executable.
+
+**It works. `docmap.exe`, 1.5 MB, alone in an otherwise empty directory,
+with no Lua interpreter, no LuaRocks tree and no Neovim anywhere — and no
+`LUA_PATH`/`LUA_CPATH` set — generates a complete map.**
+
+This section previously called it "the least interesting step". That was
+wrong, and the correction is the useful part, because all three obstacles
+are invisible until you actually run it:
+
+- **`luastatic` derives module names from file *paths*.** Pass
+  `E:/repo/standalone/vim_shim.lua` and the bundled module is called
+  `E.repos.documentation.nvim.standalone.vim_shim`, so the binary dies at
+  its first `require`. It therefore needs a **staging layout** whose
+  relative paths spell the require names: `documentation/`, `lib/nvim/`,
+  `standalone/`, `dkjson.lua`. What makes `init.lua` work is one line in
+  its injected searcher — `lua_bundle[name] or lua_bundle[name..".init"]`
+  — so `documentation/init.lua` does satisfy `require("documentation")`.
+- **On Windows it shells out to `nm` without quoting.** Any library path
+  containing a space fails, and the message names a nonexistent file
+  (`nm: 'C:\Program': No such file`). `C:\Program Files (x86)\Lua\5.4\src\liblua.a`
+  is exactly such a path. Copy the library somewhere without spaces.
+- **Its C-compiler probe fails on Windows** ("C compiler not found") even
+  with `CC` set to an absolute `gcc.exe`. It still writes the generated
+  `.c`, so the workaround is to compile that yourself — which is a
+  one-line `gcc` invocation and works first try.
+
+**C modules need a static library, not the `.dll`/`.so` LuaRocks
+installs.** `lfs` is a single C file, so `gcc -c` plus `ar rcs` is the
+whole story. This is also why the binary above is the **parser-less**
+build: it degrades exactly as designed, and confirmed by measurement —
+with `DOCMAP_TS_DIR` pointing at real grammars it still reports the
+parser-less result, because `lua_tree_sitter` was never linked in. A
+full-fidelity binary additionally needs `lua_tree_sitter` **and**
+`libtree-sitter` as static libraries, and a grammar per language.
+
+**The load-bearing input is the file list, and it must be measured rather
+than grepped.** [`scripts/bundle_manifest.lua`](../../../scripts/bundle_manifest.lua)
+runs the real standalone pipeline and reads `package.loaded` afterwards:
+45 Lua files, 2 C modules for this repository. A grep over `require`
+lines is wrong in both directions — it would bundle the editor-only
+`lib.nvim` modules the standalone build never loads, and it would miss
+`core/lang/js`, `ts` and `tsx`, which are reached through
+`core/lang_registry` and named at no call site. That second failure would
+not even be a build error: it would be a binary that silently produces no
+function-level data for JS/TS files.
+
+**And the manifest must be built in the configuration you intend to
+ship**, which is a second instance of the same hazard. The closure is not
+one fixed list: `core/functions.lua`'s `scan_file` returns early when no
+parser is available, so `core/plugins.lua` and `core/symbols.lua` — both
+required below that point — never load. Measured: **43 files parser-less
+against 45 with a grammar reachable.** Packaging a full-fidelity binary
+from a parser-less manifest would drop those two and produce, again, not
+a build error but a binary that silently extracts no plugin specs and no
+module-scope symbols. The script warns on stderr when it is producing the
+parser-less closure rather than leaving that to be noticed later.
 
 ### Step 3 — tree-sitter, and why the CLI is the wrong unit to bundle
 
