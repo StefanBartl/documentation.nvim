@@ -66,28 +66,70 @@ package.path = table.concat({
 -- with it, and letting it fire would take this script's own reporting with
 -- it — there would be nothing left to read `package.loaded` afterwards,
 -- which is the entire purpose of this file. Restored immediately after, and
--- scoped to this one call.
--- luacheck: push ignore os
-local real_exit = os.exit
-local exit_code
-os.exit = function(code)
-  exit_code = code
-  error({ __bundle_exit = true }, 0)
+-- scoped to each call.
+---@param scan_root string
+---@param argv string[] Extra flags, `--out-dir` included.
+local function probe(scan_root, argv)
+  -- luacheck: push ignore os
+  local real_exit = os.exit
+  local exit_code
+  os.exit = function(code)
+    exit_code = code
+    error({ __bundle_exit = true }, 0)
+  end
+
+  _G.arg = { scan_root }
+  for _, a in ipairs(argv) do
+    _G.arg[#_G.arg + 1] = a
+  end
+  local ok, err = pcall(dofile, repo .. "/standalone/docmap.lua")
+  os.exit = real_exit
+  -- luacheck: pop
+
+  if not ok and not (type(err) == "table" and err.__bundle_exit) then
+    io.stderr:write("bundle_manifest: the standalone build failed:\n  " .. tostring(err) .. "\n")
+    os.exit(1)
+  end
+  if exit_code and exit_code ~= 0 then
+    io.stderr:write(("bundle_manifest: the standalone build exited %d\n"):format(exit_code))
+    os.exit(1)
+  end
 end
 
-_G.arg = { root, "--out-dir=.deps/bundle-manifest-probe" }
-local ok, err = pcall(dofile, repo .. "/standalone/docmap.lua")
-os.exit = real_exit
--- luacheck: pop
+probe(root, { "--out-dir=.deps/bundle-manifest-probe" })
 
-if not ok and not (type(err) == "table" and err.__bundle_exit) then
-  io.stderr:write("bundle_manifest: the standalone build failed:\n  " .. tostring(err) .. "\n")
-  os.exit(1)
+-- **A second corpus, because the closure depends on what was scanned, not
+-- only on how.** The warning further down already covers one half of this:
+-- without a parser, modules below `scan_file`'s early return never load.
+-- The other half is the *languages* in the measured tree. `core/lang/ecma`
+-- requires `core/endpoints` while scanning a `.js`/`.ts`/`.tsx` file, and
+-- this repository is pure Lua — so measuring it, even with every grammar
+-- present, yields a manifest with no `core/endpoints` in it and a binary
+-- that dies with "module not found" the first time anyone points it at a
+-- TypeScript project. Found exactly that way.
+--
+-- Generated rather than checked in: a fixture under `TESTS/` would be read
+-- by `coverage.lua`'s own scan of that directory and would start affecting
+-- this repository's `fn.tested` numbers, which is a real artifact change to
+-- pay for a build detail. `.deps/` is gitignored and is already where this
+-- script writes.
+local LANG_FIXTURES = {
+  ["a.js"] = "/** Adds. */\nexport function add(a, b) {\n  return a + b;\n}\n",
+  ["a.ts"] = "/** Adds. */\nexport function add(a: number, b: number): number {\n  return a + b;\n}\n",
+  ["a.tsx"] = "/** A box. */\nexport function Box(p: { n: number }) {\n  return <div>{p.n}</div>;\n}\n",
+}
+
+local langs_root = repo .. "/.deps/bundle-manifest-langs"
+os.execute(('mkdir "%s"'):format((langs_root .. "/src"):gsub("/", package.config:sub(1, 1))))
+for name, body in pairs(LANG_FIXTURES) do
+  local fd = io.open(langs_root .. "/src/" .. name, "w")
+  if fd then
+    fd:write(body)
+    fd:close()
+  end
 end
-if exit_code and exit_code ~= 0 then
-  io.stderr:write(("bundle_manifest: the standalone build exited %d\n"):format(exit_code))
-  os.exit(1)
-end
+
+probe(langs_root, { "--source=src", "--out-dir=out" })
 
 ---Collapse `a/b/../c` to `a/c`. `package.searchpath` returns whatever
 ---template matched, and this script is reached through `scripts/`, so paths
@@ -161,17 +203,28 @@ for _, m in ipairs(C_MODULES) do
   end
 end
 
--- **Build the manifest in the configuration you intend to ship.** The
--- closure is not one fixed list: `core/functions.lua`'s `scan_file` returns
--- early when no parser is available, so `core/plugins.lua` and
--- `core/symbols.lua` — required from below that point — never load at all.
--- Measured: 43 files parser-less against 45 with a grammar reachable.
+-- **Build the manifest in the configuration you intend to ship** — and the
+-- closure turns on two independent things, not one.
 --
--- Packaging a full-fidelity binary from a parser-less manifest would
--- therefore omit two modules, and the result would not be a build error. It
--- would be a binary that silently extracts no plugin specs and no
--- module-scope symbols, which reads as a scanner bug. Hence a warning rather
--- than a silent short list.
+-- *How it was scanned.* `core/functions.lua`'s `scan_file` returns early
+-- when no parser is available, so `core/plugins.lua` and `core/symbols.lua`
+-- — required from below that point — never load at all.
+--
+-- *What was scanned.* `core/lang/ecma` requires `core/endpoints` while
+-- reading a `.js`/`.ts`/`.tsx` file, and this repository is pure Lua. A
+-- manifest measured here with every grammar present still omits it, which
+-- is why the probe above also runs over a generated three-language fixture.
+--
+-- Measured, in this repository: **43 files parser-less, 45 with a grammar
+-- reachable, 46 once a JS/TS/TSX corpus is scanned too.**
+--
+-- None of the three misses is a build error. Each is a binary that dies or
+-- goes quiet only on the input the missing module handles — no plugin specs
+-- and no module-scope symbols for the first two, and a "module not found"
+-- traceback the first time anyone points the binary at a TypeScript project
+-- for the third. That last one was found exactly that way, after the build
+-- had already been called done. Hence a warning rather than a silent short
+-- list.
 if not package.loaded.lua_tree_sitter then
   io.stderr:write(
     "bundle_manifest: WARNING — no tree-sitter binding was loaded, so this is the\n"
