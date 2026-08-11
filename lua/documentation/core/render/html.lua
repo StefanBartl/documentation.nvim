@@ -4724,17 +4724,23 @@ local JS = [[
       return;
     }
 
-    // Only the first view of this panel pays for a real fetch — after that,
-    // loadedSnapList is cached and the promise below settles synchronously.
-    // Without this, switching tabs to Loaded left whatever panel was on
-    // screen before sitting there, unchanged, for the length of the request
-    // — the toolbar's active button already said "Loaded" while the body
-    // still showed a different panel's table, which reads as the wrong
-    // panel's data rather than as "still loading". Telemetry already avoids
-    // this the same way; unlike Telemetry, this only needs to show once
-    // per page load rather than on every draw, since only Telemetry re-fetches
-    // on every view.
-    if(!loadedSnapLoaded) host.innerHTML = '<p class="hmsg">Loading…</p>';
+    // Two separate fetches can run below — the snapshot list (once per page
+    // load) and, once a snapshot is picked, that snapshot's own data (every
+    // time the picker changes) — and either one left in flight with nothing
+    // shown was the same bug from two different code paths. The list-fetch
+    // case: switching tabs to Loaded left whatever panel was on screen
+    // before sitting there unchanged, so the toolbar said "Loaded" while
+    // the body still showed a different panel's table. The snapshot-fetch
+    // case, found the same way right after: picking a snapshot from the
+    // dropdown left the *previous* "choose a snapshot" message on screen
+    // for the length of the request, which reads as "nothing happened" and
+    // not as "loading". Telemetry never had either problem — it shows its
+    // own loading message unconditionally because it re-fetches live data on
+    // every draw; here the same message needs a wider gate than "not yet
+    // fetched" because a *second*, later fetch is just as real as the first.
+    // Left un-gated only for the true no-op case: an already-loaded list
+    // with no snapshot picked resolves with nothing to wait for.
+    if(!loadedSnapLoaded || state.lsnap) host.innerHTML = '<p class="hmsg">Loading…</p>';
 
     var snapListPromise = loadedSnapLoaded
       ? Promise.resolve(loadedSnapList)
