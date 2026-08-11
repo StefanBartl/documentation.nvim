@@ -1560,6 +1560,40 @@ local JS = [[
     } else {
       history.replaceState(s, "", hash);
     }
+
+    postContext(s);
+  }
+
+  // A host embedding this page in an iframe (docmap-desktop is the first —
+  // `src-tauri/src/server.rs` serves it over a real origin specifically so
+  // this has somewhere to go) has no other way to know which panel is on
+  // screen: `history.pushState` above only updates *this* page's own
+  // session history, invisible outside it, and a `<button>` inside this
+  // panel could not act on the embedding app regardless (a browser page
+  // cannot reach into a Tauri window's own process — the same category
+  // error `docs/ECOSYSTEM.md` already names for the reverse direction).
+  // `postMessage` is the one channel that crosses the iframe boundary in
+  // either direction.
+  //
+  // Coarse on purpose — `tab`/`atool`/`view` only, not the full state
+  // object: a host reacting to "which panel" does not need `center`,
+  // `depth`, or any of the dozen other keys the URL hash already carries,
+  // and sending them would make this page's own internal state shape part
+  // of a cross-origin contract other code depends on.
+  //
+  // `"*"` as the target origin, not this page's own: the parent's origin
+  // (`tauri://…`, `file://`, whatever embeds this) is not something a page
+  // that does not know it is embedded can predict, and every value sent is
+  // already public — it is exactly what the URL bar of this page itself
+  // would show.
+  var lastPostedContext = null;
+  function postContext(s){
+    if(window.parent === window) return;
+    var ctx = { source: "docmap", tab: s.tab || null, atool: s.atool || null, view: s.view || null };
+    var key = ctx.tab + "|" + ctx.atool + "|" + ctx.view;
+    if(key === lastPostedContext) return;
+    lastPostedContext = key;
+    try { window.parent.postMessage(ctx, "*"); } catch(e){ /* no listening host, or postMessage unavailable — silent, same as no host at all */ }
   }
 
   ///Apply `patch` over the current state.
