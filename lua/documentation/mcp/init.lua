@@ -59,7 +59,8 @@ function M.serve(opts)
   local install_opts = vim.tbl_extend("force", opts, { watch = false })
   local handle = docmap.install(install_opts)
 
-  local server = protocol.new(handle, { name = opts.title or "documentation.nvim" })
+  local server =
+    protocol.new(handle, { name = opts.title or "documentation.nvim", out_dir = opts.out_dir })
 
   -- Line-buffered: the client is blocked reading our next line, so a full
   -- buffer would deadlock the session rather than merely delay it.

@@ -182,7 +182,7 @@ Phase 0  treesitter binding on Linux      DONE ✓   works on Linux
    ├─ Phase 2  Checklist ledger, scope (b) DONE ✓  shipped 2026-08-11
    ├─ Phase 4  UI polish                  ongoing  no dependencies
    │     │
-   │  Phase 3  Agent integration          small    needs 1 + 2
+   │  Phase 3  Agent integration          DONE ✓  shipped 2026-08-11
    │
    └─ Phase 5  Standalone → desktop app   large    UNBLOCKED (Linux)
          │
@@ -311,17 +311,32 @@ documentation.nvim scans one. That needs `IDEAS.md` §6.6/§6.7 (both
 unbuilt), and until then the cross-repo view stays hand-maintained
 Markdown — which is not obviously wrong for something this infrequent.
 
-### Phase 3 — agent integration
+### Phase 3 — agent integration — **done 2026-08-11**
 
-Nearly falls out of 1 + 2: Markdown carrying `@ref`/`@verified` is already
-agent-readable, and the MCP server gives structured access to the IR and
-findings instead of grepping.
+Fell out of 1 + 2 almost exactly as costed: Markdown carrying `@ref`/
+`@verified` was already agent-readable, and the only genuinely new work was
+a ninth MCP tool, `docmap_checklist`, giving structured access to the ledger
+instead of asking an agent to parse Markdown itself — the same "structured
+access instead of grepping" argument §1 already made for the IR and
+findings, applied to the one corpus that hadn't been wired up yet.
 
-One design constraint, carried forward from `PROTOCOLS_AND_AGENTS.md`
-because it is exactly the kind of thing that gets lost in enthusiasm: **an
-agent that may write `@verified` timestamps is an agent that can mark its
-own work as verified.** The verifying actor and the verified actor must not
-be the same without a human in between.
+The design constraint carried forward from `PROTOCOLS_AND_AGENTS.md` is
+**enforced by omission, not by a check**: there is no `docmap_checklist_verify`
+tool, and `mcp/tools.lua`'s own header now states the reason as a standing
+rule for anyone tempted to add one — an agent that may write `@verified`
+timestamps is an agent that can mark its own work as verified, and the
+verifying actor and the verified actor must not be the same without a human
+in between. `docmap_checklist` reads; nothing in the catalogue writes.
+
+Verified against a real, disposable git repository with pinned commit dates
+(`GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE`), not only against `core/checklist.lua`'s
+existing pure-function coverage — the point being to exercise the plumbing
+`checklist_spec.lua` cannot reach: `ctx.out_dir` arriving at the tool,
+`handle.root` reaching the git subprocess, `status()` reached through the
+full JSON-RPC round trip. Also exercised live over real stdio against a
+running `nvim --headless -l scripts/mcp_server.lua` piped at this
+repository's own checklist, matching `:DocMap checklist`'s own numbers
+exactly (0 stale, 1 unverified, 7 current, of 8).
 
 ### Phase 4 — UI polish
 

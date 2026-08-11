@@ -21,6 +21,17 @@
 ---    large tree is thousands of entries; an agent that wanted three of them
 ---    should not have to receive all of them to find out.
 ---
+--- A third rule, load-bearing rather than a convenience, governs
+--- `docmap_checklist` specifically: **there is no tool that writes
+--- `@verified`.** `PROTOCOLS_AND_AGENTS.md` states the reason directly — an
+--- agent that can edit a checklist's `@verified` timestamps is an agent that
+--- can mark its own work as verified, and the verifying actor and the
+--- verified actor must not be the same one without a human in between. The
+--- catalogue below is read-only end to end; the write path is a person
+--- editing Markdown, same as `core/checklist.lua`'s own header already
+--- documents for every other caller of this ledger. Do not add a
+--- `docmap_checklist_verify` tool without re-reading that constraint first.
+---
 --- Payloads are encoded by `documentation.core.json`, not `vim.json.encode`:
 --- key order is then stable across runs, which makes a tool result diffable
 --- and an agent's cache of one meaningful. (The JSON-RPC envelope around it is
@@ -99,7 +110,10 @@ local function result(value)
   }
 end
 
----@type table<string, { description: string, input_schema: table, run: fun(handle: Documentation.Handle, args: table): table }>
+---@class Documentation.Mcp.ToolCtx
+---@field out_dir? string Repo-relative output directory, for excluding the generated map from history walks. Only `docmap_checklist` uses this today.
+
+---@type table<string, { description: string, input_schema: table, run: fun(handle: Documentation.Handle, args: table, ctx?: Documentation.Mcp.ToolCtx): table }>
 local catalogue = {}
 
 catalogue.docmap_modules = {
@@ -326,6 +340,114 @@ catalogue.docmap_rescan = {
   end,
 }
 
+catalogue.docmap_checklist = {
+  description = "The hand-verified ledger — facts a person decided by reading the code, each "
+    .. "pinned to a file (`@ref`) and dated (`@verified`). Read-only: there is no tool that "
+    .. "writes `@verified` — an agent that could mark an item verified could mark its own work "
+    .. "verified, so that path does not exist here; a human edits the Markdown by hand. Default "
+    .. "view is stale + unverified, the same as `:DocMap checklist` with no argument. See "
+    .. "docs/CHECKLIST_FORMAT.md.",
+  input_schema = {
+    type = "object",
+    properties = {
+      state = {
+        type = "string",
+        description = 'Only items in this state. Omit for stale + unverified. "all" for every item.',
+        enum = { "stale", "unverified", "uncited", "current", "all" },
+      },
+      limit = {
+        type = "integer",
+        description = "Maximum items returned (default 100, max 1000). `counts` below always covers every item, not only the returned page.",
+      },
+    },
+  },
+  run = function(handle, args, ctx)
+    local checklist = require("documentation.core.checklist")
+    local ledger = handle.ir().checklist
+    if not ledger then
+      return result({
+        available = false,
+        reason = "this repository has no checklist — see docs/CHECKLIST_FORMAT.md",
+      })
+    end
+
+    -- Same subprocess `bindings/usrcmds/checklist.lua` and `editor/serve.lua`
+    -- run, and the same reason it is one whole-tree `git log` rather than one
+    -- per cited path: a ledger with fifty items would otherwise spawn fifty
+    -- processes. `handle.root` is the only path this module has to a
+    -- repository at all — the MCP tool catalogue never sees `Documentation.Opts`.
+    local out_dir = (ctx and ctx.out_dir) or "docs/map"
+    local proc
+    vim.system({
+      "git",
+      "log",
+      "--no-merges",
+      "--format=%x1e%cs",
+      "--name-only",
+      "--",
+      ".",
+      (":(exclude)%s"):format(out_dir),
+    }, { cwd = handle.root, text = true }, function(res)
+      proc = res
+    end)
+    -- Bounded the same way the usrcmd bounds it: a `git log` over a
+    -- repository's full history is the slow part of this tool, and an agent
+    -- waiting on a tool call needs a ceiling more than it needs patience.
+    local settled = vim.wait(120000, function()
+      return proc ~= nil
+    end, 20)
+    if not settled or not proc or proc.code ~= 0 then
+      return result({
+        available = false,
+        reason = (
+          settled and proc and vim.trim(proc.stderr or "") or "git log did not finish within 120s"
+        ),
+      })
+    end
+
+    local statuses = checklist.status(ledger, checklist.parse_history(proc.stdout or ""))
+    local limit = clamp_limit(args.limit, 100)
+    local counts = { stale = 0, unverified = 0, uncited = 0, current = 0 }
+
+    local items = {}
+    for _, status in ipairs(statuses) do
+      counts[status.state] = (counts[status.state] or 0) + 1
+
+      local keep
+      if args.state == "all" then
+        keep = true
+      elseif args.state then
+        keep = status.state == args.state
+      else
+        keep = status.state == "stale" or status.state == "unverified"
+      end
+
+      if keep and #items < limit then
+        local item = status.item
+        items[#items + 1] = {
+          text = item.text,
+          file = item.file,
+          line = item.line,
+          ref = item.ref,
+          ref_line = item.ref_line,
+          verified = item.verified,
+          state = status.state,
+          commits = status.commits,
+          last_commit = status.last_commit,
+        }
+      end
+    end
+
+    return result({
+      available = true,
+      total = ledger.total,
+      counts = counts,
+      returned = #items,
+      items = items,
+    })
+  end,
+}
+
 ---The catalogue as MCP's `tools/list` wants it: an array, sorted by name.
 ---
 ---Sorted for the same reason `docmap_modules` sorts — a hash walk would give
@@ -359,14 +481,15 @@ end
 ---@param handle Documentation.Handle
 ---@param name string
 ---@param args table?
+---@param ctx Documentation.Mcp.ToolCtx? Server-level context no single handle carries — today, `out_dir`.
 ---@return table
 ---@raises string When `name` is not a known tool, or the tool itself fails.
-function M.call(handle, name, args)
+function M.call(handle, name, args, ctx)
   local tool = catalogue[name]
   if not tool then
     error(("unknown tool: %s"):format(tostring(name)), 0)
   end
-  return tool.run(handle, args or {})
+  return tool.run(handle, args or {}, ctx)
 end
 
 return M

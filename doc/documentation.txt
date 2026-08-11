@@ -866,7 +866,7 @@ Nothing listens on a port and nothing authenticates, because with stdio there
 is nobody to authenticate: the client *is* the parent process, and the trust
 boundary is the one the operating system already draws around a subprocess.
 
-Eight tools, each a projection of a handle method:
+Nine tools, each a projection of a handle method:
 
     docmap_modules       Every module: id, kind, declared `@module`, summary.
                          `prefix` scopes to a subtree, `limit` caps the result.
@@ -879,8 +879,12 @@ Eight tools, each a projection of a handle method:
     docmap_callers       Call edges in. Ask before changing a signature.
     docmap_findings      Drift findings, filtered by severity, check or node.
     docmap_rescan        Re-scan from disk and report the new counts.
+    docmap_checklist     The hand-verified ledger, staleness computed from a
+                         real `git log`. `state` filters stale/unverified/
+                         uncited/current/all; default is stale + unverified.
+                         Read-only — see below.
 
-Four decisions worth knowing about:
+Five decisions worth knowing about:
 
     * Answers come from a scan held in memory, and file watching is off. A
       watch callback firing mid-request would swap the IR out from under a
@@ -893,6 +897,10 @@ Four decisions worth knowing about:
     * A failing tool is a result, not a transport error. An unknown node id
       comes back as an `isError` tool result the model sees and can correct,
       not a JSON-RPC error the client's plumbing swallows.
+    * There is no tool that writes `@verified`. An agent that could write
+      it could mark its own work as verified — the verifying actor and the
+      verified actor must not be the same one without a human in between.
+      The write path is a person editing Markdown.
     * stdout carries the protocol and nothing else — one JSON object per
       line, no framing headers (that is LSP; MCP delimits by newline). Every
       diagnostic, |vim.notify| included, is pinned to stderr.

@@ -472,16 +472,19 @@ nvim --headless -l scripts/mcp_server.lua
 
 An MCP client spawns that as a subprocess and talks JSON-RPC over its
 stdin/stdout — nothing listens on a port and nothing authenticates, because
-with stdio the client *is* the parent process. Eight tools: `docmap_modules`,
+with stdio the client *is* the parent process. Nine tools: `docmap_modules`,
 `docmap_node`, `docmap_requires`, `docmap_required_by`, `docmap_callers`,
-`docmap_callees`, `docmap_findings`, `docmap_rescan`. Each is a projection of
-a handle method — the agent asks "what calls this function" instead of
-grepping for the name and guessing which hits are real.
+`docmap_callees`, `docmap_findings`, `docmap_rescan`, `docmap_checklist`. Each
+is a projection of a handle method — the agent asks "what calls this
+function" instead of grepping for the name and guessing which hits are real.
+`docmap_checklist` is read-only in a way that is load-bearing rather than
+incidental: no tool in this catalogue writes `@verified`, so an agent cannot
+mark its own work as verified.
 
-Client configuration, the tool table, and the four decisions worth knowing
+Client configuration, the tool table, and the five decisions worth knowing
 about (why file watching is off, why no tool returns a raw IR node, why a
-failing tool is a *result* rather than a transport error) are in
-[docs/MCP.md](docs/MCP.md).
+failing tool is a *result* rather than a transport error, why there is no
+verify tool) are in [docs/MCP.md](docs/MCP.md).
 
 ## Drift checks
 

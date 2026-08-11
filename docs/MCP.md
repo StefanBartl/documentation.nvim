@@ -50,8 +50,9 @@ the file and changes the options table at the bottom — the same arrangement
 | `docmap_callers` | Call edges into one function. The question to ask before changing a signature. |
 | `docmap_findings` | Drift findings — missing summaries, stale references, undocumented exports. Filter by severity, check id or node. |
 | `docmap_rescan` | Re-scan from disk and report the new counts. |
+| `docmap_checklist` | The hand-verified ledger, with the same staleness verdict `:DocMap checklist` computes — real `git log`, not the baked map. `state` filters (`stale`/`unverified`/`uncited`/`current`/`all`); default is stale + unverified. Read-only — see below. |
 
-## Four decisions worth knowing about
+## Five decisions worth knowing about
 
 **Answers come from a scan held in memory, and file watching is off.** A watch
 callback firing mid-request would swap the IR out from under a tool call that
@@ -71,6 +72,14 @@ deliberately: a JSON-RPC error is handled by the client's plumbing and the
 model never sees it, whereas `isError` reaches the model, which can then
 correct the argument it got wrong. A bad id is the model's mistake to fix, so
 it has to be the model that hears about it.
+
+**There is no tool that writes `@verified`.** `docmap_checklist` reads the
+ledger; nothing in this catalogue can mark an item verified. Stated directly
+in `PROTOCOLS_AND_AGENTS.md`: an agent that could write `@verified` timestamps
+could mark its own work as verified, and the verifying actor and the verified
+actor must not be the same one without a human in between. The write path is
+a person editing Markdown — see
+[docs/CHECKLIST_FORMAT.md](CHECKLIST_FORMAT.md).
 
 **stdio, not a port.** With stdio there is nobody to authenticate: the client
 *is* the parent process, and the trust boundary is the one the operating
