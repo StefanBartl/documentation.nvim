@@ -417,6 +417,31 @@ starts, and the fetch only *enriches* that with the staleness column — a
 blocking "Loading…" there would replace real, useful content with a
 spinner for data that was never missing.
 
+**Slice 3 — the same bug, a second time, in the same panel's other
+fetch.** Checking whether Slice 2's fix generalized turned up that it
+hadn't fully: `drawAnalysisLoaded` makes *two* fetches, not one — the
+snapshot list (once per page load) and, once a specific snapshot is
+picked from the dropdown, that snapshot's own data (every time the picker
+changes). Slice 2 only gated the first. Reproduced the same way: delay
+`fetch`, pick a snapshot, and the *previous* render — the "choose a
+snapshot above" message — stayed on screen for the length of the request,
+which reads as "nothing happened" rather than "loading". Telemetry never
+had this problem because its unconditional loading message covers every
+fetch on every draw in one line; Loaded's gate needed widening rather
+than copying that unconditional shape, since Loaded's first fetch really
+is a one-time cost that a repeat visit shouldn't re-flash for. Fixed by
+extending the same condition to also cover "a snapshot is selected, so
+its data fetch is about to run" (`!loadedSnapLoaded || state.lsnap`), and
+verified all three cases matter for on a fresh page load: first visit to
+the panel shows the message, a second visit with nothing selected does
+not (no needless flash), and picking a snapshot shows it again.
+
+The methodological point worth keeping, not just the fix: finding this
+came from asking "does the fix generalize to every fetch this panel
+makes", not from re-running the same check that had already passed —
+Slice 2's own verification would have stayed green forever without ever
+exercising this second path.
+
 ### Phase 5 — standalone → desktop app *(unblocked on Linux, 2026-08-11)*
 
 In order: full-fidelity standalone generation (the parser-less MVP in
