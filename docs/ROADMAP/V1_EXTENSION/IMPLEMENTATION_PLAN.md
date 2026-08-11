@@ -699,9 +699,20 @@ and a pre-commit hook fails on it, "same tree, different Lua, reads as
 stale" was a real defect waiting for its first non-Neovim run. Detail in
 [`PORTABILITY.md`](PORTABILITY.md#step-3-is-done-the-standalone-build-is-byte-identical-to-neovim-2026-08-11).
 
-**Remaining in this phase:** `luastatic` packaging, and only that.
-`PORTABILITY.md` already rates it the least interesting step, having
-tried it.
+**Packaging: done 2026-08-11 for the parser-less build.** A single 1.5 MB
+`docmap.exe` runs with nothing beside it — no Lua, no LuaRocks tree, no
+Neovim, no `LUA_PATH`. `PORTABILITY.md` had rated this "the least
+interesting step"; that was wrong, and its
+[Step 2](PORTABILITY.md#step-2--a-binary--done-2026-08-11-and-it-was-not-the-least-interesting-step)
+now records the three obstacles that only appear when you run it —
+`luastatic` deriving module names from file paths (so a staging layout is
+required), an unquoted `nm` call that breaks on any library path with a
+space, and a C-compiler probe that fails on Windows even with `CC` set.
+
+**Remaining in this phase:** a *full-fidelity* binary, which needs
+`lua_tree_sitter` and `libtree-sitter` as static libraries plus a bundled
+grammar per language. Nothing about it is unknown now — it is the same
+shape as the `lfs` static build, one size larger.
 
 #### A switcher belongs to the shell, not to this plugin (decided 2026-08-11)
 
