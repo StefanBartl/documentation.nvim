@@ -10,7 +10,7 @@ proposal; same posture as [`DESKTOP_WEBAPP.md`](DESKTOP_WEBAPP.md) and
 
 **The filter, stated up front, because it disqualifies more than it
 admits:** "new protocol" is not a value in itself. This ecosystem's own
-[`ECOSYSTEM.md`](../../ECOSYSTEM.md) §6 already rejected a
+[`ECOSYSTEM.md`](../FEATURES/ECOSYSTEM.md) §6 already rejected a
 separate-binary/web-app tier once, on measured grounds (nothing here is
 compute-bound; a rich browser UI already exists twice in-house). An idea
 below earns its place only if it answers a question the current shape
@@ -158,7 +158,7 @@ Rust/Go/C++ buys speed and a standalone binary.
 already found the honest shape of that feature is a *curated ledger with
 staleness detection* — Markdown parsing, `git log`/hash comparison per
 cited path, and rendering. None of that is compute-bound; the same
-argument [`ECOSYSTEM.md`](../../ECOSYSTEM.md) §6 already made against a
+argument [`ECOSYSTEM.md`](../FEATURES/ECOSYSTEM.md) §6 already made against a
 separate binary applies unchanged. A native rewrite would buy a
 standalone binary — which is [`DESKTOP_WEBAPP.md`](DESKTOP_WEBAPP.md)'s
 problem, already scoped there, and currently blocked for reasons that

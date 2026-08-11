@@ -85,7 +85,7 @@ documentation.nvim as the home for the checklist *definition* and (a)-style
 auto-checks, with runtime-analysis.nvim joined in later the same way
 telemetry/loaded already are — an item like "was this feature actually
 exercised this session" is runtime evidence by nature and has no static
-answer, the identical split `docs/ECOSYSTEM.md` already draws between the
+answer, the identical split [`ECOSYSTEM.md`](../FEATURES/ECOSYSTEM.md) already draws between the
 two plugins for every other feature.
 
 Concretely, this would most likely land as a **tenth Analysis panel**

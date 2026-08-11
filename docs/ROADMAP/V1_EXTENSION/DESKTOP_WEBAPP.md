@@ -17,7 +17,7 @@ story. Splitting them is the first finding, not a footnote.
 
 ## What already exists — more than the idea's framing assumes
 
-`docs/ECOSYSTEM.md` §6 already answered the adjacent question for
+[`ECOSYSTEM.md`](../FEATURES/ECOSYSTEM.md) §6 already answered the adjacent question for
 runtime-analysis.nvim ("Neovim plugin, web app, Electron app, or a
 compiled binary?") and found, measured rather than guessed: **"a rich
 browser UI" was already solved twice in-house** — documentation.nvim's
