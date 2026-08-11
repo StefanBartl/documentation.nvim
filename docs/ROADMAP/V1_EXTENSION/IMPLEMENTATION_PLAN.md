@@ -442,6 +442,63 @@ makes", not from re-running the same check that had already passed —
 Slice 2's own verification would have stayed green forever without ever
 exercising this second path.
 
+**Slice 4 — the tab bar dragged the whole page sideways below 753px.**
+Started by finishing the question Slice 3 opened: every `fetch()` call
+site in the rendered page was enumerated (eight of them) and each checked
+for a loading state. All eight now have one — Telemetry's unconditional
+message covers its three, Slices 2/3 fixed Loaded's two, History already
+had one before each of its two, and `docmap_checklist`'s omission is the
+deliberate one documented above. That family is closed; nothing further
+to fix there, which is a result worth recording rather than a gap.
+
+The real defect surfaced from measuring the page at narrow widths
+instead: **every one of the nine tabs overflowed the document
+horizontally by 126–131px at a 600px viewport**, and in eight of nine the
+widest offending element was the same one — `.tabs`, the main tab bar.
+It is `display:flex` with `flex-wrap:nowrap` and `overflow-x:visible`, so
+its ten buttons (752.6px intrinsic: 686.6px of buttons, 18px of gaps,
+48px of padding) spill out of its own correctly-600px-wide box and drag
+the document with them, with no ancestor clipping them.
+
+Worth stating why this counts as a defect and not an invented
+requirement, since that is the bar this phase set for itself: the page
+already declares responsive intent explicitly — a
+`<meta name="viewport">` tag plus **five** `@media (max-width:860px)`
+rules that collapse `main`, `#tree`, `#detail`, `#hist-list` and
+`#hist-detail` from two columns to one. That work was already invested
+and then silently defeated: the columns collapse correctly and the tab
+bar hauls the whole document sideways anyway, so the narrow layout still
+could not be read without horizontal scrolling. Fixing it restores
+behavior the page already pays for, rather than adding a new goal.
+
+The fix is one property, and it is the page's own proven pattern rather
+than a new one — the same discipline Slice 1 used in porting
+`.cmptable`'s sticky header to `.antable`. This page already separates
+two cases cleanly: **control rows wrap** (`.toolbar`, `.hctl`, `.links`,
+`.qk-acts`, `.telpicker`, `.ixjump`, `.stats` — nine occurrences of
+`flex-wrap:wrap`), while **intrinsically wide content scrolls in its own
+container** (`.wrap`, `.cmp-scroll`, `.hist-diff`, the code blocks,
+`#hgraph-wrap` — where wrapping would destroy meaning). `.tabs` is a
+control row, and was the only one on the page missing `flex-wrap:wrap`;
+`.toolbar`, which has it, sits eight lines below `.tabs` in the same
+stylesheet. Notably `#hgraph` — 9408px wide on the Hierarchy tab — was
+measured and found correctly contained by its own scroll parent, so the
+giant graph was never the problem the tab bar was.
+
+Verified in both directions on a served copy, with a cache-busting query
+string from the start because Slice 2's own verification had already
+been fooled once by the in-app browser's HTTP cache. At 600px: all nine
+tabs go from 126–131px of overflow to **exactly 0**, all ten buttons stay
+in the viewport, none collapses to zero width, and the bar becomes two
+rows (35px → 71px). At 1280px: single row on all nine tabs, 35px bar
+height, `scrollWidth` 1265 against a 1265px client width — byte-identical
+to the pre-fix desktop measurement, and the active tab's underline
+measured flush with its row's baseline. The property is inert above
+~753px and engages only below, which also means it cannot interact with
+the hardcoded `max-height:calc(100vh - 132px)` on the four panes: that
+value is already overridden to `none` by the `max-width:860px` rules
+everywhere a wrap can occur.
+
 ### Phase 5 — standalone → desktop app *(unblocked on Linux, 2026-08-11)*
 
 In order: full-fidelity standalone generation (the parser-less MVP in

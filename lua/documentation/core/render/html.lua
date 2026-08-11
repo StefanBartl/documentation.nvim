@@ -87,7 +87,7 @@ h1 .sub{color:var(--muted);font-weight:400;font-size:14px;margin-left:8px}
 button{padding:6px 11px;border:1px solid var(--line);border-radius:7px;background:var(--panel);
   color:var(--ink);font-size:13px;cursor:pointer}
 button:hover{border-color:var(--accent);color:var(--accent)}
-.tabs{display:flex;gap:2px;padding:0 24px;border-bottom:1px solid var(--line)}
+.tabs{display:flex;flex-wrap:wrap;gap:2px;padding:0 24px;border-bottom:1px solid var(--line)}
 .tab-btn{padding:9px 13px;border:none;background:none;color:var(--muted);font-size:13px;
   cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
 .tab-btn:hover{color:var(--ink)}
