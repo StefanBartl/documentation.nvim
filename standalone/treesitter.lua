@@ -91,9 +91,50 @@ end
 
 ---Build the `vim.treesitter` table, or nil when no binding is installed.
 ---@return table?
-function M.build()
+---Why the real parser was not used, when it was not.
+---
+---Degrading silently is right for the *product* — a machine without the
+---binding still gets a working, smaller build — but it is miserable to
+---debug, which was learned the hard way: a statically linked binary
+---reported the parser-less result with a correct binding compiled into it,
+---and nothing anywhere said why. `DOCMAP_TS_DEBUG=1` turns that into one
+---line on stderr.
+---@param reason string
+local function debug_why(reason)
+  if os.getenv("DOCMAP_TS_DEBUG") then
+    io.stderr:write("docmap: treesitter unavailable — " .. reason .. "\n")
+  end
+end
+
+---Require the binding under either name it can be registered as.
+---
+---`lua_tree_sitter` is what the LuaRocks install provides. Inside a
+---`luastatic` binary it is called **`lua.tree.sitter`**, because luastatic
+---derives a bundled C module's name from its `luaopen_<name>` symbol and
+---then rewrites *every* underscore to a dot — it cannot tell an underscore
+---that stands for a path separator from one that is part of the name.
+---`lfs` has none and works; this one does not.
+---
+---Handled here rather than by patching luastatic's generated C, which would
+---tie this build to that file's exact shape. Costs one extra failed
+---`require` in the normal case, which is a filesystem miss and nothing more.
+---@return boolean, any
+local function require_binding()
   local ok, ts = pcall(require, "lua_tree_sitter")
+  if ok then
+    return true, ts
+  end
+  local ok2, ts2 = pcall(require, "lua.tree.sitter")
+  if ok2 then
+    return true, ts2
+  end
+  return false, ts
+end
+
+function M.build()
+  local ok, ts = require_binding()
   if not ok then
+    debug_why("require('lua_tree_sitter') failed: " .. tostring(ts))
     return nil
   end
 

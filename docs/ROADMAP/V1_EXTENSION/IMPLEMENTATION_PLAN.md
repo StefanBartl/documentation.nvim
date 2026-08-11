@@ -721,11 +721,25 @@ produced a binary that died at its first `require`. The `verify` step
 exists because a binary that links is not a binary that runs — and it is
 what caught that one.
 
-**Remaining in this phase:** a *full-fidelity* binary, which needs
-`lua_tree_sitter` and `libtree-sitter` as static libraries plus a bundled
-grammar per language. Nothing about it is unknown now — it is the same
-shape as the `lfs` static build, one size larger, and `package.lua` already
-links every `.a` it finds in `$DOCMAP_STATIC_LIBS`.
+**The full-fidelity binary works: Phase 5 is done (2026-08-11).**
+`docmap.exe` (1.7 MB) plus one grammar shared library (146 KB), with no
+Lua, no LuaRocks and no Neovim, produces a map **byte-identical** to
+`nvim --headless -l scripts/gen_map.lua` — verified by letting the binary
+write into `docs/map` itself and diffing against the committed artifacts.
+
+Two findings from it, both in
+[`PORTABILITY.md`](PORTABILITY.md#the-full-fidelity-binary-works-too-2026-08-11):
+`luastatic` registers a bundled C module by rewriting every underscore in
+its `luaopen_` symbol to a dot, so `lua_tree_sitter` became
+`lua.tree.sitter` and the binary silently fell back to the parser-less
+path with a working binding compiled in; and the grammar stays an external
+shared library on purpose, because `Language.load` resolves it by `dlopen`
+at runtime and a static link has nothing to attach to.
+
+**What is left in this phase is nothing.** The shell — Tauri/Electron, or
+"open it in the user's default browser", which `:DocMap open` already does
+— remains a choice to make rather than work that is blocked, and the
+project switcher now belongs to it (above).
 
 #### A switcher belongs to the shell, not to this plugin (decided 2026-08-11)
 
