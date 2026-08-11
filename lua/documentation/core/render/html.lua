@@ -222,6 +222,8 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
   text-decoration:none;font-weight:600;cursor:pointer}
 .nlist .nfn:hover{text-decoration:underline}
 .nlist .nfn:focus-visible{outline:2px solid var(--accent-soft);outline-offset:2px}
+.godi-off{opacity:.55;text-decoration:line-through}
+.godi-note{margin-top:4px;font-size:11.5px;color:var(--muted);max-width:62ch}
 .feat-name[data-node]:focus-visible,.feat-tab-name[data-node]:focus-visible{
   outline:2px solid var(--accent-soft);outline-offset:2px}
 /* Roving-tabindex lists: the container is the tab stop, the item is what the
@@ -6233,8 +6235,44 @@ local JS = [[
       }
     }
     if(!source) return; // no snippet to show — a trigger with nothing behind it is inert, not a dead link to godbolt.org with an empty editor
-    window.open(godboltUrl(source), "_blank");
+
+    // The whole source travels in the URL, base64-encoded, and godbolt.org
+    // sits behind a front end that rejects a request line over 8 KB with a
+    // bare `414`. Measured against this repository's own map: the longest
+    // single function comes to 2,880 characters and is fine, while the
+    // largest module — 37 functions concatenated — comes to 33,332, four
+    // times over. So a module trigger did not *sometimes* fail; on anything
+    // past a handful of functions it could never have worked, and it failed
+    // as an unexplained CloudFront error page in a new tab.
+    //
+    // Refuse locally instead. Saying why, in the page, beats opening a tab
+    // that says `414 ERROR` and nothing else — and the alternative is real:
+    // the per-function triggers on the same page do work.
+    var url = godboltUrl(source);
+    if(url.length > 8000){
+      godboltTooLong(el, url.length);
+      return;
+    }
+    window.open(url, "_blank");
   });
+
+  // Explain a refusal where the reader clicked, and leave it explained: the
+  // trigger keeps the message as its title afterwards, so the same link does
+  // not invite the same click again.
+  function godboltTooLong(el, len){
+    var msg = "Too large for Compiler Explorer: this would be a " +
+      Math.round(len / 1024) + " KB URL and their front end rejects anything " +
+      "over 8 KB with a 414. Open a single function instead — those fit.";
+    el.classList.add("godi-off");
+    el.title = msg;
+    var note = el.parentNode && el.parentNode.querySelector(".godi-note");
+    if(!note){
+      note = document.createElement("div");
+      note.className = "godi-note";
+      el.parentNode.appendChild(note);
+    }
+    note.textContent = msg;
+  }
 
   // Keyboard parity: the trigger is focusable, so tabbing a list reaches it
   // and Enter/Space opens the same card the pointer would.
