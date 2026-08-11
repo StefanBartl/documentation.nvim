@@ -17,44 +17,34 @@ local M = {}
 
 local uv = vim.uv or vim.loop
 
----Normalize a repo root the same way `docmap.registry` does, so a handle
----installed there and an artifact read here agree on the key.
----@param root string
----@return string
-function M.norm_root(root)
-  return (root:gsub("\\", "/"):gsub("/+$", ""))
-end
+-- The three artifact-shape functions below moved to
+-- `documentation.core.artifact` and are re-exported here unchanged. They
+-- are not editor work — they read a file and reshape a table — and the
+-- standalone build needs them, which the layer rule (core may not reach
+-- editor) correctly forbids reaching back for. Kept as names on this module
+-- because several callers already go through it (`bindings/usrcmds/diff`,
+-- `impact`, `browse/init`, `serve`, and this file's own tests).
+local artifact = require("documentation.core.artifact")
 
----@param opts Documentation.Browse.Opts
----@return string
-function M.artifact_path(opts)
-  return M.norm_root(opts.root) .. "/" .. (opts.out_dir or "docs/map") .. "/module_map.json"
-end
+-- Normalize a repo root the same way `docmap.registry` does, so a handle
+-- installed there and an artifact read here agree on the key.
+M.norm_root = artifact.norm_root
 
----Turn a decoded artifact into the in-memory IR shape every reader expects.
----
----The two are deliberately *not* the same document. `docmap.to_json` writes
----`nodes` as an array in walk order — that is what makes the file
----byte-deterministic, since a JSON object's key order would not be — and
----carries no `order` key, because the array *is* the order. In memory,
----`ir.nodes` is a map keyed by id and `ir.order` is the walk. Rehydrating
----here means the rest of the browser reads one shape regardless of whether
----the IR came off disk or out of a live handle.
----@param doc table Decoded artifact.
----@return Documentation.IR
-function M.rehydrate(doc)
-  local nodes, order = {}, {}
-  for i, n in ipairs(doc.nodes or {}) do
-    nodes[n.id] = n
-    order[i] = n.id
-  end
-  doc.nodes = nodes
-  doc.order = order
-  doc.edges = doc.edges or {}
-  return doc
-end
+-- Where a project's generated artifact lives.
+M.artifact_path = artifact.artifact_path
+
+-- Turn a decoded artifact into the in-memory IR shape every reader expects.
+-- See `core/artifact.lua` for why the two documents differ.
+M.rehydrate = artifact.rehydrate
 
 ---Read and decode `module_map.json`.
+---
+---Wraps `core.artifact.load` to add the two things only this layer cares
+---about: an error *message* naming the path (a browser has a status line to
+---put it in; the core reader's callers all have to say "absent" in their own
+---words anyway), and the `root` field check — the artifact contract this
+---side relies on, which the core reader deliberately does not require, since
+---a telemetry join never reads it.
 ---@param opts Documentation.Browse.Opts
 ---@return Documentation.IR|nil ir
 ---@return string|nil err
@@ -67,19 +57,12 @@ function M.load_artifact(opts)
     return nil, ("no map at %s — run :DocMap first"):format(path)
   end
 
-  -- `luanil` matters here, it is not a style choice: the artifact writes a
-  -- literal `null` for every absent optional field (`module`, `parent`,
-  -- `types_detail`, …). Without it those decode to `vim.NIL`, which is a
-  -- *truthy* userdata — so `node.module or node.name` would render "userdata:
-  -- 0x…" and `types_detail == nil` (the "LuaLS never ran" signal) would never
-  -- be true. Dropping the keys instead restores exactly the in-memory
-  -- semantics.
-  local ok, doc = pcall(vim.json.decode, content, { luanil = { object = true, array = true } })
-  if not ok or type(doc) ~= "table" or type(doc.nodes) ~= "table" or type(doc.root) ~= "string" then
+  local ir = artifact.decode(content)
+  if not ir or type(ir.root) ~= "string" then
     return nil, ("map at %s is not a readable docmap artifact"):format(path)
   end
 
-  return M.rehydrate(doc)
+  return ir
 end
 
 ---True when the artifact is older than the newest Lua source under `source`.
