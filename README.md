@@ -483,8 +483,8 @@ Repository-specific checks go in `opts.extra_checks`.
 | [docs/COMMANDS.md](docs/COMMANDS.md) | `:DocMap` and `:DocBrowse`, subcommand by subcommand. |
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | Using it day to day: which panel answers which question, reading the Telemetry join's badges correctly, Trail vs filter vs fuzzy jump. |
 | [docs/REUSE.md](docs/REUSE.md) | Generating a map for your own plugin. |
-| [docs/PORTABILITY.md](docs/PORTABILITY.md) | Mapping a Lua project that is not a Neovim plugin — and what a Neovim-free port would actually cost. |
-| [docs/MULTILANG.md](docs/MULTILANG.md) | What supporting other languages would take, and how much of the code survives it. |
+| [docs/ROADMAP/PORTABILITY.md](docs/ROADMAP/PORTABILITY.md) | Mapping a Lua project that is not a Neovim plugin — and what a Neovim-free port would actually cost. |
+| [docs/ROADMAP/MULTILANG.md](docs/ROADMAP/MULTILANG.md) | What supporting other languages would take, and how much of the code survives it. |
 | [docs/FRAMEWORK_CONVENTIONS.md](docs/FRAMEWORK_CONVENTIONS.md) | The layer above language support — recognizing one ecosystem's structural convention (lazy.nvim specs today; Next.js-style file routing and React hooks costed as the web-ecosystem case). |
 | [docs/ECOSYSTEM.md](docs/ECOSYSTEM.md) | **Architectural concept**, agreed, nothing implemented: where docs cross-references, API-endpoint inventory, hover previews and an API request runner each belong — and why the runtime half is its own plugin (`runtime-analysis.nvim`), a Neovim plugin rather than a binary, meeting this one in the editor rather than in the committed artifact. |
 | [docs/ANNOTATION_TAGS.md](docs/ANNOTATION_TAGS.md) | **Annotating your own plugin**: what each tag buys you here, the minimum viable set, and which custom tags would be worth adding. |

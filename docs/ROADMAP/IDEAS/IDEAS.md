@@ -1,7 +1,7 @@
 # documentation.nvim — idea backlog
 
 Brainstormed features, grouped by theme. **Nothing here is scheduled**, and
-nothing here has been costed the way [`ROADMAP.md`](ROADMAP.md)'s entries
+nothing here has been costed the way [`ROADMAP.md`](../ROADMAP.md)'s entries
 have — this is the layer *before* that: ideas worth writing down so they are
 not re-derived, with enough reasoning attached to judge them later.
 
@@ -9,8 +9,8 @@ Three sibling files, three jobs, and keeping them apart is the point:
 
 | File | Holds |
 |---|---|
-| [`FEATURES.md`](FEATURES.md) | What shipped, and the trade-off behind it. The decision record. |
-| [`ROADMAP.md`](ROADMAP.md) | What is genuinely open, and what was **considered and rejected** (with the condition that reopens it). |
+| [`FEATURES.md`](../FEATURES.md) | What shipped, and the trade-off behind it. The decision record. |
+| [`ROADMAP.md`](../ROADMAP.md) | What is genuinely open, and what was **considered and rejected** (with the condition that reopens it). |
 | **this file** | What has not been decided about at all yet. |
 
 Anything here that graduates to "we are actually going to look at this"
@@ -122,7 +122,7 @@ itself).
 
 ### 2.1 Annotation adoption — generated, not hand-written
 
-[`docs/ANNOTATIONS.md`](../ANNOTATIONS.md) is this analysis done **by
+[`docs/ANNOTATIONS.md`](../../ANNOTATIONS.md) is this analysis done **by
 hand**, for one repository, once. A plugin whose entire purpose is
 detecting drift shipping a hand-maintained inventory of its own tag usage
 is difficult to defend — that document *is* drift, structurally.
@@ -260,7 +260,7 @@ The language backends (`core/lang/*`) answer "what is a function here". The
 convention layer above them (`core/plugins.lua`, `core/endpoints.lua`)
 answers "what does this ecosystem's structure *mean*". That second layer is
 where the remaining value is, and
-[`FRAMEWORK_CONVENTIONS.md`](../FRAMEWORK_CONVENTIONS.md) is its design
+[`FRAMEWORK_CONVENTIONS.md`](../../FRAMEWORK_CONVENTIONS.md) is its design
 document.
 
 ### 5.1 File-based routing — the other half of step 4
@@ -315,7 +315,7 @@ serialiser and a CI step, not analysis.
 ### 6.2 A GitHub Action
 
 Package the existing `--check` gate so another repository can adopt it in
-three lines. [`REUSE.md`](../REUSE.md) already documents the "copy two files
+three lines. [`REUSE.md`](../../REUSE.md) already documents the "copy two files
 and edit five lines" path; an action is the version that does not require
 copying anything.
 
@@ -342,7 +342,7 @@ already have. **Probably not**; noted so the question is not re-asked.
 
 ### 6.6 A generic CLI entry, no per-repo copy
 
-[REUSE.md](../REUSE.md)'s CI path is "copy `scripts/gen_map.lua`, edit five
+[REUSE.md](../../REUSE.md)'s CI path is "copy `scripts/gen_map.lua`, edit five
 lines". That is the right shape for a repository that maps *itself* on every
 CI run — the options are fixed, so hardcoding them in a committed file is
 honest. It is the wrong shape for mapping an arbitrary repository once, from
@@ -464,24 +464,24 @@ one will make all of it urgent at once.
 
 Two bigger-picture ideas, each substantial enough to warrant a full
 analysis document rather than a paragraph here — the same
-`docs/PORTABILITY.md`/`docs/MULTILANG.md` pattern this backlog already
+`docs/ROADMAP/PORTABILITY.md`/`docs/ROADMAP/MULTILANG.md` pattern this backlog already
 uses for anything too large for one entry.
 
 ### 8.1 A polished desktop/web-app version
 
-[`docs/IDEAS/DESKTOP_WEBAPP.md`](../IDEAS/DESKTOP_WEBAPP.md) — costs out
+[`docs/IDEAS/DESKTOP_WEBAPP.md`](../../IDEAS/DESKTOP_WEBAPP.md) — costs out
 "desktop app" and "web app" separately (they share a UI, not a trust
 model or a distribution story). Short version: most of "a rich browser
 UI" already exists (the generated page); a real standalone desktop build
 is researched and partially built this session (the parser-less
-standalone CLI, `docs/PORTABILITY.md`'s ltreesitter research) but not
+standalone CLI, `docs/ROADMAP/PORTABILITY.md`'s ltreesitter research) but not
 finished; a hosted web app has no answer sketched anywhere for the trust
 question `editor/serve.lua`'s own `127.0.0.1`-only posture currently
 avoids having to answer at all.
 
 ### 8.2 A checklist/task syntax with a runner and dashboard
 
-[`docs/IDEAS/CHECKLIST_TASK_RUNNER.md`](../IDEAS/CHECKLIST_TASK_RUNNER.md)
+[`docs/IDEAS/CHECKLIST_TASK_RUNNER.md`](../../IDEAS/CHECKLIST_TASK_RUNNER.md)
 — grounded against a real example (the nvim-config repo's own
 `docs/ROADMAP/RULES/` systematic audit). Short version: most of what such
 an audit actually contains is a **hand-verified fact pinned to a

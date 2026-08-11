@@ -79,12 +79,12 @@ local opts = require("documentation.config").build(root, {
   --
   -- Deliberately one-directional. The editor half reaching into the core is
   -- the point of the core existing; it is the other direction that costs
-  -- something. See docs/PORTABILITY.md.
+  -- something. See docs/ROADMAP/PORTABILITY.md.
   layers = {
     {
       from = "documentation.core",
       to = "documentation.editor",
-      why = "the pipeline has to stay runnable without an editor — see docs/PORTABILITY.md",
+      why = "the pipeline has to stay runnable without an editor — see docs/ROADMAP/PORTABILITY.md",
     },
     -- Added with the bindings layer, so the split is enforced rather than
     -- being a directory rename nothing checks.

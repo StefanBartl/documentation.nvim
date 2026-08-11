@@ -58,7 +58,7 @@
 
 ---One supported source language, selected by file extension. See
 ---`core/lang_registry.lua` for why this exists as a registry rather than an
----if/elseif chain in `scan.lua`, and `docs/ROADMAP/MULTILANG.md` for what
+---if/elseif chain in `scan.lua`, and `docs/ROADMAP/IDEAS/MULTILANG.md` for what
 ---adding a second one (beyond the Lua reference registration in
 ---`core/lang/lua.lua`) actually costs.
 ---@class Documentation.LangBackend

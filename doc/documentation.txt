@@ -740,6 +740,9 @@ Generic checks, run against any annotated Lua tree:
                                  no pkg map.
     undocumented-param    info   More parameters than @param lines. A
                                  text-based heuristic; never fails --check.
+                                 Credits @overload: zero @param lines is
+                                 not flagged when an @overload's own
+                                 params cover the declared count.
     param-name-mismatch   info   At a shared position, a @param name and the
                                  signature's declared name differ.
     dead-function         info   Nothing in the tree appears to call this.

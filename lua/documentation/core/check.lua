@@ -693,17 +693,37 @@ local function check_undocumented_params(ir, findings)
           end
         end
         if declared > #fn.params then
-          add(
-            findings,
-            "info",
-            "undocumented-param",
-            id,
-            ("%s has %d parameter(s) but only %d @param line(s)"):format(
-              fn.name,
-              declared,
-              #fn.params
+          -- A function documented entirely through @overload — zero @param
+          -- lines, its real parameter list living inside the fun(...)
+          -- literals instead — is not undocumented; @overload is the
+          -- alternative convention this check has to credit, not a gap in
+          -- it. Skip only the exact case the false positive was in:
+          -- no @param lines at all, and at least one overload whose own
+          -- parsed params cover the declared count. A function that has
+          -- *some* @param lines but still fewer than the signature
+          -- declares is still a real finding, overloads or not.
+          local covered_by_overload = false
+          if #fn.params == 0 then
+            for _, ov in ipairs(fn.overload) do
+              if #ov.params >= declared then
+                covered_by_overload = true
+                break
+              end
+            end
+          end
+          if not covered_by_overload then
+            add(
+              findings,
+              "info",
+              "undocumented-param",
+              id,
+              ("%s has %d parameter(s) but only %d @param line(s)"):format(
+                fn.name,
+                declared,
+                #fn.params
+              )
             )
-          )
+          end
         end
       end
     end

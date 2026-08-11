@@ -39,7 +39,7 @@ not an error: `usercmd.create` defaults to `force = true`.
 Mapping a Lua project that is **not** a Neovim plugin works the same way and
 needs nothing extra — `nvim --headless -l` is being used as a Lua interpreter
 that happens to ship a parser. The one real precondition is `---@module` on
-your files. See [PORTABILITY.md](PORTABILITY.md), which also costs out what
+your files. See [PORTABILITY.md](ROADMAP/PORTABILITY.md), which also costs out what
 dropping the Neovim dependency entirely would take.
 
 ## In CI and in a pre-commit hook

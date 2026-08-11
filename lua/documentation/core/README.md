@@ -28,7 +28,7 @@ layers = {
 so `:DocMap check` — and therefore CI — fails if anything here ever requires
 the editor or the command layer. That is the whole reason the directory exists:
 the pipeline has to stay runnable with no editor around it (see
-[PORTABILITY.md](../../../docs/PORTABILITY.md)), and nothing but a check keeps
+[PORTABILITY.md](../../../docs/ROADMAP/PORTABILITY.md)), and nothing but a check keeps
 a boundary like that from quietly rotting.
 
 ## What is where

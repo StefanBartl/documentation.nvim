@@ -809,7 +809,7 @@ that verification only happens by actually loading the page.
 
 ## `core/lang_registry.lua` — the language-backend seam (2026-08-03)
 
-`docs/ROADMAP/MULTILANG.md`'s Phase 0, item one and two: a real, working
+`docs/ROADMAP/IDEAS/MULTILANG.md`'s Phase 0, item one and two: a real, working
 extension point for a second language, built without touching a single
 existing function's behavior. Verified, not assumed — every field on every
 pre-existing node in this repository's own map came back byte-identical
@@ -877,7 +877,7 @@ silently skipped.
 
 ## `core/lang/ecma.lua` — JavaScript, TypeScript and TSX as real backends (2026-08-03)
 
-`docs/ROADMAP/MULTILANG.md`'s Phase 1: the first real (non-Lua) language
+`docs/ROADMAP/IDEAS/MULTILANG.md`'s Phase 1: the first real (non-Lua) language
 plugged into the seam `core/lang_registry.lua` built. One shared
 implementation (`ecma.lua`) behind three one-line registrations (`js.lua`,
 `ts.lua`, `tsx.lua`), the same relationship `core/lang/lua.lua` has to
@@ -957,7 +957,7 @@ class-method owning-scope, `.jsx` support (left for `js.lua` to extend,
 per that file's own header), `module.exports = {...}` recognition, and
 this repository's own CI not yet installing a JS/TS parser to run
 `lang_js_spec.lua`'s assertions rather than its skip path. Tracked in
-`docs/ROADMAP/MULTILANG.md`'s Phase 1 checklist.
+`docs/ROADMAP/IDEAS/MULTILANG.md`'s Phase 1 checklist.
 
 ## A seventh Analysis panel — Hooks (2026-08-03)
 
@@ -1164,7 +1164,7 @@ directory, this environment untouched) used for every other verification
 this phase, exercised twice: with the parser present (real assertions)
 and absent (the existing skip path, unchanged).
 
-`docs/ROADMAP/MULTILANG.md`'s "calls/symbols extraction" checklist item
+`docs/ROADMAP/IDEAS/MULTILANG.md`'s "calls/symbols extraction" checklist item
 is now two items: calls is done (with cross-file resolution split out
 as its own explicitly open task), symbols remains untouched.
 
@@ -1233,7 +1233,7 @@ written, confirming the exact five symbols expected and nothing else —
 *then* committed to `TESTS/lang_js_spec.lua` as a real assertion block,
 not just an ad hoc check thrown away after confirming the shape worked.
 
-`docs/ROADMAP/MULTILANG.md`'s Phase 1 checklist now has two remaining
+`docs/ROADMAP/IDEAS/MULTILANG.md`'s Phase 1 checklist now has two remaining
 real gaps from this pass: cross-file call resolution (named imports
 binding a bare name directly into scope) and class-method owning-scope
 (shared with Phase 0, not unique to JS/TS).
@@ -2657,3 +2657,45 @@ the same posture `docmap_spec.lua`'s own comment states for
 `/api/telemetry`: "the route table and socket handling are verified by
 running the thing and talking to it, which a spec cannot do without an
 event loop" — covered by the real curl verification above instead.
+
+## `undocumented-param` credits `@overload`-only signatures (2026-08-11)
+
+Closed the last item that had been sitting in `docs/ROADMAP.md`'s
+"Genuinely open" section since `@overload` was first parsed and rendered
+(2026-07-31). `check_undocumented_params` (`core/check.lua`) compared a
+function's raw signature parameter count against its `@param` line count
+only — a function documented entirely through `@overload` instead of
+`@param` (its real parameter list living inside the `fun(...)` literals)
+had zero `@param` lines by construction, so the check unconditionally read
+that as "undocumented", regardless of how thoroughly the overloads
+actually documented it.
+
+**Scoped to the exact false-positive case, not "any function with
+overloads".** The fix only skips the finding when **both** hold: zero
+`@param` lines at all, and at least one `@overload`'s own parsed `params`
+covers the declared parameter count. A function with *some* `@param`
+lines — still fewer than the signature declares — is still a real
+finding, overloads present or not; crediting that case too would have
+hidden a genuine gap the check exists to catch. Verified with a test
+matrix, not just the happy path: overload covers it (silent), overload
+present but too short (still fires), partial `@param` lines plus a
+covering overload (still fires), no overload at all (unchanged, still
+fires).
+
+**Costed correctly by the roadmap entry itself before this was picked
+up** — asked directly whether this was a per-plugin convention needing
+rollout everywhere, or a fix in documentation.nvim's own scanner: the
+latter. `check_undocumented_params` is centralized code every scanned
+tree runs through, so the fix takes effect for every plugin the moment it
+ships here — there was never a "roll this out to other repos" step to
+plan for, and no new data or per-repo configuration was needed, only the
+already-parsed `Documentation.OverloadInfo.params` from the 2026-07-31
+work.
+
+- **Module:** `core/check.lua` (`check_undocumented_params`)
+- **Tests:** `TESTS/check_overload_credit_spec.lua` — its own file, not a
+  block in `docmap_spec.lua`, which already sits near Lua's
+  200-local-per-function ceiling (the same reason
+  `browse_loaded_spec.lua`/`browse_telemetry_spec.lua`/
+  `browse_endpoints_spec.lua`/`check_type_vs_class_spec.lua` are all their
+  own files too).
