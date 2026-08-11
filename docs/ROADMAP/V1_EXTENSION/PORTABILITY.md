@@ -654,6 +654,49 @@ answers this for Lua; for the others the equivalent check is load, parse a
 snippet of that language, and assert the root type with no `ERROR` node in
 the tree — all four pass.
 
+**And that grammar check is not enough on its own, which is the sharper
+lesson.** All four grammars passed it while the binary still could not scan
+a TypeScript file at all — the manifest hazard below, one level deeper than
+the version already recorded. Running the binary over a real JS/TS/TSX
+corpus is what caught it: 11 files copied out of `mdview.nvim`'s client and
+one `.tsx` from a Next.js project, which after the fix yields **48
+functions — 37 from `.ts`, 10 from `.js`, 1 from `.tsx`** with real names
+(`parseSourcepos`, `installHistory`, `Navbar`). A per-grammar load test
+proves the grammar; only a real scan proves the pipeline.
+
+### The manifest closure has a second axis: what was scanned (2026-08-11)
+
+Already recorded above: the bundle manifest must be measured with a parser
+available, because `core/plugins.lua` and `core/symbols.lua` load only
+below `scan_file`'s early return. **That is one of two independent axes,
+and the second cost a shipped-and-verified binary its first contact with a
+TypeScript project.**
+
+`core/lang/ecma` requires `core/endpoints` while scanning a `.js`/`.ts`/
+`.tsx` file. This repository is pure Lua, so a manifest measured here —
+with every grammar present, byte-identical output, all gates green — still
+has no `core/endpoints` in it. The binary was correct for every input it
+had been tested against and died with a `module not found` traceback on the
+first `.tsx` file.
+
+Measured in this repository: **43 files parser-less, 45 with a grammar
+reachable, 46 once a JS/TS/TSX corpus is scanned as well.**
+
+The fix is in [`scripts/bundle_manifest.lua`](../../../scripts/bundle_manifest.lua)
+rather than in an instruction to whoever builds: it now probes twice, the
+repository and then a generated three-language fixture, and `package.loaded`
+accumulating across both makes the union automatic. Generated rather than
+checked in on purpose — a fixture under `TESTS/` would be picked up by
+`coverage.lua`'s scan of that directory and start moving this repository's
+own `fn.tested` numbers, which is a real artifact change to pay for a build
+detail.
+
+**The general rule, now that both axes are known:** the closure is a
+property of one *run*, so the manifest is only as complete as the corpus
+and configuration it was measured under. A binary meant to scan languages
+the measuring repository does not contain needs them represented somewhere
+in the probe.
+
 **Layout as installed** (paths are this machine's; nothing in the code
 assumes them — the binary takes `$DOCMAP_TS_DIR`, and the app's
 "Grammars…" button points at the same directory):
