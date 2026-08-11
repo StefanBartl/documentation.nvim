@@ -119,6 +119,12 @@ local argv = {}
 -- own wrapper and can hardcode both. Without them the two produce maps that
 -- differ in `meta.repo_url` — correct on each side, and an apples-to-oranges
 -- comparison when checking that this build is byte-faithful to a Neovim run.
+-- `--snapshot=` carries `core.api.answer`'s single optional `param`
+-- whatever the chosen route interprets it as — a snapshot name for
+-- `telemetry`/`loaded`, a commit count for `commits`, unused otherwise.
+-- One flag rather than one per route because exactly one route ever reads
+-- it at a time; see each route's own doc comment in `core/api.lua` for
+-- which it is.
 local source, repo_url, branch, out_dir, api_route, api_snapshot
 for i = 2, #arg do
   local a = arg[i]
@@ -187,6 +193,67 @@ local opts = require("documentation.config").build(root, {
 -- is which. stdout carries exactly the JSON, so the caller does not have to
 -- find where it starts.
 if api_route then
+  ---One shell-quoted argument. Every value that ever reaches this — a
+  ---hardcoded literal, `opts.root`/`opts.out_dir` (config, not request
+  ---input), or a sha that `core.api.answer` already ran through
+  ---`safe_sha`'s hex-only whitelist before this function is ever called —
+  ---cannot contain the metacharacters that make shelling out to a string
+  ---dangerous in the first place. Quoted here anyway, as the second lock
+  ---on that door rather than the only one.
+  ---@param s string
+  ---@return string
+  local function shell_quote(s)
+    return '"' .. tostring(s):gsub('"', '\\"') .. '"'
+  end
+
+  local windows = (package.config:sub(1, 1) == "\\")
+
+  ---Run git in `opts.root` via `io.popen` — the standalone build's only
+  ---subprocess capability; `vim.system` does not exist outside Neovim.
+  ---
+  ---**Cannot see the exit code, measured rather than assumed.** Probed on
+  ---Windows via Neovim's own embedded LuaJIT as a stand-in — `io.popen` is
+  ---a thin wrapper over the platform C library's `popen()`/`_popen()`,
+  ---which is the same call regardless of which Lua interpreter drives it,
+  ---so the result transfers to PUC Lua 5.4 even though no PUC interpreter
+  ---was on this machine to test the shipped binary directly with.
+  ---`file:close()` returned `true, nil, nil` for both a genuinely
+  ---succeeding *and* a genuinely failing git invocation — there is no exit
+  ---status to branch on the way `editor/serve.lua`'s
+  ---`vim.system(...):wait().code` can.
+  ---
+  ---So: stderr is merged into the captured stream (`2>&1`), and output
+  ---starting with `fatal:`/`error:`/`usage:` is treated as a failure.
+  ---Heuristic, not a guarantee, and named as one rather than pretended to
+  ---be exact — but every format string these routes actually request
+  ---starts with a sha, a `\31`/`\30` control byte, or `diff --git`, never
+  ---with one of those three words, so a real false positive would need a
+  ---commit whose *first output byte* happens to look like a git error,
+  ---which the formats used here cannot produce.
+  ---@param o table
+  ---@param args string[]
+  ---@return string|nil stdout
+  ---@return string|nil err
+  local function popen_git(o, args)
+    local parts = { "git" }
+    for _, a in ipairs(args) do
+      parts[#parts + 1] = shell_quote(a)
+    end
+    local cd = (windows and "cd /d " or "cd ") .. shell_quote(o.root) .. " && "
+    local fh = io.popen(cd .. table.concat(parts, " ") .. " 2>&1", "r")
+    if not fh then
+      return nil, "could not start git"
+    end
+    local out = fh:read("*a") or ""
+    fh:close()
+    if out:match("^%s*fatal:") or out:match("^%s*error:") or out:match("^%s*usage:") then
+      return nil, (out:gsub("%s+$", ""))
+    end
+    return out
+  end
+
+  opts.git = popen_git
+
   local api = require("documentation.core.api")
   local result, api_err = api.answer(api_route, opts, api_snapshot)
   if not result then

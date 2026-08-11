@@ -134,280 +134,41 @@ local function git(cfg, args)
   return proc.stdout or ""
 end
 
----A commit-ish the caller supplied, or nil if it is not one.
----
----Whitelist, deliberately not an escape or a quoting helper: the value is
----about to become an argument to a subprocess, and the only safe answer to
----"is this a sha" is a shape check that rejects everything else — including
----the `--upload-pack=…`-style arguments that make argument injection into git
----interesting in the first place. Even `HEAD` is refused: it is a perfectly
----good revision but not what this route accepts, and a whitelist that starts
----making exceptions stops being one.
----
----Exported because it is the security property of this module, and a
----security property that cannot be tested without opening a socket does not
----get tested.
----@param s string
----@return string|nil
-function M.safe_sha(s)
-  return (type(s) == "string" and s:match("^%x%x%x%x%x%x%x+$") and #s <= 40) and s or nil
-end
-
----Read a committed artifact and rehydrate it into an IR.
----
----Absence is a normal outcome, not an error: a revision older than the map
----itself simply has none, and `history.analyze` accepts `nil` for exactly
----that reason.
----@param cfg table
----@param rev string Already validated.
----@return Documentation.IR|nil
-local function ir_at(cfg, rev)
-  local rel = (cfg.out_dir or "docs/map") .. "/module_map.json"
-  local out = git(cfg, { "show", ("%s:%s"):format(rev, rel) })
-  if not out or out == "" then
-    return nil
-  end
-  local ok, doc = pcall(vim.json.decode, out, { luanil = { object = true, array = true } })
-  if not ok or type(doc) ~= "table" or type(doc.nodes) ~= "table" then
-    return nil
-  end
-  return require("documentation.editor.browse.source").rehydrate(doc)
-end
-
----The map as it stands on disk right now — not a git revision, whatever the
----last `:DocMap` run wrote, committed or not. What "current telemetry"
----joins against: the telemetry/loaded routes need the *live* tree, and
----`ir_at` above deliberately only ever answers for a validated commit.
----@param cfg table
----@return Documentation.IR|nil
-local function current_ir(cfg)
-  return require("documentation.core.artifact").load(cfg)
-end
+-- Moved to `core/api.lua`, which now owns every git-backed route and needs
+-- the same validation the standalone build's own `--api=commit/<sha>`
+-- parsing does. Re-exported under its old name: `TESTS/docmap_spec.lua`
+-- calls `serve.safe_sha` directly, and there is no reason to make that
+-- test reach into a different module for a property this one still
+-- enforces before any request reaches `core.api.answer`.
+M.safe_sha = require("documentation.core.api").safe_sha
 
 ---Encode one `core.api` answer as this server's JSON response.
 ---
----The four data routes below are thin on purpose: their bodies moved to
----`core/api.lua` so the standalone build can answer the identical questions
----for `docmap-desktop`'s own host, and two hosts computing the same join
+---Every data route is thin on purpose: their bodies moved to `core/api.lua`
+---so the standalone build can answer the identical questions for
+---`docmap-desktop`'s own host, and two hosts computing the same join
 ---separately is exactly how they would come to disagree. What stays here is
 ---what is genuinely this transport's: the socket, the status code, the
----encoding.
+---encoding, and the one thing only Neovim can supply — `git` via
+---`vim.system`.
 ---@param client userdata
----@param name string A `core.api` route name.
+---@param name string A `core.api` route name, or `commit/<sha>`.
 ---@param cfg table
 ---@param query string|nil Raw query string, `?`-prefixed.
 local function respond_api(client, name, cfg, query)
   local api = require("documentation.core.api")
-  local param = api.decode_param(query and query:match("[?&]snapshot=([^&]+)"))
+  -- `snapshot=` (telemetry/loaded) and `n=` (commits) never both apply to
+  -- the same route, so trying both and taking whichever is present needs
+  -- no per-route branch here — each route's own doc comment says which
+  -- one it reads `param` as.
+  local raw = query and (query:match("[?&]snapshot=([^&]+)") or query:match("[?&]n=([^&]+)"))
+  local param = api.decode_param(raw)
+  cfg.git = cfg.git or git
   local result, err = api.answer(name, cfg, param)
   if not result then
     return respond_error(client, 404, err or "no such endpoint")
   end
   return respond(client, 200, "application/json", vim.json.encode(result))
-end
-
----`GET /api/checklist` — the staleness verdict for the Analysis -> Checklist
----panel.
----
----The panel's *content* is baked into the page, unlike Telemetry's: a ledger
----is parsed Markdown and `ir.checklist` carries it. What cannot be baked is
----exactly this — whether the cited files have moved since the items were
----verified — because it comes from `git log`, and `core/churn.lua` already
----established that git data in a byte-compared artifact leaves the map with
----no fixed point. So this route answers one question and no others, and the
----page renders a complete, useful panel without it.
----
----Every "nothing to show" case answers 200 with `available: false` and a
----`reason`, the identical posture `route_telemetry` and `route_loaded` take —
----a panel that says why it is empty beats one that is silently blank.
----@param cfg table
----@param client userdata
-local function route_checklist(cfg, client)
-  local ir = current_ir(cfg)
-  if not ir then
-    return respond(
-      client,
-      200,
-      "application/json",
-      vim.json.encode({ available = false, reason = "no map generated yet" })
-    )
-  end
-
-  local ledger = ir.checklist
-  if not ledger then
-    return respond(
-      client,
-      200,
-      "application/json",
-      vim.json.encode({ available = false, reason = "this repository has no checklist" })
-    )
-  end
-
-  local out, err = git(cfg, {
-    "log",
-    "--no-merges",
-    "--format=%x1e%cs",
-    "--name-only",
-    "--",
-    ".",
-    (":(exclude)%s"):format(cfg.out_dir or "docs/map"),
-  })
-  if not out then
-    return respond(
-      client,
-      200,
-      "application/json",
-      vim.json.encode({ available = false, reason = err or "git log failed" })
-    )
-  end
-
-  local checklist = require("documentation.core.checklist")
-  local statuses = checklist.status(ledger, checklist.parse_history(out))
-
-  -- Keyed by `file:line`, not sent as an array: the page already holds every
-  -- item from the baked ledger and only needs the verdict to attach to each
-  -- one. Sending the items back would duplicate what the page has and make
-  -- the two copies able to disagree.
-  local by_key, counts = {}, { stale = 0, unverified = 0, uncited = 0, current = 0 }
-  for _, status in ipairs(statuses) do
-    by_key[("%s:%d"):format(status.item.file, status.item.line)] = {
-      state = status.state,
-      commits = status.commits,
-      last_commit = status.last_commit,
-    }
-    counts[status.state] = (counts[status.state] or 0) + 1
-  end
-
-  return respond(
-    client,
-    200,
-    "application/json",
-    vim.json.encode({ available = true, counts = counts, status = by_key })
-  )
-end
-
----`GET /api/commits?n=N` — the list the History tab opens with.
----@param cfg table
----@param client userdata
----@param query string
-local function route_commits(cfg, client, query)
-  local n = tonumber(query:match("[?&]n=(%d+)")) or 50
-  n = math.max(1, math.min(n, 500))
-
-  -- Unit/record separators rather than a printable delimiter: a commit
-  -- subject can contain anything, including whatever character looked safe.
-  local fmt = "%H%x1f%h%x1f%an%x1f%ad%x1f%s%x1e"
-  local out, err = git(cfg, { "log", "-n", tostring(n), "--date=short", "--format=" .. fmt })
-  if not out then
-    return respond_error(client, 500, err or "git log failed")
-  end
-
-  local commits = {}
-  for record in out:gmatch("([^\30]+)") do
-    local rec = vim.trim(record)
-    if rec ~= "" then
-      local f = vim.split(rec, "\31", { plain = true })
-      if #f >= 5 then
-        commits[#commits + 1] =
-          { sha = f[1], short = f[2], author = f[3], date = f[4], subject = f[5] }
-      end
-    end
-  end
-
-  respond(client, 200, "application/json", vim.json.encode({ commits = commits }))
-end
-
----`GET /api/commit/<sha>` — the analysis for one commit, plus its diff text.
----@param cfg table
----@param client userdata
----@param sha string Already validated by the caller.
-local function route_commit(cfg, client, sha)
-  local out_dir = cfg.out_dir or "docs/map"
-
-  local meta, meta_err = git(cfg, {
-    "show",
-    "-s",
-    "--date=short",
-    "--format=%H%x1f%h%x1f%an%x1f%ad%x1f%s%x1f%b",
-    sha,
-  })
-  if not meta then
-    return respond_error(client, 404, meta_err or "no such commit")
-  end
-  local mf = vim.split(vim.trim(meta), "\31", { plain = true })
-
-  -- `git show` rather than `git diff <sha>^ <sha>`: it produces the same diff
-  -- and additionally handles the root commit, which has no parent to name.
-  -- The out_dir exclusion is not cosmetic — measured here, one commit's full
-  -- diff is 4.8 MB of which all but ~16 KB is the regenerated map.
-  local diff_text, diff_err = git(cfg, {
-    "show",
-    "--unified=0",
-    "--format=",
-    sha,
-    "--",
-    ".",
-    (":(exclude)%s"):format(out_dir),
-  })
-  if not diff_text then
-    return respond_error(client, 500, diff_err or "git show failed")
-  end
-
-  local ir_after = ir_at(cfg, sha)
-  -- A root commit has no parent; `git show` above already handled that, and
-  -- here the absent parent IR is simply nil, which `analyze` accepts.
-  local ir_before = ir_at(cfg, sha .. "^")
-
-  local history = require("documentation.core.history")
-  local impact = history.analyze(diff_text, ir_after, ir_before)
-
-  -- Module display names are resolved here rather than in the browser: the
-  -- page has the *current* IR embedded, and a commit can name nodes that no
-  -- longer exist, so only this side can label them correctly.
-  local names = {}
-  local function name_of(id)
-    if names[id] then
-      return names[id]
-    end
-    local n = ir_after and ir_after.nodes[id]
-    names[id] = (n and (n.module or n.path)) or id
-    return names[id]
-  end
-  for _, t in ipairs(impact.touched) do
-    name_of(t.node)
-    for _, c in ipairs(impact.callers[t.node .. "#" .. t.fn] or {}) do
-      name_of(c.node)
-    end
-  end
-  for _, id in ipairs(impact.calling_modules) do
-    name_of(id)
-  end
-  for _, id in ipairs(impact.impacted_modules) do
-    name_of(id)
-  end
-
-  respond(
-    client,
-    200,
-    "application/json",
-    vim.json.encode({
-      commit = {
-        sha = mf[1] or sha,
-        short = mf[2] or sha:sub(1, 7),
-        author = mf[3] or "",
-        date = mf[4] or "",
-        subject = mf[5] or "",
-        body = vim.trim(mf[6] or ""),
-      },
-      impact = impact,
-      names = names,
-      diff = diff_text,
-      -- Said explicitly rather than inferred from an empty list: "the map did
-      -- not exist yet at this revision" and "this commit touched no function"
-      -- are different answers and the UI must not merge them.
-      has_map = ir_after ~= nil,
-    })
-  )
 end
 
 ---Accept a request path only if it is a bare filename inside `out_dir`.
@@ -495,36 +256,16 @@ local function handle(cfg, client, method, target)
     return respond(client, 200, "application/json", vim.json.encode({ docmap = true }))
   end
 
-  if path == "/api/commits" then
-    return route_commits(cfg, client, query)
-  end
-
   -- Every route `core/api.lua` owns, dispatched by name rather than one
   -- `if` per route: the set is data on that module, so a route added there
   -- reaches this host and the standalone one without either being told.
-  local api_name = path:match("^/api/(.+)$")
-  if api_name and require("documentation.core.api").routes[api_name] then
-    return respond_api(client, api_name, cfg, query)
-  end
-
-  if path == "/api/checklist" then
-    return route_checklist(cfg, client)
-  end
-
-  local sha_part = path:match("^/api/commit/(.+)$")
-  if sha_part then
-    local sha = M.safe_sha(sha_part)
-    if not sha then
-      -- Deliberately not echoed back into the message: refusing to repeat an
-      -- unvalidated value is free, and this is the one input that would
-      -- otherwise reach a subprocess.
-      return respond_error(client, 400, "not a commit hash")
-    end
-    return route_commit(cfg, client, sha)
-  end
-
+  -- `commit/<sha>` is included even though it is not a fixed key in
+  -- `core.api.routes` — `M.answer` itself recognises and validates that
+  -- shape, so it is enough to let anything under `/api/` fall through to
+  -- it (the `/api/ping` case above already returned) and let `core.api`
+  -- say no rather than re-deciding the shape here.
   if path:match("^/api/") then
-    return respond_error(client, 404, "no such endpoint")
+    return respond_api(client, path:sub(6), cfg, query)
   end
 
   return route_static(cfg, client, path:gsub("^/", ""))

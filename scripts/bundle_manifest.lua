@@ -146,8 +146,36 @@ probe(langs_root, { "--source=src", "--out-dir=out" })
 -- Every route, not one: they do not share a dependency set (`telemetry`
 -- pulls `telemetry_join`, `loaded` pulls `loaded_diff`), so probing one
 -- would leave the other's half out with nothing to say so.
-for _, route in ipairs({ "telemetry", "telemetry/snapshots", "loaded", "loaded/snapshots" }) do
+for _, route in ipairs({
+  "telemetry",
+  "telemetry/snapshots",
+  "loaded",
+  "loaded/snapshots",
+  "checklist",
+  "commits",
+}) do
   probe(root, { "--api=" .. route, "--out-dir=.deps/bundle-manifest-probe" })
+end
+
+-- `commit/<sha>` needs a real sha, unlike the fixed-name routes above: on
+-- success it requires `core.history` for the diff analysis, which
+-- measured (`nvim --headless`, package.loaded before/after) is not pulled
+-- in by any of the six routes just probed. `root`'s own `HEAD` is real
+-- history that exists in every checkout this script can even run against.
+local head_pipe = io.popen('git -C "' .. root .. '" rev-parse HEAD 2>&1', "r")
+local head_sha = head_pipe and head_pipe:read("*l")
+if head_pipe then
+  head_pipe:close()
+end
+if head_sha and head_sha:match("^%x%x%x%x%x%x%x+$") then
+  probe(root, { "--api=commit/" .. head_sha, "--out-dir=.deps/bundle-manifest-probe" })
+else
+  io.stderr:write(
+    "bundle_manifest: could not resolve HEAD in "
+      .. root
+      .. " to probe --api=commit/<sha>; "
+      .. "core.history's closure will not be measured this run.\n"
+  )
 end
 
 ---Collapse `a/b/../c` to `a/c`. `package.searchpath` returns whatever
