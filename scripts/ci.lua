@@ -147,10 +147,27 @@ end
 ---name is often 5.1; this gate wants the *other* Lua from the one Neovim
 ---embeds, which is the entire point of it existing.
 ---@return string?
+---A PUC Lua that can actually run the standalone build, or nil.
+---
+---**Being on `$PATH` is not the question; being able to `require` the two
+---rocks the build needs is.** A machine can easily have more than one PUC
+---Lua — this was found on one with 5.1 first on `$PATH` and `lfs`/`dkjson`
+---installed for 5.4 — and picking by name alone hands the gate an
+---interpreter that dies at its first `require`. That failure reads as a
+---broken build rather than a missing dependency, and it makes the gate red
+---before anyone has touched anything, which `GATES.standalone`'s own
+---comment gives as the reason such a gate gets switched off.
+---
+---So each candidate is probed rather than assumed, and a machine with no
+---usable interpreter takes the stated skip below instead of failing.
+---@return string?
 local function puc_lua()
   for _, exe in ipairs({ "lua5.4", "lua5.3", "lua" }) do
     if vim.fn.executable(exe) == 1 then
-      return exe
+      local probe = vim.system({ exe, "-e", "require('lfs') require('dkjson')" }):wait()
+      if probe.code == 0 then
+        return exe
+      end
     end
   end
   return nil
@@ -183,7 +200,12 @@ function GATES.standalone()
     -- A stated skip, not a silent pass. Locally this is the common case and
     -- failing on it would make `scripts/ci.sh` unusable on a machine that has
     -- Neovim and nothing else.
-    say("  skipped: no PUC Lua on PATH (this gate is about the *other* Lua)")
+    --
+    -- Worded for both ways `puc_lua` returns nil — none found, or one found
+    -- that cannot `require` the rocks — because a machine in the second case
+    -- does have a `lua` on `$PATH`, and a message saying otherwise sends the
+    -- reader looking for the wrong thing.
+    say("  skipped: no PUC Lua on PATH with lfs + dkjson (this gate is about the *other* Lua)")
     return
   end
 
@@ -242,7 +264,10 @@ if stage == "all" then
   for _, name in ipairs(ORDER) do
     GATES[name]()
   end
-  say("\n" .. paint("32", "All four gates passed."))
+  -- Counted from ORDER rather than written out, so adding a sixth gate
+  -- cannot leave this line quietly claiming four. It already had: the
+  -- `standalone` gate made it five without this line noticing.
+  say("\n" .. paint("32", ("All %d gates passed."):format(#ORDER)))
 elseif GATES[stage] then
   GATES[stage]()
 else

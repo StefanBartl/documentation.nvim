@@ -608,6 +608,77 @@ renderer that does not need per-function facts, byte-identical to a real
 `nvim --headless` run apart from the function-level data it honestly
 reports as absent.
 
+### The inputs now exist as durable artifacts, and one new trap (2026-08-11)
+
+Everything above proved the full-fidelity binary *can* be built. What was
+actually installed afterwards was the **parser-less** one, and the grammar
+it had been proven against was not kept — so the proof was real and the
+working setup was not. This section records the durable version, plus the
+one failure the earlier runs did not hit.
+
+**The trap: build the binding against tree-sitter's `master` and it does
+not compile.** `lua-tree-sitter` calls `ts_language_version` and
+`ts_parser_timeout_micros`, both **removed** upstream after the version it
+pins. A plain `git clone` of tree-sitter gets `master` and fails with two
+`implicit declaration` errors that read like a broken binding rather than a
+version mismatch. The submodule pin is the answer and is worth reading
+rather than working around:
+
+```bash
+git -C lua-tree-sitter ls-tree HEAD tree-sitter   # -> 726dcd1… = 0.25.4
+git -C tree-sitter fetch --depth 1 origin 726dcd1e872149d95de581589fc408fb8ea9cb0b
+git -C tree-sitter checkout FETCH_HEAD
+```
+
+**Four grammars, not one.** The earlier run proved the mechanism with Lua
+alone; `core/lang/{js,ts,tsx}` are dead weight in a binary that can only
+parse Lua. Each is still one `gcc` call against a plain checkout — no
+tree-sitter CLI, no Node:
+
+```bash
+gcc -O2 -shared -o <lang>.dll src/parser.c src/scanner.c -Isrc
+```
+
+from `tree-sitter-grammars/tree-sitter-lua`,
+`tree-sitter/tree-sitter-javascript`, and `tree-sitter/tree-sitter-typescript`
+(whose `typescript/` and `tsx/` are separate grammars in one repository).
+**Mixed ABI is fine and worth stating**, because it looks like it should not
+be: Lua and JavaScript build to ABI 15, TypeScript and TSX to ABI 14, and
+the one statically linked libtree-sitter loads all four.
+
+**Verify a grammar rather than trusting that it compiled.** A grammar that
+links cleanly can still be the wrong one for its file name, and the failure
+downstream is silent missing data.
+[`standalone/check_treesitter.lua`](../../../standalone/check_treesitter.lua)
+answers this for Lua; for the others the equivalent check is load, parse a
+snippet of that language, and assert the root type with no `ERROR` node in
+the tree — all four pass.
+
+**Layout as installed** (paths are this machine's; nothing in the code
+assumes them — the binary takes `$DOCMAP_TS_DIR`, and the app's
+"Grammars…" button points at the same directory):
+
+| Path | Holds |
+|---|---|
+| `C:\tools\docmap.exe` | the full-fidelity binary, 1.74 MB |
+| `C:\tools\docmap-grammars\` | `lua.dll`, `javascript.dll`, `typescript.dll`, `tsx.dll` |
+| `C:\tools\docmap-libs\` | `lfs.a`, `lua_tree_sitter.a` — kept so an engine rebuild does not re-clone three repositories |
+
+**Re-verified, and it is a reproduction rather than a new result**: the
+*packaged binary* — not the script under PUC Lua with the LuaRocks
+`.dll` — reports `Module map is up to date` against this repository's
+committed artifacts, which is `--check`'s byte comparison of all three.
+The distinction matters because everything the packaging step adds
+(luastatic's name rewriting, the single-archive link, the static
+libtree-sitter) sits between the verified source path and the shipped
+artifact.
+
+One method note, recorded because it cost two false diagnoses: the docs
+scanner reads **every** `.md` in the tree, so writing a comparison map into
+`build/cmp/` inside the repository changes the input and the diff reports a
+difference that is the measurement's own doing. Compare with `--check` and
+the real `out_dir`, or generate outside the tree.
+
 ## Why this is not scheduled
 
 Because the first question is already answered, and it is the one people
