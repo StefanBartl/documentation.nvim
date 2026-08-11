@@ -106,32 +106,48 @@ line one. Nothing about building one invalidates the local server's choice.
 ## The phases
 
 ```
-Phase 0  treesitter binding on Linux      1–2 h    decides 4 projects
+Phase 0  treesitter binding on Linux      DONE ✓   works on Linux
    │
    ├─ Phase 1  MCP server                 days     no dependencies
-   ├─ Phase 2  Checklist ledger, scope (b) days     no dependencies
-   └─ Phase 4  UI polish                  ongoing  no dependencies
+   ├─ Phase 2  Checklist ledger, scope (b) days    no dependencies
+   ├─ Phase 4  UI polish                  ongoing  no dependencies
+   │     │
+   │  Phase 3  Agent integration          small    needs 1 + 2
+   │
+   └─ Phase 5  Standalone → desktop app   large    UNBLOCKED (Linux)
          │
-      Phase 3  Agent integration          small    needs 1 + 2
-                                                    │
-   (if Phase 0 succeeds)                            │
-      Phase 5  Standalone → desktop app   large     needs 0
-      Phase 6  Hosted web tier            largest   needs 0 + a trust model
+      Phase 6  Hosted web tier            largest  needs 5 + a trust model
 ```
 
 Phases 1, 2 and 4 depend on nothing and can run in any order or in parallel.
 Only 3, 5 and 6 have real preconditions.
 
-### Phase 0 — the experiment
+### Phase 0 — the experiment — **done 2026-08-11: it works on Linux**
 
-Build `lua-tree-sitter` under WSL/Arch (applying `PORTABILITY.md`'s two
-documented packaging fixes: build from a `--recurse-submodules` checkout,
-add `tree-sitter/lib/src` to `incdirs`), compile `tree-sitter-lua` with the
-one `gcc` command that document already verified works, and call
-`tree:root_node()`.
+Ran under WSL/Arch on the same machine the Windows failures were recorded
+on, so the results differ by platform and nothing else. Full detail in
+[`PORTABILITY.md`](PORTABILITY.md#that-next-step-was-taken-2026-08-11-it-works-on-linux);
+the outcome in short:
 
-Record the result in `PORTABILITY.md` either way — that document is already
-the place this question is tracked, and it explicitly asks for this test.
+- **`tree:root_node()` returns normally.** The Windows segfault is
+  platform-specific, supporting that document's mingw struct-by-value
+  hypothesis. Both of its documented packaging fixes were necessary and
+  sufficient, which confirms the diagnosis rather than just repeating it.
+- **The whole pipeline works**, not only the crashing call: parse → query
+  → cursor → captures → byte offsets → source text, verified against a
+  fixture returning exactly its expected captures.
+- **`node:parent()` exists**, so the ~30-line shim costed for `ltreesitter`
+  is not needed. The remaining shim is pure API *shape* (`range()`,
+  `Point` vs. tuple, imperative cursor vs. generator, `get_node_text`) —
+  all composable from methods that exist.
+- **No LuaRocks and no root required** — plain `gcc` against system
+  LuaJIT, the same shape a `luastatic` link would take.
+
+**Consequence for this plan: Phases 5 and 6 are unblocked on Linux**, and
+Windows becomes a separable, known problem (target Linux first, fix the
+binding upstream, or vendor a patched one) rather than a wall. macOS is
+untested, but the blocking failure is a mingw hypothesis, so it is more
+likely to resemble Linux than Windows.
 
 ### Phase 1 — MCP server
 
@@ -194,7 +210,7 @@ design pass over the Analysis panels' tables, better empty and loading
 states. Needs none of standalone generation, packaging, or a trust model.
 Can run in parallel with everything.
 
-### Phase 5 — standalone → desktop app *(only if Phase 0 succeeds)*
+### Phase 5 — standalone → desktop app *(unblocked on Linux, 2026-08-11)*
 
 In order: full-fidelity standalone generation (the parser-less MVP in
 `standalone/` already works for everything that does not need per-function
@@ -243,10 +259,12 @@ marked accordingly.
 
 ## Open questions this plan does not answer
 
-- **Which platform the desktop app targets first**, if Phase 0 succeeds on
-  Linux but the Windows binding stays broken. Shipping Linux-only, fixing
-  the binding upstream, and vendoring a patched binding are three different
-  answers with different costs; none is obviously right yet.
+- **Which platform the desktop app targets first.** Now a live question
+  rather than a hypothetical: Phase 0 succeeded on Linux and Windows stays
+  broken. Shipping Linux-first, fixing `lua-tree-sitter` upstream, and
+  vendoring a patched binding are three answers with different costs, and
+  none is obviously right. Testing macOS would narrow it — and is cheap,
+  the same experiment on different hardware.
 - **Whether the project switcher (Phase 5) is a documentation.nvim feature
   at all**, or a property of whatever shell hosts it. It has no analogue in
   the current single-repo model.
