@@ -1,0 +1,124 @@
+# Builds the standalone engine (scripts/package.lua's full-fidelity output)
+# plus its four tree-sitter grammars, for Linux and Windows, and publishes
+# them as assets on a single rolling release rather than a numbered one.
+#
+# Why rolling: this repository has no version-tag scheme of its own, and
+# what actually consumes these assets -- docmap-desktop's own release.yml,
+# see docs/HANDOVER.md there -- needs one stable URL to download from at
+# release-build time, not a moving target it has to track across two repos.
+# `tag_name: standalone-latest`, recreated on every run rather than
+# appended to, so a stale asset from three builds ago can never be picked
+# up by accident.
+#
+# macOS is deliberately not built here. See
+# docs/ROADMAP/V1_EXTENSION/PORTABILITY.md: the standalone path is
+# confirmed working on Linux and Windows; macOS was never tested and stays
+# out of scope until it is -- building it here would ship a binary nobody
+# has verified starts, let alone works.
+#
+# What each platform actually does is scripts/build_engine_release.sh, not
+# this file -- same reason ci.yml keeps its own logic in scripts/ci.sh: a
+# workflow spelling the commands out again would be a second copy of them,
+# and a second copy that drifts is what this repository exists to detect.
+# The recipe itself was proven by hand under WSL/Arch first, and the one
+# genuine surprise it found -- gcc's own `make generic` target cannot
+# `require()` a C module at all, `linux`/`mingw` are what a host
+# interpreter running scripts/package.lua actually needs -- is recorded in
+# PORTABILITY.md's "Step 6", not just in the script's comments.
+
+name: Release engine
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "standalone/**"
+      - "lua/**"
+      - "scripts/package.lua"
+      - "scripts/bundle_manifest.lua"
+      - "scripts/build_engine_release.sh"
+      - ".github/workflows/release-engine.yml"
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      # tree-sitter CLI, the same way ci.yml's own `tests` job already
+      # gets it for JS/TS/TSX -- not preinstalled on this image.
+      - run: npm install -g tree-sitter-cli
+      - run: bash scripts/build_engine_release.sh
+        env:
+          TRIPLE: x86_64-unknown-linux-gnu
+          EXE_EXT: ""
+          OUT_DIR: release-out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: engine-linux
+          path: release-out/*
+          retention-days: 1
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      # A dedicated MSYS2/MinGW environment rather than whatever happens
+      # to already be on this runner's PATH. Found the hard way on a dev
+      # machine that also has Git for Windows installed: Lua's own `mingw`
+      # Makefile target recurses through a *hardcoded* `/usr/bin/make`,
+      # and which `make` (and which temp-file semantics) that resolves to
+      # depends on whatever unix-emulation layer is hosting the process --
+      # two of them coexisting on the same machine produced a
+      # "Cannot create temporary file in C:\Windows\" failure that had
+      # nothing to do with this recipe. `msys2/setup-msys2` gives this job
+      # exactly one such layer, with nothing else on PATH to collide with.
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          # gcc and node are mingw64-prefixed on purpose: this session's
+          # compiler and the Node that runs `tree-sitter build` (which
+          # shells out to a C compiler itself) both need to be native
+          # Windows tools, producing/calling real .exe/.dll, not the
+          # POSIX-emulated MSYS builds of the same names. `make` stays
+          # the plain MSYS package -- it only orchestrates commands and
+          # is the package practically every msys2/setup-msys2 workflow
+          # installs it as, mingw64-prefixed or not.
+          install: mingw-w64-x86_64-gcc make git curl tar mingw-w64-x86_64-nodejs
+          path-type: inherit
+      - shell: msys2 {0}
+        run: npm install -g tree-sitter-cli
+      - shell: msys2 {0}
+        run: bash scripts/build_engine_release.sh
+        env:
+          TRIPLE: x86_64-pc-windows-msvc
+          EXE_EXT: ".exe"
+          OUT_DIR: release-out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: engine-windows
+          path: release-out/*
+          retention-days: 1
+
+  publish:
+    needs: [linux, windows]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: engine-*
+          path: release-out
+          merge-multiple: true
+      - run: ls -la release-out
+      - name: replace the rolling release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete standalone-latest --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" || true
+          gh release create standalone-latest release-out/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Standalone engine (rolling build)" \
+            --notes "Built from $GITHUB_SHA by this repository's own release-engine.yml. Not a numbered release -- consumed by docmap-desktop's release.yml, which always downloads this exact tag. See docs/ROADMAP/V1_EXTENSION/PORTABILITY.md for what each asset is and how it was built." \
+            --prerelease
