@@ -391,17 +391,42 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .hctl .hpath{font-family:var(--mono);font-size:12.5px;color:var(--muted);word-break:break-all}
 .hctl button{padding:4px 9px;font-size:12.5px}
 #hgraph-outer{position:relative}
-#hgraph-wrap{overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+/* `max-height` is not optional here — same `calc(100vh - 132px)` #detail
+   and #hist-detail already cap themselves at, reused rather than
+   invented. Without it `overflow:auto` has nothing to overflow *against*:
+   a block with no height constraint sizes to its content, so as
+   `applyZoom()` grows #hgraph's own width/height to match the scaled
+   diagram, #hgraph-wrap (and everything containing it, up to the page
+   itself) grew right along with it instead of clipping the content
+   behind scrollbars. Reported exactly that way, watching someone zoom in
+   and the whole page grow under them rather than the diagram zooming
+   within a fixed frame — the zoom math itself (cursor-anchored, see
+   zoomAt()) was already correct; this was the one property missing that
+   let it actually behave like a viewport. */
+#hgraph-wrap{overflow:auto;border:1px solid var(--line);border-radius:8px;
+  background:var(--panel);max-height:calc(100vh - 132px)}
 /* Root-level hide/show slider (Modules view only) — a vertical Google
-   Maps-style zoom control: "+" hides one more layer (zooming into a
-   narrower slice of the tree), "-" shows one more (zooming back out).
-   Positioned against #hgraph-outer, not #hgraph-wrap, so it stays put
-   while the diagram underneath scrolls. */
+   Maps-style control: "+" hides one more layer (zooming into a narrower
+   slice of the tree), "-" shows one more (zooming back out). Positioned
+   against #hgraph-outer, not #hgraph-wrap, so it stays put while the
+   diagram underneath scrolls.
+
+   Reported, watching someone use the page for the first time: this reads
+   as an actual zoom control, not a tree-depth one — the vertical
+   range-input shape and the "+"/"-" pair are exactly what a real zoom
+   widget would look like, and this comment's own "zooming into a
+   narrower slice" phrasing shows why: the word applies here only as a
+   metaphor. `.hrootslider-label` exists because the tooltip
+   (`title="Hide root levels…"`) was the only place that said so, and
+   nobody hovers a control to find out what it does before deciding
+   whether to use it. */
 .hrootslider{position:absolute;left:10px;top:14px;z-index:20;display:none;
   flex-direction:column;align-items:center;gap:4px;background:var(--panel);
   border:1px solid var(--line);border-radius:8px;padding:8px 6px;
   box-shadow:0 2px 8px rgba(0,0,0,.14)}
 .hrootslider.on{display:flex}
+.hrootslider-label{font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--muted);white-space:nowrap;margin-bottom:1px}
 .hroot-btn{width:22px;height:22px;padding:0;border:1px solid var(--line);
   border-radius:5px;background:var(--bg);color:var(--ink);font-size:14px;
   line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
@@ -446,6 +471,14 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .hedge-ext{stroke:var(--ext);stroke-width:2;opacity:.9}
 .hmsg{color:var(--muted);font-size:13px;padding:20px;text-align:center}
 .htrunc{color:var(--warn);font-size:12.5px;margin-top:8px}
+/* Sits directly before `#hdepth`'s button group. "1"/"2"/"3"/"∞" alone
+   read as a slider or a zoom control — reported exactly that way after
+   watching someone use the page for the first time — because every other
+   number on this toolbar (`#hzoomlabel`) *is* a percentage. Direction and
+   view-switcher groups need no such label; their own button text
+   ("← In", "Out →", "Modules") already says what they do. */
+.hctl-label{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--muted);align-self:center}
 .hview-toggle{display:flex;gap:0;border:1px solid var(--line);border-radius:7px;overflow:hidden}
 .hview-toggle button{border:none;border-radius:0;padding:4px 10px;font-size:12.5px}
 .hview-toggle button+button{border-left:1px solid var(--line)}
@@ -7166,10 +7199,13 @@ function M.render(ir, findings, opts)
     '<button class="hdir-btn" data-dir="both" title="Both directions around the center">⇄ Both</button>',
     '<button class="hdir-btn active" data-dir="out" title="What this depends on / calls">Out →</button>',
     "</div>",
+    -- Not a zoom control -- the label exists because it read like one
+    -- without it (see .hctl-label's own comment).
+    '<span class="hctl-label" title="How many hops from the centered node to draw">Depth</span>',
     '<div class="hview-toggle" id="hdepth">',
-    '<button class="hdepth-btn" data-depth="1">1</button>',
-    '<button class="hdepth-btn active" data-depth="2">2</button>',
-    '<button class="hdepth-btn" data-depth="3">3</button>',
+    '<button class="hdepth-btn" data-depth="1" title="Depth 1">1</button>',
+    '<button class="hdepth-btn active" data-depth="2" title="Depth 2">2</button>',
+    '<button class="hdepth-btn" data-depth="3" title="Depth 3">3</button>',
     '<button class="hdepth-btn" data-depth="0" title="Unbounded, still capped at 90 boxes">∞</button>',
     "</div>",
     '<div class="hview-toggle" id="hext">',
@@ -7191,6 +7227,7 @@ function M.render(ir, findings, opts)
     -- positioned ancestor that never moves.
     '<div id="hgraph-outer">',
     '<div class="hrootslider" id="hrootslider" title="Hide root levels — every node at that depth becomes its own root">',
+    '<span class="hrootslider-label">Levels</span>',
     '<button class="hroot-btn" id="hrootplus" title="Hide one more root level">+</button>',
     '<input type="range" id="hrootrange" min="0" max="0" value="0" step="1">',
     '<button class="hroot-btn" id="hrootminus" title="Show one more root level">−</button>',
