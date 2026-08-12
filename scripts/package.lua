@@ -213,9 +213,28 @@ local function staged_name(p)
   if doc then
     return doc
   end
-  local lib = p:match(".*lib%.nvim/lua/(lib/nvim/.+)$")
+  -- Both sub-namespaces the `lib.nvim` checkout ships live under the same
+  -- `lua/lib/` root -- `lua/lib/nvim/...` and `lua/lib/lua/...` are
+  -- siblings, not nested. `runtime-analysis.telemetry` requires
+  -- `lib.nvim.autocmd`, which requires `lib.lua.lazy` (a pure-Lua utility
+  -- with nothing Neovim-specific about it) -- missing the second branch
+  -- here meant that module was measured by the manifest but never had
+  -- anywhere to stage to, silently dropping `runtime-analysis.telemetry`
+  -- out of the bundle even when its own require chain fully resolved.
+  local lib = p:match(".*lib%.nvim/lua/(lib/nvim/.+)$") or p:match(".*lib%.nvim/lua/(lib/lua/.+)$")
   if lib then
     return lib
+  end
+  -- `runtime-analysis.nvim`'s own checkout, mirroring the pattern above:
+  -- `bundle_manifest.lua`'s `bucket()` now recognises `runtime-analysis.*`
+  -- names as their own group, but recognising them is not staging them --
+  -- without this branch every such path fell through to `nil` and the
+  -- build would have died with "cannot place ... in the staging tree" the
+  -- first time the manifest actually included one, rather than silently
+  -- dropping the module the way the *previous*, still-incomplete fix did.
+  local ra = p:match(".*runtime%-analysis%.nvim/lua/(runtime%-analysis/.+)$")
+  if ra then
+    return ra
   end
   local sa = p:match(".*/(standalone/[^/]+%.lua)$") or p:match("^(standalone/[^/]+%.lua)$")
   if sa then

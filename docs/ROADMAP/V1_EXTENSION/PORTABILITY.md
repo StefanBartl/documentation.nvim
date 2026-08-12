@@ -904,6 +904,55 @@ runner is now proven, not assumed — every command above ran in a fresh
 shell with nothing pre-installed but what a plain distro image and a
 `curl`/`git clone` would already give a CI job.
 
+### Step 7 — `--api=telemetry` against real data, finished this time (2026-08-12)
+
+Step 5 recorded the trace and stopped: `bucket()` widened would fix the
+*transitive* half of `runtime-analysis.telemetry`'s chain
+(`lib.nvim.autocmd` -> `lib.lua.lazy`), and named that as a follow-up
+rather than guessing at the rest. Doing that follow-up found it was only
+half the fix.
+
+**`bucket()`'s `^lib%.` branch (added) does exactly what it says — makes
+`lib.lua.lazy`/`lib.lua.yaml` visible to the packager.** `staged_name()`
+needed a matching branch too (`lib/lua/...`, a sibling of the already-handled
+`lib/nvim/...` under the same `lib.nvim` checkout), or a manifest that
+correctly *measured* the dependency still had nowhere to *stage* it — the
+same "recognised but not placed" gap the whole `staged_name()` function
+exists to prevent for its other three cases. Verified via `strings
+build/docmap.exe`: 19 hits for the module's own identifiers before either
+fix, none of them the module's actual source, only this tree's own doc
+comments *mentioning* `runtime-analysis.telemetry` by name — the tell.
+
+**And even with both of those fixed, `--api=telemetry` still answered
+`"no data"` — because `bucket()` never recognised `runtime-analysis.*`
+itself.** `^documentation`, `^lib%.`, `dkjson`: three buckets, and
+`runtime-analysis.telemetry`/`runtime-analysis.loaded` matched none of
+them. Measured (`package.loaded` sees them, real requires resolve them at
+build time) but never bucketed, so never staged, so `pcall(require,
+"runtime-analysis.telemetry")` inside the *compiled* binary failed exactly
+the way `telemetry_join.lua`'s own soft-dependency handling is designed to
+absorb silently — indistinguishable from "not installed" without probing
+the binary directly. A fourth bucket, `runtime_analysis`, plus the matching
+`staged_name()` branch for the `runtime-analysis.nvim` checkout's own
+`lua/runtime-analysis/...` tree, closed it.
+
+**Verified against this machine's own real, previously-recorded 63 KB of
+telemetry** (`documentation.nvim`'s own self-instrumentation,
+`$TEMP/nvim/runtime-analysis.nvim/cache/telemetry/documentation.nvim.json`):
+rebuilt with the sibling-checkout heuristic already in `ensure_soft`
+finding `../runtime-analysis.nvim` with no env var needed locally, then
+
+```
+docmap.exe <root> --api=telemetry
+```
+
+against `documentation.nvim`'s own tree now answers `"available":true`
+with real per-function call counts, where every build before this one —
+including the one Step 5 called done — answered `"available":false,
+"reason":"no data"` against the same real data sitting on the same disk.
+`--check` and the function-count parity (213/462) both re-confirmed
+unchanged, so this closed a real gap without moving anything else.
+
 ## Why this is not scheduled
 
 Because the first question is already answered, and it is the one people
