@@ -65,6 +65,20 @@ jobs:
         with:
           repository: StefanBartl/lib.nvim
           path: .deps/lib.nvim
+      # runtime-analysis.nvim is soft (ensure_soft in standalone/docmap.lua
+      # degrades to "no data" without it, never fails the build) but its
+      # absence here is still a real fidelity gap, not just a missing
+      # dependency: without it the published binary can never answer
+      # --api=telemetry with real data on *any* machine, no matter what
+      # telemetry that machine has collected -- confirmed by grepping the
+      # first published release for the module's own source (found: 0
+      # hits, where a local build with the checkout present has 1). Same
+      # `.deps/<repo>` path ensure_soft already checks on its own, so no
+      # extra env var is needed alongside this checkout.
+      - uses: actions/checkout@v4
+        with:
+          repository: StefanBartl/runtime-analysis.nvim
+          path: .deps/runtime-analysis.nvim
       # tree-sitter CLI, the same way ci.yml's own `tests` job already
       # gets it for JS/TS/TSX -- not preinstalled on this image.
       - run: npm install -g tree-sitter-cli
@@ -87,6 +101,20 @@ jobs:
         with:
           repository: StefanBartl/lib.nvim
           path: .deps/lib.nvim
+      # runtime-analysis.nvim is soft (ensure_soft in standalone/docmap.lua
+      # degrades to "no data" without it, never fails the build) but its
+      # absence here is still a real fidelity gap, not just a missing
+      # dependency: without it the published binary can never answer
+      # --api=telemetry with real data on *any* machine, no matter what
+      # telemetry that machine has collected -- confirmed by grepping the
+      # first published release for the module's own source (found: 0
+      # hits, where a local build with the checkout present has 1). Same
+      # `.deps/<repo>` path ensure_soft already checks on its own, so no
+      # extra env var is needed alongside this checkout.
+      - uses: actions/checkout@v4
+        with:
+          repository: StefanBartl/runtime-analysis.nvim
+          path: .deps/runtime-analysis.nvim
       # A dedicated MSYS2/MinGW environment rather than whatever happens
       # to already be on this runner's PATH. Found the hard way on a dev
       # machine that also has Git for Windows installed: Lua's own `mingw`
