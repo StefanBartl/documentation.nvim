@@ -538,8 +538,22 @@ li:hover>.marki,tr:hover .marki{opacity:.8}
    that obvious, since the thing worth reading (how many calls, which way) was
    hardest to point at on the thinnest edges. `stroke:transparent` rather than
    `opacity:0`: an `opacity:0` element still paints nothing *and* still takes
-   pointer events, but reads to a future editor as "hidden, delete me". */
-.hedge-hit{fill:none;stroke:transparent;stroke-width:14;cursor:default}
+   pointer events, but reads to a future editor as "hidden, delete me".
+   `pointer-events:stroke` is not optional here — #hsvg itself is
+   `pointer-events:none` (so the HTML boxes stacked on top of the SVG stay
+   clickable through it), and every path inside inherits that unless it
+   opts back in. Missed the first time, and invisible to any test that
+   fires the handler directly instead of a real hit-tested mouse event:
+   `element.dispatchEvent(new MouseEvent(...))` runs the listener
+   regardless of `pointer-events`, since that property only gates the
+   browser's own hit-testing for real input, not a manually dispatched
+   event. `document.elementFromPoint` at a hedge-hit's own screen
+   coordinates returned the background `<div>` underneath, never the SVG
+   at all, until this line existed. `stroke` rather than `auto`: this
+   shape is `fill:none`, so only the stroked band should ever be
+   clickable — `auto` happens to behave the same way here, `stroke` says
+   so without depending on that being true. */
+.hedge-hit{fill:none;stroke:transparent;stroke-width:14;cursor:default;pointer-events:stroke}
 /* Edge readout. `position:fixed` for exactly the reason `.sigpop` is: the
    graph lives in a pannable, zoomable stage, and an absolutely-positioned
    card would ride along with that transform instead of staying by the
