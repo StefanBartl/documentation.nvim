@@ -174,15 +174,47 @@ STATIC_LIBS="$work/static-libs"
 mkdir -p "$STATIC_LIBS"
 cp "$work/lua_tree_sitter.a" "$work/lfs.a" "$STATIC_LIBS/"
 
+# `$work` (from `mktemp -d`) is an *MSYS2-internal* path on Windows --
+# `/tmp/tmp.XXXXX`, rooted at wherever MSYS2's own virtual filesystem
+# lives (`D:\a\_temp\msys64\tmp\...` on this runner). `bash` and the
+# msys2-native tools this script has run so far (gcc, git, curl, cp,
+# mkdir) all understand that transparently. `lua.exe` does not: it is a
+# genuine Windows binary with no msys2 runtime linked in, and reads an
+# environment variable's *value* as plain text -- there is no exec-time
+# argv translation the way there is for a bash-invoked command line, so
+# it sees the literal string `/tmp/tmp.XXXXX/...` and, on Windows,
+# interprets a leading `/` as "root of the current drive": a completely
+# different, nonexistent location. `cygpath -m` converts to the real
+# Windows path with forward slashes (which Windows' own CRT accepts, so
+# no further quoting change is needed downstream).
+#
+# Found the hard way: `LUA_CPATH`, unconverted, produced a `require('lfs')`
+# failure whose own search-path dump showed exactly this split -- default,
+# executable-relative entries resolved to real paths; the one entry built
+# from `$work` did not.
+topath() {
+  if [ -n "$EXE_EXT" ]; then
+    cygpath -m "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+LUAINC_N="$(topath "$LUAINC")"
+LUALIBA_N="$(topath "$LUALIBA")"
+STATIC_LIBS_N="$(topath "$STATIC_LIBS")"
+LUASTATIC_N="$(topath "$work/luastatic.lua")"
+GRAMMARS_N="$(topath "$work/grammars")"
+WORK_N="$(topath "$work")"
+
 cd "$repo"
-LUA_INCDIR="$LUAINC" \
-LUA_LIBA="$LUALIBA" \
-DOCMAP_STATIC_LIBS="$STATIC_LIBS" \
+LUA_INCDIR="$LUAINC_N" \
+LUA_LIBA="$LUALIBA_N" \
+DOCMAP_STATIC_LIBS="$STATIC_LIBS_N" \
 CC=gcc \
-LUASTATIC="$work/luastatic.lua" \
-DOCMAP_TS_DIR="$work/grammars" \
-LUA_CPATH="$work/?.dyn.so;;" \
-LUA_PATH="$work/?.lua;;" \
+LUASTATIC="$LUASTATIC_N" \
+DOCMAP_TS_DIR="$GRAMMARS_N" \
+LUA_CPATH="$WORK_N/?.dyn.so;;" \
+LUA_PATH="$WORK_N/?.lua;;" \
 "$LUABIN" scripts/package.lua --out=build --keep
 # --out must be relative -- scripts/package.lua computes several paths as
 # `cwd .. "/" .. out_dir` unconditionally (PORTABILITY.md, Step 6); staying
