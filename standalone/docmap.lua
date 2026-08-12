@@ -94,9 +94,65 @@ local function ensure(modname, dirname)
   os.exit(1)
 end
 
+---Same three-candidate search as `ensure()`, but soft: does not exit when
+---nothing is found.
+---
+---**Necessary, not sufficient — measured, not assumed.** `telemetry_join.
+---lua`'s own `M.load` already treats "runtime-analysis.nvim is not
+---installed" the same as "installed, but nothing was ever collected" —
+---`available:false, reason:"no data"` either way — so a missing path here
+---reads as a correct-looking answer even when it is not. This call is what
+---lets a real checkout be *found* at all; it does not, on its own, make
+---`--api=telemetry` succeed against real data. Traced against this
+---machine's own real telemetry (63 KB of real collected data,
+---`documentation.nvim`'s own self-instrumentation):
+---`runtime-analysis.telemetry` itself loads, but its own
+---`require("lib.nvim.autocmd")` pulls in `lib.lua.lazy`, a *different*
+---`lib.*` sub-namespace than `lib.nvim.*` — and `scripts/bundle_manifest.
+---lua`'s `bucket()` only recognises `^lib%.nvim`, so that module is never
+---staged into the compiled binary even when the measuring run finds it.
+---A full fix needs `bucket()` widened, plus `RUNTIME_ANALYSIS_NVIM_DIR` set
+---for the *build's* manifest-measuring step, not just at run time — left
+---for a following change rather than guessed at here. Until then this
+---degrades exactly the way an absent checkout always has: honestly, with a
+---stated reason, never a wrong answer.
+---
+---`ensure()` above is the wrong shape for this regardless — `lib.nvim`/
+---`documentation.nvim` are load-bearing and a missing one should stop the
+---build cold; `runtime-analysis.nvim` is optional everywhere else this join
+---already runs, and should degrade the same way here, not fail loudly for a
+---dependency every other caller treats as soft.
+---@param modname string
+---@param dirname string
+local function ensure_soft(modname, dirname)
+  if pcall(require, modname) then
+    return
+  end
+  local candidates = {}
+  local env_dir = os.getenv(dirname:upper():gsub("[.-]", "_") .. "_DIR")
+  if env_dir and env_dir ~= "" then
+    candidates[#candidates + 1] = env_dir
+  end
+  candidates[#candidates + 1] = self_root .. "/.deps/" .. dirname
+  candidates[#candidates + 1] = self_root .. "/../" .. dirname
+  for _, dir in ipairs(candidates) do
+    package.path = dir .. "/lua/?.lua;" .. dir .. "/lua/?/init.lua;" .. package.path
+    if pcall(require, modname) then
+      return
+    end
+  end
+  -- Silent otherwise, on purpose: telemetry_join.lua already reports "no
+  -- data" for this exact case, and that message is correct enough to
+  -- stand alone without a second one only visible on stderr.
+end
+
 package.path = self_root .. "/lua/?.lua;" .. self_root .. "/lua/?/init.lua;" .. package.path
 ensure("lib.nvim.fs.read", "lib.nvim")
 ensure("documentation.core.cli", "documentation.nvim")
+-- One call, not one per module: both `runtime-analysis.telemetry` and
+-- `runtime-analysis.loaded` (loaded/snapshots routes) live in the same
+-- checkout, so putting it on package.path once resolves both.
+ensure_soft("runtime-analysis.telemetry", "runtime-analysis.nvim")
 
 -- What a host asks before trusting this binary with anything else.
 --
