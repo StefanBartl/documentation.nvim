@@ -410,6 +410,22 @@ considered for the same reason and set aside for the same one: it would
 be a new visual pattern with no precedent elsewhere on this page, and
 "looks right" is not verifiable without seeing it.
 
+**Slice 3 — the typographic scale, consolidated (2026-08-12), with the
+visual verification the slice above named as the missing piece.** The
+user watched a real recording of the rendered page and reported the scale
+does not read as a problem visually — nothing jars. Asked directly why
+merge it at all, then: because "does not jar" is not the same claim as
+"is deliberate," and a scale that accreted rather than was designed stays
+a maintenance hazard even when it currently looks fine — the next author
+adding a `12px` next to an existing `12.5px` has no signal either value
+was already close to something. Fifteen values collapsed to ten
+(`9.5/10.5/11.5/12.5/13/14/15/17/19/20px`), each merge moving the
+*less*-used half-pixel value onto the *more*-used one (counted, not
+guessed — `11.5px` at 26 uses absorbed `11px`'s 13, not the other way),
+so the majority of rules render pixel-identical to before and only the
+minority actually shifted. Zebra striping: asked, declined — "passt so
+wie es ist," not pursued.
+
 **Slice 2 — a loading state for the Loaded panel.** Found by actually
 exercising the fetch-backed panels rather than reading their code and
 assuming they matched each other: Telemetry shows `"Loading telemetry…"`
