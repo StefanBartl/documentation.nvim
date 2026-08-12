@@ -99,6 +99,7 @@ local specs = {
   "mcp_spec.lua",
   "checklist_spec.lua",
   "api_spec.lua",
+  "generate_all_spec.lua",
 }
 
 --- Straight to stdout rather than through `print`.
