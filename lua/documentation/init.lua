@@ -254,6 +254,17 @@ M.history = setmetatable({}, {
   end,
 })
 
+--- `generate()` for a *list* of projects, one real headless Neovim
+--- subprocess per project — see editor/generate_all.lua's own header for
+--- why a subprocess and why no usercmd is registered here. Lazily
+--- required: nothing on the single-project generate/check/install path
+--- needs it.
+M.generate_all = setmetatable({}, {
+  __index = function(_, k)
+    return require("documentation.editor.generate_all")[k]
+  end,
+})
+
 M.render = {
   html = function(...)
     return require("documentation.core.render.html")(...)
