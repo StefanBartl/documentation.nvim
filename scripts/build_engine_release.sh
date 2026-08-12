@@ -140,22 +140,23 @@ echo "== 4 grammars via the tree-sitter CLI"
 # already CI-proven for three of the four languages.
 TSC=tree-sitter
 if ! command -v tree-sitter >/dev/null 2>&1; then
-  npm install -g tree-sitter-cli
-  # `npm install -g`'s bin is not reliably already on `PATH` -- true on a
-  # plain Linux runner too, and doubly so inside an MSYS2/MinGW64 shell,
-  # where it left `tree-sitter: command not found` even after a
-  # successful install ("changed 1 package") on the first real Windows
-  # CI run. `npm config get prefix` is the one portable way to ask npm
-  # itself where it put the binary, on every platform this script runs
-  # on, rather than guessing a layout (`/usr/local/bin`, `%APPDATA%\npm`,
-  # `/mingw64/bin`) that differs by platform and by which Node this is.
+  # Not `npm install -g`: that install's own PATH visibility turned out to
+  # be a moving target rather than a portable fact. It "just worked" on a
+  # plain Linux runner (ubuntu-latest happens to put its global bin
+  # directory on PATH by default), then needed `npm config get prefix` to
+  # find inside an MSYS2/MinGW64 shell, and even that broke on the next
+  # real run: this environment's own npm reports a `prefix`
+  # (`C:\npm\prefix`) that the installed binary was not actually under --
+  # apparently a default baked into the `mingw-w64-x86_64-nodejs`
+  # package's own npmrc, not the real install location.
   #
-  # The `bin/` component differs by platform too, confirmed rather than
-  # assumed for Windows (`npm config get prefix` there is itself the
-  # directory holding the `.cmd` wrappers, no subdirectory); Linux/macOS
-  # npm installs, by long-standing convention, into `<prefix>/bin/`.
-  TSC="$(npm config get prefix)/bin/tree-sitter"
-  [ -n "$EXE_EXT" ] && TSC="$(npm config get prefix)/tree-sitter.cmd"
+  # A local, `--prefix`-pinned install sidesteps all three failures by
+  # construction: the destination is a path this script chose and already
+  # knows, not one to rediscover afterward by asking npm, reading `PATH`,
+  # or guessing a per-platform layout.
+  npm install --prefix "$work/npm-local" tree-sitter-cli
+  TSC="$work/npm-local/node_modules/.bin/tree-sitter"
+  [ -n "$EXE_EXT" ] && TSC="$work/npm-local/node_modules/.bin/tree-sitter.cmd"
 fi
 mkdir -p "$work/grammars"
 GSUF="so"
