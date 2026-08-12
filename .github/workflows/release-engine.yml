@@ -54,6 +54,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # lib.nvim is a runtime dependency the bundle actually needs staged
+      # -- same checkout ci.yml's own `tests`/`map`/`standalone` jobs
+      # already use, at the same `.deps/lib.nvim` path
+      # `standalone/docmap.lua` looks for on its own. Missing on the
+      # first real run here (worked locally only because this developer's
+      # own machine happens to have lib.nvim checked out as a sibling
+      # directory, which a fresh CI checkout has no equivalent of).
+      - uses: actions/checkout@v4
+        with:
+          repository: StefanBartl/lib.nvim
+          path: .deps/lib.nvim
       # tree-sitter CLI, the same way ci.yml's own `tests` job already
       # gets it for JS/TS/TSX -- not preinstalled on this image.
       - run: npm install -g tree-sitter-cli
@@ -72,6 +83,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: StefanBartl/lib.nvim
+          path: .deps/lib.nvim
       # A dedicated MSYS2/MinGW environment rather than whatever happens
       # to already be on this runner's PATH. Found the hard way on a dev
       # machine that also has Git for Windows installed: Lua's own `mingw`
