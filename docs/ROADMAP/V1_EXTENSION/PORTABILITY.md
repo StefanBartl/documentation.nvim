@@ -816,6 +816,94 @@ write a same-named binary into) and the rocks installed, it runs for real
 and passes, including the non-host-dependent-number-formatting check that
 gate exists for.
 
+### Step 6 — the packaging script itself has three POSIX-path bugs, found by building on Linux (2026-08-12)
+
+Everything above proved the *pipeline* (tree-sitter, the binding, the
+Windows toolchain). This step proved something narrower and previously
+untested: does `scripts/package.lua` itself run correctly on a non-Windows
+host? It had never been run under anything but PUC Lua on Windows before
+today. Under WSL/Arch — the same instance Step 3's Linux verification used
+— it failed three times, each time on a real, previously-latent bug rather
+than a environment problem, and each time in the same shape: a check meant
+to recognise "this path is already absolute" that only recognised the
+Windows spelling of absolute.
+
+**`mkdirp`'s leading `/` disappears inside `gmatch("[^/]+")`.** A POSIX
+absolute path's first character is a separator to that pattern, not
+content, so `mkdirp("/tmp/x")` built `tmp`, then `tmp/x` — real
+directories, just relative ones, created under whatever the current
+directory happened to be rather than under `/`. Silent on Windows for as
+long as this script has existed, because every path there carries a drive
+letter and the loop's *first* match is never empty. Surfaced as
+`package: cannot write /tmp/docmap-build/stage/documentation/init.lua` —
+misleading on its face, since the write failed only because the directory
+silently existed at the wrong path, not because writing failed outright.
+
+**The manifest-to-staged-path mapping had the same blind spot for a rock
+installed outside the tree.** `dkjson` reached via a plain
+`LUA_PATH=/tmp/?.lua` entry (this environment's stand-in for a real
+LuaRocks install) is reported by `bundle_manifest.lua` as an absolute
+POSIX path. The code that decides whether a manifest path is already
+absolute checked only `f:match("^%a:")` — true for `C:\...`, false for
+`/tmp/...` — so the POSIX path was treated as repo-relative and prefixed
+with the repo root a second time, producing `scripts/..//tmp/dkjson.lua`
+and a read failure. On Windows this never had a chance to trigger: a
+LuaRocks-installed rock's path always carries a drive letter there too.
+
+**`stage_abs` had the identical check** for the *output* directory
+(`--out=`), which would have double-prefixed an absolute `--out=/tmp/...`
+value with `cwd` the same way, one step later in the build. Found by
+inspection once the pattern was recognised the second time, fixed before
+it could fail a third time separately.
+
+**All three fixed by extending each check from "starts with a drive
+letter" to "starts with a drive letter, or starts with `/`"** — see the
+three sites in `scripts/package.lua`. None of the fixes changes Windows
+behaviour: a Windows path never starts with `/`, so the added branch is
+simply never taken there. `git blame` will show these as old code — they
+are as old as the script itself, latent since Step 2, waiting for the
+first `--out=<absolute POSIX path>` this repository had never actually
+tried.
+
+**A fourth issue was environment, not a bug**: `copy()`'s plain
+`io.open`/`io.write` does not carry an executable bit through, and gcc's
+own `+x` on the file it produced did not survive being read back from a
+Windows drive mounted into WSL (`/mnt/e`, DrvFs) — the copy landed as
+`rw-r--r--` and the verify run failed with `Permission denied` until a
+manual `chmod +x`. A real GitHub Actions `ubuntu-22.04` runner has no such
+mount in the path — the whole runner is native Linux filesystem — so this
+would not reproduce there. Fixed anyway, cheaply: an explicit
+`chmod +x` on the copied binary, skipped on Windows, a no-op on a
+filesystem that already tracked the bit correctly.
+
+**With all four applied, the full-fidelity engine was built entirely
+under WSL/Arch, end to end, from a clean checkout of this repository**:
+PUC Lua 5.4.8 from `lua.org` source (`make linux`; Arch's own `lua54`
+package ships no static `.a`), `lua-tree-sitter` and `lfs` compiled to
+static archives with plain `gcc` (no LuaRocks needed at all — the
+rockspec's own `sources` list is the accurate file list, used directly),
+all four grammars via `tree-sitter build` (the same CLI `.github/workflows/ci.yml`'s
+own `tests` job already uses for JS/TS/TSX — simpler than a manual `gcc`
+invocation and needs no separate libtree-sitter, since a grammar's `.so`
+depends only on `tree_sitter/parser.h`), `dkjson` fetched as the single
+pure-Lua file it is.
+
+**The result matched the Windows one exactly**: `213/462 functions found
+by name in TESTS` — the identical count Step 5 reported for the Windows
+build, not merely a similar one. And `--check` against this repository's
+own committed `docs/map` reported **`Module map is up to date`** — byte
+identical, built by a different compiler on a different OS from a
+different Lua source tree, which is the strongest evidence this pipeline
+does not have a hidden Windows-only assumption left in it anywhere that
+matters to the output.
+
+**This closes the remaining precondition for Task 7's real CI staging**
+(`docs/HANDOVER.md` in `docmap-desktop`, "Bundling der Engine"): the
+recipe that would need to run inside a `ubuntu-22.04` GitHub Actions
+runner is now proven, not assumed — every command above ran in a fresh
+shell with nothing pre-installed but what a plain distro image and a
+`curl`/`git clone` would already give a CI job.
+
 ## Why this is not scheduled
 
 Because the first question is already answered, and it is the one people
