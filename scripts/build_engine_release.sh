@@ -102,14 +102,28 @@ ar rcs "$work/lfs.a" "$work/lfs.o"
 # `require("dkjson")` to work *before* any bundling happens, independent of
 # the static archives above (which are only for what luastatic links INTO
 # the final binary). A dynamic .so/.dll and a plain .lua file cover that.
+#
+# Both dynamic builds link against `$LUALIBA` explicitly, which a shared
+# object calling `lua_pushstring` et al. does not obviously need — and
+# does not, on Linux, where the host `lua` binary was built with `-Wl,-E`
+# (visible in its own build log as `SYSLIBS="-Wl,-E -ldl"`) specifically
+# so a lazily-`dlopen`ed module can resolve those symbols against the
+# *process*, not against anything it was linked against. Windows has no
+# such thing: a DLL's imports are resolved at link time, not at load
+# time, so without this a Windows build fails with "undefined reference
+# to `lua_pushstring`" — found by the first real CI run, not predicted,
+# since local testing never reached this step before hitting an unrelated
+# toolchain collision (see the Windows job's own comment above). Linking
+# it on both platforms is the one branch-free fix: harmless redundancy on
+# Linux, required on Windows.
 echo "== dynamic lfs + dkjson (so the host interpreter running package.lua can require() them)"
-gcc -O2 -fPIC -shared -I"$LUAINC" "$work/luafilesystem/src/lfs.c" -o "$work/lfs.dyn.so"
+gcc -O2 -fPIC -shared -I"$LUAINC" "$work/luafilesystem/src/lfs.c" "$LUALIBA" -o "$work/lfs.dyn.so"
 curl -sL -o "$work/dkjson.lua" https://raw.githubusercontent.com/LuaDist/dkjson/master/dkjson.lua
 
 echo "== dynamic lua_tree_sitter.so (so bundle_manifest.lua's probe run can see the real treesitter closure)"
 (
   cd "$work/lua-tree-sitter"
-  gcc -O2 -fPIC -shared "${LTS_INC[@]}" "${LTS_SRC[@]}" -o "$work/lua_tree_sitter.dyn.so"
+  gcc -O2 -fPIC -shared "${LTS_INC[@]}" "${LTS_SRC[@]}" "$LUALIBA" -o "$work/lua_tree_sitter.dyn.so"
 )
 
 echo "== luastatic (a plain Lua script, not a build target)"
