@@ -57,6 +57,19 @@ local CSS = [[
   --dep:#d99b6a; --call:#b09ada; --fn:#e0b060; --ext:#6fc0b3;
 }
 *{box-sizing:border-box}
+/* Type scale: 9.5 / 10.5 / 11.5 / 12.5 / 13 / 14 / 15 / 17 / 19 / 20px.
+   Ten steps, not the fifteen this file used to declare — measured, not
+   eyeballed: `grep -oE "font-size:[0-9.]+px"` found half-integer pairs
+   less than a pixel apart (`11px`/`11.5px`, `12px`/`12.5px`…) with no
+   distinguishing use — real signal the scale accreted through ordinary
+   editing rather than being designed, exactly as
+   docs/ROADMAP/V1_EXTENSION/IMPLEMENTATION_PLAN.md's Phase 4 named and
+   deliberately deferred pending visual verification. Verified this time
+   by counting which of each pair was already used more: every merge
+   moved the *less*-used value onto the *more*-used one, so the majority
+   of rules — the ones most likely to anchor a reader's sense of the
+   page's rhythm — render pixel-identical to before, and only the
+   minority actually shifted. No rule's *relative* ordering changed. */
 body{margin:0;background:var(--bg);color:var(--ink);
   font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
 header{padding:20px 24px 14px;border-bottom:1px solid var(--line);
@@ -104,10 +117,10 @@ main{grid-template-columns:minmax(300px,1.1fr) minmax(0,1.4fr);gap:0;align-items
   white-space:nowrap}
 .row:hover{background:var(--accent-soft)}
 .row.sel{background:var(--accent-soft);box-shadow:inset 2px 0 0 var(--accent)}
-.tw{width:14px;flex:none;color:var(--muted);font-size:11px;user-select:none}
+.tw{width:14px;flex:none;color:var(--muted);font-size:11.5px;user-select:none}
 .nm{font-family:var(--mono);font-size:13px}
 .k-module .nm{color:var(--mod)} .k-namespace .nm{color:var(--ns)} .k-file .nm{color:var(--file)}
-.sm{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.sm{color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
 .badges{display:flex;gap:4px;flex:none}
 .bd{font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;padding:1px 5px;
   border-radius:4px;border:1px solid var(--line);color:var(--muted)}
@@ -125,14 +138,14 @@ main{grid-template-columns:minmax(300px,1.1fr) minmax(0,1.4fr);gap:0;align-items
 .links a{font-size:12.5px;padding:4px 10px;border:1px solid var(--line);border-radius:6px;
   text-decoration:none;color:var(--accent);background:var(--panel)}
 .links a:hover{border-color:var(--accent)}
-.prose{white-space:pre-wrap;font-size:13.5px;color:var(--ink);
+.prose{white-space:pre-wrap;font-size:13px;color:var(--ink);
   background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:13px 15px;
   margin-bottom:18px;overflow-x:auto}
-.sec{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+.sec{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
   margin:18px 0 7px;font-weight:600}
 .lst{list-style:none;margin:0;padding:0}
 .lst li{font-family:var(--mono);font-size:12.5px;padding:2px 0;color:var(--muted)}
-.empty{color:var(--muted);font-size:13.5px;font-style:italic}
+.empty{color:var(--muted);font-size:13px;font-style:italic}
 .fn{margin-bottom:14px;padding-bottom:12px;border-bottom:1px dashed var(--line)}
 .fn:last-child{border-bottom:0;padding-bottom:0;margin-bottom:0}
 .fn-sig{font-family:var(--mono);font-size:12.5px;color:var(--ink);font-weight:600}
@@ -150,7 +163,7 @@ main{grid-template-columns:minmax(300px,1.1fr) minmax(0,1.4fr);gap:0;align-items
    for why this never touches the Tree tab's detail pane. Same shape as
    `.fn-ex`'s code block, a distinct class since the content is source, not
    an authored `@example`. */
-.fn-snip-label{font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+.fn-snip-label{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;
   color:var(--muted);margin-top:10px}
 .fn-snip-label .bd{text-transform:none;letter-spacing:0;margin-left:6px}
 .fn-snip{font-family:var(--mono);font-size:11.5px;white-space:pre-wrap;background:var(--accent-soft);
@@ -165,7 +178,7 @@ main{grid-template-columns:minmax(300px,1.1fr) minmax(0,1.4fr);gap:0;align-items
   max-height:60vh;overflow-y:auto;background:var(--bg);border:1px solid var(--line);
   border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:12px 14px}
 .sigpop.on{display:block}
-.sigpop .fn-sig{font-size:12px}
+.sigpop .fn-sig{font-size:12.5px}
 /* The trigger. Kept at full opacity for keyboard focus and while its popup
    is open, so tabbing through a list does not chase an invisible control. */
 .sigi{display:inline-block;margin-left:6px;padding:0 4px;border-radius:4px;cursor:help;
@@ -183,7 +196,7 @@ li:hover>.sigi,tr:hover .sigi{opacity:.8}
 .doci:hover,.doci:focus,.doci.on{opacity:1;border-color:var(--accent);outline:none}
 .docn{margin-left:4px;font-weight:600}
 .docref{margin:7px 0;padding-left:9px;border-left:2px solid var(--line)}
-.docref-where{font-family:var(--mono);font-size:11px;color:var(--accent)}
+.docref-where{font-family:var(--mono);font-size:11.5px;color:var(--accent)}
 .docref-where .bd{margin-left:6px}
 .docref-ctx{font-size:11.5px;color:var(--muted);margin-top:2px}
 /* @overload — one block per alternative call shape, indented under the
@@ -194,17 +207,17 @@ li:hover>.sigi,tr:hover .sigi{opacity:.8}
 .fn-overloads{margin:6px 0 0 0;padding-left:10px;border-left:2px solid var(--line)}
 .fn-ov-label{font-size:10.5px;color:var(--muted);text-transform:uppercase;
   letter-spacing:.04em;margin-bottom:2px}
-.fn-ov-sig{font-family:var(--mono);font-size:12px;color:var(--ink)}
+.fn-ov-sig{font-family:var(--mono);font-size:12.5px;color:var(--ink)}
 .fn-ov-raw{font-family:var(--mono);font-size:11.5px;color:var(--muted);font-style:italic}
 code{font-family:var(--mono);font-size:.92em;background:var(--accent-soft);
   padding:1px 4px;border-radius:4px}
 #findings{padding:0 24px 50px}
 #findings table{border-collapse:collapse;width:100%;font-size:12.5px}
 #findings th{text-align:left;padding:6px 9px;border-bottom:1px solid var(--line);
-  color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em}
 #findings td{padding:5px 9px;border-bottom:1px solid var(--line);vertical-align:top}
 #findings td.msg{font-family:var(--mono);font-size:11.5px;word-break:break-word}
-.sev{font-weight:650;text-transform:uppercase;font-size:10px;letter-spacing:.05em}
+.sev{font-weight:650;text-transform:uppercase;font-size:10.5px;letter-spacing:.05em}
 .sev.error{color:var(--error)} .sev.warn{color:var(--warn)} .sev.info{color:var(--info)}
 details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .wrap{overflow-x:auto}
@@ -212,7 +225,7 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 #view-notes h3{margin:26px 0 4px;font-size:13px;font-weight:600;color:var(--ink)}
 #view-notes h3:first-child{margin-top:0}
 #view-notes .nsub,#view-index .nsub,#view-analysis .nsub,#view-features .nsub{
-  font-size:12px;color:var(--muted);margin:0 0 10px}
+  font-size:12.5px;color:var(--muted);margin:0 0 10px}
 #view-notes .ncount,#view-index .ncount{color:var(--muted);font-weight:400;font-size:11.5px;
   margin-left:6px}
 .nlist{list-style:none;margin:0;padding:0}
@@ -225,7 +238,7 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .godi-wrap{position:relative;display:inline-block}
 .godi-tip{display:none;position:absolute;z-index:40;left:0;top:calc(100% + 6px);
   width:min(46ch,80vw);padding:9px 11px;border:1px solid var(--line);border-radius:8px;
-  background:var(--panel);color:var(--ink);font-size:12px;line-height:1.45;
+  background:var(--panel);color:var(--ink);font-size:12.5px;line-height:1.45;
   box-shadow:0 6px 20px rgba(0,0,0,.18)}
 .godi-tip b{color:var(--accent)}
 /* Hover *and* focus: a warning only a mouse can see is not a warning. */
@@ -243,7 +256,7 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .row:focus-visible,.crow:focus-visible,tr.anrow:focus-visible{
   outline:2px solid var(--accent);outline-offset:-2px}
 .antable th.ansort:focus-visible{outline:2px solid var(--accent-soft);outline-offset:-2px}
-.nlist .nwhere{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:8px}
+.nlist .nwhere{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-left:8px}
 .nlist .ntext{font-size:12.5px;color:var(--ink);margin-top:2px}
 /* Unscoped variant: the Analysis panels' empty-state paragraphs
    (`<p class="ntext none">`) and the Features tab both use this outside any
@@ -255,7 +268,7 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .feat-intro{font-size:13px;color:var(--ink);line-height:1.5;margin-bottom:16px}
 .feat-card{border:1px solid var(--line);border-radius:8px;background:var(--panel);
   padding:11px 14px;margin-bottom:8px}
-.feat-name{font-size:13.5px;font-weight:600;color:var(--ink)}
+.feat-name{font-size:13px;font-weight:600;color:var(--ink)}
 .feat-name[data-node]{cursor:pointer;color:var(--accent)}
 .feat-name[data-node]:hover{text-decoration:underline}
 .feat-summary{font-size:12.5px;color:var(--ink);margin-top:4px;line-height:1.45}
@@ -272,12 +285,12 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
    nothing feature-tab-specific needed there. */
 [id^="view-feature-"]{padding:22px 26px 60px}
 .feat-tab-wrap{max-width:760px}
-.feat-tab-theme{font-size:11px;color:var(--muted);text-transform:uppercase;
+.feat-tab-theme{font-size:11.5px;color:var(--muted);text-transform:uppercase;
   letter-spacing:.05em}
 .feat-tab-name{margin:2px 0 0;font-size:19px;font-weight:600;color:var(--ink)}
 .feat-tab-name[data-node]{cursor:pointer;color:var(--accent)}
 .feat-tab-name[data-node]:hover{text-decoration:underline}
-.feat-tab-summary{font-size:13.5px;color:var(--ink);margin-top:6px;line-height:1.5}
+.feat-tab-summary{font-size:13px;color:var(--ink);margin-top:6px;line-height:1.5}
 .feat-tab-body{margin-top:16px;font-size:13px;color:var(--ink);line-height:1.55}
 .feat-tab-body h4,.feat-tab-body h5,.feat-tab-body h6{margin:18px 0 4px;font-weight:600;
   color:var(--ink)}
@@ -305,7 +318,7 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .crow .cmeta{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:1px}
 .hist-approx{color:var(--warn);font-size:11.5px;border:1px solid var(--warn);
   border-radius:5px;padding:5px 8px;margin:0 0 12px}
-.hist-sec{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+.hist-sec{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
   margin:18px 0 7px;font-weight:600}
 .hist-fn{font-family:var(--mono);font-size:12.5px;color:var(--ink);font-weight:600}
 .hist-callers{list-style:none;margin:2px 0 8px;padding:0 0 0 14px}
@@ -316,7 +329,7 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .hist-mods a:hover{border-color:var(--accent);background:var(--accent-soft)}
 .hist-mods span.gone{font-family:var(--mono);font-size:11.5px;padding:2px 7px;
   border-radius:5px;border:1px dashed var(--line);color:var(--muted)}
-.hist-diff{font-family:var(--mono);font-size:11px;white-space:pre;overflow-x:auto;
+.hist-diff{font-family:var(--mono);font-size:11.5px;white-space:pre;overflow-x:auto;
   background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;
   max-height:460px;overflow-y:auto}
 .hist-diff .da{color:var(--file)} .hist-diff .dd{color:var(--error)}
@@ -345,13 +358,13 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .antable th.ansort{cursor:pointer;user-select:none;white-space:nowrap}
 .antable th.ansort:hover{color:var(--ink)}
 .antable th.ansort.active{color:var(--accent)}
-.antable th{text-align:left;font-weight:600;color:var(--muted);font-size:11px;
+.antable th{text-align:left;font-weight:600;color:var(--muted);font-size:11.5px;
   text-transform:uppercase;letter-spacing:.03em;padding:4px 8px;border-bottom:1px solid var(--line);
   background:var(--panel);position:sticky;top:0}
 .antable td{padding:5px 8px;border-bottom:1px dashed var(--line);font-family:var(--mono)}
 .anrow{cursor:pointer}
 .anrow:hover td{background:var(--accent-soft)}
-.anflag{color:var(--warn);font-size:11px;border:1px solid var(--warn);
+.anflag{color:var(--warn);font-size:11.5px;border:1px solid var(--warn);
   border-radius:4px;padding:1px 5px;margin-left:6px}
 .anbar{width:120px;height:8px;background:var(--line);border-radius:4px;overflow:hidden}
 .anfill{height:100%;background:var(--accent)}
@@ -365,7 +378,7 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
   font-family:var(--mono);border-bottom:1px solid var(--line);padding-bottom:3px}
 .ixjump{display:flex;flex-wrap:wrap;gap:3px;margin:0 0 6px;position:sticky;top:0;
   background:var(--bg);padding:6px 0;z-index:2}
-.ixjump a{font-family:var(--mono);font-size:12px;padding:2px 7px;border-radius:5px;
+.ixjump a{font-family:var(--mono);font-size:12.5px;padding:2px 7px;border-radius:5px;
   border:1px solid var(--line);color:var(--accent);cursor:pointer;text-decoration:none}
 .ixjump a:hover{border-color:var(--accent);background:var(--accent-soft)}
 .ixlist li{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding:3px 0}
@@ -376,7 +389,7 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 #view-hierarchy{padding:16px 24px 60px}
 .hctl{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
 .hctl .hpath{font-family:var(--mono);font-size:12.5px;color:var(--muted);word-break:break-all}
-.hctl button{padding:4px 9px;font-size:12px}
+.hctl button{padding:4px 9px;font-size:12.5px}
 #hgraph-outer{position:relative}
 #hgraph-wrap{overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
 /* Root-level hide/show slider (Modules view only) — a vertical Google
@@ -423,7 +436,7 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .hnode{position:absolute;box-sizing:border-box;padding:7px 10px;border:1px solid var(--line);
   border-radius:7px;background:var(--panel);cursor:pointer;overflow:hidden}
 .hnode:hover{border-color:var(--accent);z-index:1}
-.hnode .hnm{font-family:var(--mono);font-size:12px;font-weight:600;white-space:nowrap;
+.hnode .hnm{font-family:var(--mono);font-size:12.5px;font-weight:600;white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis}
 .hnode .hsm{font-size:10.5px;color:var(--muted);margin-top:2px;max-height:2.6em;overflow:hidden}
 .hnode.k-module .hnm{color:var(--mod)} .hnode.k-namespace .hnm{color:var(--ns)} .hnode.k-file .hnm{color:var(--file)}
@@ -432,9 +445,9 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .hedge-type{stroke:var(--accent);stroke-dasharray:4 3;opacity:.75}
 .hedge-ext{stroke:var(--ext);stroke-width:2;opacity:.9}
 .hmsg{color:var(--muted);font-size:13px;padding:20px;text-align:center}
-.htrunc{color:var(--warn);font-size:12px;margin-top:8px}
+.htrunc{color:var(--warn);font-size:12.5px;margin-top:8px}
 .hview-toggle{display:flex;gap:0;border:1px solid var(--line);border-radius:7px;overflow:hidden}
-.hview-toggle button{border:none;border-radius:0;padding:4px 10px;font-size:12px}
+.hview-toggle button{border:none;border-radius:0;padding:4px 10px;font-size:12.5px}
 .hview-toggle button+button{border-left:1px solid var(--line)}
 .hview-toggle button.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
 /* Marks a panel/mode that only does anything when a soft-dependency plugin
@@ -444,11 +457,11 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
    badge is the primary cue (readable even without color); the tint is a
    second one for a quick scan of the tab bar. */
 .hview-toggle button.plugin-gated{color:var(--ext)}
-.hview-toggle button.plugin-gated::after{content:"\1F50C";font-size:9px;margin-left:3px;opacity:.85}
+.hview-toggle button.plugin-gated::after{content:"\1F50C";font-size:9.5px;margin-left:3px;opacity:.85}
 .hview-toggle button.plugin-gated.active{background:var(--ext);color:var(--bg);font-weight:600}
 .hnode.t-class .hnm{color:var(--mod)}
 .hnode.t-alias .hnm{color:var(--ns)}
-.hnode .hkind{font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-top:1px}
+.hnode .hkind{font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-top:1px}
 /* --- Stats grid + module-scope symbols in the detail pane --------------- */
 .stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:7px;
   margin-bottom:6px}
@@ -466,7 +479,7 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 /* --- Quicks ------------------------------------------------------------- */
 .qk-wrap{padding:18px 24px;max-width:1100px}
 .qk-col{margin-bottom:22px}
-.qk-h{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+.qk-h{font-size:12.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
   margin-bottom:9px}
 .qk{border:1px solid var(--line);border-left-width:3px;border-radius:8px;background:var(--panel);
   padding:11px 14px;margin-bottom:8px}
@@ -501,7 +514,7 @@ li:hover>.marki,tr:hover .marki{opacity:.8}
 .cmp-card{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:12px 14px}
 .cmp-card-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
   margin-bottom:6px}
-.cmp-where{font-family:var(--mono);font-size:11px;color:var(--accent)}
+.cmp-where{font-family:var(--mono);font-size:11.5px;color:var(--accent)}
 .cmp-drop{border:none;background:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0 3px}
 .cmp-drop:hover{color:var(--error)}
 .cmptable{width:100%;border-collapse:collapse;font-size:12.5px}
@@ -641,7 +654,7 @@ li:hover>.marki,tr:hover .marki{opacity:.8}
 #ctx .ci.disabled:hover{background:none;color:var(--muted)}
 #ctx .ci .hint{margin-left:auto;font-size:10.5px;color:var(--muted)}
 #ctx .sep{height:1px;background:var(--line);margin:4px 6px}
-#ctx .hdr{padding:5px 10px 6px;font-family:var(--mono);font-size:11px;color:var(--muted);
+#ctx .hdr{padding:5px 10px 6px;font-family:var(--mono);font-size:11.5px;color:var(--muted);
   max-width:280px;overflow:hidden;text-overflow:ellipsis}
 ]]
 
