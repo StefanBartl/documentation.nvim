@@ -42,7 +42,16 @@ on:
 
 jobs:
   linux:
-    runs-on: ubuntu-22.04
+    # Not ubuntu-22.04, tried first for no better reason than matching
+    # docmap-desktop's own release.yml -- found by the first real CI run:
+    # `npm install -g tree-sitter-cli`'s published binary needs
+    # GLIBC_2.39, newer than 22.04 ships. `ci.yml`'s `tests` job already
+    # runs the identical install on `ubuntu-latest` successfully; this
+    # build has no reason to pin an older image the way a GUI-facing
+    # release build might (webkit2gtk compatibility, say) -- it produces
+    # a headless binary and grammars, nothing that cares which Ubuntu
+    # built it.
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       # tree-sitter CLI, the same way ci.yml's own `tests` job already
