@@ -221,13 +221,43 @@ end
 ---Which bucket a loaded module name belongs to, or nil to ignore it (the
 ---standard library, and anything else the host happened to preload).
 ---@param name string
----@return "project"|"lib"|"rock"|nil
+---@return "project"|"lib"|"runtime_analysis"|"rock"|nil
 local function bucket(name)
   if name:match("^documentation") or name:match("^standalone") then
     return "project"
   end
-  if name:match("^lib%.nvim") then
+  -- `lib.nvim` and `lib.lua` are both sub-namespaces the same `lib.nvim`
+  -- checkout ships (siblings under `lua/lib/`, not one nested in the
+  -- other). Missing `lib.lua` here meant `runtime-analysis.telemetry`'s
+  -- own `lib.nvim.autocmd` -> `lib.lua.lazy` chain was invisible to the
+  -- packager even when this probe run resolved it live: measured
+  -- (`package.loaded`) but never bucketed, so never staged, so never in
+  -- the bundle -- a compiled binary that silently answered `/api/
+  -- telemetry` with "no data" on a machine that had real telemetry to
+  -- read. `^lib%.` rather than listing both explicitly: any further
+  -- sub-namespace this checkout adds needs no third branch here.
+  if name:match("^lib%.") then
     return "lib"
+  end
+  -- `runtime-analysis.nvim` itself -- a separate bucket from `lib`, not
+  -- folded into it, because it is a genuinely different kind of
+  -- dependency: `lib.nvim` is load-bearing (Step 1's `ensure()`),
+  -- `runtime-analysis.nvim` is soft (`ensure_soft()`, degrades to "no
+  -- data" rather than failing the build). Adding `lib.lua` above fixed
+  -- the *transitive* half of the chain
+  -- (`runtime-analysis.telemetry` -> `lib.nvim.autocmd` -> `lib.lua.lazy`)
+  -- without fixing this: `runtime-analysis.telemetry` and
+  -- `runtime-analysis.loaded` themselves matched no bucket at all, so
+  -- `require("runtime-analysis.telemetry")` still failed inside the
+  -- compiled binary even after `lib.lua.lazy` was staged correctly --
+  -- `pcall`-swallowed by `telemetry_join.lua`'s own soft-dependency
+  -- handling, indistinguishable from "no data" without probing the
+  -- binary directly (`strings build/docmap.exe` found this tree's own
+  -- doc comments *mentioning* `runtime-analysis.telemetry` by name, and
+  -- none of that module's actual source — the tell that it was measured
+  -- and quietly dropped, not merely unreached).
+  if name:match("^runtime%-analysis") then
+    return "runtime_analysis"
   end
   if name == "dkjson" then
     return "rock"
@@ -239,7 +269,7 @@ end
 -- problem, not a file to hand the packager.
 local C_MODULES = { "lfs", "lua_tree_sitter" }
 
-local groups = { project = {}, lib = {}, rock = {} }
+local groups = { project = {}, lib = {}, runtime_analysis = {}, rock = {} }
 local unresolved = {}
 
 for name in pairs(package.loaded) do
@@ -300,7 +330,7 @@ if not package.loaded.lua_tree_sitter then
 end
 
 if not report then
-  for _, key in ipairs({ "project", "lib", "rock" }) do
+  for _, key in ipairs({ "project", "lib", "runtime_analysis", "rock" }) do
     for _, entry in ipairs(groups[key]) do
       print(entry.path)
     end
@@ -319,6 +349,10 @@ end
 print(("-- standalone bundle manifest for %s\n"):format(root))
 section("project", groups.project)
 section("lib.nvim (only what is really loaded)", groups.lib)
+section(
+  "runtime-analysis.nvim (soft dependency, only what is really loaded)",
+  groups.runtime_analysis
+)
 section("pure-Lua rocks", groups.rock)
 
 print(
