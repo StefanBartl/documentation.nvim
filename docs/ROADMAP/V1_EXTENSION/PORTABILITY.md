@@ -768,6 +768,54 @@ runs the `--api=` mode too, or a binary built from the first two probes
 alone would die with `module not found` on its first Telemetry request from
 a real host.
 
+### Step 5 — the full toolchain exists on Windows too, found rather than assumed (2026-08-12)
+
+The blocker for shipping any of the above was never the code — it was that
+`C:\tools\docmap.exe` predated `--api=` entirely, and rebuilding it needed a
+PUC Lua 5.4 toolchain nobody had confirmed was on this machine. It was:
+`C:\Program Files (x86)\Lua\5.4\src\lua.exe` (5.4.8), `gcc` via mingw64, and
+LuaRocks already installed, just not configured to see that interpreter.
+`luafilesystem`, `dkjson` and `luastatic` installed clean once pointed at
+it — the packaging story for the parser-less half was never actually
+blocked, only unconfigured.
+
+**`lua-tree-sitter` needed the same two fixes already diagnosed on Linux
+(the section above, 2026-08-11) — and, measured rather than assumed, they
+were exactly enough on Windows too.** A `--recurse-submodules` clone
+supplies the vendored ICU headers the published rock omits; adding
+`tree-sitter/lib/src` to the rockspec's `incdirs` fixes the second. `luarocks
+make` against the patched rockspec from that clone built and installed
+clean, and `standalone/check_treesitter.lua` against a real
+`lua_grammar.dll` passed every stage — the same fixture, the same
+pass/fail shape the Linux run already established.
+
+**The rebuilt binary is byte-identical to the committed map** (`--check`
+with matching `--repo-url`/`--branch`) and has real function-level data —
+213/462 functions found by name, versus 0 for a parser-less build — so this
+is not a downgrade from the binary it replaced, it is the same fidelity
+plus a working `--api=`. `--capabilities`, `checklist`, `commits` and
+`commit/<sha>` were each verified against this repository's own real
+data (its own commit history, its own checklist ledger), not a fixture.
+
+**Telemetry specifically stayed a documented "no data," not a lie or a
+crash** — see `ensure_soft`'s own doc comment in `standalone/docmap.lua`
+for the full trace: `runtime-analysis.telemetry` needs
+`lib.nvim.autocmd`, which needs `lib.lua.lazy`, a `lib.*` sub-namespace
+`bundle_manifest.lua`'s `bucket()` does not recognise (`^lib%.nvim` only).
+Reading that data from a compiled standalone binary is therefore still
+open — a real, scoped follow-up, not solved today — while everything that
+does not depend on `runtime-analysis.nvim` now works end to end.
+
+**A side effect worth recording on its own:** `scripts/ci.lua`'s
+`standalone` gate had been *skipped* on this machine for the entire rest
+of this work — "no PUC Lua on PATH with lfs + dkjson" — meaning every
+commit in Steps 3 and 4 above went in without that gate ever actually
+running here. With `lua5.4.exe` now placed on `PATH` (a copy in
+`C:\tools`, since the real install lives somewhere `luarocks`/`gcc` cannot
+write a same-named binary into) and the rocks installed, it runs for real
+and passes, including the non-host-dependent-number-formatting check that
+gate exists for.
+
 ## Why this is not scheduled
 
 Because the first question is already answered, and it is the one people
