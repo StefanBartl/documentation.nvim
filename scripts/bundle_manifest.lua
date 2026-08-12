@@ -119,8 +119,26 @@ local LANG_FIXTURES = {
   ["a.tsx"] = "/** A box. */\nexport function Box(p: { n: number }) {\n  return <div>{p.n}</div>;\n}\n",
 }
 
+-- `os.execute(('mkdir "%s"')...)` was here and looked platform-neutral
+-- because `package.config:sub(1,1)` picked the right separator — but the
+-- separator was never the problem. cmd.exe's `mkdir` creates every missing
+-- parent directory; POSIX `mkdir` creates exactly one and errors on the
+-- rest, so this silently only ever worked on Windows. Found running this
+-- script under WSL for the first time: `.deps/bundle-manifest-langs/src`
+-- has two levels below `.deps/`, and plain `mkdir` refused both.
+-- `package.lua`'s own `mkdirp` (line ~90) already solves this the portable
+-- way — one `lfs.mkdir` per path component — duplicated here rather than
+-- shared, since these are two independent scripts with no common module
+-- to hold it.
+local lfs = require("lfs")
 local langs_root = repo .. "/.deps/bundle-manifest-langs"
-os.execute(('mkdir "%s"'):format((langs_root .. "/src"):gsub("/", package.config:sub(1, 1))))
+local acc = nil
+for part in (langs_root .. "/src"):gmatch("[^/]+") do
+  acc = acc and (acc .. "/" .. part) or part
+  if not acc:match("^%a:$") then
+    lfs.mkdir(acc)
+  end
+end
 for name, body in pairs(LANG_FIXTURES) do
   local fd = io.open(langs_root .. "/src/" .. name, "w")
   if fd then

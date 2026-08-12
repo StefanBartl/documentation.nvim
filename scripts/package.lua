@@ -88,9 +88,20 @@ end
 
 ---@param path string
 local function mkdirp(path)
-  local acc = nil
+  -- A POSIX absolute path's leading "/" is a separator to `gmatch`, not
+  -- content, so the loop below never sees it and `acc` starts from the
+  -- first *component* instead: `mkdirp("/tmp/x")` built "tmp", then
+  -- "tmp/x" — real directories, just relative ones, created under
+  -- whatever the current directory happened to be instead of under `/`.
+  -- Silent on Windows for as long as this script has existed, because
+  -- every path there carries a drive letter and never starts with `/`.
+  -- Surfaced the first time `--out` was ever handed an absolute Unix path
+  -- (`package: cannot write .../stage/documentation/init.lua` — every
+  -- parent directory silently existed, just not at the path being
+  -- written to).
+  local acc = path:sub(1, 1) == "/" and "/" or nil
   for part in path:gmatch("[^/]+") do
-    acc = acc and (acc .. "/" .. part) or part
+    acc = acc and (acc .. (acc:sub(-1) == "/" and "" or "/") .. part) or part
     -- A bare drive letter ("C:") is not a directory to create.
     if not acc:match("^%a:$") then
       lfs.mkdir(acc)
@@ -227,7 +238,12 @@ for _, f in ipairs(files) do
   if not rel then
     die("cannot place " .. f .. " in the staging tree")
   end
-  local abs = f:match("^%a:") and f or (repo .. "/" .. f)
+  -- Same recognition gap `mkdirp` had: a POSIX absolute path (`/tmp/…`, a
+  -- rock installed outside the tree on a plain Unix LUA_PATH entry) matches
+  -- neither "already absolute" check below without this, so it was treated
+  -- as repo-relative and prefixed with `repo .. "/"` — silent on Windows,
+  -- where every such rock path already carried a drive letter.
+  local abs = (f:match("^%a:") or f:sub(1, 1) == "/") and f or (repo .. "/" .. f)
   copy(abs, stage .. "/" .. rel)
   staged[#staged + 1] = rel
 end
@@ -269,7 +285,10 @@ print(("   %s"):format(table.concat(libs, ", ")))
 
 print("== luastatic")
 local cwd = lfs.currentdir():gsub("\\", "/")
-local stage_abs = stage:match("^%a:") and stage or (cwd .. "/" .. stage)
+-- Same POSIX-absolute-path recognition gap as `mkdirp` and the manifest
+-- path mapping above: `--out=/tmp/…` is already absolute, and without the
+-- `sub(1,1) == "/"` check this would double-prefix it with `cwd`.
+local stage_abs = (stage:match("^%a:") or stage:sub(1, 1) == "/") and stage or (cwd .. "/" .. stage)
 lfs.chdir(stage_abs)
 
 -- luastatic's own link step is skipped on purpose (workaround 3): it is only
@@ -323,6 +342,15 @@ bin:close()
 
 copy(stage_abs .. "/" .. exe, cwd .. "/" .. out_dir .. "/" .. exe)
 lfs.chdir(cwd)
+-- `copy()` is plain `io.open`/`io.write`, which does not carry an
+-- executable bit through even on a filesystem that has one. gcc already
+-- set it on the file this copied *from*; belt-and-braces here rather than
+-- assumed, since a filesystem that does not track the bit at all (found:
+-- a Windows drive mounted into WSL) makes this a silent no-op rather than
+-- an error either way.
+if not WINDOWS then
+  os.execute(cmdline({ "chmod", "+x", quoted(cwd .. "/" .. out_dir .. "/" .. exe) }))
+end
 print(("   %s/%s (%.1f MB)"):format(out_dir, exe, bytes / 1024 / 1024))
 
 -- ------------------------------------------------------------------ verify
