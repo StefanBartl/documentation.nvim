@@ -64,63 +64,60 @@ local M = {}
 ---@field on_progress fun(index: integer, total: integer, project: Documentation.GenerateAll.Project)? Called just before each project starts.
 ---@field on_done fun(results: Documentation.GenerateAll.Result[])? Called once, after every project has finished.
 
----Build the `-c` argument for one project's headless `generate()` call.
+---documentation.nvim's own repo root, resolved once. `debug.getinfo`
+---rather than `vim.uv.cwd()` or a caller-supplied path: this file's own
+---location on disk is the one thing that is always right regardless of
+---what directory the calling Neovim happened to start in, or which
+---consuming plugin's config loaded it from where.
 ---
----An inline `-c "lua …"` string rather than a bundled script file: the
----whole call is three lines, and inlining it means this feature needs no
----companion file shipped alongside the plugin, found via some
----`debug.getinfo` self-location trick, for a consuming config's `nvim
------headless` to `luafile`. `%q` is Lua's own quoting for exactly this —
----a string literal safe against quotes, backslashes and newlines in a
----path — so no manual escaping is needed for `root`/`title` however odd
----a path this runs against.
----
----`vim.cmd(...)` rather than `os.exit(...)`: `generate()` runs inside a
----*real* headless Neovim (not a `-l` bare-Lua runner, see `M.run`'s own
----reasoning for why that matters), and quit commands are the normal way
----to end such a session; `os.exit` would skip Neovim's own teardown.
----
----**The branch between `qa!` and `cquit!` is not decoration — found by
----running the failure path for real, not assumed.** The first version
----always called `qa!`, reasoning that the `pcall` around `generate()`
----already turned a scan failure into a caught, reported error rather
----than an uncaught one. True, and irrelevant: `qa!` exits `0`
----unconditionally, so `generate_one`'s own `res.code ~= 0` check —
----the only way a failure is supposed to reach `on_done`'s `ok = false`
----— never fired. A deliberately broken project (a root with no `lua/`
----to scan) reported `ok = true` with the real error sitting unread in
----`stderr`. `:cquit!` (`:cq`) is Vim's own "quit and tell the calling
----process this failed" — a real non-zero exit, still through Neovim's
----normal quit path rather than `os.exit`'s abrupt one.
----@param project Documentation.GenerateAll.Project
+---**Load-bearing, not cosmetic — found in CI, not predicted.** The first
+---version of this module spawned an inline `-c "lua require('documentation')…"`
+---string with nothing to put `documentation`/`lib.nvim` on the child
+---process's runtimepath. On a developer's own machine that is invisible:
+---their default `nvim --headless` already goes through their real
+---`init.lua` and lazy.nvim, which happens to resolve both anyway. A CI
+---runner's `nvim --headless` (or any consumer's genuinely bare one) has
+---an empty runtimepath by default — `require("documentation")` inside the
+---spawned subprocess had nothing to resolve against, and the failure was
+---silent: `generate()` never ran, no map was written, and the test that
+---caught it only noticed because it checked the file actually existed
+---rather than trusting a zero exit code. See
+---`scripts/generate_one_headless.lua`'s own header for the fix.
 ---@return string
-local function headless_lua_arg(project)
-  return (
-    "lua local ok, err = pcall(require('documentation').generate, "
-    .. "{root=%q, title=%s, luals=true}); "
-    .. "if ok then vim.cmd('qa!') else io.stderr:write(tostring(err)); vim.cmd('cquit!') end"
-  ):format(project.root, project.title and ("%q"):format(project.title) or "nil")
+local function plugin_root()
+  local src = debug.getinfo(1, "S").source:sub(2)
+  return (src:gsub("\\", "/"):match("(.*)/lua/documentation/editor/generate_all%.lua$"))
 end
 
 ---Spawn one project's headless generation.
+---
+---`-l`, not `-c "luafile … " -c "qa"`: `scripts/generate_one_headless.lua`
+---does its own explicit runtimepath setup (mirroring `scripts/gen_map.lua`),
+---so it needs no plugin manager or user config to already be working —
+---`-l` is Neovim's bare Lua-script runner, deliberately skipping both, and
+---that independence is the whole fix this file exists for.
 ---@param project Documentation.GenerateAll.Project
 ---@param on_done fun(result: Documentation.GenerateAll.Result)
 local function generate_one(project, on_done)
-  vim.system(
-    { "nvim", "--headless", "-c", headless_lua_arg(project), "-c", "qa!" },
-    { text = true },
-    function(res)
-      if res.code ~= 0 then
-        on_done({
-          project = project,
-          ok = false,
-          err = (res.stderr and res.stderr ~= "" and res.stderr) or ("exit code " .. res.code),
-        })
-        return
-      end
-      on_done({ project = project, ok = true })
+  local script = plugin_root() .. "/scripts/generate_one_headless.lua"
+  vim.system({ "nvim", "--headless", "-l", script }, {
+    text = true,
+    env = {
+      DOCMAP_GEN_PLUGIN_ROOT = plugin_root(),
+      DOCMAP_GEN_ROOT = project.root,
+      DOCMAP_GEN_TITLE = project.title or "",
+    },
+  }, function(res)
+    if res.code ~= 0 then
+      on_done({
+        project = project,
+        ok = false,
+        err = (res.stderr and res.stderr ~= "" and res.stderr) or ("exit code " .. res.code),
+      })
+      return
     end
-  )
+    on_done({ project = project, ok = true })
+  end)
 end
 
 ---Generate every project in `projects`, one real headless Neovim process
