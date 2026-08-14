@@ -99,20 +99,36 @@ comparing after**:
 :RATelemetry snapshot my-plugin pre-refactor
 ```
 
-Do the refactor, let real usage accumulate for a while, then open the
-Telemetry panel, pick `pre-refactor` in the "Snapshot:" select and
-`Latest` in "Compare vs:" — the resulting Δ column is the actual answer to
-"did this change what gets called and how often", not a guess from
-reading the diff. A snapshot taken *after* the fact can only ever be
-compared against another snapshot taken after, which answers "did usage
-change since I remembered to start tracking it" — a weaker, later
-question than the one a `pre-` snapshot answers for free.
+Do the refactor, let real usage accumulate for a while, then either open
+the Telemetry panel and pick `pre-refactor` in the "Snapshot:" select and
+`Latest` in "Compare vs:", or skip the browser entirely and run
+`:RATelemetry snapshot-compare my-plugin pre-refactor post-refactor` —
+the resulting Δ (panel) or `changed`/`new_functions`/`cold_functions`
+listing (command) is the actual answer to "did this change what gets
+called and how often", not a guess from reading the diff. A snapshot
+taken *after* the fact can only ever be compared against another
+snapshot taken after, which answers "did usage change since I remembered
+to start tracking it" — a weaker, later question than the one a `pre-`
+snapshot answers for free.
+
+`snapshot-compare` classifies by the A→B *delta*, not raw totals — worth
+knowing before reading its output: `Data.functions[key].calls` is a
+lifetime counter that only ever grows, so it cannot tell you "silent
+since `pre-refactor`" the way it sounds like it might; `cold_functions`
+there means "had history before this snapshot, zero *new* calls since",
+which is the question that actually has an answer between two
+chronologically ordered snapshots.
 
 Retention is LRU (`telemetry.SNAPSHOT_RETENTION`, default 20, `opts.
 snapshot_retention` per namespace) — a snapshot worth keeping past that
 window needs a name that will still make sense a dozen snapshots later
 (`pre-refactor`, not `test`), since eviction has no idea which ones you
 actually meant to keep.
+
+Snapshots are also device-tagged (`telemetry.snapshot(ns, name, {device=...})`,
+default `vim.uv.os_gethostname()`) — worth naming the device explicitly
+when the "before" and "after" runs happen on different machines, since
+`pre-refactor`/`post-refactor` alone does not say which one ran where.
 
 ## `opts.callhierarchy` + `opts.diagnostics`: never leave the editor for the common questions
 
@@ -158,6 +174,29 @@ right list (say, Complexity's Analysis panel) and want to rule out
 everything except one subsystem's own naming prefix. `-word` excludes
 instead of matching, useful for "everything in this panel except the
 generated files".
+
+## Generating for many repos at once: `opts.generate_all`, not a loop
+
+`:DocMap`/`:DocMap full` act on one repository per invocation, resolved
+from the current buffer — right for "I'm working on this tree right
+now," wrong for "regenerate the map for every plugin I maintain" (a
+plain loop over `:DocMap full` in each would run every scan on this
+Neovim's own main thread, one after another, blocking it for the whole
+batch). `opts.generate_all = { projects = {{root, title}, ...} }` on
+`setup()` registers `:DocMap all`/`:DocMapAll` for exactly that case: one
+real headless Neovim subprocess per project, chained so exactly one is
+ever running, never blocking this session. One project failing does not
+abort the rest — the closing notification names every one that did.
+
+Not registered unless configured — `opts.generate_all.projects` is data
+only a consuming config can supply (this plugin never reads anyone's
+plugin list itself), so an unconfigured `setup()` gains neither command.
+`opts.generate_all.autoload = true` additionally checks, once at
+`setup()` time, which configured projects have no map yet and generates
+only those — worth turning on once a project list is already configured
+here, since listing a plugin there is already the signal its map is
+wanted; leave it off if writing into other repos' `docs/map` without
+being asked is the wrong default for how you use this.
 
 ## Cross-repo: `tag_files` before assuming a dependency's internals are invisible
 
