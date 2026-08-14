@@ -274,6 +274,47 @@ Security posture, enforced rather than documented and hoped for:
 - static serving takes a bare filename, so no request can walk out of `out_dir`;
 - `VimLeavePre` tears the socket down.
 
+### `:DocMap all` / `:DocMapAll`
+
+Generate every project in `opts.generate_all.projects` — one real headless
+Neovim subprocess per project (`documentation.generate_all.run()`), chained
+sequentially so exactly one is ever running, never blocking this session.
+One project failing does not abort the rest; the closing notification names
+every one that failed.
+
+**Registered only when `opts.generate_all.projects` is non-empty.** This
+plugin has no notion of "which repos a consumer's config manages" and never
+reads one — `opts.generate_all` is plain data (`{ projects = {{root, title},
+...} }`) a caller's own plugin spec supplies, typically derived from that
+caller's own plugin-list abstraction. With nothing configured, neither
+`all` nor `:DocMapAll` exists at all; `:DocMap all` on an unconfigured setup
+warns rather than erroring.
+
+`:DocMapAll` is a standalone alias for `:DocMap all`, registered by the same
+`setup()` call, reached for often enough once configured to earn a command
+name of its own rather than a remembered subcommand.
+
+`opts.generate_all.autoload = true` additionally checks, once at `setup()`
+time, whether each configured project already has a `module_map.json`; any
+that do not get generated automatically (async, non-blocking — the same
+mechanism as `all` itself, just self-triggered). Off by default: writing
+into `docs/map` inside a repository on every editor start without being
+asked is exactly the kind of uninvited, hard-to-notice-until-`git status`
+side effect this plugin otherwise refuses to produce. Opting in is the
+explicit request that default declines to infer on its own.
+
+```lua
+require("documentation").setup({
+  generate_all = {
+    projects = {
+      { root = "/repos/lib.nvim", title = "lib.nvim" },
+      { root = "/repos/markdown.nvim", title = "markdown.nvim" },
+    },
+    autoload = true, -- generate any of the above that has no map yet
+  },
+})
+```
+
 ---
 
 ## `:DocBrowse`

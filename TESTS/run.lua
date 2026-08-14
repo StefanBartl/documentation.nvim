@@ -100,6 +100,7 @@ local specs = {
   "checklist_spec.lua",
   "api_spec.lua",
   "generate_all_spec.lua",
+  "usrcmds_generate_all_spec.lua",
 }
 
 --- Straight to stdout rather than through `print`.
