@@ -26,6 +26,7 @@
 ---@field command_name string The name `:DocMap` was actually registered under, for messages.
 ---@field open_map fun(hash: string?): boolean Open the generated page, optionally at a URL fragment.
 ---@field find_node fun(ir: Documentation.IR, name: string, lua_root: string): string? Resolve a user-typed module name to a node id.
+---@field generate_all Documentation.GenerateAllOpts? Cross-repo project list for `:DocMap all`/`:DocMapAll` — `opts.generate_all` as given to `setup()`, verbatim. `nil` unless a caller configured it.
 
 ---One entry in the autocommand manifest.
 ---

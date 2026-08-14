@@ -10,8 +10,9 @@ actually drive the plugin — do not edit by hand. Regenerate with
 
 | Command | Arguments | What it is |
 |---|---|---|
-| `:DocMap` | `[check\|full\|open\|graph\|why\|dot\|diff\|impact\|churn\|plugins\|tools\|endpoints\|serve\|helptags\|annotate]` | Generate or verify the module map. The bare form writes artifacts. |
+| `:DocMap` | `[check\|full\|open\|graph\|why\|dot\|diff\|impact\|churn\|plugins\|tools\|endpoints\|serve\|helptags\|annotate\|all]` | Generate or verify the module map. The bare form writes artifacts. |
 | `:DocBrowse` | `[live] [history\|trail\|endpoints\|module]` | Navigate the same map inside the editor. Only ever reads. |
+| `:DocMapAll` | `` | Standalone alias for `:DocMap all` — generate every opts.generate_all.projects entry. Registered only when that option is configured. |
 
 Both names are configurable — `opts.command_name` and
 `opts.browse_command_name` — so a second `setup()` call (a plugin

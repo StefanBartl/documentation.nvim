@@ -78,13 +78,18 @@ M.list = {
 M.usrcmds = {
   {
     name = "DocMap",
-    args = "[check|full|open|graph|why|dot|diff|impact|churn|plugins|tools|endpoints|serve|helptags|annotate]",
+    args = "[check|full|open|graph|why|dot|diff|impact|churn|plugins|tools|endpoints|serve|helptags|annotate|all]",
     why = "Generate or verify the module map. The bare form writes artifacts.",
   },
   {
     name = "DocBrowse",
     args = "[live] [history|trail|endpoints|module]",
     why = "Navigate the same map inside the editor. Only ever reads.",
+  },
+  {
+    name = "DocMapAll",
+    args = "",
+    why = "Standalone alias for `:DocMap all` — generate every opts.generate_all.projects entry. Registered only when that option is configured.",
   },
 }
 

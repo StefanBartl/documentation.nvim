@@ -85,6 +85,9 @@ local ACTIONS = {
   full = function(ctx)
     require("documentation.bindings.usrcmds.generate").run(ctx, { luals = true })
   end,
+  all = function(ctx)
+    require("documentation.bindings.usrcmds.generate_all").run(ctx)
+  end,
 }
 
 ---Action names, sorted — the first completion level, and the "did you mean"
@@ -223,6 +226,7 @@ function M.setup(opts)
       find_node = function(ir, name, lua_root)
         return require("documentation.core.find").node(ir, name, lua_root)
       end,
+      generate_all = opts and opts.generate_all,
     }
   end
 
@@ -264,9 +268,12 @@ function M.setup(opts)
   -- tree than calling it first would.
   require("documentation.core.telemetry_self").setup(setup_cfg)
 
-  usercmd.create(command_name, function(args)
-    local action = vim.trim(args.args or "")
-
+  -- Extracted so `:DocMapAll` (registered below, only when `opts.generate_all`
+  -- is configured) can dispatch the exact same `all` path `:DocMap all`
+  -- itself goes through, rather than a second, hand-rolled call to the
+  -- `generate_all` handler that could drift from this one.
+  ---@param action string Raw argument text, already trimmed — "" for bare `:DocMap`.
+  local function dispatch(action)
     local verb, rest
     if action ~= "" then
       verb, rest = action:match("^(%S+)%s*(.-)$")
@@ -293,11 +300,15 @@ function M.setup(opts)
     end
 
     ACTIONS[verb](ctx, rest or "")
+  end
+
+  usercmd.create(command_name, function(args)
+    dispatch(vim.trim(args.args or ""))
   end, {
     nargs = "*",
     desc = "Regenerate the module map (:"
       .. command_name
-      .. " [check|full|open|graph|why <a> <b>|dot|diff <ref>|impact <ref>|churn [range]|checklist [all]|plugins|tools|endpoints|serve [stop]|helptags|annotate [--write|--sidecar]])",
+      .. " [check|full|open|graph|why <a> <b>|dot|diff <ref>|impact <ref>|churn [range]|checklist [all]|plugins|tools|endpoints|serve [stop]|helptags|annotate [--write|--sidecar]|all])",
     complete = function(lead, line)
       -- Two completion levels: the action, then — once an action that takes a
       -- module is typed — the module paths the map actually knows, which is
@@ -333,6 +344,32 @@ function M.setup(opts)
       return starting_with(candidates, lead)
     end,
   })
+
+  -- `:DocMapAll` — a standalone alias for `:DocMap all`, registered (like
+  -- `all` itself in ACTIONS above) only when a caller actually configured
+  -- `opts.generate_all.projects`. Reached for often enough, once configured,
+  -- to earn a command name of its own rather than a remembered subcommand —
+  -- same reasoning `runtime-analysis.telemetry`'s `:RATelemetryStartAll`
+  -- gives for its own bare-form alias.
+  if
+    opts
+    and opts.generate_all
+    and opts.generate_all.projects
+    and #opts.generate_all.projects > 0
+  then
+    local all_command_name = command_name .. "All"
+    usercmd.create(all_command_name, function()
+      dispatch("all")
+    end, {
+      desc = ("Generate every configured project's module map (same as :%s all)"):format(
+        command_name
+      ),
+    })
+
+    if opts.generate_all.autoload then
+      require("documentation.bindings.usrcmds.generate_all").autoload(opts.generate_all, notify)
+    end
+  end
 
   return handle
 end
