@@ -13,6 +13,18 @@ scripts/hooks/*  text eol=lf
 # green where nobody is looking, red where the work happens.
 *.lua       text eol=lf
 
+# Markdown/vimdoc too — `scan.lua` reads these to build the map's own "docs"
+# cross-reference index (`refs` counts, backlinks), which is line-oriented
+# and pattern-matches per line. A `\r` left on the end of every line by a
+# CRLF checkout changes what those patterns see there, so a Windows-edited
+# `.md` produces a different `refs` count than the same content checked out
+# with LF — silently, since nothing here reads raw bytes the way the map's
+# HTML/JSON diff would catch a byte mismatch directly. Found exactly this
+# way: `docs/COMMANDS.md`, edited on Windows, made `--check` report the map
+# stale for a reason that had nothing to do with the map being wrong.
+*.md        text eol=lf
+*.txt       text eol=lf
+
 # Generated map artifacts: keep them out of diffs and language stats, but do
 # not mark them binary — they are reviewed on purpose.
 #
