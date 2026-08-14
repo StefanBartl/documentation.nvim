@@ -1,5 +1,43 @@
 # Ecosystem architecture — where docs, static analysis and runtime each belong
 
+## Table of content
+
+  - [Intro](#intro)
+  - [Epistemic note](#epistemic-note)
+  - [1. Two seams already exist. Everything sorts along them.](#1-two-seams-already-exist-everything-sorts-along-them)
+    - [Seam A — static vs. runtime](#seam-a-static-vs-runtime)
+    - [Seam B — artifact vs. serve](#seam-b-artifact-vs-serve)
+  - [2. The feature list, sorted](#2-the-feature-list-sorted)
+  - [3. Feature by feature](#3-feature-by-feature)
+    - [3.1 API endpoint inventory — static, documentation.nvim](#31-api-endpoint-inventory-static-documentationnvim)
+    - [3.2 API request runner — runtime, and the reason a new plugin is justified](#32-api-request-runner-runtime-and-the-reason-a-new-plugin-is-justified)
+    - [3.3 Docs cross-references — static, documentation.nvim, genuinely new data](#33-docs-cross-references-static-documentationnvim-genuinely-new-data)
+    - [3.4 Docs-only view / filter — cheap, once 3.3 exists](#34-docs-only-view-filter-cheap-once-33-exists)
+    - [3.5 Hover previews — three different features wearing one name](#35-hover-previews-three-different-features-wearing-one-name)
+    - [3.6 Three more in the same spirit](#36-three-more-in-the-same-spirit)
+  - [4. The plugin question, answered](#4-the-plugin-question-answered)
+    - [What the numbers say](#what-the-numbers-say)
+    - [The precedent is exact](#the-precedent-is-exact)
+    - [The answer, and why it revises my earlier one](#the-answer-and-why-it-revises-my-earlier-one)
+    - [The resulting ecosystem](#the-resulting-ecosystem)
+  - [5. Naming — settled](#5-naming-settled)
+  - [6. What runtime-analysis.nvim actually is](#6-what-runtime-analysisnvim-actually-is)
+    - [One hard constraint decides most of it](#one-hard-constraint-decides-most-of-it)
+    - [What a separate binary or app would actually buy](#what-a-separate-binary-or-app-would-actually-buy)
+    - [What it would cost](#what-it-would-cost)
+    - [Answer](#answer)
+  - [7. How the two plugins meet](#7-how-the-two-plugins-meet)
+    - [The naive integration is architecturally excluded](#the-naive-integration-is-architecturally-excluded)
+    - [The three surfaces that remain, ranked](#the-three-surfaces-that-remain-ranked)
+    - [Direction of the dependency](#direction-of-the-dependency)
+  - [8. Sequencing](#8-sequencing)
+  - [9. What not to build](#9-what-not-to-build)
+  - [10. Honest limits](#10-honest-limits)
+
+---
+
+## Intro
+
 > **Status (2026-08-11): steps 1–8 of §8's sequencing have all shipped.**
 > Only step 9 (full-file previews / a browser request runner / a Runtime tab
 > under `serve`) is still open, and it is gated on the serve tier. This
@@ -36,6 +74,8 @@ not a binary or an Electron app; the two plugins meet **in the editor
 first**, never by injecting into documentation.nvim's committed artifact;
 and the **work order is documentation.nvim first** — sequencing steps 1–4
 before the new plugin's step 5.
+
+---
 
 ## Epistemic note
 
@@ -84,12 +124,16 @@ any recognizer is actually written.
 Neither is new. Both are already documented in this codebase, and every
 feature in the list lands on one side or the other of each.
 
+---
+
 ### Seam A — static vs. runtime
 
 `docs/ROADMAP/telemetry-documentation-bridge.md` already names it:
 documentation.nvim knows what **exists and is documented**; telemetry knows
 what **actually ran**. Its whole argument is that neither can produce the
 other's evidence, and that crossing them is where the value is.
+
+---
 
 ### Seam B — artifact vs. serve
 
@@ -125,6 +169,8 @@ That is the whole plugin question in one line, and section 4 returns to it.
 ---
 
 ## 3. Feature by feature
+
+---
 
 ### 3.1 API endpoint inventory — static, documentation.nvim
 
@@ -167,6 +213,8 @@ reading one file. Everything else surfaces things they could already find;
 an endpoint inventory across a whole codebase is genuinely assembled, and it
 is the input every other API feature needs.
 
+---
+
 ### 3.2 API request runner — runtime, and the reason a new plugin is justified
 
 Three facts decide this one, all verified:
@@ -201,6 +249,8 @@ absent when the runtime plugin is not installed. That is the pattern this
 ecosystem already uses in three places (`progress`→fidget,
 `telemetry`→mdview, `check.lua`→lua-language-server) and it needs no new
 mechanism.
+
+---
 
 ### 3.3 Docs cross-references — static, documentation.nvim, genuinely new data
 
@@ -243,6 +293,8 @@ in this toolchain can see it, it is the exact failure mode of well-maintained
 docs going stale, and it is this plugin's stated reason for existing applied
 one layer out. Call it `doc-references-missing`.
 
+---
+
 ### 3.4 Docs-only view / filter — cheap, once 3.3 exists
 
 Once the corpus is scanned, "show only docs" and "hide docs" are a filter
@@ -250,6 +302,8 @@ over a node classification, and the filter plumbing (`anFilter`/`state.q`,
 `editor/browse/filter.lua`'s query language) already exists on every panel.
 Not worth designing separately — it is a consequence of 3.3, not a feature
 beside it.
+
+---
 
 ### 3.5 Hover previews — three different features wearing one name
 
@@ -282,6 +336,8 @@ So: **two tiers.** Signature and bounded snippets embedded and always
 available; full-file preview an enhancement when serving. The page should
 degrade to the embedded tier without a server, not lose the feature.
 
+---
+
 ### 3.6 Three more in the same spirit
 
 Since the stated motive is *"wenn wir uns schon so viel Arbeit machen, dass
@@ -305,6 +361,8 @@ these leverage the same investment:
 
 ## 4. The plugin question, answered
 
+---
+
 ### What the numbers say
 
 Telemetry is **2 915 lines** with **one** genuinely lib.nvim-specific
@@ -320,6 +378,8 @@ question: `FEATURES.md`'s own extraction entry settled that — *"lib.nvim
 stays a runtime dependency. Vendoring buys a standalone plugin at the price
 of a second maintenance site for code that already exists."*
 
+---
+
 ### The precedent is exact
 
 `lib.nvim.docmap` grew inside lib.nvim, proved itself, and became
@@ -328,6 +388,8 @@ rather than a rewrite, which is the whole point of the result"** — cheap
 *because the decoupling had already happened as a design discipline*
 (`opts.root`/`opts.source` meant nothing knew lib.nvim's layout). Telemetry
 is on the same trajectory and is already decoupled to the same degree.
+
+---
 
 ### The answer, and why it revises my earlier one
 
@@ -355,6 +417,8 @@ With a sequencing that keeps it honest:
    lib.nvim's own convenience, tied to `lib.strategies.control`. It stays,
    as a thin caller of the extracted engine — the same relationship
    `core/lang/lua.lua` has to `functions.lua`.
+
+---
 
 ### The resulting ecosystem
 
@@ -396,6 +460,8 @@ Raised as an open question — Neovim plugin, web app, Electron app, or a
 compiled Go/C++ program? Worth answering properly, because it is the one
 decision here that is expensive to reverse.
 
+---
+
 ### One hard constraint decides most of it
 
 **Telemetry cannot be anything other than in-process Lua.** It works by
@@ -408,6 +474,8 @@ the technique *is*.
 So a Neovim-plugin component exists necessarily. The real question is only
 whether something *else* exists beside it.
 
+---
+
 ### What a separate binary or app would actually buy
 
 Measured against what already exists, not in the abstract:
@@ -419,6 +487,8 @@ Measured against what already exists, not in the abstract:
 | A rich browser UI | Already solved **twice in-house**: documentation.nvim generates a self-contained interactive HTML page (4 083 lines of Lua emitting HTML+JS, no CDN, no build step), and mdview.nvim ships a Go relay plus a prebuilt web client. |
 | A local HTTP server for a browser-side request runner | The one genuine case — and mdview's relay is *already* a Go binary that serves a web client behind a per-session token. Extending that beats writing a second one. |
 
+---
+
 ### What it would cost
 
 Not hypothetical either. mdview.nvim already pays this price and the code is
@@ -428,6 +498,8 @@ a per-platform release pipeline (`windows`/`darwin`/`linux` × `amd64`/
 `arm64`), plus a capability probe because an older pinned binary rejects
 newer flags silently. Electron would be that, plus a ~150 MB runtime, plus a
 Node toolchain, to reach a browser this ecosystem can already reach.
+
+---
 
 ### Answer
 
@@ -449,6 +521,8 @@ Electron forecloses being a normal Neovim plugin.
 Also raised: could documentation.nvim gain a tab that appears when
 runtime-analysis.nvim is installed? **Yes — but not the obvious way, and the
 reason is a constraint this repository already enforces on itself.**
+
+---
 
 ### The naive integration is architecturally excluded
 
@@ -472,6 +546,8 @@ is an explicit flag (`--full`), the IR distinguishes "did not run" (`nil`)
 from "ran, found nothing" (`{}`), and the *committed* artifact is the one
 generated **without** it. Optional data is allowed; optional data that
 silently changes the committed artifact is not.
+
+---
 
 ### The three surfaces that remain, ranked
 
@@ -497,6 +573,8 @@ silently changes the committed artifact is not.
    the bridge document's entire argument. Worth it only for views that are
    purely runtime (a request-runner history, say), never for the crossed
    static × runtime views.
+
+---
 
 ### Direction of the dependency
 
@@ -783,3 +861,6 @@ property that makes this order safe to commit to now.
 - **`file://` remains the primary distribution mode.** Every feature above
   must degrade to something useful without a server, or it is not really
   part of the committed artifact this plugin exists to produce.
+
+---
+
