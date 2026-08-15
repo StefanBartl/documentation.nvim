@@ -67,6 +67,9 @@ local ACTIONS = {
   plugins = function(ctx)
     require("documentation.bindings.usrcmds.plugins").run(ctx)
   end,
+  bindings = function(ctx)
+    require("documentation.bindings.usrcmds.bindings").run(ctx)
+  end,
   tools = function(ctx)
     require("documentation.bindings.usrcmds.tools").run(ctx)
   end,
@@ -308,7 +311,7 @@ function M.setup(opts)
     nargs = "*",
     desc = "Regenerate the module map (:"
       .. command_name
-      .. " [check|full|open|graph|why <a> <b>|dot|diff <ref>|impact <ref>|churn [range]|checklist [all]|plugins|tools|endpoints|serve [stop]|helptags|annotate [--write|--sidecar]|all [full]])",
+      .. " [check|full|open|graph|why <a> <b>|dot|diff <ref>|impact <ref>|churn [range]|checklist [all]|plugins|bindings|tools|endpoints|serve [stop]|helptags|annotate [--write|--sidecar]|all [full]])",
     complete = function(lead, line)
       -- Two completion levels: the action, then — once an action that takes a
       -- module is typed — the module paths the map actually knows, which is

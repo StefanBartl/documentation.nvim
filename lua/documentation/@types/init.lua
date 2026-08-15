@@ -41,6 +41,7 @@
 ---@field telemetry_namespace? string The `runtime-analysis.telemetry` namespace to join against for the `telemetry` browse mode and dead-function suppression (ECOSYSTEM.md step 8). Default `title` — every telemetry instance in this ecosystem is namespaced by the plugin's own display name, so a caller who already sets `title` needs nothing extra; set this only when the two genuinely differ.
 ---@field telemetry? boolean Self-instrument this tree's own `require("documentation")` aggregate with `runtime-analysis.telemetry`, writing to `telemetry_namespace`/`title` — the write side of the `telemetry` browse mode above. Default true, and a no-op without runtime-analysis.nvim installed — same opt-out shape as `which_key`. Set false to keep this plugin out of its own telemetry data entirely. See `documentation.core.telemetry_self`.
 ---@field godbolt? boolean **Experimental.** `generate()`/`scan_full()` only (not `install()`-only like `watch`/`callhierarchy`/`diagnostics` — this bakes into the generated page itself, so it works for anyone who opens the committed `docs/map/index.html`, no live Neovim session needed). Adds a "Compiler Explorer ↗" link next to every module and function, opening `godbolt.org` in a new tab pre-loaded with that entity's real source and Lua selected — a genuine `luac -l -l -p` bytecode disassembly, not a workaround (verified against Compiler Explorer's own API and compiler source, 2026-08-10, after an earlier roadmap assessment wrongly dismissed Lua as unsupported there). No new IR field: the link is built entirely client-side, lazily on click, from each function's already-serialized (and already-bounded) `fn.snippet` — a module's own link concatenates its functions' snippets in declaration order. The URL itself (Compiler Explorer's documented `clientstate` scheme, base64 in the URL, no API call needed to build one) is fully deterministic from the same source, so this does not put anything non-reproducible into a committed artifact. Off by default. Default false.
+---@field bindings? Documentation.BindingsOpts Keymap/user-command/autocmd extraction (`core/bindings.lua`). The `vim.*` APIs are always recognized and need no configuration at all; this exists only to declare a config's own wrappers, which is the common case in a real Neovim config and cannot be guessed safely.
 ---@field snippet_max_lines? integer Lines kept per function's embedded source snippet (`fn.snippet` — the hover-preview payload, and, when `opts.godbolt` is on, the Compiler Explorer link's own source) before the rest becomes an omitted-line count instead. Resolved once per `scan()`/`scan_full()` call into `core/snippet.lua`'s `M.MAX_LINES` — see that module's own header for why a scan-scoped override rather than a permanent global mutation. Default 40 (`core/snippet.lua`'s `M.DEFAULT_MAX_LINES`).
 ---@field generate_all? Documentation.GenerateAllOpts `usrcmds.setup()` only. Cross-repo project list for `:DocMap all [full]`/`:DocMapAll`/`:DocMapAllFull` — plain data a consuming plugin's own spec supplies (this file never reads a config's plugin list itself). Absent or empty `projects`: none of the three actions is registered at all. See `bindings/usrcmds/generate_all.lua`.
 
@@ -75,7 +76,7 @@
 ---@field is_source fun(filename: string): boolean Whether `filename` (bare, no path) is a source file this backend scans.
 ---@field module_tag boolean? Whether this language has a `@module`-tag-shaped authoring convention worth `check.lua`'s `missing-module-tag` checking the absence of. Lua: `true` (its canonical module name cannot be recovered from the file path alone). A language whose module identity already is its file path (JS/TS's ESM imports resolve by path): `false` — nothing tag-shaped can be "missing." Absent/`nil` is treated as `true`, the conservative default that preserves today's behavior for a backend that never states an opinion.
 ---@field parse_header fun(path: string): Documentation.Header
----@field scan_file fun(path: string): Documentation.FunctionInfo[], Documentation.RawCall[], Documentation.RawRequire[], Documentation.SymbolInfo[], table[], Documentation.EndpointSpec[], integer Same seven-value shape `functions.lua`'s `scan_file` already returns. The fifth (`plugins`) and sixth (`endpoints`) are ecosystem-specific — see `docs/FRAMEWORK_CONVENTIONS.md`/`docs/ECOSYSTEM.md` on why each is a layer *above* language support, not part of this contract — and a backend with no equivalent convention returns `{}` there, not `nil`.
+---@field scan_file fun(path: string): Documentation.FunctionInfo[], Documentation.RawCall[], Documentation.RawRequire[], Documentation.SymbolInfo[], table[], Documentation.EndpointSpec[], integer, Documentation.BindingSpec[] Same eight-value shape `functions.lua`'s `scan_file` already returns. The fifth (`plugins`), sixth (`endpoints`) and eighth (`bindings`) are ecosystem-specific — see `docs/FRAMEWORK_CONVENTIONS.md`/`docs/ECOSYSTEM.md` on why each is a layer *above* language support, not part of this contract — and a backend with no equivalent convention returns `{}` there, not `nil`. `bindings` sits after `lines` rather than beside its two siblings on purpose: this tuple is destructured positionally by every caller, so appending is additive where inserting would silently shift `lines`.
 
 ---One layering rule: modules whose `@module` starts with `from` may not
 ---require modules whose `@module` starts with `to`. Both are plain prefixes,
@@ -111,6 +112,7 @@
 ---@field types_detail Documentation.TypeInfo[]? `@class`/`@alias` detail for this node's `types` files, from `lua-language-server --doc`. `nil` when LuaLS enrichment did not run; `{}` is a real "ran, found nothing here" result.
 ---@field functions Documentation.FunctionInfo[] Documented functions found in this node's own source file (not its `@types/` files). Always an array, never nil — unlike `types_detail`, this runs unconditionally as part of `scan()`, no LuaLS required.
 ---@field plugins Documentation.PluginSpec[] Plugin-manager (lazy.nvim-shaped) spec entries found in this node's own source — see `core/plugins.lua`. Always an array, empty for a source file that is not a plugin-spec file, which is nearly all of them; runs unconditionally as part of `scan()`, no configuration required.
+---@field bindings Documentation.BindingSpec[] Keymaps, user commands and autocmds registered in this node's own source — see `core/bindings.lua`. Always an array. The `vim.*` APIs are recognized unconditionally; a config registering through its own wrapper (`map(...)`, the common case) needs `opts.bindings.wrappers` to declare it, which is why this can legitimately be empty for a file that visibly binds keys.
 ---@field endpoints Documentation.EndpointSpec[] Call-based route registrations (Express/Fastify/Koa-shaped) found in this node's own source — see `core/endpoints.lua`. Always an array, empty for a source file with no route registrations (nearly all of them, and every non-JS/TS file); runs unconditionally as part of `scan()`.
 ---@field requires string[] Node ids this node requires, sorted. Derived from `ir.edges`; an index for convenience, not a second source of truth.
 ---@field required_by string[] Node ids that require this node, sorted. Same derivation.
@@ -220,6 +222,28 @@
 ---@field detail string Short right-hand-side summary: "12 fields" for a table, the literal for a constant, a condensed expression otherwise.
 ---@field summary string One-line prose from the doc block above it, if any.
 ---@field line integer 1-based line the binding starts on.
+
+---Keymap/user-command/autocmd extraction settings — see
+---`core/bindings.lua`'s header for why wrappers are declared rather than
+---detected, and for the measurement that made wrapper support the primary
+---case rather than a refinement.
+---@class Documentation.BindingsOpts
+---@field wrappers? table<string, "keymap"|"keymap_buf"|"usercmd"|"usercmd_buf"|"autocmd"> The caller's own registration helpers, `callee -> argument layout`. The key is the call text exactly as written (`"map"`, `"usercmd.create"`, `"nvim_create_autocmd"` for a bare `local` alias — all three are real shapes from one config). The value names one of the built-in argument layouts, so only a wrapper that preserves the wrapped API's argument order is declarable; one that reorders is out of scope rather than mis-parsed.
+
+---One keymap / user command / autocmd registration found in the source —
+---see `core/bindings.lua`'s header for which callees are recognized (the
+---`vim.*` APIs always; caller-declared wrappers via `opts.bindings.wrappers`)
+---and why a wrapper has to be declared rather than guessed.
+---@class Documentation.BindingSpec
+---@field kind "keymap"|"usercmd"|"autocmd" What the binding is, independent of which callee registered it.
+---@field callee string The dotted call text exactly as written (`"vim.keymap.set"`, `"map"`, `"usercmd.create"`) — provenance for a row, and what a caller matches against when a wrapper's rows look wrong. Never resolved to what an identifier points at.
+---@field line integer 1-based line the registering call starts on.
+---@field lhs string? Keymap left-hand side, when it is a string literal. `nil` for a non-literal (`prefix .. "x"`) — never a guessed value.
+---@field name string? User command name, same literal-only rule.
+---@field modes string[] Keymap mode(s), normalised to an array whether declared as one string or a `{ "n", "v" }` list. Empty for non-keymaps.
+---@field events string[] Autocmd event(s), same normalisation. Empty for non-autocmds.
+---@field desc string? The `desc` field of the options table, when set — the human answer to "what does this do", collected instead of the right-hand side (see the module header for why the rhs is deliberately not captured).
+---@field buffer boolean Buffer-local registration — either the `nvim_buf_*` variant or an explicit `buffer` in the options table.
 
 ---One plugin-manager spec entry — currently lazy.nvim's shape only, see
 ---`core/plugins.lua`'s header for why packer/vim-plug are a separate,

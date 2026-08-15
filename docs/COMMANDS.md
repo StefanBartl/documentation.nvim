@@ -234,6 +234,35 @@ plugin) is read correctly as one entry, not as several with `event`'s value
 mistaken for a second repo, and a bare-string list is only accepted as
 plugins when every string is shaped like `owner/repo`.
 
+### `:DocMap bindings`
+
+Every recognized **keymap, user command and autocmd** in the tree →
+quickfix list. Instant for the same reason `plugins` is: the registrations
+already sit on `ir.nodes[*].bindings` from the scan that produced the live
+handle.
+
+The rest of what a Neovim *config* is made of, after `plugins` above. Rows
+carry the identifying text (`[n/v] <leader>x`, `:Foo`, `BufWritePre`), the
+`desc` when set, and the file and line it came from.
+
+**Sorted by left-hand side so collisions land adjacent.** The same
+`<leader>x` bound in two files is a real and genuinely hard-to-find config
+bug — whichever module loads last silently wins — flagged `[bound more than
+once]`, the same service `plugins` does for a repo declared twice. Counted
+per distinct (mode, lhs) pair: the same lhs in normal and visual mode is
+two bindings, not a clash. Buffer-local registrations are excluded from
+collision counting entirely, since shadowing a global mapping inside an
+ftplugin is the intended idiom.
+
+**If a file that visibly binds keys yields nothing, the wrapper is not
+declared.** The `vim.*` APIs are recognized unconditionally; a config's own
+helper (`map(...)`, `usercmd.create(...)`, or a bare `local
+nvim_create_autocmd = api.nvim_create_autocmd` — all three are real shapes
+from one real config) must be named in `opts.bindings.wrappers`. See
+[`core/bindings.lua`](../lua/documentation/core/bindings.lua) for why that
+is declared rather than guessed, and
+[`docs/FEATURES/CORE.md`](FEATURES/CORE.md) for the measurement behind it.
+
 ### `:DocMap tools`
 
 This repo's own **`lib.nvim.deps` manifest** (`docs/install.json`, falling

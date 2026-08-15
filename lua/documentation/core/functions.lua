@@ -432,10 +432,11 @@ end
 ---@return Documentation.PluginSpec[] plugins
 ---@return Documentation.EndpointSpec[] endpoints
 ---@return integer lines
+---@return Documentation.BindingSpec[] bindings
 function M.scan_file(path)
   local fd = io.open(path, "rb")
   if not fd then
-    return {}, {}, {}, {}, {}, {}, 0
+    return {}, {}, {}, {}, {}, {}, 0, {}
   end
   local src = fd:read("*a")
   fd:close()
@@ -456,13 +457,13 @@ function M.scan_file(path)
 
   local ok, parser = pcall(vim.treesitter.get_string_parser, src, "lua")
   if not ok then
-    return {}, {}, requires, {}, {}, {}, lines
+    return {}, {}, requires, {}, {}, {}, lines, {}
   end
   local ok_parse, trees = pcall(function()
     return parser:parse()
   end)
   if not ok_parse or not trees or not trees[1] then
-    return {}, {}, requires, {}, {}, {}, lines
+    return {}, {}, requires, {}, {}, {}, lines, {}
   end
   local root = trees[1]:root()
 
@@ -626,7 +627,13 @@ function M.scan_file(path)
   -- file that declares no lazy.nvim spec, not a placeholder pretending to
   -- be resolved.
   local endpoints = {}
-  return out, calls, requires, symbols, plugins, endpoints, lines
+  -- Keymaps/user commands/autocmds (`core/bindings.lua`) — the Neovim-config
+  -- counterpart to `plugins` above, and appended AFTER `lines` rather than
+  -- slotted next to it: every existing caller destructures this tuple
+  -- positionally, so a new value at the end is additive where an inserted
+  -- one would silently shift `lines` for all of them.
+  local bindings = require("documentation.core.bindings").extract(root, src)
+  return out, calls, requires, symbols, plugins, endpoints, lines, bindings
 end
 
 return M

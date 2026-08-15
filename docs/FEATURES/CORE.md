@@ -308,3 +308,46 @@ to default to, so the panel prompts for a snapshot rather than guessing.
 - **Module:** `core/loaded_diff.lua` (`M.prefix`, `M.rows_from_snapshot`),
   `editor/serve.lua` (`route_loaded`, `route_loaded_snapshots`)
 - **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Loaded panel" section.
+
+## Bindings extraction — keymaps, user commands, autocmds
+
+The other three quarters of what a Neovim *config* actually is. `core/
+plugins.lua` above covers plugin specs; this covers the rest, on the same
+terms: a `lua/bindings/mappings/*.lua` full of `map("n", "<C-a>", …)` has
+no functions and no symbols, so it says nothing on a map — even though
+"what do I have bound, and where" is one of the questions a config is most
+often opened to answer.
+
+Available as `:DocMap bindings` → quickfix, sorted by left-hand side so
+**collisions land adjacent**: the same `<leader>x` bound in two files is a
+real, hard-to-find config bug (whichever module loads last silently wins),
+flagged the same way `:DocMap plugins` flags a repo declared twice.
+Buffer-local bindings are excluded from collision counting — shadowing a
+global mapping in an ftplugin is the intended idiom, not a clash.
+
+**Wrappers are declared, not guessed.** The `vim.*` APIs are recognized
+with no configuration. A config's own helper is not, until named in
+`opts.bindings.wrappers` — because a bare `map(...)` is also the most
+natural name for a list-mapping helper, and guessing wrong means silently
+reporting `vim.tbl_map` as a keymap. That opt-in is not timidity but the
+measurement: in the config this was built against, keymaps were 233×
+`map(...)` versus 4× `vim.keymap.set`, so wrapper support is the primary
+case rather than a refinement of one. Three real aliasing shapes were found
+in a single config — `map`, `usercmd.create`, and a bare `local
+nvim_create_autocmd = api.nvim_create_autocmd` — none of which any amount
+of built-in knowledge would have caught.
+
+Deliberately out of scope: `vim.opt` options (assignments, not calls, and a
+flat list of names is weaker than `:set` already gives interactively) and
+keymap right-hand sides (as often a multi-line function as a string; `desc`
+is the better answer and `line` points at the real thing).
+
+- **Module:** `core/bindings.lua` (`M.extract`, `M.recognized`)
+- **Config:** `opts.bindings.wrappers` — `callee -> argument layout`
+  (`keymap`/`keymap_buf`/`usercmd`/`usercmd_buf`/`autocmd`). Only a wrapper
+  preserving the wrapped API's argument order is declarable; one that
+  reorders is out of scope rather than mis-parsed.
+- **Usercmds:** `:DocMap bindings` (see
+  [BINDINGS.md](../BINDINGS.md#user-commands))
+- **Tests:** `TESTS/bindings_spec.lua`
+- **Docs:** [`docs/COMMANDS.md`](../COMMANDS.md) "`:DocMap bindings`" section.

@@ -217,6 +217,13 @@ All options, with their defaults: >lua
 
       quicks = {},              -- thresholds/limits for the Quicks tab
 
+      bindings = nil,           -- scan-time: declare this config's own keymap/
+                                -- usercmd/autocmd helpers so they are extracted
+                                -- too. The vim.* APIs always are, with no
+                                -- config at all. See :DocMap bindings.
+                                -- { wrappers = { map = "keymap",
+                                --     ["usercmd.create"] = "usercmd" } }
+
       generate_all = nil,       -- { projects = {{root, title}, ...}, autoload = false }
                                 -- usrcmds.setup() only -- see :DocMap all / :DocMapAll
     })

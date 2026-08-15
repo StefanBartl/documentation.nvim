@@ -718,7 +718,10 @@ function M.backend(name, lang, extensions, module_file)
     scan_file = function(path)
       local fd = io.open(path, "rb")
       if not fd then
-        return {}, {}, {}, {}, {}, 0
+        -- Was six values, one short of the contract's seven: `0` landed in
+        -- the `endpoints` slot and `lines` came back nil. Only reachable for
+        -- an unreadable file, which is why it went unnoticed.
+        return {}, {}, {}, {}, {}, {}, 0, {}
       end
       local src = fd:read("*a")
       fd:close()
@@ -727,13 +730,13 @@ function M.backend(name, lang, extensions, module_file)
 
       local ok, parser = pcall(vim.treesitter.get_string_parser, src, lang)
       if not ok then
-        return {}, {}, {}, {}, {}, {}, lines
+        return {}, {}, {}, {}, {}, {}, lines, {}
       end
       local ok_parse, trees = pcall(function()
         return parser:parse()
       end)
       if not ok_parse or not trees or not trees[1] then
-        return {}, {}, {}, {}, {}, {}, lines
+        return {}, {}, {}, {}, {}, {}, lines, {}
       end
 
       local root = trees[1]:root()
@@ -765,7 +768,7 @@ function M.backend(name, lang, extensions, module_file)
 
       -- Fifth slot (`plugins`) is Lua+lazy.nvim-specific, per the shared
       -- `scan_file` contract — see `docs/FRAMEWORK_CONVENTIONS.md`.
-      return functions, calls, requires, symbols, {}, endpoints, lines
+      return functions, calls, requires, symbols, {}, endpoints, lines, {}
     end,
   }
 end
