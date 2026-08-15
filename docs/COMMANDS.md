@@ -274,7 +274,7 @@ Security posture, enforced rather than documented and hoped for:
 - static serving takes a bare filename, so no request can walk out of `out_dir`;
 - `VimLeavePre` tears the socket down.
 
-### `:DocMap all` / `:DocMapAll`
+### `:DocMap all [full]` / `:DocMapAll` / `:DocMapAllFull`
 
 Generate every project in `opts.generate_all.projects` — one real headless
 Neovim subprocess per project (`documentation.generate_all.run()`), chained
@@ -286,13 +286,27 @@ every one that failed.
 plugin has no notion of "which repos a consumer's config manages" and never
 reads one — `opts.generate_all` is plain data (`{ projects = {{root, title},
 ...} }`) a caller's own plugin spec supplies, typically derived from that
-caller's own plugin-list abstraction. With nothing configured, neither
-`all` nor `:DocMapAll` exists at all; `:DocMap all` on an unconfigured setup
-warns rather than erroring.
+caller's own plugin-list abstraction. With nothing configured, none of
+`all`/`:DocMapAll`/`:DocMapAllFull` exists at all; `:DocMap all` on an
+unconfigured setup warns rather than erroring.
 
-`:DocMapAll` is a standalone alias for `:DocMap all`, registered by the same
-`setup()` call, reached for often enough once configured to earn a command
-name of its own rather than a remembered subcommand.
+`:DocMapAll` and `:DocMapAllFull` are standalone aliases for `:DocMap all`
+and `:DocMap all full`, registered by the same `setup()` call, reached for
+often enough once configured to earn command names of their own rather than
+a remembered subcommand.
+
+**Fast by default, LuaLS enrichment on request (2026-08-15).** `:DocMap
+all`/`:DocMapAll` run a plain scan for every project — no `[full]`/`:DocMap
+all full` needed the way a single-repo `:DocMap` already works. `:DocMap all
+full` / `:DocMapAllFull` opt every project in that run into the same LuaLS
+enrichment `:DocMap full` gives one repo (`@class`/`@alias` detail, type
+edges) — costs seconds *per project*, so worth reaching for deliberately
+across two dozen repositories rather than paying it on every bulk
+regeneration. Before this split, the bulk path always ran enriched; a
+config relying on that (`opts.generate_all.autoload`'s own background
+first-generation pass, notably) is unaffected — `autoload` still always
+enriches, since it is establishing a project's map for the first time, not
+a routine re-run.
 
 `opts.generate_all.autoload = true` additionally checks, once at `setup()`
 time, whether each configured project already has a `module_map.json`; any

@@ -490,17 +490,20 @@ key and then regretted.
                         cannot leave a socket listening.
 
 :DocMap all             Generate every project in opts.generate_all.projects
-:DocMapAll              -- one real headless Neovim subprocess each, chained
-                        sequentially, never blocking this session.
-                        `:DocMapAll` is a standalone alias for `:DocMap all`.
-                        Registered only when opts.generate_all.projects is
-                        non-empty -- this plugin never knows which repos a
+:DocMap all full        -- one real headless Neovim subprocess each, chained
+:DocMapAll              sequentially, never blocking this session. The bare
+:DocMapAllFull          form is a fast scan; `all full`/`:DocMapAllFull` add
+                        LuaLS enrichment for every project, same as `:DocMap
+                        full` does for one repo. `:DocMapAll`/`:DocMapAllFull`
+                        are standalone aliases for `:DocMap all`/`:DocMap all
+                        full`. Registered only when opts.generate_all.projects
+                        is non-empty -- this plugin never knows which repos a
                         consumer's config manages, `opts.generate_all` is
                         plain data the caller's own spec supplies. See
                         |documentation-configuration| above --
                         opts.generate_all.autoload additionally generates
                         any configured project with no map yet, once, at
-                        setup() time; off by default.
+                        setup() time (always LuaLS-enriched); off by default.
 
 ------------------------------------------------------------------------------
 5.2 :DocBrowse                                                      *:DocBrowse*

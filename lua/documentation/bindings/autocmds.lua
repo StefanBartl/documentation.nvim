@@ -89,7 +89,12 @@ M.usrcmds = {
   {
     name = "DocMapAll",
     args = "",
-    why = "Standalone alias for `:DocMap all` — generate every opts.generate_all.projects entry. Registered only when that option is configured.",
+    why = "Standalone alias for `:DocMap all` — fast-scan generate every opts.generate_all.projects entry. Registered only when that option is configured.",
+  },
+  {
+    name = "DocMapAllFull",
+    args = "",
+    why = "Standalone alias for `:DocMap all full` — same as `:DocMapAll`, with LuaLS enrichment for every project. Registered only when that option is configured.",
   },
 }
 

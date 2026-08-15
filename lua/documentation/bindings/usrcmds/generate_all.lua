@@ -1,7 +1,8 @@
 ---@module 'documentation.bindings.usrcmds.generate_all'
---- `:DocMap all` / `:DocMapAll` — `documentation.generate_all.run()` (one
---- real headless Neovim subprocess per project, chained sequentially, never
---- blocking this session) driven by `opts.generate_all.projects`.
+--- `:DocMap all [full]` / `:DocMapAll` / `:DocMapAllFull` —
+--- `documentation.generate_all.run()` (one real headless Neovim subprocess
+--- per project, chained sequentially, never blocking this session) driven
+--- by `opts.generate_all.projects`.
 ---
 --- Opt-in, and deliberately generic: `opts.generate_all` is plain data a
 --- caller's own plugin spec supplies (`{ projects = {{root=..., title=...}, ...} }`)
@@ -9,11 +10,21 @@
 --- "which repos a consumer's config manages" and never reads one. Neither
 --- action is registered at all when `opts.generate_all.projects` is empty
 --- or absent — see `usrcmds/init.lua`'s own `setup()`.
+---
+--- **`full` (2026-08-15): fast by default, LuaLS enrichment on request.**
+--- Before this parameter existed, every subprocess this module spawned
+--- always ran with `luals = true` — the single-repo `:DocMap` vs `:DocMap
+--- full` distinction never applied to the bulk path at all. Splitting it
+--- the same way here means `:DocMapAll` across two dozen repositories no
+--- longer pays LuaLS's per-repo cost (seconds each) when a plain scan is
+--- all that was wanted; `:DocMapAll full` / `:DocMapAllFull` opts back into
+--- the old always-enriched behavior explicitly.
 
 local M = {}
 
 ---@param ctx Documentation.Bindings.Ctx
-function M.run(ctx)
+---@param full boolean? LuaLS enrichment for every project this run — default false (fast). `:DocMapAllFull`/`:DocMap all full` pass true.
+function M.run(ctx, full)
   local cfg = ctx.generate_all
   if not cfg or not cfg.projects or #cfg.projects == 0 then
     ctx.notify.warn("opts.generate_all.projects is not configured -- nothing to generate for")
@@ -24,8 +35,14 @@ function M.run(ctx)
   local total = #cfg.projects
   local progress = require("documentation.bindings.progress").create(ctx, "generating maps", total)
 
-  ctx.notify.info(("Generating %d project map(s) asynchronously..."):format(total))
+  ctx.notify.info(
+    ("Generating %d project map(s) asynchronously%s..."):format(
+      total,
+      full and " (full: LuaLS enrichment)" or ""
+    )
+  )
   docmap.generate_all.run(cfg.projects, {
+    luals = full == true,
     on_progress = function(index, index_total, project)
       if progress then
         progress:update({ text = project.title, current = index, total = index_total })
