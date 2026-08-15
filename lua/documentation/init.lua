@@ -324,6 +324,14 @@ function M.to_json(ir)
       '"types_detail": ' .. (n.types_detail and json.encode(n.types_detail) or "null"),
       '"functions": ' .. json.encode(n.functions),
       '"plugins": ' .. json.encode(n.plugins),
+      -- Emitted unconditionally, like `plugins` above rather than like the
+      -- `#x > 0 and ... or "[]"` fields below: a cold consumer has to be able
+      -- to tell "this artifact predates bindings extraction" from "this tree
+      -- registers none", and an always-present key is the only thing that
+      -- distinguishes them. `bindings_explorer.source` in the author's own
+      -- config relies on exactly that difference to report a stale artifact
+      -- instead of silently claiming zero bindings.
+      '"bindings": ' .. json.encode(n.bindings or {}),
       '"export": ' .. (n.export and str(n.export) or "null"),
       '"parent": ' .. (n.parent and str(n.parent) or "null"),
       '"depth": ' .. tostring(n.depth),

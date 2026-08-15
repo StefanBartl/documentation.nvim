@@ -347,8 +347,15 @@ Available both as `:DocMap bindings` (quickfix) and as the Analysis tab's
 the panel is JS-side aggregation over the already-serialised IR, no second
 extraction (the same split `renderAnalysisPlugins` documents).
 
+`bindings` is serialized into `module_map.json` **unconditionally**, unlike
+the `#x > 0` fields around it: a cold consumer has to be able to tell "this
+artifact predates bindings extraction" from "this tree registers none", and
+an always-present key is the only thing that distinguishes them. That
+difference is load-bearing for anything joining against the artifact
+without a live session.
+
 - **Module:** `core/bindings.lua` (`M.extract`, `M.recognized`),
-  `core/render/html.lua` (`renderAnalysisBindings`)
+  `core/render/html.lua` (`renderAnalysisBindings`), `init.lua` (`to_json`)
 - **Config:** `opts.bindings.wrappers` — `callee -> argument layout`
   (`keymap`/`keymap_buf`/`usercmd`/`usercmd_buf`/`autocmd`). Only a wrapper
   preserving the wrapped API's argument order is declarable; one that
