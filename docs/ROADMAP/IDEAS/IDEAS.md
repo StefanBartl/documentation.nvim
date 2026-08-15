@@ -21,9 +21,9 @@
     - [3.1 Compare two artifacts, in the page](#31-compare-two-artifacts-in-the-page)
     - [3.2 Copy-link for the current view](#32-copy-link-for-the-current-view)
     - [3.3 Print / PDF stylesheet](#33-print-pdf-stylesheet)
-    - [3.4 Keyboard navigation across the page](#34-keyboard-navigation-across-the-page)
+    - [3.4 Keyboard navigation across the page — done](#34-keyboard-navigation-across-the-page--done-removed-2026-08-15)
   - [4. The editor browser (`:DocBrowse`)](#4-the-editor-browser-docbrowse)
-    - [4.1 Telemetry mode (ECOSYSTEM step 8)](#41-telemetry-mode-ecosystem-step-8)
+    - [4.1 Telemetry mode (ECOSYSTEM step 8) — done](#41-telemetry-mode-ecosystem-step-8--done-removed-2026-08-15)
     - [4.2 Picker integration](#42-picker-integration)
     - [4.3 `K` — look up the notation under the cursor](#43-k-look-up-the-notation-under-the-cursor)
     - [4.4 Breadcrumb in the statusline](#44-breadcrumb-in-the-statusline)
@@ -43,7 +43,7 @@
   - [7. Scale and performance](#7-scale-and-performance)
   - [8. Product shape](#8-product-shape)
     - [8.1 A polished desktop/web-app version](#81-a-polished-desktopweb-app-version)
-    - [8.2 A checklist/task syntax with a runner and dashboard](#82-a-checklisttask-syntax-with-a-runner-and-dashboard)
+    - [8.2 A checklist/task syntax with a runner and dashboard — done](#82-a-checklisttask-syntax-with-a-runner-and-dashboard--done-shipped-2026-08-11)
     - [8.3 Modern protocols, WASM, and agent integration](#83-modern-protocols-wasm-and-agent-integration)
   - [9. Artifact and schema](#9-artifact-and-schema)
 
@@ -284,12 +284,16 @@ and it costs a stylesheet rather than a feature.
 
 ---
 
-### 3.4 Keyboard navigation across the page
+### 3.4 Keyboard navigation across the page — **done, removed 2026-08-15**
 
-Tab order and shortcuts exist in places (the annotation popup is
-keyboard-reachable; the Analysis panels largely are not). Worth a pass on
-its own terms, and a prerequisite for anyone using this via a screen
-reader.
+Shipped as [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) Phase 4,
+Slices 5 and 6: keyboard parity (`tabindex="0" role="button"`, a delegated
+Enter/Space handler) for the Index tab's links and `.feat-name`/
+`.feat-tab-name`, and roving tabindex for the three long lists (Tree,
+History, Analysis) plus their sort headers. Verified against real tab-stop
+counts and DOM state, not asserted — see that document for the detail
+Slices 5/6 record, including a measurement mistake caught and corrected
+along the way.
 
 ---
 
@@ -297,22 +301,13 @@ reader.
 
 ---
 
-### 4.1 Telemetry mode (ECOSYSTEM step 8)
+### 4.1 Telemetry mode (ECOSYSTEM step 8) — **done, removed 2026-08-15**
 
-Already designed in full, in
-[`lib.nvim/docs/ROADMAP/telemetry-documentation-bridge.md`](https://github.com/StefanBartl/lib.nvim/blob/main/docs/ROADMAP/telemetry-documentation-bridge.md),
-and now buildable: `runtime-analysis.telemetry` exposes `load()` (read a
-namespace with no live instance) and `Data.modules` (resolve a wrapped key
-to a real module path), which were built for exactly this consumer.
-
-The join's payoff is the `dead-function` cross-check — static "no caller
-found" against runtime "actually called, 4 000 times" — where each side's
-blind spot is covered by the other's evidence. **The one item in this file
-with a finished design and both halves of its contract already shipped.**
-
-Note the numbering: it lands as `MODES[8]`, not 7 — Endpoints took position
-7 in the actual list. `ECOSYSTEM.md` already records this to spare a future
-reader the confusion.
+Shipped: `:DocBrowse telemetry` is the static × runtime join this section
+described — `runtime-analysis.telemetry`'s `load()`/`Data.modules` join
+against `dead-function`'s "no caller found," documented in
+[`../FEATURES/ECOSYSTEM.md`](../FEATURES/ECOSYSTEM.md) §8 and
+[`../FEATURES/FEATURES.md`](../FEATURES/FEATURES.md).
 
 ---
 
@@ -577,44 +572,51 @@ one will make all of it urgent at once.
 
 Two bigger-picture ideas, each substantial enough to warrant a full
 analysis document rather than a paragraph here — the same
-`docs/ROADMAP/PORTABILITY.md`/`docs/ROADMAP/MULTILANG.md` pattern this backlog already
-uses for anything too large for one entry.
+[`PORTABILITY.md`](PORTABILITY.md)/[`MULTILANG.md`](MULTILANG.md) pattern
+this backlog already uses for anything too large for one entry.
 
 ---
 
 ### 8.1 A polished desktop/web-app version
 
-[`DESKTOP_WEBAPP.md`](DESKTOP_WEBAPP.md) — costs out
-"desktop app" and "web app" separately (they share a UI, not a trust
-model or a distribution story). Short version: most of "a rich browser
-UI" already exists (the generated page); a real standalone desktop build
-is partly built (the parser-less standalone CLI works) and partly
-**blocked** — the full-fidelity path needs a working Lua
-`libtree-sitter` binding, and both available ones fail on Windows, one
-refusing to compile and one segfaulting (verified 2026-08-11, see
-`docs/ROADMAP/PORTABILITY.md`); a hosted web app has no answer sketched anywhere for the trust
-question `editor/serve.lua`'s own `127.0.0.1`-only posture currently
-avoids having to answer at all.
+[`DESKTOP_WEBAPP.md`](DESKTOP_WEBAPP.md) — costs out "desktop app" and "web
+app" separately (they share a UI, not a trust model or a distribution
+story). **Updated 2026-08-15: the desktop half shipped**, as its own
+repository, [`docmap-desktop`](https://github.com/StefanBartl/docmap-desktop) —
+shell, project switcher, generation, packaging, all done. The web half is
+unchanged and remains the least developed of the two: a hosted, multi-tenant
+service has no trust model sketched anywhere in this ecosystem, and
+`editor/serve.lua`'s own `127.0.0.1`-only posture is a deliberate answer for
+the single-user case, not an oversight to lift.
 
 ---
 
-### 8.2 A checklist/task syntax with a runner and dashboard
+### 8.2 A checklist/task syntax with a runner and dashboard — **done, shipped 2026-08-11**
 
-[`CHECKLIST_TASK_RUNNER.md`](CHECKLIST_TASK_RUNNER.md)
-— grounded against a real example (the nvim-config repo's own
-`docs/ROADMAP/RULES/` systematic audit). Short version: most of what such
-an audit actually contains is a **hand-verified fact pinned to a
-file:line**, not something a scanner can re-derive — so the idea that
-earns its keep is a curated ledger with staleness detection ("this cited
-line changed since it was last verified"), not a re-implementation of the
-existing check catalogue with new syntax.
+This shipped as `documentation.nvim`'s checklist ledger — see
+[`docs/CHECKLIST_FORMAT.md`](../../CHECKLIST_FORMAT.md) for the format,
+[`docs/MCP.md`](../../MCP.md) for `docmap_checklist`, and
+[`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md)'s Phase 2 for the build
+history. The original costing document (`CHECKLIST_TASK_RUNNER.md`) is
+absorbed into those three and has been removed, the same way
+`PROTOCOLS_AND_AGENTS.md` was — grounded against a real example (the
+nvim-config repo's own `docs/ROADMAP/RULES/` systematic audit), it
+concluded most of what such an audit contains is a **hand-verified fact
+pinned to a file:line**, not something a scanner can re-derive, and that the
+curated ledger with staleness detection (scope **(b)**) was the part worth
+building, not a re-implementation of the check catalogue with new syntax
+(scope **(a)**, correctly not built). One thread from that document is
+still open and not yet built: trend data on the ledger's own pass rate over
+time, the same named-snapshot shape `runtime-analysis.telemetry`/`loaded`
+already have, applied to a third kind of data — see
+[`IDEAS_IMPLEMENTATION_PLAN.md`](IDEAS_IMPLEMENTATION_PLAN.md).
 
 ---
 
 ### 8.3 Modern protocols, WASM, and agent integration
 
-[`PROTOCOLS_AND_AGENTS.md`](PROTOCOLS_AND_AGENTS.md) — four ideas raised
-together ("cutting-edge tech / new future-protocols"), costed apart
+`PROTOCOLS_AND_AGENTS.md` — four ideas raised together ("cutting-edge tech /
+new future-protocols"), costed apart
 because they differ by an order of magnitude in effort. Short version:
 an **MCP server** is the strongest and by far the cheapest (a thin
 adapter over `Documentation.Handle`/`core/cli.lua`, which already exist;

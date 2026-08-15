@@ -106,3 +106,68 @@ Neovim runs LuaJIT, i.e. 5.1 plus selected 5.2 extensions — so
 as available). Pin to the 5.1 manual, mark the 5.2-isms Neovim does
 provide, and link `:help luaref` and `:help lua-guide` alongside, which are
 the versions that are actually correct for the runtime.
+
+---
+
+## Implementation status and plan (checked 2026-08-15)
+
+**Not built.** Verified against source, not assumed: `docs/FEATURES/CORE.md`
+catalogues every tab the generated page has (Compare, Hierarchy hide/dim,
+Plugins/Tools/Telemetry Analysis panels, Features, promoted feature tabs,
+Module Calls, Loaded) and none of them is a Reference tab; `grep -n
+reference lua/documentation/core/render/html.lua` finds only unrelated uses
+of the word (cross-reference popups, prose-reference affordances, type
+references between fields) — no tab, no `TAGS` table, no keyword list, no
+right-click "what is this" affordance. `functions.lua` still recognises
+tags in the `if/elseif` chain this document names as the precondition for
+the tag panel, not yet a dispatch table.
+
+### Effort and benefit, per the two panels this document already splits apart
+
+| | Effort | Benefit | Quick win? |
+|---|---|---|---|
+| `TAGS` table refactor (precondition for the tag panel) | S–M | Enables two features at once (see below) | No — real work, but see next row |
+| LuaCATS/EmmyLua tag panel, once `TAGS` exists | S | High | **Yes, once the precondition lands** |
+| Lua syntax crib sheet (keyword/operator/stdlib lookup panel) | S | Medium | Candidate |
+| Right-click "what is this" on rendered annotations | S | High | Candidate — needs the tag panel first |
+| Curated link-list fallback (no panels, no generation) | XS | Low–Medium | **Yes, standalone** |
+
+**The `TAGS` table refactor is not only this feature's cost — it pays
+twice.** [`IDEAS_IMPLEMENTATION_PLAN.md`](IDEAS_IMPLEMENTATION_PLAN.md)
+independently rates §2.1 (an annotation-adoption Analysis panel, generated
+rather than hand-written like `docs/ANNOTATIONS.md` is today) as the
+highest-value panel idea in that backlog, gated on the exact same
+refactor. Building the `TAGS` table once and pointing both the tag-reference
+panel here and the adoption panel there at it is cheaper than either
+document's own estimate assumes in isolation, and building it twice would
+be the kind of duplication this plugin's own conventions warn against
+elsewhere. **Recommendation: sequence the `TAGS` table refactor as its own
+small piece of work, then both panels become independent quick wins.**
+
+**The tag panel earns "quick win" the moment its precondition exists** —
+the IR is already in the page, so "which tags does this tree actually use"
+is a filter over data already present, not new extraction. The keyword
+panel is genuinely static (this document's own honest framing: "the first
+thing in the map that is not derived from the scanned tree") and does not
+share that argument — it is cheap in isolation but has the weaker
+proximity case, since nothing links to it from elsewhere in the page until
+the right-click affordance exists, and that affordance is scoped to reach
+only the tag panel, not the keyword one (this document's own "But this
+only reaches the tags" section already establishes why).
+
+**If only one piece ships, the curated link-list fallback is the one to
+build.** No panels, no `TAGS` table, no context menu — a handful of checked
+URLs (the Lua 5.1 manual, LuaLS's own docs, `:help luaref`/`:help
+lua-guide`), pinned to the correct Lua version this document already
+insists on. Honest about what most of the value actually is — knowing
+*where* to look — and small enough to not need a phase of its own. This is
+the one candidate in this section that does not depend on anything else
+here landing first.
+
+**Recommended sequencing, if this is picked up:** curated link-list first
+(ships alone, zero dependencies) → `TAGS` table refactor (shared
+precondition, do once) → LuaCATS/EmmyLua tag panel (immediate payoff once
+the table exists) → right-click affordance (reaches the tag panel only) →
+Lua syntax crib sheet last, since it is the one piece whose case is
+"proximity, not necessity," and the weakest claim on being built at all
+per this document's own "objection to answer before building it."
