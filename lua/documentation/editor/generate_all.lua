@@ -63,6 +63,7 @@ local M = {}
 ---@class Documentation.GenerateAll.Opts
 ---@field on_progress fun(index: integer, total: integer, project: Documentation.GenerateAll.Project)? Called just before each project starts.
 ---@field on_done fun(results: Documentation.GenerateAll.Result[])? Called once, after every project has finished.
+---@field luals? boolean LuaLS enrichment for every project in this run -- forwarded verbatim to each subprocess's own `generate()` call. Default true (unset means true), matching this module's own behavior before this option existed; `:DocMapAll`'s own default flips this per-call (see `bindings/usrcmds/generate_all.lua`), not this module.
 
 ---documentation.nvim's own repo root, resolved once. `debug.getinfo`
 ---rather than `vim.uv.cwd()` or a caller-supplied path: this file's own
@@ -97,8 +98,9 @@ end
 ---`-l` is Neovim's bare Lua-script runner, deliberately skipping both, and
 ---that independence is the whole fix this file exists for.
 ---@param project Documentation.GenerateAll.Project
+---@param luals boolean
 ---@param on_done fun(result: Documentation.GenerateAll.Result)
-local function generate_one(project, on_done)
+local function generate_one(project, luals, on_done)
   local script = plugin_root() .. "/scripts/generate_one_headless.lua"
   vim.system({ "nvim", "--headless", "-l", script }, {
     text = true,
@@ -106,6 +108,7 @@ local function generate_one(project, on_done)
       DOCMAP_GEN_PLUGIN_ROOT = plugin_root(),
       DOCMAP_GEN_ROOT = project.root,
       DOCMAP_GEN_TITLE = project.title or "",
+      DOCMAP_GEN_LUALS = luals and "1" or "0",
     },
   }, function(res)
     if res.code ~= 0 then
@@ -139,6 +142,7 @@ end
 ---@param opts Documentation.GenerateAll.Opts?
 function M.run(projects, opts)
   opts = opts or {}
+  local luals = opts.luals ~= false
   local total = #projects
   ---@type Documentation.GenerateAll.Result[]
   local results = {}
@@ -157,7 +161,7 @@ function M.run(projects, opts)
       opts.on_progress(index, total, project)
     end
 
-    generate_one(project, function(result)
+    generate_one(project, luals, function(result)
       results[#results + 1] = result
       index = index + 1
       run_next()

@@ -85,8 +85,8 @@ local ACTIONS = {
   full = function(ctx)
     require("documentation.bindings.usrcmds.generate").run(ctx, { luals = true })
   end,
-  all = function(ctx)
-    require("documentation.bindings.usrcmds.generate_all").run(ctx)
+  all = function(ctx, arg)
+    require("documentation.bindings.usrcmds.generate_all").run(ctx, arg == "full")
   end,
 }
 
@@ -308,7 +308,7 @@ function M.setup(opts)
     nargs = "*",
     desc = "Regenerate the module map (:"
       .. command_name
-      .. " [check|full|open|graph|why <a> <b>|dot|diff <ref>|impact <ref>|churn [range]|checklist [all]|plugins|tools|endpoints|serve [stop]|helptags|annotate [--write|--sidecar]|all])",
+      .. " [check|full|open|graph|why <a> <b>|dot|diff <ref>|impact <ref>|churn [range]|checklist [all]|plugins|tools|endpoints|serve [stop]|helptags|annotate [--write|--sidecar]|all [full]])",
     complete = function(lead, line)
       -- Two completion levels: the action, then — once an action that takes a
       -- module is typed — the module paths the map actually knows, which is
@@ -345,12 +345,16 @@ function M.setup(opts)
     end,
   })
 
-  -- `:DocMapAll` — a standalone alias for `:DocMap all`, registered (like
-  -- `all` itself in ACTIONS above) only when a caller actually configured
-  -- `opts.generate_all.projects`. Reached for often enough, once configured,
-  -- to earn a command name of its own rather than a remembered subcommand —
-  -- same reasoning `runtime-analysis.telemetry`'s `:RATelemetryStartAll`
-  -- gives for its own bare-form alias.
+  -- `:DocMapAll` / `:DocMapAllFull` — standalone aliases for `:DocMap all`
+  -- / `:DocMap all full`, registered (like `all` itself in ACTIONS above)
+  -- only when a caller actually configured `opts.generate_all.projects`.
+  -- Reached for often enough, once configured, to earn command names of
+  -- their own rather than a remembered subcommand — same reasoning
+  -- `runtime-analysis.telemetry`'s `:RATelemetryStartAll` gives for its own
+  -- bare-form alias. Split fast/full (2026-08-15) the same way `:DocMap`/
+  -- `:DocMap full` already are for a single repo — see
+  -- `bindings/usrcmds/generate_all.lua`'s own header for why the bulk path
+  -- did not have this distinction before.
   if
     opts
     and opts.generate_all
@@ -361,7 +365,15 @@ function M.setup(opts)
     usercmd.create(all_command_name, function()
       dispatch("all")
     end, {
-      desc = ("Generate every configured project's module map (same as :%s all)"):format(
+      desc = ("Generate every configured project's module map, fast scan (same as :%s all)"):format(
+        command_name
+      ),
+    })
+
+    usercmd.create(all_command_name .. "Full", function()
+      dispatch("all full")
+    end, {
+      desc = ("Generate every configured project's module map, with LuaLS enrichment (same as :%s all full)"):format(
         command_name
       ),
     })

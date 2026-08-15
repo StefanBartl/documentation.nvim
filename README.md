@@ -351,8 +351,10 @@ Full reference: [docs/COMMANDS.md](docs/COMMANDS.md).
 :DocMap tools                    " this repo's own lib.nvim.deps manifest -> quickfix
 :DocMap serve                    " local map server (enables the History tab)
 :DocMap helptags                 " regenerate this plugin's own doc/tags
-:DocMap all                      " every opts.generate_all.projects, one subprocess each (needs opts.generate_all)
+:DocMap all                      " every opts.generate_all.projects, fast scan, one subprocess each (needs opts.generate_all)
+:DocMap all full                 " …with LuaLS enrichment for every project
 :DocMapAll                       " standalone alias for :DocMap all
+:DocMapAllFull                   " standalone alias for :DocMap all full
 
 :DocBrowse                       " navigate the map inside the editor
 :DocBrowse live                  " …re-scanning on every write

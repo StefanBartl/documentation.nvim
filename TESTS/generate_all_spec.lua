@@ -165,5 +165,38 @@ return function(H)
     end
   end
 
+  -- --------------------------------------------------- opts.luals = false
+  -- The fast path (`:DocMapAll`'s own default, 2026-08-15) — same fixture,
+  -- explicit `luals = false` threaded down to `DOCMAP_GEN_LUALS=0` in the
+  -- subprocess env. Proves the wiring reaches the subprocess and a real
+  -- map still comes out the other end; not a claim about LuaLS itself
+  -- being skipped internally (`generate_one_headless.lua`'s own env-var
+  -- read already covers that in isolation).
+  vim.fn.mkdir(fixture .. "/lua/gaspec", "p")
+  local fd2 = assert(io.open(fixture .. "/lua/gaspec/init.lua", "w"))
+  fd2:write(
+    "---@module 'gaspec'\n--- A fixture module for generate_all_spec.\nlocal M = {}\n\n---Adds.\n---@param a number\n---@param b number\n---@return number\nfunction M.add(a, b)\n  return a + b\nend\n\nreturn M\n"
+  )
+  fd2:close()
+
+  do
+    local done, results = false, nil
+    ga.run({ { root = fixture, title = "gaspec" } }, {
+      luals = false,
+      on_done = function(r)
+        done, results = true, r
+      end,
+    })
+    vim.wait(20000, function()
+      return done
+    end, 100)
+
+    ok(done, "generate_all: opts.luals=false still fires on_done")
+    ok(
+      results and results[1] and results[1].ok == true,
+      "generate_all: opts.luals=false still succeeds -- " .. tostring(results and results[1] and results[1].err)
+    )
+  end
+
   os.execute(('rm -rf "%s" "%s"'):format(fixture, broken))
 end

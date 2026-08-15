@@ -83,6 +83,30 @@ return function(H)
     ok(type(received_opts.on_done) == "function", "M.run: wires on_done")
     ok(#calls.info >= 1, "M.run: notifies at least once (starting + finished)")
     eq(#calls.error, 0, "M.run: no error notification when every project succeeded")
+    eq(received_opts.luals, false, "M.run: no second argument -- fast scan (luals=false) by default")
+
+    docmap.generate_all.run = original_run
+  end
+
+  -- --------------------------------------------------------- full (luals)
+  -- `M.run(ctx, true)` -- what `:DocMapAllFull` / `:DocMap all full` call
+  -- through `dispatch("all full")` -- must forward `luals = true`.
+  do
+    local original_run = docmap.generate_all.run
+    local received_opts
+
+    docmap.generate_all.run = function(projects, opts)
+      received_opts = opts
+      if opts.on_done then
+        opts.on_done({ { project = projects[1], ok = true } })
+      end
+    end
+
+    local projects = { { root = "/fake/one", title = "one" } }
+    local ctx = fake_ctx({ projects = projects })
+    usrcmds_generate_all.run(ctx, true)
+
+    eq(received_opts.luals, true, "M.run(ctx, true): forwards luals=true (LuaLS enrichment)")
 
     docmap.generate_all.run = original_run
   end
@@ -186,7 +210,8 @@ return function(H)
   -- Only registered when opts.generate_all.projects is actually configured
   -- and non-empty -- confirmed by calling usrcmds.setup() with each shape
   -- and checking the command's existence, not its behavior (already covered
-  -- above).
+  -- above). `:DocMapAllFull` is registered alongside `:DocMapAll`, same
+  -- gate, same both-or-neither shape.
   do
     local usrcmds = require("documentation.bindings.usrcmds")
     local fixture = repo_root .. "/.deps/generate-all-cmdreg-fixture"
@@ -199,6 +224,11 @@ return function(H)
       0,
       ":DocMapAll-shaped alias is NOT registered without opts.generate_all"
     )
+    eq(
+      vim.fn.exists(":DocMapGenAllSpecNoneAllFull"),
+      0,
+      ":DocMapAllFull-shaped alias is NOT registered without opts.generate_all"
+    )
 
     usrcmds.setup({
       root = fixture,
@@ -209,6 +239,11 @@ return function(H)
       vim.fn.exists(":DocMapGenAllSpecSomeAll"),
       2,
       ":DocMapAll-shaped alias IS registered when opts.generate_all.projects is non-empty"
+    )
+    eq(
+      vim.fn.exists(":DocMapGenAllSpecSomeAllFull"),
+      2,
+      ":DocMapAllFull-shaped alias IS registered when opts.generate_all.projects is non-empty"
     )
 
     os.execute(('rm -rf "%s"'):format(fixture))

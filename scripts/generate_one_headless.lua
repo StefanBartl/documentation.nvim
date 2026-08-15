@@ -25,6 +25,9 @@
 ---   DOCMAP_GEN_PLUGIN_ROOT=<documentation.nvim's own repo root>
 ---   DOCMAP_GEN_ROOT=<the project to generate a map for>
 ---   DOCMAP_GEN_TITLE=<optional, passed through to generate()'s opts.title>
+---   DOCMAP_GEN_LUALS=<"0" for a fast scan, anything else (or unset) for
+---                     LuaLS enrichment -- see generate_all.lua's own
+---                     opts.luals for why the default, unset, means true>
 ---   nvim --headless -l scripts/generate_one_headless.lua
 
 local plugin_root = vim.env.DOCMAP_GEN_PLUGIN_ROOT
@@ -80,8 +83,14 @@ if title == "" then
   title = nil
 end
 
+-- Unset (nil) and "1" both mean LuaLS enrichment; only an explicit "0"
+-- (generate_all.lua's opts.luals == false) turns it off -- preserves the
+-- old always-on behavior for any caller that sets DOCMAP_GEN_ROOT/
+-- DOCMAP_GEN_PLUGIN_ROOT by hand without ever having heard of this variable.
+local luals = vim.env.DOCMAP_GEN_LUALS ~= "0"
+
 local ok, err =
-  pcall(require("documentation").generate, { root = root, title = title, luals = true })
+  pcall(require("documentation").generate, { root = root, title = title, luals = luals })
 if not ok then
   io.stderr:write(tostring(err))
   vim.cmd("cquit!")
