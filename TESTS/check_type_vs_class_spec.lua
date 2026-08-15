@@ -71,6 +71,53 @@ return function(H)
     "return M",
   })
 
+  -- Real regression fixture 1: an `@alias` block (or any run of comments/
+  -- blank lines) between the header and an UNRELATED local's own, entirely
+  -- correct `---@type` -- must not be misattributed to the module. An
+  -- earlier version of this check read `scan.parse_header`'s `tags.type`
+  -- (first `@type` anywhere in the leading comment run, however far from
+  -- any code) and fired here regardless of the intervening `@alias`.
+  dwrite("lua/t/alias_gap/init.lua", {
+    "---@module 't.alias_gap'",
+    "--- A module whose header is followed by an @alias before any code.",
+    "",
+    "---@alias t.alias_gap.Variant",
+    '---| "a"',
+    '---| "b"',
+    "",
+    "---@type table<string, string>",
+    "local ICONS = { a = 'x', b = 'y' }",
+    "",
+    "local M = {}",
+    "---A real export -- belongs to M, not to ICONS.",
+    "function M.pick(variant)",
+    "  return ICONS[variant]",
+    "end",
+    "return M",
+  })
+
+  -- Real regression fixture 2: the module's own real functions live on a
+  -- SEPARATE local from the one carrying `---@type` -- the annotated table
+  -- is a complete, static literal, never touched again. An earlier version
+  -- used `#node.functions > 0` (does this FILE have any functions at all)
+  -- as a stand-in for "are fields assigned to the @type'd local", which
+  -- fired here even though DEFAULTS never receives a single field
+  -- assignment.
+  dwrite("lua/t/separate_owner/init.lua", {
+    "---@module 't.separate_owner'",
+    "--- A module whose functions live on a different local than the",
+    "--- @type'd table.",
+    "---@type RateLimits",
+    "local DEFAULTS = { max = 10 }",
+    "",
+    "local M = {}",
+    "---A real export -- belongs to M, not to DEFAULTS.",
+    "function M.get_defaults()",
+    "  return DEFAULTS",
+    "end",
+    "return M",
+  })
+
   local ir = scan.scan({ root = dr, source = "lua/t", lua_root = "lua" })
   local opts = { root = dr, source = "lua/t", lua_root = "lua", extra_checks = {} }
   local findings = check.run(ir, opts)
@@ -114,4 +161,17 @@ return function(H)
     "check.type-vs-class: does NOT fire for @type with no fields ever assigned"
   )
   eq(by_node("lua/t/plain"), nil, "check.type-vs-class: an unannotated module is unaffected")
+
+  eq(
+    by_node("lua/t/alias_gap"),
+    nil,
+    "check.type-vs-class: an @alias block between the header and an unrelated "
+      .. "local's own @type does not misattribute it to the module"
+  )
+  eq(
+    by_node("lua/t/separate_owner"),
+    nil,
+    "check.type-vs-class: a module's real functions living on a DIFFERENT local "
+      .. "than the @type'd one must not count as fields assigned to it"
+  )
 end
