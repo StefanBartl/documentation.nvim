@@ -595,50 +595,146 @@ local function check_see_targets(ir, findings)
   end
 end
 
---- `---@type Foo` on a module's own `local M = {}` (or equivalent), when
---- fields are then assigned to that same table, is a real LuaLS defect
---- class rather than a style nit: it produces `missing-fields` and
---- "fields cannot be injected" diagnostics on every one of those
---- assignments, because `@type` tells the language server "this value
---- already has exactly this shape", and a later `M.foo = ...` looks like
---- an attempt to add a field the type never declared. `---@class M : Foo`
---- (optionally with a `@see` on the type definition) is the annotation
---- that actually means "this table's own shape, which happens to satisfy
---- `Foo`" — declaring it exports M in that shape instead of freezing it.
+--- `---@type Foo` on a local table, when fields are LATER assigned onto
+--- that same table, is a real LuaLS defect class rather than a style nit:
+--- it produces `missing-fields` and "fields cannot be injected"
+--- diagnostics on every one of those assignments, because `@type` tells
+--- the language server "this value already has exactly this shape", and a
+--- later `x.foo = ...` looks like an attempt to add a field the type never
+--- declared. `---@class X : Foo` (optionally with a `@see` on the type
+--- definition) is the annotation that actually means "this table's own
+--- shape, which happens to satisfy `Foo`" — declaring it lets the table
+--- keep growing fields instead of freezing it at the literal.
 ---
---- Reads the same leading-comment-block scan `scan.parse_header` already
---- does for `@module`/`@brief`/prose — a bare `---@type` line there is
---- exactly as reachable as any other tag on that block, so this needs no
---- new parsing, only a second look at data already being read. Fires only
---- when the node also has real exported functions (`#node.functions > 0`)
---- — a `@type` with nothing ever assigned to it afterward is not this bug,
---- whatever else it might be.
+--- **Both halves are verified, not assumed — this took two real, wrong
+--- attempts to get right, both against a real config, and both worth
+--- keeping as the reason for the shape below:**
+---
+--- 1. A `---@type` line only counts when it is immediately adjacent to the
+---    file's first real code line — `---@type` always applies to the
+---    statement right after it. An earlier version of this check read
+---    `scan.parse_header`'s `tags.type` (the first `@type` tag anywhere in
+---    the leading comment run, however far from any code), and
+---    misattributed an unrelated LOCAL variable's own, entirely correct
+---    `@type` to the module whenever nothing but comments, blank lines or
+---    a divider sat between the header prose and that local's declaration
+---    (`config.neotest.init.icons`, an `@alias` block in between).
+--- 2. Adjacency alone is not enough either — fixed second, after adjacency
+---    was verified against real data and STILL fired on files where
+---    nothing was ever assigned to the annotated local at all. The
+---    previous version used `#node.functions` (does this FILE have any
+---    functions anywhere) as a stand-in for "are fields assigned to THIS
+---    local" — two unrelated questions. `autocmds.general.defaults` was
+---    the case that exposed it: `AUTOCMDS_GENERAL_DEFAULTS` is a complete,
+---    static `---@type` table, never touched again; the file's one
+---    function lives on a SEPARATE `local M = {}` that merely returns it.
+---    `@type` there was already correct, and converting it to `@class`
+---    would have added a needless global type name for no real defect.
+---    So this now greps the rest of the file for an actual assignment onto
+---    that local's own name (`name.field = ...` or the `function
+---    name.field(...)` sugar for the same thing) and fires only when at
+---    least one is found — the exact shape the LuaLS diagnostic itself
+---    requires to exist.
 ---@param ir Documentation.IR
 ---@param findings Documentation.Finding[]
 ---@param opts Documentation.Opts
 local function check_type_vs_class(ir, findings, opts)
-  local scan = require("documentation.core.scan")
   local root = opts.root:gsub("\\", "/"):gsub("/+$", "")
+
+  ---The `@type` tag and the local name it annotates, read off the line
+  ---immediately before the file's first real code line — nil unless that
+  ---line is both a `---@type` tag AND the next line is a `local NAME = `
+  ---assignment. Returns `nil` for a `---@type` on anything else (a
+  ---parameter-typed local reused later, a scalar): only a table literal is
+  ---even a candidate for the "fields injected later" defect this check
+  ---exists for.
+  ---@param path string
+  ---@return string|nil declared_type
+  ---@return string|nil local_name
+  ---@return string[]|nil rest_of_file  # remaining lines, for the field-assignment scan below
+  local function adjacent_type_tag(path)
+    local fd = io.open(path, "r")
+    if not fd then
+      return nil, nil, nil
+    end
+    local prev
+    local declared, name
+    local rest = {}
+    local in_header = true
+    for line in fd:lines() do
+      if in_header then
+        if not line:match("^%s*%-%-") and line:match("%S") then
+          in_header = false
+          if prev then
+            declared = prev:match("^%-%-%-@type%s+(.+)$")
+          end
+          if declared then
+            name = line:match("^local%s+([%w_]+)%s*=%s*{")
+            if not name then
+              -- Not a table literal on that line -- nothing to check.
+              declared = nil
+            end
+          end
+        else
+          prev = line
+        end
+      end
+      if not in_header then
+        rest[#rest + 1] = line
+      end
+    end
+    fd:close()
+    if not declared then
+      return nil, nil, nil
+    end
+    return declared, name, rest
+  end
+
+  ---How many times `name` is assigned a field after its own declaration.
+  ---@param name string
+  ---@param lines string[]
+  ---@return integer
+  local function count_field_assignments(name, lines)
+    local escaped = name:gsub("%p", "%%%0")
+    local assign = "^%s*" .. escaped .. "%.[%w_]+%s*="
+    local method = "^%s*function%s+" .. escaped .. "%.[%w_]+%s*%("
+    local n = 0
+    for _, line in ipairs(lines) do
+      if line:match(assign) or line:match(method) then
+        n = n + 1
+      end
+    end
+    return n
+  end
 
   for _, id in ipairs(ir.order) do
     local node = ir.nodes[id]
-    if node.source and #node.functions > 0 then
-      local header = scan.parse_header(root .. "/" .. node.source)
-      local declared_type = header.tags.type
-      if declared_type then
-        add(
-          findings,
-          "warn",
-          "type-vs-class",
-          id,
-          ('module table annotated ---@type %s, but %d field(s) are assigned to it — LuaLS reports missing-fields/"fields cannot be injected" for this shape; use ---@class instead (---@class %s : %s, plus @see the type definition, if %s should still be checked against it)'):format(
-            declared_type,
-            #node.functions,
-            node.module or id,
-            declared_type,
-            declared_type
+    if node.source then
+      local declared_type, name, rest = adjacent_type_tag(root .. "/" .. node.source)
+      if declared_type and name and rest then
+        local n = count_field_assignments(name, rest)
+        if n > 0 then
+          add(
+            findings,
+            "warn",
+            "type-vs-class",
+            id,
+            (
+              "%s: local %q annotated ---@type %s, but %d field(s) are assigned to it after "
+              .. 'its literal — LuaLS reports missing-fields/"fields cannot be injected" for '
+              .. "this shape; use ---@class instead (---@class %s : %s, plus @see the type "
+              .. "definition, if %s should still be checked against it)"
+            ):format(
+              node.module or id,
+              name,
+              declared_type,
+              n,
+              node.module or id,
+              declared_type,
+              declared_type
+            )
           )
-        )
+        end
       end
     end
   end
