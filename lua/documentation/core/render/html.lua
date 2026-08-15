@@ -1516,7 +1516,8 @@ local JS = [[
       else if(k === "atool") s.atool = (v === "doc" || v === "deps" || v === "complexity" ||
         v === "duplicates" || v === "plugins" || v === "tools" || v === "hooks" ||
         v === "checklist" ||
-        v === "docs" || v === "endpoints" || v === "telemetry" || v === "loaded") ? v : "test";
+        v === "docs" || v === "endpoints" || v === "telemetry" || v === "loaded" ||
+        v === "bindings") ? v : "test";
       // Snapshot names are whatever runtime-analysis.telemetry's own
       // sanitizer allowed through when saved — not re-validated here, the
       // same posture `sha`/`q` already take: a value that does not
@@ -4121,6 +4122,121 @@ local JS = [[
     return parts.join("");
   }
 
+  // Keymaps / user commands / autocmds, straight off `n.bindings` — the same
+  // JS-side-aggregation-only shape as the Plugins panel above: `core/
+  // bindings.lua` did the extraction during the scan, where the parse tree
+  // exists, and this only walks the serialised IR.
+  //
+  // Sorted by the identifying text (kind, then lhs/name/event) rather than
+  // worst-first, for the reason `renderAnalysisPlugins` states — an
+  // inventory is read alphabetically. That sort is also what makes
+  // collisions visible: two rows for the same lhs land adjacent.
+  function bindingLabel(b){
+    if(b.kind === "keymap"){
+      var modes = (b.modes || []).length ? b.modes.join("/") : "?";
+      return "[" + modes + "] " + (b.lhs || "?");
+    }
+    if(b.kind === "usercmd") return ":" + (b.name || "?");
+    return (b.events || []).join(",");
+  }
+
+  // Keymap collisions are per (mode, lhs); a user command's name is global.
+  // Buffer-local registrations never collide — shadowing a global mapping
+  // inside an ftplugin is the intended idiom, not a clash. Autocmds do not
+  // collide at all: many handlers per event is the normal shape.
+  // Built with fromCharCode rather than an escape: this whole script is a
+  // Lua long string, so a literal control character here would be at the
+  // mercy of any retab/whitespace pass that ever touches the file.
+  var BSEP = String.fromCharCode(1);
+
+  function bindingCollisionKey(b){
+    if(b.kind === "keymap" && b.lhs && !b.buffer){
+      var modes = (b.modes || []).length ? b.modes.join(",") : "?";
+      return "keymap" + BSEP + modes + BSEP + b.lhs;
+    }
+    if(b.kind === "usercmd" && b.name) return "usercmd" + BSEP + b.name;
+    return null;
+  }
+
+  function renderAnalysisBindings(){
+    var rows = [];
+    var seen = {};
+    IR.nodes.forEach(function(n){
+      (n.bindings || []).forEach(function(b){
+        var key = bindingCollisionKey(b);
+        if(key) seen[key] = (seen[key] || 0) + 1;
+      });
+    });
+    var counts = { keymap: 0, usercmd: 0, autocmd: 0 };
+    IR.nodes.forEach(function(n){
+      var name = n.module || n.path;
+      (n.bindings || []).forEach(function(b){
+        var key = bindingCollisionKey(b);
+        var label = bindingLabel(b);
+        var desc = b.desc || "";
+        counts[b.kind] = (counts[b.kind] || 0) + 1;
+        var kindRank = b.kind === "keymap" ? "1" : (b.kind === "usercmd" ? "2" : "3");
+        rows.push({
+          node: n, kind: b.kind, label: label, desc: desc, name: name,
+          via: b.callee, buffer: b.buffer === true,
+          dup: key !== null && seen[key] > 1,
+          haystack: label + " " + desc + " " + name + " " + b.callee,
+          sortkey: kindRank + BSEP + label
+        });
+      });
+    });
+
+    if(rows.length === 0){
+      return '<p class="ntext none">No keymap, user command or autocmd found. ' +
+        'The <code>vim.*</code> APIs are always recognized; a config that binds ' +
+        'through its own helper — <code>map(...)</code>, ' +
+        '<code>usercmd.create(...)</code> — must declare it in ' +
+        '<code>opts.bindings.wrappers</code>. See <code>core/bindings.lua</code>.</p>';
+    }
+
+    var totalRows = rows.length;
+    var ndup = 0;
+    Object.keys(seen).forEach(function(k){ if(seen[k] > 1) ndup++; });
+
+    var cols = [
+      { label: "Binding", key: "label", get: function(r){ return r.sortkey; }, initial: "asc" },
+      { label: "Kind", key: "kind", get: function(r){ return r.kind; }, initial: "asc" },
+      { label: "Description", key: "desc", get: function(r){ return r.desc; }, initial: "asc" },
+      { label: "Declared in", key: "name", get: function(r){ return r.name; }, initial: "asc" }
+    ];
+
+    rows = anFilter(rows);
+    anSort(rows, cols, function(a, b){
+      if(a.sortkey !== b.sortkey) return a.sortkey < b.sortkey ? -1 : 1;
+      return a.node.id < b.node.id ? -1 : (a.node.id > b.node.id ? 1 : 0);
+    });
+
+    var parts = [];
+    parts.push('<p class="nsub">' + counts.keymap + ' keymap' +
+      (counts.keymap === 1 ? '' : 's') + ', ' + counts.usercmd + ' command' +
+      (counts.usercmd === 1 ? '' : 's') + ', ' + counts.autocmd + ' autocmd' +
+      (counts.autocmd === 1 ? '' : 's') + '.' +
+      (ndup > 0 ? ' <strong>' + ndup + '</strong> bound more than once — ' +
+        'whichever module loads last silently wins.' : '') +
+      anFilterNote(rows.length, totalRows) + '</p>');
+    if(rows.length === 0){
+      return parts.join("") + '<p class="ntext none">No binding matches that filter.</p>';
+    }
+    parts.push('<table class="antable">' + anHead(cols) + '<tbody>');
+    rows.forEach(function(r){
+      parts.push('<tr class="anrow" data-node="' + esc(r.node.id) + '">' +
+        '<td><code>' + esc(r.label) + '</code>' +
+        (r.dup ? ' <span class="anflag">⚠ duplicate</span>' : '') +
+        (r.buffer ? ' <span class="anflag">buf</span>' : '') + '</td>' +
+        '<td>' + esc(r.kind) + '</td>' +
+        '<td>' + esc(r.desc || ("via " + r.via)) + '</td>' +
+        '<td>' + esc(r.name) + '</td>' +
+        '</tr>');
+    });
+    parts.push("</tbody></table>");
+    return parts.join("");
+  }
+
   // Call-based route registrations, straight off `n.endpoints` — JS-side
   // aggregation only, no new extraction: `core/endpoints.lua` already
   // recognizes these during the scan, the same shape `n.plugins` already
@@ -4451,6 +4567,7 @@ local JS = [[
     if(atool === "docs") return renderAnalysisDocs();
     if(atool === "endpoints") return renderAnalysisEndpoints();
     if(atool === "tools") return renderAnalysisTools();
+    if(atool === "bindings") return renderAnalysisBindings();
     return renderAnalysisPlugins();
   }
 
@@ -4459,7 +4576,8 @@ local JS = [[
       state.atool === "complexity" || state.atool === "duplicates" ||
       state.atool === "plugins" || state.atool === "tools" || state.atool === "hooks" ||
       state.atool === "docs" || state.atool === "endpoints" || state.atool === "telemetry" ||
-      state.atool === "loaded" || state.atool === "checklist")
+      state.atool === "loaded" || state.atool === "checklist" ||
+      state.atool === "bindings")
       ? state.atool : "test";
 
     document.querySelectorAll("#antoggle .anview-btn").forEach(function(b){
@@ -7273,6 +7391,7 @@ function M.render(ir, findings, opts)
     '<button class="anview-btn" data-atool="complexity">Complexity</button>',
     '<button class="anview-btn" data-atool="duplicates">Duplicates</button>',
     '<button class="anview-btn" data-atool="plugins">Plugins</button>',
+    '<button class="anview-btn" data-atool="bindings">Bindings</button>',
     '<button class="anview-btn plugin-gated" data-atool="tools" title="Populated from docs/install.json (lib.nvim.deps manifest) when the scanned repo declares one">Tools</button>',
     '<button class="anview-btn plugin-gated" data-atool="telemetry" title="Needs runtime-analysis.nvim and :DocMap serve — call counts change between runs, so this is never baked into the committed map">Telemetry</button>',
     '<button class="anview-btn plugin-gated" data-atool="loaded" title="Needs runtime-analysis.nvim, a saved :RA loaded snapshot, and :DocMap serve — a loaded-vs-declared diff is a property of some live session, so this reads a named snapshot, never a live aggregate">Loaded</button>',
