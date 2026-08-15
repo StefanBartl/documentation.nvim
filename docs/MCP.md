@@ -86,7 +86,7 @@ a person editing Markdown — see
 system already draws around a subprocess. That is why this was the cheap
 protocol to build first — it sidesteps every question the hosted-web-app idea
 drowns in (see
-[`DESKTOP_WEBAPP.md`](ROADMAP/V1_EXTENSION/DESKTOP_WEBAPP.md)). It also means
+[`DESKTOP_WEBAPP.md`](ROADMAP/IDEAS/DESKTOP_WEBAPP.md)). It also means
 one absolute rule: **stdout carries the protocol and nothing else**, one JSON
 object per line, no framing headers (that is LSP; MCP delimits by newline). A
 stray `print()` anywhere in the process corrupts the stream, which is why

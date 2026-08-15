@@ -2,8 +2,7 @@
 
 Written 2026-08-11, across the four analyses in this folder
 ([`PORTABILITY.md`](PORTABILITY.md), [`DESKTOP_WEBAPP.md`](DESKTOP_WEBAPP.md),
-[`PROTOCOLS_AND_AGENTS.md`](PROTOCOLS_AND_AGENTS.md),
-[`CHECKLIST_TASK_RUNNER.md`](CHECKLIST_TASK_RUNNER.md)). Those documents each
+`PROTOCOLS_AND_AGENTS.md`, `CHECKLIST_TASK_RUNNER.md`). Those documents each
 cost *one* idea honestly and stop there, by design. This one does the thing
 none of them can do alone: **draw the dependency graph across all four**, and
 sequence accordingly.
@@ -11,6 +10,23 @@ sequence accordingly.
 It adds no new analysis of its own except where the cross-document view
 produces a finding the individual documents could not — which happens twice,
 and both times it changes the order of work.
+
+**Two of the four are since absorbed and removed (2026-08-15).**
+`PROTOCOLS_AND_AGENTS.md`'s MCP-server idea shipped as Phase 1 below and is
+documented in [`docs/MCP.md`](../../MCP.md); `CHECKLIST_TASK_RUNNER.md`'s
+idea shipped as Phase 2 below and is documented in
+[`docs/CHECKLIST_FORMAT.md`](../../CHECKLIST_FORMAT.md). Both are kept as
+plain names rather than links from here on, since the files themselves are
+gone — the same convention this folder already used for the first one
+before the second joined it. `PORTABILITY.md` and `DESKTOP_WEBAPP.md`
+remain, the latter substantially updated 2026-08-15 to record that its
+desktop half shipped as a separate repository,
+[`docmap-desktop`](https://github.com/StefanBartl/docmap-desktop).
+`IDEAS.md`'s own numbered backlog is a fifth, later addition with its own
+effort/benefit assessment in
+[`IDEAS_IMPLEMENTATION_PLAN.md`](IDEAS_IMPLEMENTATION_PLAN.md) — a
+different scope from this document's four-document dependency graph, kept
+separate rather than folded in here.
 
 ## What this folder is, after the ECOSYSTEM.md move
 
@@ -752,10 +768,15 @@ path with a working binding compiled in; and the grammar stays an external
 shared library on purpose, because `Language.load` resolves it by `dlopen`
 at runtime and a static link has nothing to attach to.
 
-**What is left in this phase is nothing.** The shell — Tauri/Electron, or
-"open it in the user's default browser", which `:DocMap open` already does
-— remains a choice to make rather than work that is blocked, and the
-project switcher now belongs to it (above).
+**What was left in this phase was nothing, and the remaining choice was
+made (updated 2026-08-15).** The shell — Tauri/Electron, or "open it in
+the user's default browser", which `:DocMap open` already does — was a
+choice to make rather than work that was blocked, and it was made: Tauri,
+built as its own repository,
+[`docmap-desktop`](https://github.com/StefanBartl/docmap-desktop), which
+also picked up the project switcher named below. See
+[`DESKTOP_WEBAPP.md`](DESKTOP_WEBAPP.md) for the current, dated account of
+what shipped there and how it relates to the engine built in this phase.
 
 #### A switcher belongs to the shell, not to this plugin (decided 2026-08-11)
 
