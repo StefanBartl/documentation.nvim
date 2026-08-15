@@ -215,3 +215,56 @@ resolved, since the tooltip's own call breakdown (`plenary.async.run
 (2×)`) is usually the faster answer to "why is this here" than opening
 the dependency's source would be. Reach for the link only when the
 breakdown alone doesn't settle it.
+
+## Mapping a Neovim *config*, not a plugin — declare your wrappers first
+
+A config is four things: plugin specs, keymaps, user commands and autocmds.
+Almost none of it is functions, which is what the rest of this map is built
+around — so a config scanned with default settings looks far emptier than
+it is. Two panels exist for exactly this shape of tree:
+
+```
+:DocMap plugins     " every lazy.nvim spec, and any repo declared twice
+:DocMap bindings    " every keymap / user command / autocmd, collisions flagged
+```
+
+**`bindings` needs one line of setup, and will otherwise look broken.** The
+`vim.*` APIs are recognized with no configuration at all, but almost no
+real config calls them directly — it wraps them:
+
+```lua
+opts.bindings = {
+  wrappers = {
+    ["map"] = "keymap",                 -- map(mode, lhs, rhs, opts)
+    ["usercmd.create"] = "usercmd",
+    ["autocmd.create"] = "autocmd",
+    ["nvim_create_autocmd"] = "autocmd", -- a bare `local` alias
+  },
+}
+```
+
+That is not boilerplate for its own sake. Measured on a real config:
+keymaps were 233× `map(...)` against 4× `vim.keymap.set`. Without the
+declaration `:DocMap bindings` finds a handful of registrations and looks
+like the feature does not work; with it, it finds all of them. If a file
+you know binds keys yields nothing, an undeclared wrapper is the first
+thing to check — the value must also name an argument *layout*, so a helper
+that reorders its arguments is out of scope rather than mis-parsed.
+
+The map deliberately does not guess these names: a bare `map(...)` is also
+the most natural name for a list-mapping helper, and guessing wrong would
+silently report `vim.tbl_map` calls as keymaps. You know your helper's
+name; the scanner cannot.
+
+**What `bindings` is actually for, beyond an inventory.** Rows are sorted by
+left-hand side so *collisions land adjacent*: the same `<leader>x` bound in
+two files is a real, hard-to-find bug — whichever module loads last
+silently wins, and nothing else in this map (or in Neovim) tells you.
+Buffer-local bindings are excluded from that count, since shadowing a
+global mapping inside an ftplugin is the intended idiom.
+
+**Where the map stops.** It reads the source, so it sees what is *written*
+— including a binding inside a branch that never runs. `:Bindings check`-
+style drift tooling comparing against live `nvim_get_keymap` answers a
+different question ("what is actually bound right now"), and the two
+together are what catch a keymap that was written but never reached.
