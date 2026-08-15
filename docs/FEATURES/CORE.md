@@ -342,7 +342,13 @@ flat list of names is weaker than `:set` already gives interactively) and
 keymap right-hand sides (as often a multi-line function as a string; `desc`
 is the better answer and `line` points at the real thing).
 
-- **Module:** `core/bindings.lua` (`M.extract`, `M.recognized`)
+Available both as `:DocMap bindings` (quickfix) and as the Analysis tab's
+**Bindings** panel, which sorts, filters and flags collisions the same way —
+the panel is JS-side aggregation over the already-serialised IR, no second
+extraction (the same split `renderAnalysisPlugins` documents).
+
+- **Module:** `core/bindings.lua` (`M.extract`, `M.recognized`),
+  `core/render/html.lua` (`renderAnalysisBindings`)
 - **Config:** `opts.bindings.wrappers` — `callee -> argument layout`
   (`keymap`/`keymap_buf`/`usercmd`/`usercmd_buf`/`autocmd`). Only a wrapper
   preserving the wrapped API's argument order is declarable; one that
