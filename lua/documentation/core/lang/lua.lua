@@ -51,7 +51,7 @@ function M.parse_header(path)
 end
 
 ---@param path string
----@return Documentation.FunctionInfo[], Documentation.RawCall[], Documentation.RawRequire[], Documentation.SymbolInfo[], table[], integer
+---@return Documentation.FunctionInfo[], Documentation.RawCall[], Documentation.RawRequire[], Documentation.SymbolInfo[], table[], Documentation.EndpointSpec[], integer, Documentation.BindingSpec[]
 function M.scan_file(path)
   return require("documentation.core.functions").scan_file(path)
 end

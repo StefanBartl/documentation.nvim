@@ -79,6 +79,7 @@ local specs = {
   "quicks_spec.lua",
   "lang_js_spec.lua",
   "snippet_spec.lua",
+  "bindings_spec.lua",
   "browse_endpoints_spec.lua",
   "browse_telemetry_spec.lua",
   "telemetry_self_spec.lua",

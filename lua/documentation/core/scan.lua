@@ -278,6 +278,13 @@ function M.scan(opts)
   require("documentation.core.snippet").MAX_LINES = opts.snippet_max_lines
     or require("documentation.core.snippet").DEFAULT_MAX_LINES
 
+  -- Same reasoning, same reset discipline: `core/bindings.lua`'s wrapper
+  -- table is caller policy that only has to be current before the walk, and
+  -- a scan with no `opts.bindings` must get the real (empty) default back
+  -- rather than whatever repo was scanned last in this process.
+  require("documentation.core.bindings").WRAPPERS = (opts.bindings and opts.bindings.wrappers)
+    or require("documentation.core.bindings").DEFAULT_WRAPPERS
+
   assert(is_dir(abs_source), "docmap: source directory not found: " .. abs_source)
 
   local index = {} ---@type table<string, Documentation.Node>
@@ -330,9 +337,10 @@ function M.scan(opts)
     local kind = has_init and "module" or "namespace"
     counts[kind] = counts[kind] + 1
 
-    local fns, calls, requires, syms, plugins, endpoints, loc = {}, {}, {}, {}, {}, {}, 0
+    local fns, calls, requires, syms, plugins, endpoints, loc, binds = {}, {}, {}, {}, {}, {}, 0, {}
     if module_backend then
-      fns, calls, requires, syms, plugins, endpoints, loc = module_backend.scan_file(module_abs)
+      fns, calls, requires, syms, plugins, endpoints, loc, binds =
+        module_backend.scan_file(module_abs)
     end
 
     -- Own tally for this directory: what sits directly in it, plus its
@@ -385,6 +393,7 @@ function M.scan(opts)
       symbols = syms,
       plugins = plugins,
       endpoints = endpoints,
+      bindings = binds,
       stats = own,
       requires = {},
       required_by = {},
@@ -417,7 +426,7 @@ function M.scan(opts)
         -- appearing a second time as its own leaf.
         local h = leaf_backend.parse_header(child_abs)
         counts.file = counts.file + 1
-        local leaf_fns, leaf_calls, leaf_requires, leaf_syms, leaf_plugins, leaf_endpoints, leaf_loc =
+        local leaf_fns, leaf_calls, leaf_requires, leaf_syms, leaf_plugins, leaf_endpoints, leaf_loc, leaf_binds =
           leaf_backend.scan_file(child_abs)
         local leaf_stats = zero_stats()
         leaf_stats.files_lua = 1
@@ -444,6 +453,7 @@ function M.scan(opts)
           symbols = leaf_syms,
           plugins = leaf_plugins,
           endpoints = leaf_endpoints,
+          bindings = leaf_binds,
           stats = leaf_stats,
           requires = {},
           required_by = {},

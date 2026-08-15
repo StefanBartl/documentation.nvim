@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**5 modules** · 5 namespaces · 84 helper files
+**5 modules** · 5 namespaces · 86 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -52,6 +52,7 @@ flowchart LR
   nlua_documentation_core_annotate_lua["documentation.core.annotate"]
   nlua_documentation_core_api_lua["documentation.core.api"]
   nlua_documentation_core_artifact_lua["documentation.core.artifact"]
+  nlua_documentation_core_bindings_lua["documentation.core.bindings"]
   nlua_documentation_core_calls_lua["documentation.core.calls"]
   nlua_documentation_core_check_lua["documentation.core.check"]
   nlua_documentation_core_checklist_lua["documentation.core.checklist"]
@@ -125,6 +126,7 @@ flowchart LR
   nlua_documentation_core_doccoverage_lua --> nlua_documentation_core_check_lua
   nlua_documentation_core_doccoverage_lua --> nlua_documentation_core_render
   nlua_documentation_core_find_lua --> nlua_documentation_core_check_lua
+  nlua_documentation_core_functions_lua --> nlua_documentation_core_bindings_lua
   nlua_documentation_core_functions_lua --> nlua_documentation_core_calls_lua
   nlua_documentation_core_functions_lua --> nlua_documentation_core_deps_lua
   nlua_documentation_core_functions_lua --> nlua_documentation_core_plugins_lua
@@ -140,6 +142,7 @@ flowchart LR
   nlua_documentation_core_loaded_diff_lua --> nlua_documentation_core_check_lua
   nlua_documentation_core_quicks_lua --> nlua_documentation_core_doccoverage_lua
   nlua_documentation_core_render --> nlua_documentation_core_json_lua
+  nlua_documentation_core_scan_lua --> nlua_documentation_core_bindings_lua
   nlua_documentation_core_scan_lua --> nlua_documentation_core_calls_lua
   nlua_documentation_core_scan_lua --> nlua_documentation_core_deps_lua
   nlua_documentation_core_scan_lua --> nlua_documentation_core_lang_registry_lua
