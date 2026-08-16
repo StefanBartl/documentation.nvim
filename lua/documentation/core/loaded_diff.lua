@@ -153,8 +153,8 @@ end
 ---`runtime-analysis.nvim` is not installed at all — distinct from an
 ---empty list, which means it *is* installed and found no discrepancies.
 function M.rows(ir)
-  local ok, loaded_mod = pcall(require, "runtime-analysis.loaded")
-  if not ok then
+  local loaded_mod = require("documentation.core.soft_require").probe("runtime-analysis.loaded")
+  if not loaded_mod then
     return nil
   end
   return diff(ir, loaded_mod.functions)

@@ -16,6 +16,8 @@
 
 local M = {}
 
+local soft_require = require("documentation.core.soft_require")
+
 -- vim.health shim (start/ok/warn/error/info exist on all supported versions).
 local H = vim.health or {}
 local h_start = H.start or H.report_start
@@ -121,7 +123,7 @@ function M.check()
 
   local missing = {}
   for _, mod in ipairs(DEPS) do
-    if not pcall(require, mod) then
+    if not soft_require.probe(mod) then
       missing[#missing + 1] = mod
     end
   end
@@ -156,10 +158,10 @@ function M.check()
     })
   end
 
-  local ok_pp, pdfport = pcall(require, "pdfport")
-  if ok_pp and type(pdfport.can_create) == "function" and pdfport.can_create("markdown") then
+  local pdfport = soft_require.probe("pdfport")
+  if pdfport and type(pdfport.can_create) == "function" and pdfport.can_create("markdown") then
     h_ok("pdfport.nvim — overview.pdf (opts.pdf = true) can be written")
-  elseif ok_pp then
+  elseif pdfport then
     h_info("pdfport.nvim installed, but no markdown producer is available", {
       "opts.pdf = true would fail until pandoc + a PDF engine are installed.",
       "See pdfport.nvim's :checkhealth for which producer is missing.",
@@ -211,11 +213,11 @@ function M.check()
     "Diagnostics (opts.diagnostics) — no external dependency, set true on install() to publish findings as vim.diagnostic"
   )
 
-  local ok_self, telemetry_self = pcall(require, "documentation.core.telemetry_self")
-  local self_instance = ok_self and telemetry_self.instance()
+  local telemetry_self = soft_require.probe("documentation.core.telemetry_self")
+  local self_instance = telemetry_self and telemetry_self.instance()
   if self_instance then
     h_ok(("runtime-analysis.nvim — self-instrumented as %q"):format(self_instance.namespace))
-  elseif pcall(require, "runtime-analysis.telemetry") then
+  elseif soft_require.probe("runtime-analysis.telemetry") then
     h_info("runtime-analysis.nvim installed, but not yet self-instrumented", {
       "documentation.setup() starts this automatically unless opts.telemetry = false.",
       "Feeds :DocBrowse's telemetry mode and dead-function suppression.",
@@ -257,8 +259,8 @@ function M.check()
   -- lifecycles is almost never the full set. So this reads the manifest in
   -- `bindings/autocmds.lua`, which states the whole surface including the
   -- parts not currently active.
-  local ok_manifest, manifest = pcall(require, "documentation.bindings.autocmds")
-  if ok_manifest then
+  local manifest = soft_require.probe("documentation.bindings.autocmds")
+  if manifest then
     local buffer_local, global = 0, 0
     for _, a in ipairs(manifest.list) do
       if a.scope == "buffer" then

@@ -33,6 +33,7 @@ end
 ---Rescan and write. `opts.luals` is the `full` variant.
 ---@param ctx Documentation.Bindings.Ctx
 ---@param opts { luals: boolean? }?
+---@raises string Re-raised from `ctx.handle.rescan` when the scan itself fails (e.g. `opts.root` gone missing under the handle); the progress indicator is closed first so a failed scan doesn't leave it stuck.
 function M.run(ctx, opts)
   local docmap = require("documentation")
   local luals = opts and opts.luals or false

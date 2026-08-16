@@ -835,8 +835,8 @@ local function send_request(st)
     return
   end
 
-  local ok_ra, runtime_analysis = pcall(require, "runtime-analysis")
-  if not ok_ra then
+  local runtime_analysis = require("documentation.core.soft_require").probe("runtime-analysis")
+  if not runtime_analysis then
     notify.warn("runtime-analysis.nvim is not installed — see :help documentation-endpoints")
     return
   end

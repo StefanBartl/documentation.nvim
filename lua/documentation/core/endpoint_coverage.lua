@@ -7,7 +7,7 @@
 --- real answer neither side can give alone.
 ---
 --- **Soft dependency, same discipline as `telemetry_join.lua`.**
---- `pcall(require, "runtime-analysis.history")` — absent entirely, or
+--- `core.soft_require.probe("runtime-analysis.history")` — absent entirely, or
 --- nothing was ever sent for this project, is "no data", never treated as
 --- "every route is uncovered". Request history (see that module's own
 --- doc-comment) is method + url + status + timestamp only — no headers, no
@@ -36,8 +36,8 @@ local M = {}
 ---@return RA.History.Entry[]? entries `nil` when `runtime-analysis.nvim`
 ---is not installed, or nothing was ever sent for this project.
 function M.load(root)
-  local ok, history = pcall(require, "runtime-analysis.history")
-  if not ok then
+  local history = require("documentation.core.soft_require").probe("runtime-analysis.history")
+  if not history then
     return nil
   end
   local ok_list, entries = pcall(history.list, { root = root })

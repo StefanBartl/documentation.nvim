@@ -157,7 +157,7 @@ undecorated except a trailing note — absence of data is never rendered as
 if it were evidence, in this mode or in `dead-function`'s own suppression
 (the same join silences a `dead-function` finding once telemetry proves the
 exact function alive, never the reverse). Soft dependency throughout:
-`pcall(require, "runtime-analysis.telemetry")`, a plain message when the
+`core.soft_require.probe("runtime-analysis.telemetry")`, a plain message when the
 plugin is absent or nothing was ever recorded for the namespace, exactly
 like `gs` degrades in Endpoints mode.
 
@@ -220,7 +220,7 @@ it was never going to be a field of the module table regardless of whether
 the file loaded. A colon-declared method (`Class:method`) on a nested table
 the module happens to export is excluded too, for the same reason
 `endpoint_coverage.lua`'s route matching already states for what it
-deliberately does not attempt. Soft dependency throughout: `pcall(require,
+deliberately does not attempt. Soft dependency throughout: `core.soft_require.probe(
 "runtime-analysis.loaded")`, a plain "no data" message when the plugin is
 absent, distinct from "no discrepancies" when it is present and genuinely
 found none.

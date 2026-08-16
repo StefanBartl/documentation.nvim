@@ -2,8 +2,8 @@
 --- A closed-scope polyfill of the small `vim.*` surface documentation.nvim's
 --- `core/*.lua` pipeline (and the two `lib.nvim.fs.*` helpers it calls into,
 --- `read`/`collect_recursive`) actually touches during a **parser-less**
---- scan/check/render pass — see `docs/ROADMAP/PORTABILITY.md` and
---- `docs/ROADMAP/FEATURES.md`'s "standalone CLI, MVP" entry for how this list
+--- scan/check/render pass — see `docs/ROADMAP/IDEAS/PORTABILITY.md` and
+--- `docs/FEATURES/FEATURES.md`'s "standalone CLI, MVP" entry for how this list
 --- was derived (grep against every real `vim.*` call site under `core/`,
 --- doc-comment mentions excluded).
 ---

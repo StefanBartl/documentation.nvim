@@ -102,6 +102,25 @@ local function action_names()
   return names
 end
 
+-- Exported so `bindings/autocmds.lua` can derive its `:DocMap` args string
+-- from the same table dispatch/completion already read, instead of a third
+-- hand-typed copy that can (and did) drift out of sync.
+M.action_names = action_names
+
+-- Richer than a plain action-name list (`why <a> <b>`, `diff <ref>`,
+-- `churn [range]`, ...) -- kept as hand-written prose rather than derived
+-- from `action_names()`, because ACTIONS' plain name->thunk shape carries
+-- no argument-shape data to derive from. Exported (rather than an inline
+-- string literal inside `M.setup`) specifically so a test can assert every
+-- `action_names()` entry appears here without registering a real command --
+-- this is the string that drifted out of a completeness guarantee before;
+-- the guarantee now lives in TESTS/usrcmds_actions_spec.lua instead of
+-- "nobody forgets to update this by hand."
+---@type string
+M.action_usage_hints = "[check|full|open|graph|why <a> <b>|dot|diff <ref>|impact <ref>"
+  .. "|churn [range]|checklist [all]|plugins|bindings|tools|endpoints|serve [stop]"
+  .. "|helptags|annotate [--write|--sidecar]|all [full]]"
+
 ---Every module name `find_node` would resolve, for completion.
 ---
 ---Offers exactly what the command accepts, namespaces included — completing a
@@ -309,9 +328,7 @@ function M.setup(opts)
     dispatch(vim.trim(args.args or ""))
   end, {
     nargs = "*",
-    desc = "Regenerate the module map (:"
-      .. command_name
-      .. " [check|full|open|graph|why <a> <b>|dot|diff <ref>|impact <ref>|churn [range]|checklist [all]|plugins|bindings|tools|endpoints|serve [stop]|helptags|annotate [--write|--sidecar]|all [full]])",
+    desc = "Regenerate the module map (:" .. command_name .. " " .. M.action_usage_hints .. ")",
     complete = function(lead, line)
       -- Two completion levels: the action, then — once an action that takes a
       -- module is typed — the module paths the map actually knows, which is

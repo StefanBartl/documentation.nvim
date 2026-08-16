@@ -23,7 +23,7 @@
 
 local M = {}
 
-local ok_spec, spec = pcall(require, "lib.nvim.deps.spec")
+local spec = require("documentation.core.soft_require").probe("lib.nvim.deps.spec")
 
 --- Resolution order matches `lib.nvim.deps.spec`'s own `SPEC_FILES`: JSON
 --- preferred when a repo ships both, since it has no line-oriented parsing
@@ -33,7 +33,7 @@ local SPEC_FILES = { "install.json", "INSTALL.md" }
 ---@param root string Repo root (`ctx.cfg.root` / `opts.root`).
 ---@return Documentation.Tools.Result|nil result `nil` when lib.nvim.deps is unavailable, or this repo ships neither spec file.
 function M.resolve(root)
-  if not ok_spec then
+  if not spec then
     return nil
   end
 

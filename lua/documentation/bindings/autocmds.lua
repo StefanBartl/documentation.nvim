@@ -24,6 +24,17 @@ local M = {}
 
 -- `Documentation.Bindings.AutocmdInfo` is declared in `bindings/@types`.
 
+---@internal
+--- `:DocMap`'s args string, derived from the real dispatch table
+--- (`bindings/usrcmds/init.lua`'s `ACTIONS`, via its exported
+--- `action_names()`) rather than hand-typed here a third time -- this list
+--- previously drifted out of sync (missing `checklist`/`bindings`) because
+--- it was an independent, manually-maintained copy.
+---@return string
+local function docmap_args()
+  return "[" .. table.concat(require("documentation.bindings.usrcmds").action_names(), "|") .. "]"
+end
+
 ---@type Documentation.Bindings.AutocmdInfo[]
 M.list = {
   {
@@ -78,7 +89,7 @@ M.list = {
 M.usrcmds = {
   {
     name = "DocMap",
-    args = "[check|full|open|graph|why|dot|diff|impact|churn|plugins|tools|endpoints|serve|helptags|annotate|all]",
+    args = docmap_args(),
     why = "Generate or verify the module map. The bare form writes artifacts.",
   },
   {

@@ -479,8 +479,8 @@ end
 ---repo-relative written path on success, an error message otherwise.
 ---@return nil
 function M.write_pdf_artifact(ir, findings, opts, callback)
-  local ok_pp, pdfport = pcall(require, "pdfport")
-  if not ok_pp or type(pdfport.create) ~= "function" then
+  local pdfport = require("documentation.core.soft_require").probe("pdfport")
+  if not pdfport or type(pdfport.create) ~= "function" then
     callback(false, "pdfport.nvim not installed -- PDF export unavailable")
     return
   end

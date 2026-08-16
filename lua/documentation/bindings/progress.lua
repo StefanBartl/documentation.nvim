@@ -31,7 +31,7 @@
 
 local M = {}
 
-local ok_progress, progress_mod = pcall(require, "lib.nvim.progress")
+local progress_mod = require("documentation.core.soft_require").probe("lib.nvim.progress")
 
 ---Starts a progress handle, or returns nil when lib.nvim isn't installed.
 ---@param ctx Documentation.Bindings.Ctx
@@ -39,7 +39,7 @@ local ok_progress, progress_mod = pcall(require, "lib.nvim.progress")
 ---@param total integer|nil Total unit count, when the operation is countable
 ---@return table|nil
 function M.create(ctx, text, total)
-  if not ok_progress then
+  if not progress_mod then
     return nil
   end
   local handle = progress_mod.create({

@@ -83,11 +83,22 @@ local COMPLEXITY_PATTERN = [[
 (binary_expression "||") @branch
 ]]
 
+-- Parsing the same fixed query string is redundant work per-call -- there
+-- are only a handful of grammars (js/ts/tsx), so an LRU keyed on `lang` is
+-- effectively a cache of size 1-3 in practice. Reuses lib.nvim's memoizer
+-- (already a hard dependency of this repo's core/) rather than hand-rolling
+-- another cache table, matching `call_query_cache`/`ident_query_cache`
+-- below in spirit but through the shared primitive.
+local memo = require("lib.lua.memo")
+local parse_complexity_query = memo.fn(function(lang)
+  return vim.treesitter.query.parse(lang, COMPLEXITY_PATTERN)
+end, { size = 8 })
+
 ---@param def_node TSNode
 ---@param lang string
 ---@return integer
 local function complexity(def_node, lang, src)
-  local query = vim.treesitter.query.parse(lang, COMPLEXITY_PATTERN)
+  local query = parse_complexity_query(lang)
   local n = 1
   for _ in query:iter_captures(def_node, src) do
     n = n + 1
