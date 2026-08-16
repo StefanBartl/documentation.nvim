@@ -123,6 +123,21 @@ return function(H)
     "docs: `x.nvim` is a plugin repository name, not a member access"
   )
   eq(
+    docs.missing_member(idx, "demo.lua"),
+    nil,
+    "docs: `x.lua` is a bare filename, not a member access"
+  )
+  eq(
+    docs.missing_member(idx, "demo.core.scan.lua"),
+    nil,
+    "docs: `x.lua` is excluded even when `x` is a deeper module path"
+  )
+  eq(
+    docs.missing_member(idx, "demo.core.scan.init"),
+    nil,
+    "docs: `x.init` is the alternative spelling of module `x`'s own file, not a missing member"
+  )
+  eq(
     docs.missing_member(idx, "demo.*"),
     nil,
     "docs: a glob over a namespace is not a claim that `*` is a member"
