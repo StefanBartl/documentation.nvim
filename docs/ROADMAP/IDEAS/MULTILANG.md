@@ -347,3 +347,83 @@ Phase 1's entries, nothing in Phases 2–5 was checked against a real parse.
 Re-verify each grammar-shape claim the way Phase 1's extractor already did,
 at the point that phase actually starts, not from this document's word for
 it.
+
+---
+
+## Part 3 — real numbers, 2026-08-16
+
+Part 1's cost estimate was written before any backend existed. Phase 1 has
+shipped since, and its own commit history is a real measurement, not a
+second estimate. Recorded here rather than silently edited into Part 1,
+because Part 1's number is exactly what this section checks, not something
+to overwrite quietly.
+
+### What Phase 1 actually cost
+
+`git log` on `core/lang/ecma.lua` + `js.lua`/`ts.lua`/`tsx.lua`: Phase 0
+(`core/lang_registry.lua`, `d21f9f0`) and all of Phase 1 — the backend
+itself, calls extraction, symbols extraction, the Hooks Analysis panel,
+endpoint extraction — landed between `d21f9f0` and `e4bf0a8`, **the same
+day**, 2026-08-03.
+
+`wc -l`: `ecma.lua` is 776 lines, covering all three grammars (JS, TS, TSX)
+through one shared implementation parametrized by grammar name — `js.lua`/
+`ts.lua`/`tsx.lua` are 10–17-line registrations, not separate
+implementations. Part 1 estimated **1 200–1 800 lines for one language**
+(§1, "Call one language ~1 200–1 800 lines of the 2 165"). The real number,
+for three grammars at once, was 776 — under half the low end of that
+estimate for a *single* grammar.
+
+Why the estimate overshot, as far as this can be reconstructed after the
+fact: it was scoped against `deps.lua` + `functions.lua` + `symbols.lua` as
+three separate concerns, each with its own file-walking and error handling.
+`ecma.lua` fuses all three into one pass over one treesitter tree per file,
+which is cheaper than the sum of separate modules doing the same walk
+three times — the same reason a single `scan_file` returning an eight-value
+tuple is cheaper than four functions each re-parsing.
+
+**What this does and does not license.** JS/TS was the cheapest case Part 1
+itself identified — closest doc-tag fit, no owning-scope requirement, one
+file = one module already. It is real evidence that the *interface* (the
+six-field `Documentation.LangBackend` contract) is cheap to satisfy once
+Phase 0's hard parts do not apply. It is not evidence that Python or Rust
+will be equally cheap — both need Phase 0 work Phase 1 explicitly did not
+require (owning-scope for Python's classes, one-file-many-modules for
+Rust's `mod`). Treat the revised per-language numbers below as "scaled from
+one real data point plus the same reasoning Part 1 already did", not as
+measured the way Phase 1's own row is.
+
+### Revised cost table
+
+Phase 0's still-open items (owning-scope, one-file-many-modules,
+visibility, schema versioning) are **shared cost**, paid once, not
+per-language — estimated at 2–4 days total, blocking every phase that
+needs any of them.
+
+| Language | Cost *after* Phase 0 | Checks that apply (of 14) | Note |
+|---|---|---|---|
+| JS/TS/TSX | done, 1 day, measured | 13–14 | Reference case; needed none of Phase 0's open items |
+| **C** | 2–3 days | ~11, where Doxygen is used at all | No owning-scope needed — could ship *without* waiting on Phase 0's harder items, the same way JS/TS did. Doxygen is where LuaCATS's own tag vocabulary descends from — closest doc-convention fit after JS/TS, not Python |
+| Python | 3–4 days | ~12 | Needs owning-scope (classes). Extraction itself is the expensive part: three docstring styles (reST/Google/NumPy) need a per-style parser plus a detector, and a docstring is a runtime string literal, not a comment block — structured-text-inside-a-node parsing, not tag matching |
+| C++ | 4–6 days | ~11 | Worse than C specifically: namespaces, classes, templates and overloading all break "one name = one function", which C does not have to deal with |
+| Rust | 4–5 days | **~8** | Needs one-file-many-modules (`mod x { … }`, declared by the *parent*) — Phase 0's sharpest test case. rustdoc has no tag vocabulary at all, so `undocumented-param`/`param-name-mismatch` do not port, regardless of implementation cost |
+| Go | ~2 days | **~7** | Cheapest to *build* of the five, but godoc's only checkable convention ("comment starts with the identifier") replaces six checks with one. Confirm the check-count math is still worth a backend before starting — Part 1's own conclusion, unchanged |
+
+### Recommendation, revised
+
+Part 1's ordering (Phase 2 Python, Phase 3 Rust, Phase 4 Go, Phase 5 C) was
+written before Phase 0's real cost — and JS/TS's real *lack* of need for
+most of it — was known. Worth reconsidering, not automatically committing
+to: **C is a candidate for the next slot, ahead of Python**, on the same
+logic that put JS/TS first — it does not need owning-scope, so it could
+land the same way JS/TS did, proving the interface a second time on a
+second grammar family (C-style braces vs. JS's) before Phase 0's harder,
+riskier items (owning-scope, one-file-many-modules) get touched at all.
+Python would then be the first backend that actually exercises those
+Phase 0 items — a deliberate choice about *which* backend pays that cost
+first, not an accident of list order.
+
+This is a reconsideration to make explicitly with the project owner before
+re-ordering Part 2's phase list, not a silent renumbering here — Part 1's
+own "no half-finished implementations... at ten times the surface area"
+caution applies exactly as much to re-sequencing as to scope.
