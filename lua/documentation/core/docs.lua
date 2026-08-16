@@ -53,10 +53,12 @@
 --- (`vim.fn.expand`, `some.config.value`, a filename) is not flagged: it
 --- could be anything, and a check that fires on every third-party API name
 --- in a document is a check that gets switched off. A plugin repository name
---- (`something.nvim`), a glob over a namespace (`something.*`) and the
---- left-hand side of a documented rename are excluded for the same reason —
---- each was a real false positive on this repository's own documents before
---- it was excluded, not a hypothetical one.
+--- (`something.nvim`), a bare filename (`something.lua`), the ".init"
+--- spelling of a module (`something.init`, same file `require("something")`
+--- loads), a glob over a namespace (`something.*`) and the left-hand side of
+--- a documented rename are excluded for the same reason — each was a real
+--- false positive on a real repository's own documents before it was
+--- excluded, not a hypothetical one.
 ---
 --- ## The limit that has no fix
 ---
@@ -255,6 +257,25 @@ function M.missing_member(idx, text)
   -- the single largest source of findings, 10 of 25. The convention is as
   -- reliable as the `use*` hook convention `ecma.lua` already reads.
   if text:match("%.nvim$") then
+    return nil
+  end
+  -- `chadrc.lua`, `options.lua` -- a bare *filename*, not a member access.
+  -- The same shape as `.nvim$` above and found the same way: a config repo's
+  -- own docs name a top-level file this way constantly (`` `chadrc.lua` ``,
+  -- never `require("chadrc.lua")`), and every module whose name happens to
+  -- also be a real file (`chadrc`, `options`, `machine`, `autocmds`, ...)
+  -- turned every one of those mentions into a false "has no member 'lua'".
+  -- Measured on a real config repo: 26 of 44 `doc-references-missing`
+  -- findings, the single largest bucket, all of this exact shape.
+  if text:match("%.lua$") then
+    return nil
+  end
+  -- `bindings.mappings.init`, `config.neotree.init` -- naming a module's
+  -- init.lua explicitly. `require("x.init")` and `require("x")` load the
+  -- same file, so a doc pointing at the ".init" form is not naming a
+  -- missing member, it is the ordinary alternative spelling of the module
+  -- itself -- the same shape as `.nvim$`/`.lua$` above.
+  if text:match("%.init$") then
     return nil
   end
 
