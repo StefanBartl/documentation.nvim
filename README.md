@@ -15,6 +15,15 @@
 > utility library this grew out of and still builds on. If you are mapping a
 > tree, you are probably about to want its `fs`, `ui.kit` and `usercmd` modules
 > too; this plugin uses exactly those.
+>
+> Two companions complete the triangle:
+> [`runtime-analysis.nvim`](https://github.com/StefanBartl/runtime-analysis.nvim)
+> extends this plugin with live call-count telemetry from inside a running
+> Neovim session — install it and the Telemetry/Loaded tabs below stop
+> saying "no data".
+> [`docmap-desktop`](https://github.com/StefanBartl/docmap-desktop) is the
+> third leg, the same map read entirely outside Neovim, for anyone not
+> sitting in the editor.
 
 Doxygen for annotated Lua trees, as a Neovim plugin. Point it at a repository
 whose files carry `---@module`, and it produces a **module map**: an
