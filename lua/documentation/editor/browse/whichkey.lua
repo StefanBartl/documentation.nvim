@@ -54,8 +54,8 @@ end
 ---@param modes string[] Browser modes, for the numeric mode-switch keys.
 ---@return boolean registered
 function M.register(bufnr, specs, modes)
-  local ok, wk = pcall(require, "which-key")
-  if not ok or type(wk) ~= "table" then
+  local wk = require("documentation.core.soft_require").probe("which-key")
+  if type(wk) ~= "table" then
     return false
   end
 

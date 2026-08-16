@@ -128,8 +128,8 @@ function M.telemetry(opts, snapshot)
 
   local data
   if snapshot and snapshot ~= "" then
-    local ok_telemetry, telemetry = pcall(require, "runtime-analysis.telemetry")
-    if not ok_telemetry then
+    local telemetry = require("documentation.core.soft_require").probe("runtime-analysis.telemetry")
+    if not telemetry then
       return { available = false, namespace = namespace, reason = "no data" }
     end
     local ok_load, snap = pcall(telemetry.load_snapshot, namespace, snapshot)
@@ -169,8 +169,8 @@ function M.telemetry_snapshots(opts)
     return { available = false, reason = "no namespace" }
   end
 
-  local ok_telemetry, telemetry = pcall(require, "runtime-analysis.telemetry")
-  if not ok_telemetry then
+  local telemetry = require("documentation.core.soft_require").probe("runtime-analysis.telemetry")
+  if not telemetry then
     return { available = false, namespace = namespace, snapshots = {} }
   end
 
@@ -206,8 +206,8 @@ function M.loaded(opts, snapshot)
     return { available = false, prefix = prefix, reason = "no snapshot named" }
   end
 
-  local ok_loaded, loaded_mod = pcall(require, "runtime-analysis.loaded")
-  if not ok_loaded then
+  local loaded_mod = require("documentation.core.soft_require").probe("runtime-analysis.loaded")
+  if not loaded_mod then
     return { available = false, prefix = prefix, reason = "no data" }
   end
 
@@ -242,8 +242,8 @@ function M.loaded_snapshots(opts)
     return { available = false, reason = "no single root module prefix for this tree" }
   end
 
-  local ok_loaded, loaded_mod = pcall(require, "runtime-analysis.loaded")
-  if not ok_loaded then
+  local loaded_mod = require("documentation.core.soft_require").probe("runtime-analysis.loaded")
+  if not loaded_mod then
     return { available = false, prefix = prefix, snapshots = {} }
   end
 

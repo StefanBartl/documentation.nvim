@@ -9,7 +9,7 @@
 --- alive; a function with a real static caller that nothing has exercised in
 --- 30 days is a cold path, not a caller documentation.nvim invented.
 ---
---- **Soft dependency throughout.** `pcall(require, "runtime-analysis.
+--- **Soft dependency throughout.** `core.soft_require.probe("runtime-analysis.
 --- telemetry")` — absent entirely, or telemetry simply never enabled for this
 --- namespace, is not an error; every caller of `M.load` must treat `nil` as
 --- "no data", never as evidence of anything. Stated plainly in the design
@@ -45,8 +45,8 @@ local M = {}
 ---opinion" case, never distinguished further by this function since every
 ---caller already has to treat both as "no data".
 function M.load(namespace)
-  local ok, telemetry = pcall(require, "runtime-analysis.telemetry")
-  if not ok then
+  local telemetry = require("documentation.core.soft_require").probe("runtime-analysis.telemetry")
+  if not telemetry then
     return nil
   end
   local ok_load, data = pcall(telemetry.load, namespace)

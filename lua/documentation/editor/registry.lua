@@ -220,7 +220,7 @@ end
 ---for the two ammonia/Mermaid constraints that shape its output.
 ---
 ---Soft dependency, the same posture `opts.pdf`'s pdfport.nvim has:
----`pcall(require, "mdview.core.state")` is the presence probe, so
+---`core.soft_require.probe("mdview.core.state")` is the presence probe, so
 ---documentation.nvim never hard-depends on mdview.nvim. Not installed at
 ---all → silent no-op. Installed but no session attached (`:MDViewStart`
 ---never run, or already stopped) → each push checks `state.is_attached()`/
@@ -255,8 +255,8 @@ function M.ensure_mdview(root)
     return true
   end
 
-  local probe_ok = pcall(require, "mdview.core.state")
-  if not probe_ok then
+  local probe = require("documentation.core.soft_require").probe("mdview.core.state")
+  if not probe then
     return false
   end
 
@@ -312,7 +312,19 @@ function M.install(opts)
   end
   entry.rescan_fn = rescan
 
-  rescan() -- initial scan; handle.ir() must never observe an unset IR
+  -- initial scan; handle.ir() must never observe an unset IR. Guarded
+  -- (unlike a bare call) because `registry[root] = entry` above already ran:
+  -- a failed scan must not leave a dangling entry with no `.handle` for a
+  -- later M.install to silently overwrite rather than one that visibly
+  -- failed. Re-raises the same string a bare call would have (preserving
+  -- the existing raise-a-string contract every caller already handles),
+  -- now carrying a full traceback via lib.lua.error.safe_call rather than
+  -- just the point M.install itself re-raises from.
+  local ok_rescan, rescan_err = require("lib.lua.error").safe_call(rescan)
+  if not ok_rescan then
+    registry[root] = nil
+    error(rescan_err.message, 0)
+  end
 
   if opts.watch then
     M.ensure_watch(root)

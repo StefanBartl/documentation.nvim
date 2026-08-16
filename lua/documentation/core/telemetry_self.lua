@@ -6,7 +6,7 @@
 --- runtime-analysis.telemetry up by hand for documentation.nvim itself.
 --- This module is the write side of that same pair.
 ---
---- **Soft dependency, on by default, opt-out.** `pcall(require,
+--- **Soft dependency, on by default, opt-out.** `core.soft_require.probe(
 --- "runtime-analysis.telemetry")` — absent entirely, this is a no-op, the
 --- same posture every other soft dependency in this codebase already
 --- takes (`pdfport.nvim`, `which-key.nvim`, `runtime-analysis.nvim`'s own
@@ -60,8 +60,8 @@ function M.setup(opts)
     return instance
   end
 
-  local ok_telemetry, telemetry = pcall(require, "runtime-analysis.telemetry")
-  if not ok_telemetry then
+  local telemetry = require("documentation.core.soft_require").probe("runtime-analysis.telemetry")
+  if not telemetry then
     return nil
   end
 
