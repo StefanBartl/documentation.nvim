@@ -344,7 +344,11 @@ local function parse_doc_block(raw_lines)
   local seen_tag = false
 
   for _, raw in ipairs(raw_lines) do
-    local tag, rest = raw:match("^%-%-%-@(%a+)%s*(.*)$")
+    -- `%s*` between the third dash and `@`: `--- @param` is exactly as valid
+    -- LuaCATS as `---@param` (lua-language-server accepts both), and a
+    -- function documented entirely in the spaced style must not read as
+    -- undocumented just because this regex required them adjacent.
+    local tag, rest = raw:match("^%-%-%-%s*@(%a+)%s*(.*)$")
     if tag then
       seen_tag = true
       in_example = (tag == "example")
