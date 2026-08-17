@@ -90,8 +90,7 @@ function M.run(root, source, opts)
   local raw = fd:read("*a")
   fd:close()
 
-  local decode_ok, data =
-    pcall(vim.json.decode, raw, { luanil = { object = true, array = true } })
+  local decode_ok, data = pcall(vim.json.decode, raw, { luanil = { object = true, array = true } })
   if not decode_ok then
     return nil, "doc.json parse failed: " .. tostring(data)
   end

@@ -83,7 +83,11 @@ return function(H)
     ok(type(received_opts.on_done) == "function", "M.run: wires on_done")
     ok(#calls.info >= 1, "M.run: notifies at least once (starting + finished)")
     eq(#calls.error, 0, "M.run: no error notification when every project succeeded")
-    eq(received_opts.luals, false, "M.run: no second argument -- fast scan (luals=false) by default")
+    eq(
+      received_opts.luals,
+      false,
+      "M.run: no second argument -- fast scan (luals=false) by default"
+    )
 
     docmap.generate_all.run = original_run
   end
