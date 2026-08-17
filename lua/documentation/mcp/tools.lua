@@ -37,6 +37,8 @@
 --- and an agent's cache of one meaningful. (The JSON-RPC envelope around it is
 --- plain `vim.json` — see `protocol.lua` for why the two differ.)
 
+require("documentation.mcp.@types")
+
 local json = require("documentation.core.json")
 
 local M = {}
@@ -109,9 +111,6 @@ local function result(value)
     content = { { type = "text", text = json.encode(value) } },
   }
 end
-
----@class Documentation.Mcp.ToolCtx
----@field out_dir? string Repo-relative output directory, for excluding the generated map from history walks. Only `docmap_checklist` uses this today.
 
 ---@type table<string, { description: string, input_schema: table, run: fun(handle: Documentation.Handle, args: table, ctx?: Documentation.Mcp.ToolCtx): table }>
 local catalogue = {}

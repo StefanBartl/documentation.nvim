@@ -26,6 +26,8 @@
 --- the list is a compatibility *claim*, and it is deliberately conservative:
 --- adding a revision means checking it, not guessing forward.
 
+require("documentation.mcp.@types")
+
 local tools = require("documentation.mcp.tools")
 
 local M = {}
@@ -64,12 +66,6 @@ local function fail(id, code, message)
     error = { code = code, message = message },
   }
 end
-
----@class Documentation.Mcp.Server
----@field handle Documentation.Handle
----@field name string
----@field out_dir? string Repo-relative output directory — the one piece of `Documentation.Opts` a tool call needs that `handle` does not carry. See `mcp/tools.lua`'s `docmap_checklist`.
----@field initialized boolean Set by the `initialized` notification; informational only — see `request` for why nothing is gated on it.
 
 ---Build a server bound to one installed handle.
 ---@param handle Documentation.Handle
