@@ -102,6 +102,12 @@ end
 ---@param on_done fun(result: Documentation.GenerateAll.Result)
 local function generate_one(project, luals, on_done)
   local script = plugin_root() .. "/scripts/generate_one_headless.lua"
+  -- No `cwd = project.root` here, deliberately: tried it, and it made
+  -- generate_all_spec.lua fail ("source directory not found" for a target
+  -- that does exist) -- every value this subprocess needs (script path,
+  -- DOCMAP_GEN_PLUGIN_ROOT, DOCMAP_GEN_ROOT) is already absolute, so there
+  -- was nothing real to gain, and pinning cwd here has some real, unproven
+  -- interaction with this spawn that isn't worth chasing for a cosmetic fix.
   vim.system({ "nvim", "--headless", "-l", script }, {
     text = true,
     env = {

@@ -13,7 +13,7 @@
 
 local M = {}
 
-local uv = vim.uv or vim.loop
+local uv = vim.uv
 
 -- This is the only backend-aware line in this file, and it names a
 -- registry, never a specific backend — `core/lang.lua` requiring THIS

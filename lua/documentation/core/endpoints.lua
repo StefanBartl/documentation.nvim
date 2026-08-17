@@ -78,24 +78,19 @@ local FRAMEWORK_BY_IMPORT = {
 }
 
 ---Parsed queries are per-grammar, same reason `core/lang/ecma.lua` caches
----its own call/identifier queries this way.
-local route_query_cache = {}
-
+---its own call/identifier queries this way (there, via `lib.lua.memo`).
 ---@param lang string
-local function route_query(lang)
-  if not route_query_cache[lang] then
-    route_query_cache[lang] = vim.treesitter.query.parse(
-      lang,
-      [[
-      (call_expression
-        function: (member_expression
-          property: (property_identifier) @method)
-        arguments: (arguments) @args) @call
-      ]]
-    )
-  end
-  return route_query_cache[lang]
-end
+local route_query = require("lib.lua.memo").fn(function(lang)
+  return vim.treesitter.query.parse(
+    lang,
+    [[
+    (call_expression
+      function: (member_expression
+        property: (property_identifier) @method)
+      arguments: (arguments) @args) @call
+    ]]
+  )
+end, { size = 8 })
 
 ---@param requires Documentation.RawRequire[]
 ---@return string?

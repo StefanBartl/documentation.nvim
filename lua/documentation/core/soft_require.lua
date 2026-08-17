@@ -6,8 +6,13 @@
 --- `lib.nvim` submodules (`progress`, `deps.spec`) — goes through `M.probe`
 --- instead of its own inline `pcall`.
 ---
---- Pure Lua, no `vim.api`/`vim.fn` — safe to call from `core/`, which this
---- module itself lives in.
+--- Delegates to `lib.nvim.require.safe`, which is the same `pcall(require,
+--- name)` -> `(ok, mod)` primitive this module used to reimplement from
+--- scratch — `lib.nvim` is already a hard dependency of this repo (`core/`
+--- itself unconditionally requires several `lib.nvim.fs.*` submodules), so
+--- there was no reason to hand-roll a second one. Pure Lua either way, no
+--- `vim.api`/`vim.fn` in the call path — safe to call from `core/`, which
+--- this module itself lives in.
 ---
 --- This does not change *what* callers do with a missing dependency (that
 --- stays call-site-specific: some fall back silently, some warn once, some
@@ -23,7 +28,7 @@ local M = {}
 ---@param modname string
 ---@return T|nil mod `nil` if `modname` could not be required (not installed).
 function M.probe(modname)
-  local ok, mod = pcall(require, modname)
+  local ok, mod = require("lib.nvim.require").safe(modname)
   if ok then
     return mod
   end

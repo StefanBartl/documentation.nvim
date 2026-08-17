@@ -276,7 +276,11 @@ function M.setup(opts)
   -- so they come from a config built for whichever root is current at setup
   -- time. Neither name depends on the tree, so this is a read of `opts`, not
   -- an early binding of a root.
-  local setup_cfg = require("documentation.config").build(resolve_root(), opts)
+  -- notify passed only here, not at ctx_for's/completion_names' own
+  -- config.build calls below -- opts doesn't change between them, so
+  -- warning again there would just repeat this same message on every
+  -- command dispatch (or, for completion_names, every keystroke).
+  local setup_cfg = require("documentation.config").build(resolve_root(), opts, notify)
   local command_name = setup_cfg.command_name or "DocMap"
   local browse_command_name = setup_cfg.browse_command_name or "DocBrowse"
 

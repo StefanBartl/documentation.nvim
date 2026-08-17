@@ -40,11 +40,27 @@ function M.run(ctx, arg)
   -- produced an unnamed buffer and no message at all. Wiping the previous one
   -- first is both the fix and the behaviour one would want — this is a
   -- regenerated scratch view, not a document.
+  local safe_api = require("lib.nvim.safe_api")
   local name = ("docmap-%s%s.dot"):format(kind, scope and ("-" .. scope:gsub("[^%w]+", "_")) or "")
+  local existing
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_valid(b) and vim.fs.basename(vim.api.nvim_buf_get_name(b)) == name then
-      pcall(vim.api.nvim_buf_delete, b, { force = true })
+    if safe_api.is_valid_buffer(b) and vim.fs.basename(vim.api.nvim_buf_get_name(b)) == name then
+      existing = b
+      break
     end
+  end
+
+  -- Reuse in place rather than force-delete + enew: the previous buffer may
+  -- still be visible in another window, and force-deleting a visible buffer
+  -- swaps that window to an auto-created empty scratch buffer instead.
+  -- Asking the same query twice should just refresh the content, matching
+  -- the "regenerated scratch view, not a document" framing above.
+  if existing then
+    vim.bo[existing].modifiable = true
+    vim.api.nvim_buf_set_lines(existing, 0, -1, false, vim.split(src, "\n", { plain = true }))
+    vim.api.nvim_win_set_buf(0, existing)
+    ctx.notify.info("Pipe it: :%!dot -Tsvg > graph.svg")
+    return
   end
 
   vim.cmd("enew")

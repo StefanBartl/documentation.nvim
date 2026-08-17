@@ -303,7 +303,7 @@ function M.attach(bufnr, handle)
   if attached_bufs[bufnr] or not handle then
     return
   end
-  if not vim.api.nvim_buf_is_valid(bufnr) then
+  if not require("lib.nvim.safe_api").is_valid_buffer(bufnr) then
     return
   end
   attached_bufs[bufnr] = true

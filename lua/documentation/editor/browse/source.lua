@@ -15,7 +15,7 @@
 
 local M = {}
 
-local uv = vim.uv or vim.loop
+local uv = vim.uv
 
 -- The three artifact-shape functions below moved to
 -- `documentation.core.artifact` and are re-exported here unchanged. They

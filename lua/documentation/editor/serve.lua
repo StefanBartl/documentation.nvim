@@ -47,7 +47,7 @@
 
 local M = {}
 
-local uv = vim.uv or vim.loop
+local uv = vim.uv
 
 ---The single running server, if any. Module-level state, which this file is
 ---the only owner of — the alternative (a handle the caller stores) would put
@@ -407,11 +407,10 @@ function M.start(cfg)
   -- lifecycle obligation that comes with having a runtime at all, so it is
   -- wired at start rather than left to the user remembering `serve stop`.
   local augroup = vim.api.nvim_create_augroup("lib_docmap_serve", { clear = true })
-  vim.api.nvim_create_autocmd("VimLeavePre", {
+  require("lib.nvim.autocmd").create("VimLeavePre", function()
+    M.stop()
+  end, {
     group = augroup,
-    callback = function()
-      M.stop()
-    end,
     desc = "documentation.editor.serve: close the map server on exit",
   })
 

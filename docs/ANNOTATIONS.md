@@ -36,7 +36,7 @@ which is the more urgent finding than any one count.
 | `@alias` | 57 | Named unions / enum-shaped string literals |
 | `@diagnostic` | 5 | Suppressing a specific LuaLS diagnostic on one line |
 | `@cast` | 4 | Narrowing a variable's type mid-function |
-| `@raises` | not counted at last pass | Not in the table when it was built — added since. See [`ANNOTATION_TAGS.md`](ANNOTATION_TAGS.md). |
+| `@raises` | not counted at last pass | Not in the table when it was built — added since. Author-facing only, not evaluated by `documentation.nvim` — see [`ANNOTATION_TAGS.md` § `@raises`](ANNOTATION_TAGS.md#raises--an-author-facing-convention-not-evaluated-here). |
 
 ## b) Standard tags, unused in this repo (0 hits), with real value for `docmap`
 

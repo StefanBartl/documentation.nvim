@@ -22,6 +22,58 @@ local DEFAULTS = require("documentation.config.DEFAULTS")
 
 local M = {}
 
+---Every real `Documentation.Opts` field name, for the unknown-key check in
+---`M.build` below. Deliberately **not** derived from `DEFAULTS`'s own keys —
+---unlike `bindings/keymaps.lua`'s `defaults` list (which genuinely is the
+---exhaustive set of valid `spec.id`s), most `Documentation.Opts` fields have
+---no non-nil default (`watch`, `keys`, `layers`, `luals`, `calls_heuristic`,
+---...) and so have no entry in `DEFAULTS.lua` at all — building "known" from
+---`DEFAULTS` here would flag every one of those as an unknown-key typo.
+---Transcribed from `lua/documentation/@types/init.lua`'s `Documentation.Opts`
+---class; keep in sync when a field is added there.
+---@type table<string, true>
+local KNOWN_OPTS_KEYS = {
+  root = true,
+  root_markers = true,
+  source = true,
+  lua_root = true,
+  title = true,
+  types_dir = true,
+  out_dir = true,
+  repo_url = true,
+  branch = true,
+  extra_checks = true,
+  calls_heuristic = true,
+  docs_heuristic = true,
+  dead_code = true,
+  layers = true,
+  luals = true,
+  luals_timeout_ms = true,
+  progress_style = true,
+  command_name = true,
+  browse_command_name = true,
+  keys = true,
+  which_key = true,
+  debug = true,
+  watch = true,
+  watch_ms = true,
+  callhierarchy = true,
+  diagnostics = true,
+  mdview = true,
+  tag_files = true,
+  external_repos = true,
+  tests_dir = true,
+  quicks = true,
+  badge = true,
+  pdf = true,
+  telemetry_namespace = true,
+  telemetry = true,
+  godbolt = true,
+  bindings = true,
+  snippet_max_lines = true,
+  generate_all = true,
+}
+
 ---Directory names under `lua/` that are never a plugin's own source root.
 ---@type table<string, true>
 local NOT_SOURCE = { ["@types"] = true, spec = true, tests = true }
@@ -64,9 +116,31 @@ end
 ---spellings of the same repository look like two repositories.
 ---@param root string Absolute repository root.
 ---@param overrides Documentation.Opts? Merged over the defaults, shallowly.
+---@param notify table? A `lib.nvim.notify`-shaped instance (`.warn(msg)`).
+---Optional and unused when absent, same dependency-injection shape
+---`bindings/keymaps.lua`'s `M.resolve` already takes — this module is a base
+---every layer (including the UI-free pipeline) depends on, so it must not
+---hard-require `lib.nvim.notify` itself.
 ---@return Documentation.Opts
-function M.build(root, overrides)
+function M.build(root, overrides, notify)
   root = (tostring(root):gsub("\\", "/"):gsub("/+$", ""))
+
+  -- Unknown keys are checked *before* the merge below, same reasoning as
+  -- `bindings/keymaps.lua`'s own check: a typo'd option silently vanishing
+  -- into "not applied" rather than raising is exactly the failure mode a
+  -- one-time warning here closes.
+  if notify then
+    local unknown = {}
+    for k in pairs(overrides or {}) do
+      if not KNOWN_OPTS_KEYS[k] then
+        unknown[#unknown + 1] = tostring(k)
+      end
+    end
+    if #unknown > 0 then
+      table.sort(unknown)
+      notify.warn(("opts: unrecognized key(s): %s"):format(table.concat(unknown, ", ")))
+    end
+  end
 
   ---A copy per call, never `DEFAULTS` itself: the merge below writes into this
   ---table, and mutating the shared defaults would leak one caller's options
