@@ -210,6 +210,23 @@ weakness every scalarization has — a large enough value on one axis outranks a
 moderate value on both. Both columns are on every row, so when the order looks
 wrong the numbers next to it say why.
 
+### `:DocMap checklist [all]`
+
+The hand-verified **ledger** → quickfix list: items whose accuracy was
+manually checked, cross-referenced against `git log` to flag which ones are
+now **stale** (the cited path changed since the verification date) or
+**unverified** (no verification date at all). Defaults to showing only what
+needs attention; `:DocMap checklist all` lists everything, including entries
+that are still current — the "is this ledger healthy" view rather than the
+"what do I do now" one.
+
+Not an Analysis-tab panel, for the same reason `churn` cannot be one: the
+verdict depends on `git log`, and git data cannot enter the committed
+artifact without invalidating `--check`'s byte-compare on the very commit
+that embeds it. The ledger *content* does bake into `module_map.json` (it is
+just parsed Markdown); only the stale/unverified verdict is computed live,
+here and by the serve tier's `/api/checklist` route.
+
 ### `:DocMap plugins`
 
 Every recognized **lazy.nvim spec** in the tree → quickfix list, sorted by
@@ -263,6 +280,19 @@ from one real config) must be named in `opts.bindings.wrappers`. See
 is declared rather than guessed, and
 [`docs/FEATURES/CORE.md`](FEATURES/CORE.md) for the measurement behind it.
 
+### `:DocMap endpoints`
+
+Every recognized **call-based route registration** in the tree → quickfix
+list, sorted by path. Instant, like `plugins` and `bindings`: the routes
+already sit on `ir.nodes[*].endpoints`, extracted during the scan that
+produced the live handle — no git, no second pass.
+
+Recognizes call-based routing (Express/Fastify/Koa-shaped registrations)
+only; file-based routing (Next.js/SvelteKit/Nuxt/Remix) belongs in a
+Hierarchy view instead and is not what this lists — see
+[`core/endpoints.lua`](../lua/documentation/core/endpoints.lua) for exactly
+what counts as a route.
+
 ### `:DocMap tools`
 
 This repo's own **`lib.nvim.deps` manifest** (`docs/install.json`, falling
@@ -302,6 +332,10 @@ Security posture, enforced rather than documented and hoped for:
   refused too;
 - static serving takes a bare filename, so no request can walk out of `out_dir`;
 - `VimLeavePre` tears the socket down.
+
+### `:DocMap helptags`
+
+Regenerate this plugin's own `doc/tags`.
 
 ### `:DocMap all [full]` / `:DocMapAll` / `:DocMapAllFull`
 
