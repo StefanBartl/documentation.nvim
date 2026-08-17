@@ -15,13 +15,13 @@ the UI question (filter-tab vs. label-tab) with a third option grounded in
 what this codebase already has.
 
 **Dependency, stated up front:** none of this is buildable today. It needs a
-JS/TS scanner backend, which [`MULTILANG.md`](ROADMAP/MULTILANG.md) costs out and
+JS/TS scanner backend, which [`MULTILANG.md`](ROADMAP/IDEAS/MULTILANG.md) costs out and
 does not schedule. This document is layer 2, sequenced strictly after that
 layer 1 — a roadmap note for *if*, not a proposal to start now.
 
 > **Update (2026-08-03): that dependency is satisfied.** `core/lang/ecma.lua`
 > ships functions, imports, calls and symbols for JS/TS/TSX, so layer 2 is no
-> longer blocked. [`ECOSYSTEM.md`](ROADMAP/FEATURES/ECOSYSTEM.md) takes the routing question
+> longer blocked. [`ECOSYSTEM.md`](FEATURES/ECOSYSTEM.md) takes the routing question
 > further — in particular it refines this document's "routes belong in
 > Hierarchy" conclusion, which holds for *file-based* routing but not for
 > *call-based* routing (`app.get("/x", h)`), where there is no ancestry to

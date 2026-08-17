@@ -17,6 +17,7 @@
 local M = {}
 
 local uv = vim.uv
+local docs = require("documentation.core.docs")
 
 ---@param list Documentation.Finding[]
 ---@param severity Documentation.Severity
@@ -140,53 +141,112 @@ local function check_readmes(ir, findings)
   end
 end
 
---- README module tables in this repo carry deep relative links that nothing
---- validates today; a moved module silently leaves 404s behind.
+--- Resolve a markdown link `target` relative to `base_dir` (repo-relative,
+--- no trailing slash), walking `..`/`.` segments. Shared by both passes
+--- below: a module README and a bare `docs/` file resolve their own
+--- relative links identically, only `base_dir` differs, and it is always
+--- the linking file's own directory — verified against every `node.readme`
+--- in this repo's own map, never a mismatch.
+---@param base_dir string
+---@param target string
+---@return string
+local function resolve_relative_link(base_dir, target)
+  local joined = base_dir .. "/" .. target
+  local parts, stack = {}, {}
+  for seg in joined:gmatch("[^/]+") do
+    parts[#parts + 1] = seg
+  end
+  for _, seg in ipairs(parts) do
+    if seg == ".." then
+      table.remove(stack)
+    elseif seg ~= "." then
+      stack[#stack + 1] = seg
+    end
+  end
+  return table.concat(stack, "/")
+end
+
+--- Blank out fenced code blocks and inline code spans, so link-shaped text
+--- inside an example (this repo's own `` `[text](url)` `` in
+--- `FEATURES_FORMAT.md`, describing markdown link syntax rather than
+--- linking anywhere) is never mistaken for a real link. Mirrors
+--- `docs.code_spans`'s own fence/double-backtick handling, but blanks
+--- rather than extracts, and preserves line structure (irrelevant here,
+--- since callers only re-scan the result for links, but cheap to keep).
+---@param content string
+---@return string
+local function strip_code(content)
+  local out = {}
+  local fence = nil
+  for line in (content .. "\n"):gmatch("([^\n]*)\n") do
+    local f = line:match("^%s*(```+)") or line:match("^%s*(~~~+)")
+    if fence then
+      if f and f:sub(1, 1) == fence:sub(1, 1) and #f >= #fence then
+        fence = nil
+      end
+      out[#out + 1] = ""
+    elseif f then
+      fence = f
+      out[#out + 1] = ""
+    else
+      out[#out + 1] = line:gsub("``.-``", ""):gsub("`[^`]+`", "")
+    end
+  end
+  return table.concat(out, "\n")
+end
+
+--- Relative links in any repo markdown file, checked against the tree.
+---
+--- Two passes over the same idea: a module README (`node.readme`, attached
+--- to a scanned node) and every other `.md` file in the repository
+--- (`docs.corpus(opts)`, already built for `doc-references-missing` and
+--- reused here rather than walking the tree a second time). A moved module
+--- or a docs reorganisation silently leaves 404s behind in either — this
+--- checked only the first half until now.
 ---@param ir Documentation.IR
 ---@param findings Documentation.Finding[]
 ---@param opts Documentation.Opts
 local function check_readme_links(ir, findings, opts)
   local root = opts.root:gsub("\\", "/"):gsub("/+$", "")
+  local checked = {}
+
+  local function check_file(rel_path, node_id)
+    checked[rel_path] = true
+    local fd = io.open(root .. "/" .. rel_path, "r")
+    if not fd then
+      return
+    end
+    local content = strip_code(fd:read("*a"))
+    fd:close()
+    local base_dir = rel_path:match("(.*)/[^/]+$") or ""
+    local seen = {}
+    for target in content:gmatch("%]%(([^)#]+)%)") do
+      if not target:match("^%a+://") and not target:match("^#") and not seen[target] then
+        seen[target] = true
+        local resolved = resolve_relative_link(base_dir, target)
+        if not uv.fs_stat(root .. "/" .. resolved) then
+          add(
+            findings,
+            "warn",
+            "dead-readme-link",
+            node_id,
+            ("%s links to '%s' which does not exist"):format(rel_path, target)
+          )
+        end
+      end
+    end
+  end
 
   for _, id in ipairs(ir.order) do
     local node = ir.nodes[id]
     if node.readme then
-      local abs = root .. "/" .. node.readme
-      local fd = io.open(abs, "r")
-      if fd then
-        local content = fd:read("*a")
-        fd:close()
-        local base = node.path
-        local seen = {}
-        for target in content:gmatch("%]%(([^)#]+)%)") do
-          if not target:match("^%a+://") and not target:match("^#") and not seen[target] then
-            seen[target] = true
-            -- Resolve relative to the README's own directory.
-            local joined = base .. "/" .. target
-            local parts, stack = {}, {}
-            for seg in joined:gmatch("[^/]+") do
-              parts[#parts + 1] = seg
-            end
-            for _, seg in ipairs(parts) do
-              if seg == ".." then
-                table.remove(stack)
-              elseif seg ~= "." then
-                stack[#stack + 1] = seg
-              end
-            end
-            local resolved = table.concat(stack, "/")
-            if not uv.fs_stat(root .. "/" .. resolved) then
-              add(
-                findings,
-                "warn",
-                "dead-readme-link",
-                id,
-                ("%s links to '%s' which does not exist"):format(node.readme, target)
-              )
-            end
-          end
-        end
-      end
+      check_file(node.readme, id)
+    end
+  end
+
+  for _, rel_path in ipairs(docs.corpus(opts)) do
+    if not checked[rel_path] then
+      check_file(rel_path, rel_path)
     end
   end
 end

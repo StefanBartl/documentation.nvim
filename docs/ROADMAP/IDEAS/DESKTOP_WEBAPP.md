@@ -24,7 +24,7 @@ part that is still open (the web/hosted half).
 
 ## What already exists — more than the idea's framing assumed
 
-[`../FEATURES/ECOSYSTEM.md`](../FEATURES/ECOSYSTEM.md) §6 already answered
+[`../../FEATURES/ECOSYSTEM.md`](../../FEATURES/ECOSYSTEM.md) §6 already answered
 the adjacent question for runtime-analysis.nvim ("Neovim plugin, web app,
 Electron app, or a compiled binary?") and found, measured rather than
 guessed: **"a rich browser UI" was already solved twice in-house** —

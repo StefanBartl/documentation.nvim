@@ -20,7 +20,7 @@ Nothing in the pipeline knows about any particular repository. `opts.root` and
 directory layout, types directory, output directory — is an option with a
 default. `nvim --headless -l` is a Lua interpreter that happens to ship a
 parser, a filesystem library and a JSON codec, and `scripts/gen_map.lua` uses
-it as exactly that. See [`REUSE.md`](../REUSE.md) for the two files to copy.
+it as exactly that. See [`REUSE.md`](../../REUSE.md) for the two files to copy.
 
 The real precondition is not Neovim, it is **`---@module` on your files**.
 Without those the scan produces an empty tree, and nothing else in the
@@ -50,7 +50,7 @@ porting at all:
 | **Editor-only** — `vim.api`, `vim.bo`, `vim.cmd`, `vim.ui`, `vim.health`, quickfix | 83 | **Deleted, not ported.** A CLI has no buffers. |
 | **Stdlib helpers** — `vim.trim`, `split`, `tbl_*`, `list_extend`, `deepcopy`, `fs.dirname` | 52 | Five lines of Lua each. |
 | **Filesystem / process** — `vim.uv`, `vim.system`, `vim.fs.dir`, `vim.fn.getcwd` | 38 | `luv` is the same library as a standalone LuaRocks package; `vim.uv` → `luv` is close to a rename. `vim.system` → `io.popen` or luv's spawn. |
-| **JSON** — `vim.json.decode`/`encode`, `vim.NIL` | 23 | The deterministic *encoder* is already this repo's own ([`json.lua`](../lua/documentation/core/json.lua)) — only a decoder is missing. |
+| **JSON** — `vim.json.decode`/`encode`, `vim.NIL` | 23 | The deterministic *encoder* is already this repo's own ([`json.lua`](../../../lua/documentation/core/json.lua)) — only a decoder is missing. |
 | **Treesitter** | 25 | The blocker. See below. |
 
 The 83 editor-only sites are the number worth reading twice: they are not a

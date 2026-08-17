@@ -6,7 +6,7 @@ require graph, the call graph, and the documentation-drift findings, as tools
 the agent can call instead of grepping.
 
 Shipped 2026-08-11 as Phase 1 of
-[`docs/ROADMAP/V1_EXTENSION/IMPLEMENTATION_PLAN.md`](ROADMAP/V1_EXTENSION/IMPLEMENTATION_PLAN.md).
+[`docs/ROADMAP/IDEAS/IMPLEMENTATION_PLAN.md`](ROADMAP/IDEAS/IMPLEMENTATION_PLAN.md).
 
 ## Running it
 

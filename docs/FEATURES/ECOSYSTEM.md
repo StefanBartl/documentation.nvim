@@ -80,7 +80,7 @@ before the new plugin's step 5.
 ## Epistemic note
 
 This repository's convention is that a design doc states what it verified and
-what it assumed. [`FRAMEWORK_CONVENTIONS.md`](FRAMEWORK_CONVENTIONS.md) flags
+what it assumed. [`FRAMEWORK_CONVENTIONS.md`](../FRAMEWORK_CONVENTIONS.md) flags
 itself as entirely unverified for exactly this reason; this document is
 mixed, so here is the split.
 

@@ -2,7 +2,7 @@
 
 A `docs/FEATURES_FORMAT.md`-shaped catalog of this plugin's own signature
 features, for the Features tab to render as its own first real test —
-dogfooding, not a replacement for [`docs/ROADMAP/FEATURES.md`](../ROADMAP/FEATURES.md),
+dogfooding, not a replacement for [`docs/FEATURES/FEATURES.md`](FEATURES.md),
 which stays the *decision record* (why something was built the way it was,
 what commit shipped it). This folder is the *user-facing* catalog: what the
 feature is, which module and keys are behind it, today.
