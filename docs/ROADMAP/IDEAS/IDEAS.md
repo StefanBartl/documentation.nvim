@@ -60,16 +60,16 @@ Three sibling files, three jobs, and keeping them apart is the point:
 
 | File | Holds |
 |---|---|
-| [`FEATURES.md`](../FEATURES.md) | What shipped, and the trade-off behind it. The decision record. |
+| [`FEATURES.md`](../../FEATURES/FEATURES.md) | What shipped, and the trade-off behind it. The decision record. |
 | [`ROADMAP.md`](../ROADMAP.md) | What is genuinely open, and what was **considered and rejected** (with the condition that reopens it). |
 | **this file** | What has not been decided about at all yet. |
 
 Anything here that graduates to "we are actually going to look at this"
 moves to `ROADMAP.md` with a real cost estimate; anything that ships moves
-to `FEATURES.md`. Items already tracked in `ROADMAP.md` — the
-`@overload`/`undocumented-param` fix, other languages, running without
-Neovim, the mdview bridge, the Reference tab — are **not repeated here**,
-only cross-referenced.
+to `FEATURES.md`. Items already tracked in `ROADMAP.md` — other languages,
+running without Neovim, the Reference tab — are **not repeated here**, only
+cross-referenced. (The `@overload`/`undocumented-param` fix and the mdview
+bridge, both once tracked there too, have since shipped — see `FEATURES.md`.)
 
 **The filter every idea below is judged against:** this plugin's value is
 *detecting where documentation and code stop agreeing*. Features that make
@@ -306,8 +306,8 @@ along the way.
 Shipped: `:DocBrowse telemetry` is the static × runtime join this section
 described — `runtime-analysis.telemetry`'s `load()`/`Data.modules` join
 against `dead-function`'s "no caller found," documented in
-[`../FEATURES/ECOSYSTEM.md`](../FEATURES/ECOSYSTEM.md) §8 and
-[`../FEATURES/FEATURES.md`](../FEATURES/FEATURES.md).
+[`../FEATURES/ECOSYSTEM.md`](../../FEATURES/ECOSYSTEM.md) §8 and
+[`../FEATURES/FEATURES.md`](../../FEATURES/FEATURES.md).
 
 ---
 
