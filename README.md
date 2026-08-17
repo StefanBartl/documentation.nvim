@@ -357,7 +357,11 @@ Full reference: [docs/COMMANDS.md](docs/COMMANDS.md).
 :DocMap churn                    " churn x complexity, hottest first -> quickfix
 :DocMap churn HEAD~200..         " …over one range instead of all history
 :DocMap plugins                  " every lazy.nvim spec in the tree -> quickfix
+:DocMap bindings                 " every recognized keymap/user command/autocmd -> quickfix
+:DocMap endpoints                " every recognized call-based route registration -> quickfix
 :DocMap tools                    " this repo's own lib.nvim.deps manifest -> quickfix
+:DocMap checklist                " hand-verified ledger entries that are stale or unverified -> quickfix
+:DocMap checklist all            " …including entries that are already current
 :DocMap serve                    " local map server (enables the History tab)
 :DocMap helptags                 " regenerate this plugin's own doc/tags
 :DocMap all                      " every opts.generate_all.projects, fast scan, one subprocess each (needs opts.generate_all)
