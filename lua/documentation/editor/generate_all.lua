@@ -141,14 +141,25 @@ function M.run(projects, opts)
   local function run_next()
     local project = projects[index]
     if not project then
+      -- `vim.system`'s completion callback runs in a libuv fast-event
+      -- context (no scheduling of its own -- confirmed against Neovim's
+      -- own vim/_core/system.lua), and this callback chain leads straight
+      -- back to it (generate_one's vim.system callback -> here). `on_done`
+      -- is a caller-supplied hook free to touch vim.notify/editor state
+      -- (bindings/usrcmds/generate_all.lua's does), so the schedule
+      -- belongs here, once, rather than in every caller.
       if opts.on_done then
-        opts.on_done(results)
+        vim.schedule(function()
+          opts.on_done(results)
+        end)
       end
       return
     end
 
     if opts.on_progress then
-      opts.on_progress(index, total, project)
+      vim.schedule(function()
+        opts.on_progress(index, total, project)
+      end)
     end
 
     generate_one(project, luals, function(result)
