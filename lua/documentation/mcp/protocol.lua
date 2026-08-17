@@ -200,8 +200,7 @@ function M.dispatch(server, line)
     return nil
   end
 
-  local decoded_ok, msg =
-    pcall(vim.json.decode, line, { luanil = { object = true, array = true } })
+  local decoded_ok, msg = pcall(vim.json.decode, line, { luanil = { object = true, array = true } })
   if not decoded_ok then
     return vim.json.encode(fail(nil, ERR_PARSE, "invalid JSON"))
   end

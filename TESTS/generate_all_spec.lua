@@ -194,7 +194,8 @@ return function(H)
     ok(done, "generate_all: opts.luals=false still fires on_done")
     ok(
       results and results[1] and results[1].ok == true,
-      "generate_all: opts.luals=false still succeeds -- " .. tostring(results and results[1] and results[1].err)
+      "generate_all: opts.luals=false still succeeds -- "
+        .. tostring(results and results[1] and results[1].err)
     )
   end
 
