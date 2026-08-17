@@ -5,7 +5,7 @@
 > not a decision to revisit, just work already done so it is not repeated
 > if a similar naming exercise ever comes up again, for this plugin or
 > another. The extraction happened; the name landed on `documentation.nvim`.
-> Moved out of [`ROADMAP.md`](ROADMAP.md) on 2026-08-10, which is for
+> Moved out of [`ROADMAP.md`](../ROADMAP/ROADMAP.md) on 2026-08-10, which is for
 > genuinely open items and documented rejections — neither applies here.
 
 ## Names checked against GitHub

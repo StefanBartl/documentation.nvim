@@ -132,6 +132,6 @@ panel without verdicts means "the ledger is right here, the git part is
 not".
 
 This repository keeps its own ledger in
-[`docs/CHECKLIST/architecture.md`](CHECKLIST/architecture.md) — eight facts
+[`docs/CHECKLIST/architecture.md`](CHECKLIST/architecture.md) — eight facts (restored 2026-08-17; had been deleted from the tree without this link being updated)
 about layering, coexistence with other tooling, and the protocol surfaces,
 each cited and dated.

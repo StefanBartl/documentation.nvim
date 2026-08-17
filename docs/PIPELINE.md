@@ -1805,7 +1805,7 @@ A repo's own `docs/FEATURES/` (or `docs/features/`) folder, when it has one
 — read by [`core/features.lua`](../lua/documentation/core/features.lua) into
 `ir.features`, rendered as an index: one card per `## Feature` section, its
 summary and whatever `- **Key:** value` metadata bullets the author wrote.
-The full field guide is [`docs/FEATURES_FORMAT.md`](../FEATURES_FORMAT.md);
+The full field guide is [`docs/FEATURES_FORMAT.md`](FEATURES_FORMAT.md);
 this section is the *why*, that one is the *contract*.
 
 **Modelled on real data, not a format invented from scratch.** Before
@@ -1939,7 +1939,7 @@ bugs. Generic checks (any annotated Lua tree):
 | `missing-module-tag` | error | A source file with no `---@module`. |
 | `module-path-mismatch` | error | Declared `@module` ≠ where the file lives — copy-pasted or stale headers. |
 | `missing-summary` | warn | `@module` present but no description line. |
-| `dead-readme-link` | warn | A relative link in a README pointing at nothing. |
+| `dead-readme-link` | warn | A relative link in a module README or any `docs/` file, pointing at nothing. |
 | `missing-readme` | info | Module without a README — should be a decision, not an accident. |
 | `unreferenced-module` | info | Required by no other file in the tree. |
 | `dead-see-target` | warn | A function's `@see` target resolves to no known module or function. |
