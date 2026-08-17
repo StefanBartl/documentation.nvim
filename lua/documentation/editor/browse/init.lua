@@ -792,7 +792,7 @@ local function open_in_browser(st)
     .. "/"
     .. (st.opts.out_dir or "docs/map")
     .. "/index.html"
-  if not (vim.uv or vim.loop).fs_stat(target) then
+  if not vim.uv.fs_stat(target) then
     notify.warn("no generated page yet — run :DocMap first")
     return
   end
@@ -1283,13 +1283,12 @@ local function bind(st)
 
   -- j/k stay native so counts and scrolloff behave; CursorMoved drives the
   -- detail pane instead of re-implementing movement.
-  vim.api.nvim_create_autocmd("CursorMoved", {
+  require("lib.nvim.autocmd").create("CursorMoved", function()
+    if M.is_open() then
+      render_detail(st)
+    end
+  end, {
     buffer = st.slots.list.bufnr,
-    callback = function()
-      if M.is_open() then
-        render_detail(st)
-      end
-    end,
     desc = "documentation.editor.browse: detail follows the list cursor",
   })
 

@@ -189,6 +189,23 @@ declares which *Lua runtime* a symbol needs (5.1 / 5.3 / JIT), a different
 question from "since when has this existed in this project". Keeping them
 separate avoids collapsing two meanings into one tag.
 
+### `@raises` — an author-facing convention, not evaluated here
+
+```lua
+---@raises string When `opts.root` is missing, or `opts.source` names a
+---directory that does not exist.
+```
+
+Not a LuaCATS standard tag, and — unlike every other tag on this page —
+**not parsed, not rendered, not checked by `documentation.nvim` at all**
+(confirmed: zero references across `core/functions.lua`, `core/scan.lua`,
+`core/check.lua`, `core/render/*.lua`). It exists in this tree purely as
+informal prose documenting what a function can `error()`, following the
+same convention `@error` would if it were used instead. Worth writing when
+a function's failure modes aren't obvious from its `@return`, but adopt it
+case by case — same "not a mandate" posture this whole document opens
+with — not as a tag `docmap` will ever badge or check for you.
+
 ### `@async` / `@nodiscard` — badges
 
 Parsed as booleans, rendered as badges. No check behind either.

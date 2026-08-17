@@ -16,7 +16,7 @@
 
 local M = {}
 
-local uv = vim.uv or vim.loop
+local uv = vim.uv
 
 ---@param list Documentation.Finding[]
 ---@param severity Documentation.Severity

@@ -481,24 +481,19 @@ end
 ---Parsed queries are per-grammar (`javascript`/`typescript`/`tsx` each
 ---produce a distinct query object even for identical query text), so each
 ---is parsed once per grammar and cached rather than reparsed per file.
-local call_query_cache = {}
-
+---
+--- Structurally the same query `calls.lua` parses for Lua's own
+--- `function_call name: (_) @callee`: capture every call site's callee
+--- expression, whatever shape it is, and let the caller decide what to
+--- do with the text. Verified against a real parse: a bare call's
+--- `function` field is an `identifier` (`helper()`); a method-shaped
+--- call's is a `member_expression` whose text reconstructs as
+--- `obj.method` — both are meaningful text for `calls.lua`'s own
+--- language-agnostic resolver to try matching, unchanged.
 ---@param lang string
-local function call_query(lang)
-  if not call_query_cache[lang] then
-    -- Structurally the same query `calls.lua` parses for Lua's own
-    -- `function_call name: (_) @callee`: capture every call site's callee
-    -- expression, whatever shape it is, and let the caller decide what to
-    -- do with the text. Verified against a real parse: a bare call's
-    -- `function` field is an `identifier` (`helper()`); a method-shaped
-    -- call's is a `member_expression` whose text reconstructs as
-    -- `obj.method` — both are meaningful text for `calls.lua`'s own
-    -- language-agnostic resolver to try matching, unchanged.
-    call_query_cache[lang] =
-      vim.treesitter.query.parse(lang, "(call_expression function: (_) @callee) @call")
-  end
-  return call_query_cache[lang]
-end
+local call_query = memo.fn(function(lang)
+  return vim.treesitter.query.parse(lang, "(call_expression function: (_) @callee) @call")
+end, { size = 8 })
 
 ---Every call site in the file, attributed to the top-level function
 ---(`ranges`) whose span contains it — the same two-input shape
@@ -544,19 +539,14 @@ local function extract_calls(root, src, lang, ranges)
   return out
 end
 
-local ident_query_cache = {}
-
+-- `identifier` only — never `property_identifier`, the node type a
+-- member expression's right-hand side gets (verified against the same
+-- parse `extract_calls`'s own header describes) — so a `.length`-style
+-- property access never inflates a same-named function's count.
 ---@param lang string
-local function ident_query(lang)
-  if not ident_query_cache[lang] then
-    -- `identifier` only — never `property_identifier`, the node type a
-    -- member expression's right-hand side gets (verified against the same
-    -- parse `extract_calls`'s own header describes) — so a `.length`-style
-    -- property access never inflates a same-named function's count.
-    ident_query_cache[lang] = vim.treesitter.query.parse(lang, "(identifier) @id")
-  end
-  return ident_query_cache[lang]
-end
+local ident_query = memo.fn(function(lang)
+  return vim.treesitter.query.parse(lang, "(identifier) @id")
+end, { size = 8 })
 
 ---How often each identifier appears in the file, by name — mirrors
 ---`calls.lua`'s own `M.identifier_counts` for the same reason: a function

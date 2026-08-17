@@ -58,7 +58,7 @@ function M.run(root, source, opts)
     "--doc=" .. scan_dir,
     "--doc_out_path=" .. out_dir,
     "--logpath=" .. out_dir .. "/log",
-  }, { timeout_ms = timeout_ms }, function(res)
+  }, { timeout_ms = timeout_ms, cwd = root }, function(res)
     result = res
   end)
 
@@ -90,7 +90,8 @@ function M.run(root, source, opts)
   local raw = fd:read("*a")
   fd:close()
 
-  local decode_ok, data = pcall(vim.json.decode, raw)
+  local decode_ok, data =
+    pcall(vim.json.decode, raw, { luanil = { object = true, array = true } })
   if not decode_ok then
     return nil, "doc.json parse failed: " .. tostring(data)
   end

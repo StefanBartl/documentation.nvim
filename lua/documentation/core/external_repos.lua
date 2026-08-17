@@ -54,7 +54,7 @@
 
 local M = {}
 
-local uv = vim.uv or vim.loop
+local uv = vim.uv
 
 ---Longest matching prefix in `external_repos` for `mod` — identical rule to
 ---`tagfiles.match_prefix` (dot-bounded: `plenary` matches `plenary.async`

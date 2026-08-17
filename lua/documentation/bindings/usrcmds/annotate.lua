@@ -45,11 +45,26 @@ local function preview(plans)
     vim.list_extend(lines, annotate.preview_lines(p))
   end
 
+  local safe_api = require("lib.nvim.safe_api")
   local name = "docmap-annotate-preview.lua"
+  local existing
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_valid(b) and vim.fs.basename(vim.api.nvim_buf_get_name(b)) == name then
-      pcall(vim.api.nvim_buf_delete, b, { force = true })
+    if safe_api.is_valid_buffer(b) and vim.fs.basename(vim.api.nvim_buf_get_name(b)) == name then
+      existing = b
+      break
     end
+  end
+
+  -- Reuse in place rather than force-delete + enew: the previous buffer may
+  -- still be visible in another window (e.g. the user split it to compare
+  -- runs), and force-deleting a visible buffer swaps that window to an
+  -- auto-created empty scratch buffer instead. Asking the same query twice
+  -- should just refresh the content the reader is already looking at.
+  if existing then
+    vim.bo[existing].modifiable = true
+    vim.api.nvim_buf_set_lines(existing, 0, -1, false, lines)
+    vim.api.nvim_win_set_buf(0, existing)
+    return
   end
 
   vim.cmd("enew")
