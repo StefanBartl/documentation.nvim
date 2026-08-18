@@ -133,4 +133,200 @@ M.keywords = {
   },
 }
 
+---Standard-library names, and the Neovim ones that sit beside them.
+---
+---**Chosen by measurement, not by completeness.** Counted across this
+---repository before it was written: `ipairs` 405, `require` 328, `type` 133,
+---`table.sort` 79, `table.concat` 76, `pcall` 68, `pairs` 64, `tostring` 55,
+---`vim.trim` 40, `vim.treesitter.get_node_text` 28. A transcription of the
+---whole 5.1 manual would be mostly entries nobody hovers, and every one of
+---them a line to keep true.
+---
+---`docs/ROADMAP/IDEAS/IDEAS.md`'s note that "`calls_external` already knows
+---which ones a tree actually uses" turned out not to hold: that field tracks
+---*required modules*, and `table.concat` is a global, not a require. The
+---counts above came from reading the source instead.
+---
+---## Why `vim.*` is here, and marked
+---
+---It is not Lua, and this file is Lua's glossary. It is also 40 % of what a
+---reader of this ecosystem's code actually points at, and a glossary that
+---refused to explain `vim.trim` on layering grounds would be correct and
+---useless.
+---
+---The resolution is `origin`: those entries say **Neovim** on the card, and
+---the renderer withholds the Lua manual link from them — sending a reader to
+---`lua.org` for `vim.split` would be a link that looks right and answers
+---nothing. The layering stays visible instead of being either conflated or
+---obeyed into uselessness. A host-API glossary of its own is the real
+---answer if a second host ever appears; one table with an honest label is
+---the right size for one host.
+---@type table<string, Documentation.Glossary.Entry>
+M.stdlib = {
+  -- Base — the most-used names in the language, by a wide margin.
+  ["ipairs"] = {
+    summary = "Iterates a sequence 1, 2, 3… and stops at the first missing index.",
+    note = "Stops at a hole, which is why `nil` in the middle of an array-like table silently truncates every loop over it.",
+  },
+  ["pairs"] = {
+    summary = "Iterates every key of a table, in an unspecified order.",
+    note = "The order can differ between runs of the same program — anything that has to be deterministic sorts the keys first.",
+  },
+  ["require"] = {
+    summary = "Loads a module once and returns what it returned, from cache on every later call.",
+    note = "Cached by module name: a second `require` does not re-run the file, which is why editing a loaded module needs a restart or an explicit cache eviction.",
+  },
+  ["pcall"] = {
+    summary = "Calls a function and catches its error, returning `ok, result-or-error` instead of propagating.",
+  },
+  ["xpcall"] = {
+    summary = "`pcall` with a handler that runs before the stack unwinds, so it can capture a traceback.",
+  },
+  ["type"] = {
+    summary = 'The type of a value as a string: "nil", "boolean", "number", "string", "table", "function", "thread", "userdata".',
+  },
+  ["tostring"] = { summary = "A value as a string, honouring a `__tostring` metamethod." },
+  ["tonumber"] = {
+    summary = "A string as a number, or `nil` when it is not one. Takes an optional base.",
+  },
+  ["select"] = {
+    summary = "`select('#', ...)` counts varargs; `select(n, ...)` returns them from the nth on.",
+    note = "The counting form is the only reliable way to see trailing `nil`s in `...`, which `#` and `ipairs` both hide.",
+  },
+  ["setmetatable"] = {
+    summary = "Attaches a metatable, giving a table behaviour for indexing, calling, comparison and more.",
+  },
+  ["getmetatable"] = {
+    summary = "The value's metatable, or what its `__metatable` field chose to expose instead.",
+  },
+  ["rawget"] = { summary = "Reads a table field without consulting `__index`." },
+  ["rawset"] = { summary = "Writes a table field without consulting `__newindex`." },
+  ["next"] = {
+    summary = "One step of `pairs`. `next(t) == nil` is the idiomatic test for an empty table.",
+  },
+  ["error"] = {
+    summary = "Raises an error. A level of 0 omits position information, 1 blames the caller, 2 the caller's caller.",
+  },
+  ["assert"] = {
+    summary = "Returns its arguments when the first is truthy, raises the second as an error otherwise.",
+  },
+  ["unpack"] = {
+    summary = "A table's array part as multiple return values.",
+    note = "`unpack` in 5.1/LuaJIT, `table.unpack` from 5.2 — this is the most common source of a 5.1-vs-5.4 portability break.",
+  },
+  ["print"] = {
+    summary = "Writes its arguments to stdout, tab-separated. Rarely what you want in a plugin — see `vim.notify`.",
+  },
+
+  -- table
+  ["table.concat"] = {
+    summary = "Joins a table's array part into a string with an optional separator.",
+    note = "The idiomatic way to build a long string: repeated `..` allocates a new string every time, this allocates once.",
+  },
+  ["table.sort"] = {
+    summary = "Sorts a table's array part in place, with an optional comparator.",
+    note = 'The comparator must be a strict ordering — returning true for equal elements raises "invalid order function" rather than sorting oddly.',
+  },
+  ["table.insert"] = {
+    summary = "Appends a value, or inserts it at a position and shifts the rest up.",
+  },
+  ["table.remove"] = {
+    summary = "Removes and returns the last element, or the one at a position, shifting the rest down.",
+  },
+
+  -- string
+  ["string.format"] = {
+    summary = "C-style formatting: `%s`, `%d`, `%q` (a Lua-readable quoted string), `%.2f`.",
+  },
+  ["string.gsub"] = {
+    summary = "Replaces every match of a pattern, returning the new string and the number of replacements.",
+    note = "Returns *two* values, which is why `x = (s:gsub(...))` needs its parentheses in a multiple-assignment or argument position.",
+  },
+  ["string.gmatch"] = {
+    summary = "Iterates every match of a pattern — the loop form of `string.match`.",
+  },
+  ["string.match"] = { summary = "The first match of a pattern, or its captures when it has any." },
+  ["string.find"] = {
+    summary = "Where a pattern matches: start and end indices, plus captures. `true` as the fourth argument makes it a plain-text search.",
+  },
+  ["string.sub"] = { summary = "A substring by index. Negative indices count from the end." },
+  ["string.rep"] = { summary = "A string repeated n times, with an optional separator." },
+
+  -- math, os, io — the handful this tree actually reaches for
+  ["math.min"] = { summary = "The smallest of its arguments." },
+  ["math.max"] = { summary = "The largest of its arguments." },
+  ["math.floor"] = {
+    summary = "Rounds toward negative infinity. The usual way to get an integer out of a division in 5.1.",
+  },
+  ["os.time"] = {
+    summary = "Seconds since the epoch, or the time a table of date fields describes.",
+  },
+  ["os.date"] = { summary = "A formatted date string. A leading `!` in the format means UTC." },
+  ["io.open"] = {
+    summary = "Opens a file, returning a handle or `nil` plus a message.",
+    note = "Never raises — the `nil, err` return is the whole error path, so an unchecked call fails later and elsewhere.",
+  },
+
+  -- Neovim. Not Lua, marked as such, and here because it is what a reader of
+  -- this ecosystem's code actually points at.
+  ["vim.trim"] = { summary = "A string without leading or trailing whitespace.", origin = "Neovim" },
+  ["vim.split"] = {
+    summary = "Splits a string. `{ plain = true }` treats the separator literally rather than as a pattern.",
+    note = "Without `plain`, a separator like `.` is a Lua pattern and matches every character.",
+    origin = "Neovim",
+  },
+  ["vim.cmd"] = { summary = "Runs an Ex command.", origin = "Neovim" },
+  ["vim.notify"] = {
+    summary = "Reports a message at a log level, through whatever handler the user configured.",
+    origin = "Neovim",
+  },
+  ["vim.schedule"] = {
+    summary = "Defers a function to the main loop, where the full API is callable.",
+    note = "The way out of a fast-event context, where most of `vim.api` raises.",
+    origin = "Neovim",
+  },
+  ["vim.system"] = {
+    summary = "Runs a process. Asynchronous with a callback, synchronous with `:wait()`.",
+    origin = "Neovim",
+  },
+  ["vim.list_extend"] = {
+    summary = "Appends one list's items onto another, in place.",
+    origin = "Neovim",
+  },
+  ["vim.tbl_map"] = {
+    summary = "A new table with a function applied to every value.",
+    origin = "Neovim",
+  },
+  ["vim.tbl_contains"] = { summary = "Whether a list holds a value.", origin = "Neovim" },
+  ["vim.tbl_deep_extend"] = {
+    summary = "Merges tables recursively. The first argument decides collisions: 'force', 'keep' or 'error'.",
+    origin = "Neovim",
+  },
+  ["vim.json.encode"] = {
+    summary = "A Lua value as JSON.",
+    note = "Key order is unspecified — anything that must be byte-stable needs its own encoder, which is why `core/json.lua` exists.",
+    origin = "Neovim",
+  },
+  ["vim.json.decode"] = {
+    summary = "JSON as a Lua value.",
+    note = "`{ luanil = { object = true, array = true } }` drops nulls instead of yielding `vim.NIL`, which is truthy and therefore very easy to mishandle.",
+    origin = "Neovim",
+  },
+  ["vim.fs.dir"] = { summary = "Iterates a directory, yielding name and type.", origin = "Neovim" },
+  ["vim.fs.basename"] = { summary = "The last component of a path.", origin = "Neovim" },
+  ["vim.fs.dirname"] = { summary = "A path without its last component.", origin = "Neovim" },
+  ["vim.treesitter.get_node_text"] = {
+    summary = "The source text a syntax node spans.",
+    origin = "Neovim",
+  },
+  ["vim.treesitter.query.parse"] = {
+    summary = "Compiles a query against a grammar, for iterating captures over a tree.",
+    origin = "Neovim",
+  },
+  ["vim.uv"] = {
+    summary = "The libuv bindings: filesystem, timers, processes. `vim.loop` before 0.10.",
+    origin = "Neovim",
+  },
+}
+
 return M

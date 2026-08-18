@@ -167,10 +167,11 @@ change detection), §2.1/§2.2 (the panels gated on the `TAGS` refactor), §5.x
 
 ### Additional items from this session, not previously recorded
 
-- [ ] **Stdlib hover** — the lookup layer's next trigger surface
-      (`table.concat`, `Object.entries`). Same machinery as the keyword
-      glossary, larger table; `calls_external` already knows which ones a
-      tree actually uses. See ReferenceTab.md § *The lookup layer*.
+- [x] ~~**Stdlib hover**~~ — built 2026-08-18. One correction to the note
+      this item carried: `calls_external` does **not** know which stdlib
+      names a tree uses; it tracks required *modules*, and `table.concat` is
+      a global. The entries were chosen from a direct count of the source
+      instead (`ipairs` 405, `require` 328, `table.sort` 79, `vim.trim` 40).
 - [ ] **A mixed-language fixture in CI.** MULTILANG stage 3.7 asks for
       per-language sample trees; a *polyglot* one is the case that would
       have caught the `detect_source` failure on the day the JS backend

@@ -367,7 +367,14 @@ specifically because of the proximity argument that has since expired.
    `.fn-snip`.** No new tab, no `TAGS` table, no context menu. Self-contained.
 2. **Same for JS/TS**, which is one more table against the existing `ecma.lua`
    registrations and proves the per-language seam.
-3. **Stdlib glossary**, same machinery, larger table.
+3. ~~**Stdlib glossary**, same machinery, larger table.~~ **Built
+   2026-08-18.** The tokenizer grew dotted-run matching, longest prefix
+   first, with the undecorated tail emitted plain — `vim.uv` matches inside
+   `vim.uv.fs_stat` and the card does not claim to describe `.fs_stat`.
+   Entries were chosen by counting real use, not by transcribing a manual.
+   Neovim's API sits in Lua's glossary marked `origin = "Neovim"`, which is
+   also what withholds the Lua-manual link from it: a reader pointing at
+   `vim.split` must not be sent to lua.org.
 4. **`TAGS` table refactor** — still the shared precondition it always was,
    still paying twice (this document's tag panel, `IDEAS_IMPLEMENTATION_PLAN.md`
    §2.1's adoption panel), and now a third time as the lookup layer's third
