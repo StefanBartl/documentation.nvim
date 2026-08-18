@@ -93,6 +93,7 @@
 ---@class Documentation.Glossary.Entry
 ---@field summary string One sentence, offline, never dependent on a link.
 ---@field note string? A second sentence for the thing that surprises people — the `and`/`or`-return-operands class of fact. Omitted far more often than not; a note on every entry is a tutorial, which this is not.
+---@field origin string? Where the name comes from when it is not the language itself, e.g. `"Neovim"`. Shown on the card, and it also suppresses the language reference link — sending a reader to the Lua manual for `vim.split` would be a link that looks right and answers nothing.
 ---@field anchor string? Appended to `Documentation.Glossary.Reference.url`. Absent until someone has actually opened the resulting link.
 
 ---A language's whole glossary, as a backend exposes it.
@@ -100,6 +101,7 @@
 ---@field reference Documentation.Glossary.Reference?
 ---@field syntax Documentation.Glossary.Syntax?
 ---@field keywords table<string, Documentation.Glossary.Entry>
+---@field stdlib table<string, Documentation.Glossary.Entry>? Dotted names — `table.concat`, `vim.split` — matched longest-prefix-first by the page's tokenizer. Chosen by measured use rather than by completeness: a transcription of a whole standard library is mostly entries nobody hovers, each one a line to keep true.
 
 ---One supported source language, selected by file extension. See
 ---`core/lang_registry.lua` for why this exists as a registry rather than an

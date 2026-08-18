@@ -219,6 +219,8 @@ main{grid-template-columns:minmax(300px,1.1fr) minmax(0,1.4fr);gap:0;align-items
    than a second half of the definition. */
 .kw-note{font-size:11.5px;line-height:1.4;color:var(--muted);margin-top:6px}
 .kw-ref{font-size:11px;margin-top:8px}
+.kw-origin{font-size:10.5px;margin-top:6px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.04em}
 /* Decorated keywords stay unobtrusive until pointed at: a snippet where
    every keyword is coloured is syntax highlighting, which this page turned
    down on purpose. A dotted underline says "there is an answer here" and
@@ -1386,18 +1388,52 @@ local JS = [[
       }
       var ch = src.charAt(i);
       if(/[A-Za-z_]/.test(ch)){
+        // The whole dotted run, not just the first identifier: a stdlib entry
+        // is `table.concat`, and stopping at `table` would look up a word
+        // that means nothing on its own. Consumed once, then matched
+        // longest-first below.
         var k = i;
         while(k < n && /[A-Za-z0-9_]/.test(src.charAt(k))) k++;
-        var word = src.slice(i, k);
+        while(k + 1 < n && src.charAt(k) === "." && /[A-Za-z_]/.test(src.charAt(k + 1))){
+          k++;
+          while(k < n && /[A-Za-z0-9_]/.test(src.charAt(k))) k++;
+        }
+        var run = src.slice(i, k);
+
         // `hasOwnProperty` rather than a truthiness test: a glossary is a
         // plain object from JSON, so a word like "constructor" would
-        // otherwise find Object.prototype's own member and decorate a
-        // keyword that does not exist.
-        if(Object.prototype.hasOwnProperty.call(gl.keywords, word)){
+        // otherwise find Object.prototype's own member and decorate an entry
+        // that does not exist.
+        function has(table, key){
+          return table && Object.prototype.hasOwnProperty.call(table, key);
+        }
+
+        // Longest prefix wins: `vim.treesitter.query.parse` beats
+        // `vim.treesitter`, which beats nothing. A shorter match on a longer
+        // run would explain the namespace while the reader pointed at the
+        // function.
+        var parts = run.split(".");
+        var matched = null, kind = null;
+        for(var take = parts.length; take >= 1 && !matched; take--){
+          var candidate = parts.slice(0, take).join(".");
+          if(has(gl.stdlib, candidate)){ matched = candidate; kind = "std"; }
+          // A keyword is a bare word by definition, so only the whole run
+          // can be one -- `end` in `foo.end` is not Lua at all.
+          else if(take === parts.length && take === 1 && has(gl.keywords, candidate)){
+            matched = candidate; kind = "kw";
+          }
+        }
+
+        if(matched){
           flush();
-          out += '<span class="kw" data-kw="' + esc(word) + '" tabindex="0">' + esc(word) + '</span>';
+          // The undecorated tail (`.parse` when only `vim.treesitter`
+          // matched) is emitted plain rather than swallowed into the span:
+          // the card would otherwise claim to describe text it does not.
+          out += '<span class="kw" data-kw="' + esc(matched) + '" data-kwkind="' + kind +
+            '" tabindex="0">' + esc(matched) + '</span>';
+          plain += run.slice(matched.length);
         } else {
-          plain += word;
+          plain += run;
         }
         i = k; continue;
       }
@@ -6886,8 +6922,9 @@ local JS = [[
   function kwOpen(el){
     var snip = el.closest && el.closest(".fn-snip");
     var gl = glossaryForPath(snip && snip.dataset.path);
-    var entry = gl && gl.keywords
-      ? (Object.prototype.hasOwnProperty.call(gl.keywords, el.dataset.kw) ? gl.keywords[el.dataset.kw] : null)
+    var table = el.dataset.kwkind === "std" ? (gl && gl.stdlib) : (gl && gl.keywords);
+    var entry = table && Object.prototype.hasOwnProperty.call(table, el.dataset.kw)
+      ? table[el.dataset.kw]
       : null;
     // Nothing behind the trigger is a bug in whatever decorated it, not
     // something to show an empty card for.
@@ -6896,7 +6933,15 @@ local JS = [[
     var h = '<div class="kw-word">' + esc(el.dataset.kw) + '</div>' +
       '<div class="kw-sum">' + esc(entry.summary) + '</div>';
     if(entry.note) h += '<div class="kw-note">' + esc(entry.note) + '</div>';
-    if(gl.reference && gl.reference.url){
+    // Where the name comes from, when it is not the language itself. The
+    // distinction is the whole reason `vim.*` entries can sit in a Lua
+    // glossary without pretending to be Lua: a reader is told the difference
+    // rather than left to infer it.
+    if(entry.origin) h += '<div class="kw-origin">' + esc(entry.origin) + '</div>';
+    // Only for entries that *are* the language. A `vim.*` name is not in the
+    // Lua manual, and sending a reader there would be a link that looks
+    // right and answers nothing.
+    if(!entry.origin && gl.reference && gl.reference.url){
       // The one link, per language, that this feature is allowed to depend
       // on nothing for: every sentence above it is already the answer. See
       // `docs/ROADMAP/IDEAS/ReferenceTab.md` on why there is one base URL

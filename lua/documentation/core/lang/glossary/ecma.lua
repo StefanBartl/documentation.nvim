@@ -207,4 +207,88 @@ M.keywords = {
   },
 }
 
+---Built-in names worth a sentence, chosen the same way `glossary/lua.lua`'s
+---are: by what a reader stops at, not by transcribing a specification. The
+---bar is "the behaviour is not guessable from the name" — `Array.isArray`
+---does not need an entry, `Array.prototype.flat`'s depth argument does.
+---
+---No `origin` on any of these: unlike Lua's glossary, which carries the host
+---API beside the language, every name here *is* JavaScript, and MDN
+---documents all of them.
+---@type table<string, Documentation.Glossary.Entry>
+M.stdlib = {
+  ["Object.keys"] = {
+    summary = "An array of an object's own enumerable string keys.",
+    note = "Own keys only — inherited ones are excluded, which is what separates it from `for...in`.",
+  },
+  ["Object.values"] = { summary = "An array of an object's own enumerable values." },
+  ["Object.entries"] = { summary = "An array of `[key, value]` pairs, own and enumerable." },
+  ["Object.assign"] = {
+    summary = "Copies own enumerable properties onto a target, and returns it.",
+    note = "A shallow copy: nested objects are shared with the source, not cloned.",
+  },
+  ["Object.freeze"] = {
+    summary = "Makes an object's own properties non-writable.",
+    note = "Shallow as well — a frozen object's nested objects are still mutable.",
+  },
+  ["Array.isArray"] = {
+    summary = "Whether a value is an array, across realms, where `instanceof Array` is not.",
+  },
+  ["Array.from"] = {
+    summary = "An array from anything iterable or array-like, with an optional map function.",
+  },
+  ["JSON.stringify"] = {
+    summary = "A value as JSON.",
+    note = "Drops `undefined`, functions and symbols in objects, and turns them into `null` inside arrays — the same value serialises differently depending on where it sits.",
+  },
+  ["JSON.parse"] = {
+    summary = "JSON text as a value. Throws on malformed input rather than returning null.",
+  },
+  ["Promise.all"] = {
+    summary = "Resolves when every promise does, rejects as soon as any one rejects.",
+    note = "The first rejection wins immediately; the others keep running, unobserved.",
+  },
+  ["Promise.allSettled"] = {
+    summary = "Waits for every promise and reports each outcome, never rejecting.",
+  },
+  ["Promise.race"] = {
+    summary = "Settles as the first promise to settle does, whether it resolved or rejected.",
+  },
+  ["Promise.resolve"] = {
+    summary = "A promise already resolved with a value — the usual way to enter a promise chain.",
+  },
+  ["Array.prototype.reduce"] = {
+    summary = "Folds an array to one value.",
+    note = "Without an initial value it starts from element 0 and throws on an empty array.",
+  },
+  ["Array.prototype.flat"] = {
+    summary = "Flattens nested arrays, one level by default; `Infinity` for all of them.",
+  },
+  ["Array.prototype.at"] = {
+    summary = "Element by index, where a negative index counts from the end.",
+  },
+  ["Object.fromEntries"] = {
+    summary = "An object from `[key, value]` pairs — the inverse of `Object.entries`.",
+  },
+  ["structuredClone"] = {
+    summary = "A deep clone, including Maps, Sets, Dates and cycles.",
+    note = "Cannot clone functions or DOM nodes, and throws rather than skipping them.",
+  },
+  ["console.log"] = {
+    summary = "Writes to the console. Objects are logged by reference in some consoles, so a later mutation can appear retroactively.",
+  },
+  ["Number.isInteger"] = {
+    summary = "Whether a value is a number with no fractional part, without the coercion `parseInt` does.",
+  },
+  ["Number.parseFloat"] = {
+    summary = "Leading numeric text as a float, ignoring trailing junk rather than failing on it.",
+  },
+  ["Math.max"] = {
+    summary = "The largest of its arguments. `Math.max()` with none is `-Infinity`.",
+  },
+  ["Math.min"] = {
+    summary = "The smallest of its arguments. `Math.min()` with none is `Infinity`.",
+  },
+}
+
 return M
