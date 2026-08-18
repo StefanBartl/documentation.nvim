@@ -287,6 +287,9 @@ M.render = {
   badge = function(...)
     return require("documentation.core.render.badge").render(...)
   end,
+  sarif = function(...)
+    return require("documentation.core.render.sarif").render(...)
+  end,
 }
 
 ---Serialize the IR deterministically: nodes in `ir.order`, object keys in a

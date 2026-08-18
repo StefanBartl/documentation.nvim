@@ -80,6 +80,7 @@ local specs = {
   "artifact_contract_spec.lua",
   "binding_conflict_spec.lua",
   "unused_require_spec.lua",
+  "sarif_spec.lua",
   "docs_spec.lua",
   "quicks_spec.lua",
   "lang_js_spec.lua",

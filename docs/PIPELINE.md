@@ -421,6 +421,35 @@ separate future step, deliberately kept out of this one: confirmed with
 the user to ship the simpler, `bindings/`-only version first rather than
 bundle a `core/` change into the same pass.
 
+### SARIF for CI (`--sarif=<path>`)
+
+The same findings in the format GitHub code scanning ingests, so every drift
+finding lands inline on the pull request that caused it rather than in a log
+nobody opens:
+
+```
+nvim --headless -l scripts/gen_map.lua --check --sarif=drift.sarif
+```
+
+Works with `--check` and with a plain generate; a failure to write is
+reported and does not change the exit code, because losing a machine-readable
+copy of the verdict must not turn a passing tree into a failing build.
+
+**Every result points at line 1**, for the reason the paragraph above gives:
+findings carry no line. That is stated inside the SARIF itself
+(`invocation.properties.lineNumbers`), not left for a reviewer to infer from
+every annotation appearing at the top of a file — a fabricated line would be
+trusted, which is worse than an admitted absence.
+
+Uploading it needs `security-events: write` and one step, which is a repo
+policy decision rather than something this plugin should switch on:
+
+```yaml
+- uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: drift.sarif
+```
+
 **`info`-severity findings are shown, not dropped**, mapped to
 `vim.diagnostic.severity.HINT` — the quickfix list's own `M.check`
 explicitly filters them out (`if f.severity ~= "info"`), but `vim.diagnostic`
