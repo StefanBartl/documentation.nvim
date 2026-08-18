@@ -178,8 +178,10 @@ change detection), §2.1/§2.2 (the panels gated on the `TAGS` refactor), §5.x
       shipped rather than months later. Cheap: three files.
 - [ ] **Per-entry reference anchors**, once someone has opened them. The
       renderer already supports them; they are unfilled on purpose.
-- [ ] **`.jsx`**, **class methods**, **`module.exports = {…}`** — the three
-      gaps MULTILANG Phase 1 left open in `ecma.lua`, still open.
+- [x] ~~**`.jsx`**, **class methods**, **`module.exports = {…}`**~~ — all
+      three closed 2026-08-18, each shape verified against a real parse
+      first. Class methods are flat-named `Class.method`; the Phase-0
+      owning-scope field remains required for Python and Rust.
 
 ---
 

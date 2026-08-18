@@ -268,8 +268,8 @@ end
 ---that produced it does), so this is threaded down from `M.backend` rather
 ---than re-derived from `func_node:tree()`.
 ---@return Documentation.FunctionInfo
-local function build_fn(name_node, func_node, stmt_node, src, lang)
-  local name = vim.treesitter.get_node_text(name_node, src)
+local function build_fn(name_node, func_node, stmt_node, src, lang, name_override)
+  local name = name_override or vim.treesitter.get_node_text(name_node, src)
   local params_node = func_node:field("parameters")[1]
   local params_text = params_node and vim.treesitter.get_node_text(params_node, src) or "()"
   local srow, _, erow = func_node:range()
@@ -572,6 +572,172 @@ end
 ---`export`/`export default` first (both wrap the same `declaration` field,
 ---verified against a real parse — there is no separate marker node to
 ---distinguish them structurally that this cares about).
+---Every function a `class` body declares, named `Class.method`.
+---
+---Closes the first of the three gaps `docs/ROADMAP/IDEAS/MULTILANG.md`'s
+---Phase 1 left open. That document calls it "the same Phase-0 owning-scope
+---gap Python/Rust will also need" — and it is, for *Python and Rust*. It is
+---not one here, because this language already has an answer the map uses
+---everywhere else: Lua records `function M.foo()` as a function named
+---`M.foo`, flat, hanging off the module. A JS method recorded as
+---`Greeter.hello` is the identical shape, needs no new IR field, and touches
+---none of `duplicates.lua`/`churn.lua`/the Analysis renderers/the Calls view
+---that a real owning-scope field would.
+---
+---That field stays a Phase-0 item, and should: Python's `self`-bound methods
+---and Rust's `impl` blocks carry semantics a dotted name cannot express.
+---This is the cheap correct answer for the one language where it is cheap,
+---not a substitute for the expensive one where it is not.
+---
+---**Accessors are skipped.** A `get size()` would be recorded with the
+---signature `Greeter.size()`, which reads as a callable and is not one.
+---Leaving it out is the same refusal `ecma.lua`'s header already makes about
+---shapes it will not guess at, rather than shipping a signature that lies.
+---Node shapes verified against a real parse, not assumed: `class_declaration`
+---→ `class_body` → `method_definition`, with `get`/`set`/`static` appearing
+---as anonymous children.
+---@param stmt_node TSNode The statement — `class_declaration`, or the `export_statement` wrapping one.
+---@param src string
+---@param lang string
+---@return Documentation.FunctionInfo[]
+local function class_functions(stmt_node, src, lang)
+  local node = stmt_node
+  if node:type() == "export_statement" then
+    node = node:field("declaration")[1]
+    if not node then
+      return {}
+    end
+  end
+  if node:type() ~= "class_declaration" then
+    return {}
+  end
+
+  local class_name_node = node:field("name")[1]
+  if not class_name_node then
+    return {}
+  end
+  local class_name = vim.treesitter.get_node_text(class_name_node, src)
+
+  local body
+  for i = 0, node:child_count() - 1 do
+    if node:child(i):type() == "class_body" then
+      body = node:child(i)
+      break
+    end
+  end
+  if not body then
+    return {}
+  end
+
+  local out = {}
+  for i = 0, body:child_count() - 1 do
+    local member = body:child(i)
+    if member:type() == "method_definition" then
+      local accessor = false
+      for j = 0, member:child_count() - 1 do
+        local t = member:child(j):type()
+        if t == "get" or t == "set" then
+          accessor = true
+          break
+        end
+      end
+      local name_node = member:field("name")[1]
+      if not accessor and name_node then
+        local fn = build_fn(
+          name_node,
+          member,
+          member,
+          src,
+          lang,
+          class_name .. "." .. vim.treesitter.get_node_text(name_node, src)
+        )
+        if fn then
+          out[#out + 1] = fn
+        end
+      end
+    end
+  end
+  return out
+end
+
+---Functions declared inside a `module.exports = { … }` object.
+---
+---The third gap Phase 1 left open, and the one with real consequences: a
+---CommonJS module written this way contributed **no functions at all**, so
+---its map showed an empty module rather than a wrong one — the failure mode
+---that looks like success.
+---
+---Only the direct `module.exports = { … }` form. `exports.foo = …`,
+---`module.exports = someIdentifier` and a spread of another object are not
+---followed, for the reason `deps.lua` gives about computed requires: tracing
+---an identifier back to its assignment is a guess, and a guessed map is
+---worse than an honest gap. Shapes verified against a real parse:
+---`expression_statement` → `assignment_expression`, left a `member_expression`
+---spelling `module.exports`, right an `object` holding `method_definition`
+---(shorthand) and `pair` nodes whose value is a `function_expression` or an
+---`arrow_function`.
+---@param stmt_node TSNode
+---@param src string
+---@param lang string
+---@return Documentation.FunctionInfo[]
+local function exports_object_functions(stmt_node, src, lang)
+  if stmt_node:type() ~= "expression_statement" then
+    return {}
+  end
+  local assign
+  for i = 0, stmt_node:child_count() - 1 do
+    if stmt_node:child(i):type() == "assignment_expression" then
+      assign = stmt_node:child(i)
+      break
+    end
+  end
+  if not assign then
+    return {}
+  end
+
+  local left = assign:field("left")[1]
+  local right = assign:field("right")[1]
+  if not left or not right or right:type() ~= "object" then
+    return {}
+  end
+  if vim.treesitter.get_node_text(left, src) ~= "module.exports" then
+    return {}
+  end
+
+  local out = {}
+  for i = 0, right:child_count() - 1 do
+    local member = right:child(i)
+    local name_node, func_node
+
+    if member:type() == "method_definition" then
+      name_node, func_node = member:field("name")[1], member
+    elseif member:type() == "pair" then
+      local value = member:field("value")[1]
+      if value and (value:type() == "function_expression" or value:type() == "arrow_function") then
+        name_node, func_node = member:field("key")[1], value
+      end
+    end
+
+    if name_node and func_node then
+      -- The *member* is the doc-comment anchor, not the value: a JSDoc block
+      -- sits above `read(p) {` and above `write: function (p) {` alike, and
+      -- looking above the value would find the colon.
+      local fn = build_fn(
+        name_node,
+        func_node,
+        member,
+        src,
+        lang,
+        vim.treesitter.get_node_text(name_node, src)
+      )
+      if fn then
+        out[#out + 1] = fn
+      end
+    end
+  end
+  return out
+end
+
 ---@param stmt_node TSNode
 ---@param src string
 ---@param lang string
@@ -624,6 +790,15 @@ local function walk(root, src, lang)
     local fn = as_function(stmt, src, lang)
     if fn then
       functions[#functions + 1] = fn
+    end
+    -- A class and a `module.exports` object each yield several functions,
+    -- which is why they cannot go through `as_function`'s one-or-nothing
+    -- shape.
+    for _, method in ipairs(class_functions(stmt, src, lang)) do
+      functions[#functions + 1] = method
+    end
+    for _, exported in ipairs(exports_object_functions(stmt, src, lang)) do
+      functions[#functions + 1] = exported
     end
     local unwrapped = stmt
     if stmt:type() == "export_statement" then
