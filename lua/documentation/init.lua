@@ -341,6 +341,15 @@ function M.to_json(ir)
       -- config relies on exactly that difference to report a stale artifact
       -- instead of silently claiming zero bindings.
       '"bindings": ' .. json.encode(n.bindings or {}),
+      -- The sixth field this list has been caught missing, and the first
+      -- found by measuring rather than by someone opening the page: the
+      -- scanner has extracted route registrations since `core/endpoints.lua`
+      -- shipped, the *page* shows them (it encodes node tables wholesale),
+      -- and `module_map.json` carried none -- so `--check` could not see
+      -- endpoint drift at all, and every consumer reading the artifact
+      -- rather than the page saw a tree with no routes in it. Emitted
+      -- unconditionally for the same reason `bindings` above is.
+      '"endpoints": ' .. json.encode(n.endpoints or {}),
       '"export": ' .. (n.export and str(n.export) or "null"),
       '"parent": ' .. (n.parent and str(n.parent) or "null"),
       '"depth": ' .. tostring(n.depth),
