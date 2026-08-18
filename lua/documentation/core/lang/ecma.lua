@@ -330,7 +330,66 @@ local function extract_requires(stmt_node, src)
     local module = source_node
       and vim.treesitter.get_node_text(source_node, src):gsub("^[\"']", ""):gsub("[\"']$", "")
     if module then
-      out[#out + 1] = { module = module, line = srow + 1 }
+      local req = { module = module, line = srow + 1 }
+
+      -- Which names the import binds, so `calls.lua` can resolve a bare
+      -- `helper()` to another file's function. This is the piece
+      -- `docs/ROADMAP/IDEAS/MULTILANG.md` names as missing: JS binds an
+      -- imported function directly into scope, with none of the
+      -- alias-then-`.member` shape Lua's `local fs = require(...)` gives
+      -- `calls.lua` to work with.
+      --
+      -- Node shapes verified against a real parse, not assumed:
+      -- `import_clause` holds a `named_imports` (whose `import_specifier`
+      -- carries one identifier, or two for `other as renamed`), a bare
+      -- `identifier` for a default import, or a `namespace_import` for
+      -- `* as ns`.
+      for i = 0, stmt_node:child_count() - 1 do
+        local clause = stmt_node:child(i)
+        if clause:type() == "import_clause" then
+          for j = 0, clause:child_count() - 1 do
+            local part = clause:child(j)
+
+            if part:type() == "named_imports" then
+              for k = 0, part:child_count() - 1 do
+                local spec = part:child(k)
+                if spec:type() == "import_specifier" then
+                  local ids = {}
+                  for m = 0, spec:child_count() - 1 do
+                    if spec:child(m):type() == "identifier" then
+                      ids[#ids + 1] = vim.treesitter.get_node_text(spec:child(m), src)
+                    end
+                  end
+                  -- One identifier: the exported name is also the local one.
+                  -- Two: `exported as local`, in that order.
+                  local exported, localname = ids[1], ids[2] or ids[1]
+                  if exported and localname then
+                    req.names = req.names or {}
+                    req.names[localname] = exported
+                  end
+                end
+              end
+            elseif part:type() == "namespace_import" then
+              -- `* as ns` binds the module namespace object, which is
+              -- precisely what `alias` means everywhere else in this
+              -- pipeline -- so it costs nothing to support, and `calls.lua`
+              -- already knows how to resolve `ns.thing()` through it.
+              for m = 0, part:child_count() - 1 do
+                if part:child(m):type() == "identifier" then
+                  req.alias = vim.treesitter.get_node_text(part:child(m), src)
+                end
+              end
+            end
+            -- A bare `identifier` here is a *default* import, deliberately
+            -- left unbound. It names the module's default export, not the
+            -- module object, so treating it as an alias would resolve
+            -- `def.thing()` against members that may not be reachable that
+            -- way at all -- a wrong answer dressed as a resolved one.
+          end
+        end
+      end
+
+      out[#out + 1] = req
     end
     return out
   end

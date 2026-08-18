@@ -190,6 +190,7 @@ end
 function M.build(ir, opts)
   opts = opts or {}
   local by_module = require("documentation.core.deps").module_index(ir)
+  local by_path = require("documentation.core.deps").path_index(ir)
   ir.edges = ir.edges or {}
 
   local index = {} ---@type table<string, { by_name: table<string, string>, prefixes: table<string, boolean> }>
@@ -227,6 +228,11 @@ function M.build(ir, opts)
     local node = ir.nodes[id]
 
     local aliases = {}
+    -- Bare names a named import bound into this file's scope, and the member
+    -- each refers to. The shape `calls.lua` had no branch for: JS binds an
+    -- imported function directly, so `helper()` looks exactly like a call to
+    -- a file-local function and resolves to nothing without this.
+    local imports = {}
     -- Every alias whose module `by_module` cannot place in this tree — the
     -- exact negative of `aliases` above, built from the same
     -- `node.requires_raw` pass. `deps.build` already decided these modules
@@ -235,11 +241,28 @@ function M.build(ir, opts)
     -- module string and throws the alias away once it has.
     local external_aliases = {}
     for _, req in ipairs(node.requires_raw or {}) do
+      -- Same two-step resolution `deps.build` uses, and it must be the same
+      -- or the call graph would disagree with the require graph about which
+      -- module a specifier names.
+      local target = by_module[req.module]
+        or require("documentation.core.deps").resolve_relative(by_path, node.path, req.module)
+
       if req.alias then
-        if by_module[req.module] then
-          aliases[req.alias] = { node = by_module[req.module], member = req.member }
+        if target then
+          aliases[req.alias] = { node = target, member = req.member }
         else
           external_aliases[req.alias] = req.module
+        end
+      end
+
+      for localname, exported in pairs(req.names or {}) do
+        if target then
+          imports[localname] = { node = target, member = exported }
+        else
+          -- An import from outside the tree still says which member is
+          -- used, which is finer than the bare "this module is required"
+          -- `requires_external` records.
+          imports[localname] = { external = req.module, member = exported }
         end
       end
     end
@@ -280,11 +303,22 @@ function M.build(ir, opts)
           to_id = to_fn and id or nil
           confidence = "exact"
         elseif call.callee:match("^[%w_]+$") then
-          -- A bare name is a file-local function first; only if this file
-          -- declares no such function does the heuristic get a say.
+          -- A bare name is a file-local function first, then a named import,
+          -- and only then the heuristic. That order is the point: a file that
+          -- declares its own `helper` and also imports one means its own, and
+          -- an import is an exact fact where the heuristic is a guess.
           to_fn = index[id].by_name[call.callee]
+          local imported = imports[call.callee]
           if to_fn then
             to_id, confidence = id, "exact"
+          elseif imported and imported.node then
+            local target = imported.node
+            to_fn = index[target].by_name[imported.member]
+              or index[target].by_name[bare(imported.member)]
+            to_id = to_fn and target or nil
+            confidence = "exact"
+          elseif imported and imported.external then
+            record_external_call(calls_external_acc, imported.external, imported.member)
           elseif unique_bare[call.callee] then
             to_id = unique_bare[call.callee].node
             to_fn = unique_bare[call.callee].fn
