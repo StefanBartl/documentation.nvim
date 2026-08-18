@@ -75,6 +75,46 @@ local KNOWN_OPTS_KEYS = {
   generate_all = true,
 }
 
+---`opts.source` as a list, whatever shape it was written in.
+---
+---**The one place that knows `source` can be a string or a list.** It became
+---a list so a repository with `lua/` beside `src/` could have both walked,
+---and `scan.lua` was taught the new shape — but eight other readers were
+---not, and every one of them concatenated or `gsub`-ed it. They did not
+---fail in the map pipeline, because that is the one path that *was* updated;
+---`:checkhealth`, `:DocBrowse`, the file watcher and the LuaLS enrichment
+---all broke silently and stayed broken through a green test suite, because
+---none of them is exercised by it.
+---
+---Found by the standalone build, which runs a full scan through code the
+---specs never reach. Every consumer now goes through here, so the next shape
+---change has one place to update rather than nine.
+---@param opts Documentation.Opts
+---@return string[] Always at least one entry.
+function M.sources(opts)
+  local src = opts and opts.source
+  if type(src) == "table" then
+    return #src > 0 and src or { "lua" }
+  end
+  return { src or "lua" }
+end
+
+---The single source root, when a caller genuinely needs one path.
+---
+---`nil` when there are several: that is a real answer, not a shortfall.
+---A tool that takes one directory — LuaLS, a `@module` prefix, a watcher
+---root — has no honest way to pick among three, and picking the first
+---silently would make it right about a third of the tree and wrong about the
+---rest. Every caller here handles the `nil` by widening (watch the
+---repository root) or by declining (no single prefix), which is what they
+---already did for the layouts that never had one.
+---@param opts Documentation.Opts
+---@return string?
+function M.primary_source(opts)
+  local list = M.sources(opts)
+  return #list == 1 and list[1] or nil
+end
+
 ---Is `a` the same path as `b`, or an ancestor of it?
 ---@param a string
 ---@param b string
@@ -127,7 +167,22 @@ function M.detect_source(root)
       local guess = backend.detect_source(root)
       -- Two backends can name the same directory (`js` and `ts` both live in
       -- `src`); one entry is one walk.
-      if guess and not vim.tbl_contains(found, guess) then
+      --
+      -- An explicit loop rather than `vim.tbl_contains`, which is **not in
+      -- `standalone/vim_shim.lua`**. This module is bundled into the
+      -- standalone binary and runs there under PUC Lua with only the shim's
+      -- subset of `vim.*`. Found by the packaging step failing, not by a
+      -- test: the `standalone` CI gate skips locally when no PUC Lua is on
+      -- PATH, so building the binary is the first thing that ever runs this
+      -- code under the interpreter it has to survive.
+      local already = false
+      for _, seen in ipairs(found) do
+        if seen == guess then
+          already = true
+          break
+        end
+      end
+      if guess and not already then
         found[#found + 1] = guess
       end
     end

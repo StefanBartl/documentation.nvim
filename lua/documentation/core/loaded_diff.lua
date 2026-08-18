@@ -76,7 +76,14 @@ end
 ---root module) — the same "no opinion" shape `telemetry_join.M.namespace`
 ---returns for an unset `opts.title`.
 function M.prefix(opts)
-  local source = (opts.source or "lua"):gsub("/+$", "")
+  -- Several source roots means there is no single root module to name --
+  -- exactly the case this function already answers with `nil` when
+  -- `source == lua_root`, reached by a different route.
+  local single = require("documentation.config").primary_source(opts)
+  if not single then
+    return nil
+  end
+  local source = single:gsub("/+$", "")
   local lua_root = (opts.lua_root or "lua"):gsub("/+$", "")
   -- `source == lua_root` means the whole `lua/` tree is scanned directly —
   -- several top-level modules, no single root to name. The same "more than
