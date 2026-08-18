@@ -197,10 +197,13 @@ ordinary annotated Lua trees and the existing map already serves them. What
 the corpus is, is the missing prerequisite for something already in the
 backlog and already deferred for its absence:
 
-- [x] ~~**Cross-repository checks over `tag_files` (IDEAS §1.7)**~~ — the
-      reverse index below is the concrete, valuable half of it. What remains
-      unbuilt is the *check* half: a finding rather than a report, which
-      needs a decision about what a library may legitimately fail CI over.
+- [x] ~~**Cross-repository checks over `tag_files` (IDEAS §1.7)**~~ — both
+      halves built 2026-08-18. The decision it was waiting on: "no consumer
+      requires this module" **cannot** be a check, because that number is a
+      floor and asserting it would raise 33 findings against `lib.nvim`
+      today, nearly all wrong. It stays a report. `consumer-require-missing`
+      is the direction that can be asserted — a consumer's map says in
+      writing that it requires something the library does not declare.
 - [x] ~~**A reverse index over `lib.nvim`**~~ — built 2026-08-18 as
       `core/consumers.lua` and `:DocMap consumers`. Against 29 sibling maps:
       107 modules required by a consumer, 108 required only by the library

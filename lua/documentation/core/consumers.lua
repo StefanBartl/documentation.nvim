@@ -85,6 +85,62 @@ local function internal_uses(ir)
   return used
 end
 
+---Every committed consumer map under `dir`, excluding `self_root`.
+---
+---Lifted out of the `:DocMap consumers` command so the check below and that
+---command load the same way. Two loaders would be two answers to "which
+---projects count as consumers", and the check would eventually disagree with
+---the report a reader is looking at.
+---
+---Skipping `self_root` is not an optimisation: a library requires itself
+---internally, and counting that as a consumer would make every
+---internally-used module look externally adopted.
+---@param dir string Directory holding sibling checkouts.
+---@param self_root string This project's own root, forward-slashed.
+---@return { name: string, ir: Documentation.IR }[] maps
+---@return integer unreadable Maps found but not decodable — reported, never treated as "this project uses nothing".
+function M.load(dir, self_root)
+  local artifact = require("documentation.core.artifact")
+  local read = require("lib.nvim.fs.read")
+  local maps, unreadable = {}, 0
+  if vim.fn.isdirectory(dir) == 0 then
+    return maps, unreadable
+  end
+  for name, kind in vim.fs.dir(dir) do
+    local candidate = dir .. "/" .. name
+    if kind == "directory" and candidate ~= self_root then
+      local content = read(candidate .. "/docs/map/module_map.json")
+      if content then
+        local decoded = artifact.decode(content)
+        if decoded then
+          maps[#maps + 1] = { name = name, ir = decoded }
+        else
+          unreadable = unreadable + 1
+        end
+      end
+    end
+  end
+  return maps, unreadable
+end
+
+---The top-level namespaces this library owns, from its own module paths.
+---
+---Derived rather than configured: a library that calls its modules `lib.*`
+---says so 248 times in its own map, and asking it to also declare the prefix
+---would be a second source of truth for a fact already stated.
+---@param ir Documentation.IR
+---@return table<string, true>
+function M.namespaces(ir)
+  local roots = {}
+  for _, id in ipairs(ir.order) do
+    local module = ir.nodes[id].module
+    if module then
+      roots[module:match("^([^.]+)") or module] = true
+    end
+  end
+  return roots
+end
+
 ---Build the reverse index.
 ---
 ---@param ir Documentation.IR The library's own IR or rehydrated artifact.

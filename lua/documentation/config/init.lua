@@ -61,6 +61,7 @@ local KNOWN_OPTS_KEYS = {
   diagnostics = true,
   mdview = true,
   tag_files = true,
+  consumers = true,
   external_repos = true,
   tests_dir = true,
   quicks = true,

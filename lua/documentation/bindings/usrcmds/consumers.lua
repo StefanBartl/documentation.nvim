@@ -30,30 +30,8 @@ function M.run(ctx, arg)
     return
   end
 
-  local artifact = require("documentation.core.artifact")
-  local maps = {}
-  local skipped = 0
-  for name, kind in vim.fs.dir(dir) do
-    -- Skipping this repository is not an optimisation: a library requires
-    -- itself internally, and counting that as a consumer would make every
-    -- internally-used module look externally adopted.
-    local candidate = dir .. "/" .. name
-    if kind == "directory" and candidate ~= root then
-      local path = candidate .. "/docs/map/module_map.json"
-      local content = require("lib.nvim.fs.read")(path)
-      if content then
-        local decoded = artifact.decode(content)
-        if decoded then
-          maps[#maps + 1] = { name = name, ir = decoded }
-        else
-          -- An unreadable map is reported as a count rather than silently
-          -- treated as "this project uses nothing": the difference matters
-          -- for every conclusion below it.
-          skipped = skipped + 1
-        end
-      end
-    end
-  end
+  local consumers = require("documentation.core.consumers")
+  local maps, skipped = consumers.load(dir, root)
 
   if #maps == 0 then
     ctx.notify.warn(
@@ -62,7 +40,6 @@ function M.run(ctx, arg)
     return
   end
 
-  local consumers = require("documentation.core.consumers")
   local index = consumers.index(ctx.handle.ir(), maps)
   local lines = consumers.render(index, ("Consumers of %s"):format(vim.fs.basename(root)))
   if skipped > 0 then
