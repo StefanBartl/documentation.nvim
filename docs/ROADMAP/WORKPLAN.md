@@ -101,8 +101,11 @@ is which.
 
 - [x] `language` per node, schema 3 — **built 2026-08-18**, including the
       schema-tolerance check against a real schema-2 artifact.
-- [ ] **A legend and a filter in the Tree and Hierarchy views.** The data is
-      in the artifact now; nothing shows it. This is the open half.
+- [x] **A legend and a filter in the Tree view** — built 2026-08-18. Drawn
+      only when the map holds more than one language, so the common case pays
+      nothing (verified: single-language map renders an empty, hidden bar).
+- [ ] The same for the **Hierarchy** views, which still show every language's
+      nodes with no way to separate them.
 - [ ] Doc-coverage split per language, rather than one average that is true
       of neither half.
 - **Acceptance:** the mixed fixture's map distinguishes its Lua and its
@@ -207,11 +210,11 @@ deliberately declined.
 
 What is genuinely missing and is meaningful *only* for a config:
 
-- [ ] **Keymap conflict detection.** Two sources binding the same `lhs` in
-      the same mode is a real bug class, it is the question a config is most
-      often opened to answer, and the data is already extracted by
-      `bindings.lua` — this is a check over existing IR, not new extraction.
-      **The strongest candidate in this section by some distance.**
+- [x] ~~**Keymap conflict detection.**~~ Built 2026-08-18 as
+      `binding-conflict`, covering user commands too. Its first run found a
+      bug in `bindings.lua` itself: `buffer` was read through a string-only
+      accessor, so every `{ buffer = true }` keymap had been recorded as
+      global since the module shipped.
 - [ ] **Other plugin managers.** `plugins.lua` is scoped to lazy.nvim's spec
       shape and says so; packer's `use {…}`, vim-plug's `Plug '…'` and
       mini.deps' `add()` are separate extractors, not a bent version of that
