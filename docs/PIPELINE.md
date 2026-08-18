@@ -1970,6 +1970,7 @@ bugs. Generic checks (any annotated Lua tree):
 | `missing-summary` | warn | `@module` present but no description line. |
 | `dead-readme-link` | warn | A relative link in a module README or any `docs/` file, pointing at nothing. |
 | `missing-readme` | info | Module without a README — should be a decision, not an accident. |
+| `example-does-not-parse` | warn | An `@example` block that is not valid Lua, tried first as a chunk and then as an expression so a fragment like `{ timeout = 5000 }` is not reported. No tree in this ecosystem uses `@example`, so this has never fired on real code — the false-positive question is settled against fixtures, not usage. |
 | `unused-require` | info | A `require` bound to a local name that is never mentioned again — the mirror of `require-not-declared`, usually left by a refactor that removed the last call. Only aliased requires: a bare `require("x")` is a load for its side effects and has no name to look for. The reference count is deliberately coarse (a mention in a comment counts), because over-counting errs toward keeping a live line. |
 | `unreferenced-module` | info | Required by no other file in the tree. |
 | `dead-see-target` | warn | A function's `@see` target resolves to no known module or function. |

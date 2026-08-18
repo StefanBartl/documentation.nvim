@@ -28,7 +28,7 @@ even if it looks cheap.
 | § | Idea | Effort | Benefit | Quick win? |
 |---|---|---|---|---|
 | 1.1 | Fenced code blocks checked against the API | S–M | High | Candidate |
-| 1.2 | `@example` blocks that do not parse | S | High | **Yes** |
+| ~~1.2~~ | ~~`@example` blocks that do not parse~~ | — | — | **Built 2026-08-18.** Cheap as rated; the "High" benefit was not: no tree in this ecosystem uses `@example`, so it has never fired on real code |
 | 1.3 | API-surface breaking-change detection | M | Medium–High | No — "public" is undefined |
 | 1.4 | Tests naming a function that no longer exists | S | Medium | Candidate |
 | 1.5 | Orphaned `@class`/`@alias` | S | Medium | Candidate |
@@ -38,9 +38,9 @@ even if it looks cheap.
 | 2.2 | Public API surface panel | S–M | Medium–High | Candidate |
 | 2.3 | Ownership / bus factor command | S | Low (single-author repo) | No |
 | 2.4 | Coupling and cohesion metric | M | Speculative | No |
-| 2.5 | Unused requires check | S | Medium | **Yes** |
+| ~~2.5~~ | ~~Unused requires check~~ | — | — | **Built 2026-08-18** as `unused-require`. 144 aliased requires here, none unused — the floor was measured before it shipped |
 | 3.1 | Compare two artifacts visually, in-page | M–L | Medium | No |
-| 3.2 | Copy-link for the current view | S | Medium | **Yes** |
+| ~~3.2~~ | ~~Copy-link for the current view~~ | — | — | **Built 2026-08-18.** Reads `location.href` rather than re-serialising state, so there is no second answer to "what is this view called" |
 | 3.3 | Print/PDF stylesheet | S | Low–Medium | Candidate |
 | 4.2 | Picker integration (`pickers.nvim`/telescope) | S–M | Medium | Candidate |
 | 4.3 | `K` — look up notation under cursor | S | Medium | Candidate (pairs with ReferenceTab.md) |
@@ -49,10 +49,10 @@ even if it looks cheap.
 | 5.2 | OpenAPI generation from endpoints | S–M | Uncertain | No — value gap named honestly by the idea itself |
 | 5.3 | Vue/Svelte SFC conventions | L | Speculative | No |
 | 5.4 | ORM models and migrations | L | Speculative | No |
-| 6.1 | SARIF output for CI | S | High (for CI adopters) | **Yes** |
+| ~~6.1~~ | ~~SARIF output for CI~~ | — | — | **Built 2026-08-18** as `--sarif=<path>`. Findings carry no line, contrary to that section's claim, so every result points at line 1 and the run says so |
 | 6.2 | A GitHub Action | S | Medium–High | Candidate |
-| 6.3 | Publish the map to GitHub Pages | S | Medium | **Yes** |
-| 6.4 | Mermaid export | S | Medium | **Yes** |
+| ~~6.3~~ | ~~Publish the map to GitHub Pages~~ | — | — | **Already built** before this pass — `.github/workflows/pages.yml`. Listed as open because nobody checked |
+| ~~6.4~~ | ~~Mermaid export~~ | — | — | **Built 2026-08-18** as `:DocMap mermaid [tree|deps]`. The renderer already existed; only the way to ask for it was missing |
 | 6.5 | Workspace symbols from the IR | — | Low | No — recorded rejection, not reopened |
 | 6.6 | Generic CLI entry, no per-repo copy | S–M | Medium (author's own use case) | Candidate — two open design questions first |
 | 6.7 | REUSE.md recipe for "many repos, one config" | S | Low–Medium | No — depends on 6.6 |

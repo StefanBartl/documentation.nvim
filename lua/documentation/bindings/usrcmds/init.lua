@@ -49,6 +49,9 @@ local ACTIONS = {
   dot = function(ctx, arg)
     require("documentation.bindings.usrcmds.dot").run(ctx, arg)
   end,
+  mermaid = function(ctx, arg)
+    require("documentation.bindings.usrcmds.mermaid").run(ctx, arg)
+  end,
   why = function(ctx, arg)
     require("documentation.bindings.usrcmds.why").run(ctx, arg)
   end,
@@ -117,7 +120,7 @@ M.action_names = action_names
 -- the guarantee now lives in TESTS/usrcmds_actions_spec.lua instead of
 -- "nobody forgets to update this by hand."
 ---@type string
-M.action_usage_hints = "[check|full|open|graph|why <a> <b>|dot|diff <ref>|impact <ref>"
+M.action_usage_hints = "[check|full|open|graph|why <a> <b>|dot|mermaid|diff <ref>|impact <ref>"
   .. "|churn [range]|checklist [all]|plugins|bindings|tools|endpoints|serve [stop]"
   .. "|helptags|annotate [--write|--sidecar]|all [full]]"
 
