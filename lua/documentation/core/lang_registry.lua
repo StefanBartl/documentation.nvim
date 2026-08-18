@@ -155,6 +155,38 @@ function M.report()
   return out
 end
 
+---Every backend's keyword glossary, keyed by file extension.
+---
+---Keyed by extension rather than by backend name because of what the
+---consumer has in hand: the renderer is looking at a snippet belonging to a
+---node whose `source` is a path, and the IR does not yet carry a `language`
+---field (see `docs/ROADMAP/IDEAS/MULTILANG.md` Part 4, stage 3.1). An
+---extension is what the page can actually key on today, and when that field
+---arrives this can gain a second index without the page changing shape.
+---
+---Backends sharing one glossary table share one entry value -- `js`, `ts`
+---and `tsx` all point at the same table, not three copies -- which the
+---renderer relies on to emit it once and reference it three times rather
+---than tripling that part of the payload.
+---
+---A backend with no `extensions` or no `glossary` contributes nothing. That
+---is the honest degradation: no decoration at all, rather than another
+---language's keywords explaining a word that means something else here.
+---@return table<string, Documentation.Glossary>
+function M.glossaries()
+  ensure_loaded()
+  local out = {}
+  for _, name in ipairs(order) do
+    local backend = backends[name]
+    if backend.glossary and backend.extensions then
+      for _, ext in ipairs(backend.extensions) do
+        out[ext] = backend.glossary
+      end
+    end
+  end
+  return out
+end
+
 ---Every registered backend, in registration order. What the walk uses to
 ---answer "does any backend's `module_file` exist in this directory" without
 ---hardcoding which backends exist.

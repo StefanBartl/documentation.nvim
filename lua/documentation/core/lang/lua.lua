@@ -50,6 +50,19 @@ M.grammar = "lua"
 
 M.module_file = "init.lua"
 
+---Enumerable, unlike `is_source` — see the field's own documentation for
+---why both exist rather than one deriving the other.
+M.extensions = { "lua" }
+
+---Keyword explanations for the page's in-place lookup. Required rather than
+---inlined for the reason `glossary/lua.lua`'s header gives: it is several
+---times this file's size and has nothing to do with scanning.
+---
+---Deferred like everything else here — `lang_registry`'s `KNOWN_BACKENDS`
+---requires this module during registration, and the glossary is only ever
+---read by the renderer, long after load.
+M.glossary = require("documentation.core.lang.glossary.lua")
+
 ---@param path string
 ---@return Documentation.Header
 function M.parse_header(path)

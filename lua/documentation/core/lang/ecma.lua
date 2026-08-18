@@ -692,6 +692,14 @@ function M.backend(name, lang, extensions, module_file)
   return {
     name = name,
     grammar = lang,
+    -- The list `is_source` closes over below, kept enumerable: the page
+    -- needs to know which extensions map to this glossary, and a predicate
+    -- cannot be asked that.
+    extensions = extensions,
+    -- One glossary for all three registrations. `satisfies` in a `.js` file
+    -- gets the answer "this is TypeScript, it does not exist here", which is
+    -- information rather than an error -- see the glossary's own header.
+    glossary = require("documentation.core.lang.glossary.ecma"),
     module_file = module_file,
     module_tag = false,
     is_source = function(filename)
