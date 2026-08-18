@@ -417,6 +417,9 @@
 ---@field title string
 ---@field source string The directory the scan started from. Stays a string even with several source roots, where it is the repository root they share -- a field that is sometimes a string and sometimes a list is worse than one that is always the honest single answer.
 ---@field sources string[]? Every directory walked, present **only** when there was more than one. Absent means `source` alone describes the scan, which is what it did before this field existed -- so a single-root map is byte-identical to the ones generated before multi-root support.
+---@field unclaimed table<string, integer>? Extensions seen *inside* the scanned roots that no backend claimed, and how many of each. Mostly READMEs in a healthy repository, which is why the CLI does not print it — it is here for a surface that can rank it. Absent when empty.
+---@field outside table<string, integer>? Files a backend *can* read that sit outside every source root, counted by backend name. Unambiguously a coverage gap, unlike `unclaimed`: something exists that could have read them and never saw them. Absent when empty, which is the common and the good case.
+---@field claimed table<string, integer>? Files each backend actually read, by backend name. What separates a language merely *partly* outside the source roots (a `scripts/` beside `lua/` -- ordinary and intentional) from one entirely outside them, which is the real gap. Absent when empty.
 ---@field types_dir string
 ---@field repo_url string?
 ---@field branch string
