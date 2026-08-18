@@ -7,7 +7,7 @@
 ---@class Documentation.Opts
 ---@field root string Absolute path to the repository root. Omitted in a `usrcmds.setup()` call, `:DocMap`/`:DocBrowse` resolve it **per invocation** from the current buffer's file (see `root_markers`); set it to pin every invocation to one tree, which is what a consuming plugin generating its own map wants.
 ---@field root_markers? string[] `usrcmds.setup()` only, and only when `root` is absent: marker names `vim.fs.root` walks up for to find the repository containing the current buffer's file. Default `{ ".git" }` — matches a worktree's `.git` *file* as well as a normal `.git` directory. Falls back to the working directory for a buffer with no file behind it.
----@field source? string Directory to scan, relative to `root`. Default "lua".
+---@field source? string|string[] Directory or directories to scan, relative to `root`. Default: derived by `config.detect_source`. **Several** exist because a repository can hold two languages in two places (`lua/` beside `src/`, or C's `src/` beside `include/`), and one starting directory means the walk never *visits* the other — not skips it, never sees it, and reports nothing about it. A plain string still behaves exactly as it always did, including producing no synthetic parent node.
 ---@field lua_root? string Directory the Lua module path is relative to. Default "lua".
 ---@field title? string Display name for the root node. Default: the source directory name.
 ---@field types_dir? string Directory name holding type definitions, treated as a module attribute. Default "@types".
@@ -415,7 +415,8 @@
 ---defeats `--check`.
 ---@class Documentation.Meta
 ---@field title string
----@field source string
+---@field source string The directory the scan started from. Stays a string even with several source roots, where it is the repository root they share -- a field that is sometimes a string and sometimes a list is worse than one that is always the honest single answer.
+---@field sources string[]? Every directory walked, present **only** when there was more than one. Absent means `source` alone describes the scan, which is what it did before this field existed -- so a single-root map is byte-identical to the ones generated before multi-root support.
 ---@field types_dir string
 ---@field repo_url string?
 ---@field branch string

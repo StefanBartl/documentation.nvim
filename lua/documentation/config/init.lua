@@ -74,8 +74,16 @@ local KNOWN_OPTS_KEYS = {
   generate_all = true,
 }
 
+---Is `a` the same path as `b`, or an ancestor of it?
+---@param a string
+---@param b string
+---@return boolean
+local function covers(a, b)
+  return a == b or a == "." or b:sub(1, #a + 1) == (a .. "/")
+end
+
 ---Where `root`'s sources live, asked of the language backends rather than
----assumed.
+---assumed — **every** backend, not just the first to answer.
 ---
 ---**This function used to be a Lua heuristic and nothing else**, and that
 ---was a hard failure rather than a limitation: it returned `"lua"` for every
@@ -85,29 +93,60 @@ local KNOWN_OPTS_KEYS = {
 ---JavaScript project, not reasoned about — the engine reads JS/TS, and a
 ---JavaScript repository could not be scanned at all.
 ---
----Each backend answers for itself or declines (`nil`); first answer in
----registration order wins. The heuristics moved with the answers:
----`core/lang/lua.lua` still owns `lua/<plugin>`, `core/lang/ecma.lua` owns
----`src`/`lib`/`app` — and neither claims a directory that does not actually
----hold a file it can read, so a Lua repository with a `src/` full of shell
----scripts is not mistaken for a JavaScript one.
+---Taking only the first answer was the *second* half of the same mistake,
+---and it was quieter: a tree with `lua/` beside `src/` mapped the Lua half
+---and never visited the other, with nothing anywhere saying so. Collecting
+---every answer is what makes `scan.lua`'s multi-root walk reachable.
 ---
----`"."` when nothing answers: the repository root, which always exists.
+---Each backend answers for itself or declines (`nil`). The heuristics moved
+---with the answers: `core/lang/lua.lua` owns `lua/<plugin>`,
+---`core/lang/ecma.lua` owns `src`/`lib`/`app` — and neither claims a
+---directory that does not actually hold a file it can read, so a Lua
+---repository with a `src/` full of shell scripts is not mistaken for a
+---JavaScript one.
+---
+---**A candidate that contains another is dropped.** Two backends can answer with
+---one nested inside the other — Lua saying `lua/thing` while ECMA falls back
+---to the repository root because a stray `.js` sits there. Keeping both
+---would walk `lua/thing` twice, once on its own and once inside the root,
+---and duplicate every node in it. The narrower answer wins, which loses the
+---stray file and keeps the map correct; the alternative loses nothing and
+---breaks the map, which is the worse trade.
+---
+---`{"."}` when nothing answers: the repository root, which always exists.
 ---An honest empty map for a tree this tool cannot read beats an assertion
 ---naming a directory the user never had — and `scan.lua`'s `VENDOR_DIRS`
 ---is what keeps that fallback from walking into `node_modules`.
 ---@param root string Absolute repository root, forward slashes.
----@return string source Relative to `root`.
+---@return string[] sources Relative to `root`, at least one.
 function M.detect_source(root)
+  local found = {}
   for _, backend in ipairs(require("documentation.core.lang_registry").all()) do
     if backend.detect_source then
       local guess = backend.detect_source(root)
-      if guess then
-        return guess
+      -- Two backends can name the same directory (`js` and `ts` both live in
+      -- `src`); one entry is one walk.
+      if guess and not vim.tbl_contains(found, guess) then
+        found[#found + 1] = guess
       end
     end
   end
-  return "."
+
+  local kept = {}
+  for _, candidate in ipairs(found) do
+    local covered = false
+    for _, other in ipairs(found) do
+      if other ~= candidate and covers(candidate, other) then
+        covered = true
+        break
+      end
+    end
+    if not covered then
+      kept[#kept + 1] = candidate
+    end
+  end
+
+  return #kept > 0 and kept or { "." }
 end
 
 ---Build a full `Documentation.Opts` for `root`, with `overrides` winning over
