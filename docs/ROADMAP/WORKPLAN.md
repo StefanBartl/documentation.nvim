@@ -1,0 +1,275 @@
+# Work plan — the language axes and what follows from them
+
+**Purpose: this file is the resume point.** Everything agreed in the session
+of 2026-08-18 is written down here, including the parts not built, so the
+work can continue from a cold start in another chat with nothing lost. It is
+a *work* plan, not a design document — the reasoning behind each item lives
+in the `IDEAS/` file it points at, and is not repeated.
+
+Spans two repositories. `documentation.nvim` owns the engine and the
+generated page; [`docmap-desktop`](https://github.com/StefanBartl/docmap-desktop)
+owns the window in front of them. Items are marked which.
+
+---
+
+## Table of content
+
+- [Where things stand](#where-things-stand)
+- [Part 1 — done in this session](#part-1--done-in-this-session)
+- [Part 2 — next, and why in this order](#part-2--next-and-why-in-this-order)
+- [Part 3 — the standing backlog, re-rated](#part-3--the-standing-backlog-re-rated)
+- [Part 4 — the plugin corpus and Neovim configs](#part-4--the-plugin-corpus-and-neovim-configs)
+- [Part 5 — document hygiene](#part-5--document-hygiene)
+- [Part 6 — how to verify anything here](#part-6--how-to-verify-anything-here)
+
+---
+
+## Where things stand
+
+Two axes that share a word and almost nothing else:
+
+| Axis | Meaning | Plan |
+|---|---|---|
+| **Multilang** | Which programming languages the engine *reads* | [`IDEAS/MULTILANG.md`](IDEAS/MULTILANG.md) Part 4 |
+| **i18n** | Which interface language it *speaks* | [`IDEAS/I18N.md`](IDEAS/I18N.md) |
+
+They touch in exactly one place — both rewrite `check.lua`'s `add()`, and
+done separately the second rewrites the first. See I18N.md Part 5.
+
+The lookup layer (keyword hover and its relatives) is a third strand,
+planned in [`IDEAS/ReferenceTab.md`](IDEAS/ReferenceTab.md) § *The lookup
+layer*.
+
+---
+
+## Part 1 — done in this session
+
+Recorded so a reader knows what *not* to redo. Detail lives in the commits;
+the verification evidence lives in `docs/FEATURES/FEATURES.md`.
+
+**Engine (`documentation.nvim`):**
+
+- `lang_registry.report()` and `languages` in `--capabilities` — the backend
+  list, with a three-valued `grammar_loaded` (`true` / `false` / absent,
+  where absent means "needs no parser" and is not a degradation).
+- Keyword hover in rendered snippets. Glossary per backend, reached through
+  `lang_registry.glossaries()`, keyed by file extension; strings and
+  comments skipped by per-language delimiters; one base reference URL per
+  language, per-entry anchors deliberately unfilled until someone opens them.
+- `config.detect_source` asks the backends instead of assuming Lua. **This
+  fixed a hard failure:** a JavaScript project could not be scanned at all
+  (`source directory not found: <root>/lua`), despite the engine having read
+  JS/TS since Phase 1.
+- `opts.source` takes a list; `scan.lua` walks every root, with a synthetic
+  parent node **only** when there is more than one. A mixed tree used to map
+  one half and say nothing about the other.
+- `scan.lua` gained `VENDOR_DIRS`, which a `src`-or-root `source` makes
+  necessary.
+
+**Desktop (`docmap-desktop`):**
+
+- `scan_languages` — file-extension counts per project, no engine needed.
+  Skips any subdirectory that is its own checkout (found by measurement:
+  306 of 448 "Lua files" in this repo were copies of itself under
+  `.claude/worktrees/`).
+- `engine_languages` — reads the engine's backend list, joined with the
+  count **on the tree-sitter grammar name**, so neither side has to know the
+  other's vocabulary.
+- The Engine panel's verdict is asked, not inferred: it used to read "ready"
+  whenever a grammars *directory* resolved, so one grammar out of four still
+  said "ready".
+
+---
+
+## Part 2 — next, and why in this order
+
+### 2.1 The report says what it did *not* look at — engine
+
+The failure this session found twice was the same shape both times: a map
+that looks healthy and is silently missing half its subject. `VENDOR_DIRS`
+and the multi-root walk both narrow it; neither closes it.
+
+- [ ] Count files that no backend claimed, and files that a backend *would*
+      have claimed but which sit outside every source root.
+- [ ] Put both in the engine's report and in `ir.meta`, so the page and the
+      desktop can show them without recounting.
+- **Acceptance:** pointing the engine at a tree with a `tools/` directory of
+  TypeScript outside `src/` produces a report naming it. No silent absence.
+
+### 2.2 Language legend in the page — engine
+
+A map can now hold several languages, and nothing on screen says which node
+is which.
+
+- [ ] `language` per node (MULTILANG stage 3.1 — this is that item, brought
+      forward because multi-root made it visible rather than theoretical).
+- [ ] A legend and a filter in the Tree and Hierarchy views.
+- [ ] Doc-coverage split per language, rather than one average that is true
+      of neither half.
+- **Acceptance:** the mixed fixture's map distinguishes its Lua and its
+  TS nodes without the reader inspecting paths.
+
+### 2.3 Look at the window — desktop
+
+Still not done and still the oldest debt. The sidebar language line, the
+Engine panel's new language list, and the keyword card have all been
+verified structurally and in a real browser DOM; **none has been seen by a
+human**. Specifically worth checking: does the third line in the project
+list break the row height, and does real Tab-navigation reach the keyword
+spans (unverifiable here — a non-compositing pane never takes window focus,
+so `focusin` never fires).
+
+---
+
+## Part 3 — the standing backlog, re-rated
+
+[`IDEAS/IDEAS_IMPLEMENTATION_PLAN.md`](IDEAS/IDEAS_IMPLEMENTATION_PLAN.md)
+already rates everything in `IDEAS.md` by effort and benefit. Its open
+**quick wins**, in its own recommended order:
+
+| § | Idea | Note |
+|---|---|---|
+| 1.2 | `@example` blocks that do not parse | Cheapest real check in the backlog; extraction already exists |
+| 6.1 | SARIF output for CI | Findings already carry file/line/severity — a serialiser, not analysis |
+| 2.5 | Unused requires | Mirror of an existing check; IR has both halves already |
+| 3.2 | Copy-link for the current view | The state is already in the URL fragment |
+| 6.3 | Publish the map to GitHub Pages | `pages.yml` already exists |
+| 6.4 | Mermaid export | The renderer already exists |
+| 9 | Schema versioning + a payload-contract test | See below — this one is now overdue |
+
+**§9 has earned promotion.** `html.lua`'s own comment thread records that
+`duplicates`, `docs`, `quicks` and `checklist` were each added to `ir` and
+forgotten in the page payload, because the two field lists are maintained by
+hand and separately. This session added `glossaries` as the fifth, and only
+got it right by reading that comment. A contract test asserting the two
+lists agree is the fix; the comment thread is evidence it has already cost
+four features.
+
+### Additional items from this session, not previously recorded
+
+- [ ] **Stdlib hover** — the lookup layer's next trigger surface
+      (`table.concat`, `Object.entries`). Same machinery as the keyword
+      glossary, larger table; `calls_external` already knows which ones a
+      tree actually uses. See ReferenceTab.md § *The lookup layer*.
+- [ ] **A mixed-language fixture in CI.** MULTILANG stage 3.7 asks for
+      per-language sample trees; a *polyglot* one is the case that would
+      have caught the `detect_source` failure on the day the JS backend
+      shipped rather than months later. Cheap: three files.
+- [ ] **Per-entry reference anchors**, once someone has opened them. The
+      renderer already supports them; they are unfilled on purpose.
+- [ ] **`.jsx`**, **class methods**, **`module.exports = {…}`** — the three
+      gaps MULTILANG Phase 1 left open in `ecma.lua`, still open.
+
+---
+
+## Part 4 — the plugin corpus and Neovim configs
+
+Checked against the real trees in `E:\repos`, not assumed.
+
+### 4.1 What the corpus actually is
+
+**33 `.nvim` repositories, roughly 30 of them already carrying a committed
+`docs/map/module_map.json`**, and one shared library (`lib.nvim`) that the
+others consume 9–25 distinct modules of apiece.
+
+**There is no feature worth building *only* for these plugins.** They are
+ordinary annotated Lua trees and the existing map already serves them. What
+the corpus is, is the missing prerequisite for something already in the
+backlog and already deferred for its absence:
+
+- [ ] **Cross-repository checks over `tag_files` (IDEAS §1.7)**, rated "No —
+      needs real multi-repo case first". The real case exists: 33 repos, ~30
+      maps, one shared dependency. `core/tagfiles.lua`'s own header already
+      names this exact scenario as "the normal case, not a hypothetical one".
+- [ ] **A reverse index over `lib.nvim`** — which of its modules is required
+      by which consumer, and which by nobody. Computable only across maps,
+      and no single map can answer it. This is the concrete, valuable version
+      of §1.7: dead-code detection for a library, from its consumers'
+      committed artifacts rather than from guesses.
+- [ ] **A cross-repo dashboard** in `docmap-desktop`, which is the one place
+      that already holds several projects at once. The workspace-level view
+      no single repository can have.
+
+### 4.2 Neovim configs — what is left after `plugins.lua` and `bindings.lua`
+
+Already built, and not to be re-proposed: lazy.nvim spec extraction
+(`core/plugins.lua`), and keymaps, user commands and autocmds
+(`core/bindings.lua`). Options (`vim.opt.x = …`) were considered there and
+deliberately declined.
+
+What is genuinely missing and is meaningful *only* for a config:
+
+- [ ] **Keymap conflict detection.** Two sources binding the same `lhs` in
+      the same mode is a real bug class, it is the question a config is most
+      often opened to answer, and the data is already extracted by
+      `bindings.lua` — this is a check over existing IR, not new extraction.
+      **The strongest candidate in this section by some distance.**
+- [ ] **Other plugin managers.** `plugins.lua` is scoped to lazy.nvim's spec
+      shape and says so; packer's `use {…}`, vim-plug's `Plug '…'` and
+      mini.deps' `add()` are separate extractors, not a bent version of that
+      one.
+- [ ] **Lazy-load inventory** — which plugin loads on which event/ft/cmd,
+      from spec fields already parsed. Answers "why is this not loaded yet",
+      which is the second question a config is opened for.
+- [ ] **Orphaned spec files** — a `lua/plugins/foo.lua` whose plugin nothing
+      references any more.
+
+Sequence note: keymap conflicts first. It is a check over data that already
+exists, so it proves the config-shaped direction is worth extending before
+any new extractor is written for it.
+
+---
+
+## Part 5 — document hygiene
+
+Agreed convention, to be applied across both repos' `docs/`:
+
+- Anything **built** moves to `docs/FEATURES/FEATURES.md` (engine) with its
+  verification evidence, and is **removed** from the idea/roadmap file rather
+  than left ticked. A backlog that keeps its completed items stops showing
+  what is left.
+- `docmap-desktop/docs/HANDOVER.md` keeps its existing convention: an item
+  that is done *and pushed* is struck out entirely.
+- Two files must never describe one thing. Where a plan spans both repos,
+  the engine repo holds it and the desktop repo links to it.
+
+Open pass:
+
+- [ ] `IDEAS/IDEAS.md` — several entries are marked done inline
+      (§3.4, §4.1, §8.2) rather than removed.
+- [ ] `IDEAS/IDEAS_IMPLEMENTATION_PLAN.md` — re-rate now that §9's cost has
+      been paid four times, and that §1.7's blocking precondition is met.
+- [ ] `IDEAS/MULTILANG.md` — Phase 0's stage list still shows items this
+      session closed.
+
+---
+
+## Part 6 — how to verify anything here
+
+The standing rule, which produced every real finding in this session:
+**measure, do not reason.** Concretely:
+
+```
+nvim --headless -l scripts/ci.lua          # 5 gates: stylua, luacheck, tests, map --check, standalone
+nvim --headless -l scripts/gen_map.lua     # a docs change makes the map stale; regenerate and commit
+```
+
+`docmap-desktop`: `cargo test` in `src-tauri/` and
+`node --test src/lib/*.test.js`. `cargo test` needs the placeholders CI also
+creates (both are `.gitignore`d):
+
+```
+mkdir -p src-tauri/binaries src-tauri/resources/grammars
+touch src-tauri/binaries/docmap-x86_64-pc-windows-msvc.exe
+touch src-tauri/resources/grammars/placeholder.dll
+```
+
+Three habits worth keeping, each earned this session:
+
+- **A real tree beats a fixture.** The language counter looked correct
+  against fixtures and reported 448 Lua files in a repo holding 98.
+- **Pull the code out of the artifact, not out of the source.** The keyword
+  tokenizer was tested by extracting it from the *generated page* — the same
+  bytes a reader gets — against twelve inputs.
+- **A structural check is not a visual one.** Say which was done. Several
+  things here are verified in a DOM and have still never been looked at.
