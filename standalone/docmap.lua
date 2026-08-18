@@ -157,15 +157,28 @@ ensure_soft("runtime-analysis.telemetry", "runtime-analysis.nvim")
 -- What a host asks before trusting this binary with anything else.
 --
 -- Answered here rather than parsed out of a `--help` string, and read off
--- `core/api.routes` rather than restated, so a route added there is
--- advertised without this file being told.
+-- `core/api.routes` and `core/lang_registry.report()` rather than restated,
+-- so a route or a language backend added there is advertised without this
+-- file being told.
+--
+-- `languages` is what lets a host stop guessing why a map came back thin.
+-- Pointed at a mostly-Python repository, this engine produces a valid,
+-- nearly empty map; a host that knows the backend list can say so before
+-- generating rather than showing the empty result as a success. Note the
+-- three-valued `grammar_loaded` (see `lang_registry.report`): true, false
+-- and absent are three different states, and a host that flattens them
+-- reports a healthy backend as broken.
 if capabilities_only then
   local names = {}
   for name in pairs(require("documentation.core.api").routes) do
     names[#names + 1] = name
   end
   table.sort(names)
-  print(require("documentation.core.json").encode({ capabilities = { "api" }, routes = names }))
+  print(require("documentation.core.json").encode({
+    capabilities = { "api", "languages" },
+    routes = names,
+    languages = require("documentation.core.lang_registry").report(),
+  }))
   os.exit(0)
 end
 

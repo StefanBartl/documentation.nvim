@@ -80,6 +80,51 @@ return function(H)
   local lua_after = reg.for_file("x.lua")
   eq(lua_after, lua_before, "lang_registry: ... and restores lua as the SAME already-cached table")
 
+  -- report(): what a host asks before trusting this build.
+  --
+  -- Run after reset() on purpose, so the registry holds exactly the four
+  -- real backends and nothing this file added -- the shape a host actually
+  -- sees, not one with fixtures in it.
+  local report = reg.report()
+  eq(#report, 4, "lang_registry: report covers every registered backend")
+
+  local by_name = {}
+  for _, entry in ipairs(report) do
+    by_name[entry.name] = entry
+  end
+
+  -- The whole reason `grammar` is a field rather than derived from `name`:
+  -- three of the four disagree, and only one agrees by coincidence.
+  eq(by_name.lua and by_name.lua.grammar, "lua", "lang_registry: report names lua's grammar")
+  eq(
+    by_name.js and by_name.js.grammar,
+    "javascript",
+    "lang_registry: ... and js parses with `javascript`, not `js`"
+  )
+  eq(by_name.ts and by_name.ts.grammar, "typescript", "lang_registry: ... and ts with `typescript`")
+  eq(
+    by_name.tsx and by_name.tsx.grammar,
+    "tsx",
+    "lang_registry: ... and tsx with `tsx`, which happens to match"
+  )
+
+  -- Three-valued on purpose. Every backend here declares a grammar, so none
+  -- may report `nil` -- that value is reserved for a backend needing no
+  -- parser, and a host that saw it here would read "needs nothing" where the
+  -- truth is "wanted one and did not get it".
+  for _, entry in ipairs(report) do
+    ok(
+      type(entry.grammar_loaded) == "boolean",
+      "lang_registry: " .. entry.name .. " declares a grammar, so loaded is boolean, never nil"
+    )
+  end
+
+  -- Not cached: a second call re-probes. Asserted as equality of the answer
+  -- rather than by counting probes, since the point is only that calling
+  -- twice is legal and stable within one process -- the case that must not
+  -- be frozen (grammars appearing later) cannot be staged from here.
+  eq(reg.report()[1].name, report[1].name, "lang_registry: report is repeatable")
+
   -- Left clean: no fixture registrations survive this spec, and "lua" is
   -- exactly as it would be if this file had never run — the next spec (or
   -- docmap_browse_spec.lua, in the same process) gets a normal registry,

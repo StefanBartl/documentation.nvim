@@ -42,6 +42,12 @@ function M.is_source(filename)
   return filename:match("%.lua$") ~= nil
 end
 
+---The grammar `functions.lua` parses with. The one backend whose grammar
+---name happens to equal its own, which is exactly why it must be stated
+---rather than derived: deriving it from `M.name` would work here and be
+---wrong for all three ECMA backends.
+M.grammar = "lua"
+
 M.module_file = "init.lua"
 
 ---@param path string

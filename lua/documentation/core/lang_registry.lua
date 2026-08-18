@@ -104,6 +104,57 @@ function M.get(name)
   return backends[name]
 end
 
+---What this build can read, and at what fidelity — the answer a host asks
+---for before trusting this binary with anything.
+---
+---**Why `grammar_loaded` is a probe rather than a stored flag.** A grammar
+---is resolved from `$DOCMAP_TS_DIR`/`$DOCMAP_TS_<LANG>` at the moment it is
+---first needed (see `standalone/treesitter.lua`), and in Neovim from the
+---runtimepath — neither is knowable at registration time, and both can be
+---true on one machine and false on the next with the identical binary. So
+---this asks, per call, through the same `vim.treesitter.language.add`
+---the scan itself would end up going through.
+---
+---`false` and `nil` are different answers and stay different: `false` means
+---"this backend wants a grammar and could not get one" — degraded fidelity,
+---a complete module tree with no function-level data — while `nil` means
+---"this backend needs no parser", which is not a degradation at all. A host
+---that collapsed them would report a healthy backend as broken.
+---
+---Deliberately not cached. It is called once per host handshake, and a
+---cached "missing" would survive the user pointing at the grammars
+---directory, which is precisely the moment the answer is supposed to
+---change.
+---@return { name: string, grammar: string?, grammar_loaded: boolean? }[]
+function M.report()
+  ensure_loaded()
+  local out = {}
+  for _, name in ipairs(order) do
+    local backend = backends[name]
+    -- Named for what it holds rather than the shorter `loaded`, which is
+    -- this module's own file-level "are the backends required yet" flag --
+    -- two unrelated meanings one letter apart in one file.
+    local has_grammar = nil
+    if backend.grammar then
+      -- `vim.treesitter.language.add` is the one probe both hosts answer:
+      -- Neovim's own, and `standalone/treesitter.lua`'s shim, which
+      -- implements it as a `pcall` around its loader for exactly this kind
+      -- of question. `pcall`ed anyway — under `vim_shim.lua`'s inert stub
+      -- there is no `language` table at all, and a build without the
+      -- tree-sitter rock must report "no grammar", not raise.
+      local ok, added = pcall(function()
+        return vim.treesitter.language.add(backend.grammar)
+      end)
+      -- Neovim returns `true`/`nil+err`; the shim returns a plain boolean.
+      -- `== true` normalises both without treating a truthy non-boolean as
+      -- a yes.
+      has_grammar = ok and added == true
+    end
+    out[#out + 1] = { name = name, grammar = backend.grammar, grammar_loaded = has_grammar }
+  end
+  return out
+end
+
 ---Every registered backend, in registration order. What the walk uses to
 ---answer "does any backend's `module_file` exist in this directory" without
 ---hardcoding which backends exist.
