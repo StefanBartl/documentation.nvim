@@ -19,6 +19,10 @@ Deeper reasoning, cost estimates and task breakdowns live in
 - **Running without Neovim.** Already works for "map a Lua project from the
   terminal"; costed separately is dropping the Neovim dependency entirely.
   See [`IDEAS/PORTABILITY.md`](IDEAS/PORTABILITY.md).
+- **Interface languages (i18n).** A separate axis from the entry above,
+  despite the shared word: the languages this tool *speaks* rather than the
+  ones it reads. Three surfaces, of which the generated page is roughly 85 %
+  of the work. See [`IDEAS/I18N.md`](IDEAS/I18N.md).
 - **Reference tab — Lua syntax and LuaCATS tags.** Not built, verified against
   source. Two panels (a generated tag-adoption report, a static syntax crib
   sheet) plus a right-click "what is this" affordance, with a cheap

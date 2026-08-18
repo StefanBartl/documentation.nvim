@@ -171,3 +171,213 @@ the table exists) → right-click affordance (reaches the tag panel only) →
 Lua syntax crib sheet last, since it is the one piece whose case is
 "proximity, not necessity," and the weakest claim on being built at all
 per this document's own "objection to answer before building it."
+
+---
+
+## The lookup layer — revision 2026-08-18
+
+### The objection above expired, and this document did not notice
+
+Two sections up, this document turns the keyword panel down on proximity
+grounds, and the argument is explicit: *"It renders no Lua source: an inline
+syntax-highlighted source view was considered and turned down, so there is
+nowhere in the map a `goto` or a `<close>` is displayed to click on."*
+
+**That is no longer true.** `core/snippet.lua` exists, and
+`core/render/html.lua` renders `fn.snippet` into a `.fn-snip` block for every
+function that has one — bounded to 40 lines, escaped, unhighlighted, but
+present. The map ships source now. Both language backends feed it (`snippet.
+extract` is shared between `functions.lua` and `core/lang/ecma.lua` precisely
+because the bounding rule is a policy, not a per-language fact).
+
+So the weakest claim in this document — that a keyword reference would be
+reachable only by opening a tab and looking — no longer holds. Every `goto`,
+`<close>`, `pcall`, `await` and `=>` in the tree is already on screen,
+already in a container this page controls, and already escaped into DOM this
+page builds. What is missing is only the layer that recognises them.
+
+Recorded rather than quietly edited into the sections above, for the same
+reason Part 3 of `MULTILANG.md` is recorded rather than folded into Part 1: a
+stale estimate that gets silently overwritten leaves no evidence that the
+premise moved.
+
+### One layer, four trigger surfaces
+
+The instinct is to call this "keyword tooltips" and build it. The cheaper and
+more defensible shape is to notice that the page has **four** places where
+the reader meets notation they may not recognise, and that all four want the
+same thing: a short definition, in place, with an optional link out.
+
+| Surface | Trigger | Data behind it |
+|---|---|---|
+| **Source snippets** (`.fn-snip`) | a language keyword — `goto`, `<close>`, `await`, `yield` | a per-language keyword glossary (new) |
+| **Source snippets** | a standard-library call — `table.concat`, `Object.entries` | a per-language stdlib glossary (new); `calls_external` already knows which ones this tree actually uses |
+| **Rendered annotations** | `@param`, a `@deprecated` badge, a LuaCATS type string | the `TAGS` table this document already names as the precondition for the tag panel |
+| **Drift findings** | a check id — `param-name-mismatch`, `layer-violation` | the check catalogue, which `MULTILANG.md` Part 4's stage 3.6 and `I18N.md`'s I18N-0 are *both* about to introduce anyway |
+
+Four features or one depends entirely on whether the lookup is a registry or
+four hardcoded tables. It should be a registry: `lookup(kind, key)` returning
+`{ summary, anchor? }`, with the four kinds registered from four places. The
+alternative — a tooltip implementation per surface — is the shape this
+repository's own conventions warn about elsewhere, and it would be four
+independent places to forget a language when a backend is added.
+
+### Where the glossary data lives
+
+On the language backend, as an optional field, reached through
+`core/lang_registry.lua` like everything else:
+
+```lua
+---@field keywords table<string, Documentation.Glossary.Entry>?
+---@field stdlib   table<string, Documentation.Glossary.Entry>?
+---@field reference Documentation.Glossary.Reference?
+```
+
+Three consequences, each deliberate:
+
+- **A backend without a glossary degrades to nothing, not to a wrong
+  glossary.** The fields are optional; an unrecognised token is simply not
+  decorated. No fallback to Lua's keywords for a Rust file, which is the one
+  failure mode that would be worse than the feature's absence.
+- **It goes into the page, not into `module_map.json`.** The glossary is
+  tool data, not scanned data — it is the same bytes in every checkout, so
+  putting it in the IR would inflate a byte-deterministic artifact with
+  content that says nothing about the repository. `html.lua` inlines it
+  directly, the same way it already inlines everything else the page needs.
+- **The layer rule holds.** `core.render.html` must not require
+  `core.lang.*`; it asks the registry, which is exactly the seam that already
+  exists for `scan.lua` and `check.lua`.
+
+### The governing principle: density on demand, never on screen
+
+The goal behind all of this is to get as much out of a file as the file
+actually contains. The constraint is that no view may become unreadable in
+the process. Those two only coexist under one rule, and it is worth stating
+once here rather than re-arguing per feature:
+
+**Everything in this section is reachable by an intentional act — hover,
+right-click, a key — and nothing in it adds permanent chrome to a view.**
+
+Concretely, what that forbids: a new badge row, a new always-visible column,
+a second line under every function, an icon per token. What it permits: any
+amount of depth behind a deliberate gesture, because a reader who did not
+gesture pays nothing for it.
+
+There is already a precedent in the page, and it is the model to copy rather
+than invent around: the Deps and Module Calls views' `+ external` toggle
+shows a plain box, and only a hover breaks it down into *which* functions
+were called and how often (`plenary.async.run (2×)`). The dense answer exists,
+costs nothing until asked for, and the view stays a graph.
+
+Four rules that keep it that way:
+
+- **One card component, one card at a time.** Every lookup below renders into
+  the same popup, with the same dismissal, the same maximum height. Four
+  bespoke tooltips would re-create the clutter this rule exists to prevent.
+- **Bounded, like `snippet.lua` already bounds source.** A card that can grow
+  to forty lines of type detail is a panel wearing a tooltip's clothes. Cap
+  it, and say how much was omitted — the same policy `snippet.lua` and
+  `docs.lua`'s `REFS_PER_ENTITY` already apply.
+- **Never on hover-through.** A card that opens while the pointer is merely
+  crossing the region is chrome the reader did not ask for. Intent means a
+  short dwell, or a click.
+- **Absent data says so, in place.** A hover with nothing behind it shows
+  "not known", not an empty card and not nothing at all — the same posture
+  the Telemetry tab already takes when no Neovim session collected anything.
+
+### The rest of the family — all from data the IR already has
+
+The keyword and stdlib glossaries are new data. Everything below is not: it
+is already extracted, already in the artifact, and currently only reachable
+by navigating somewhere else. That makes these the cheapest entries in this
+entire document — no scanner work at all, only a trigger and a card.
+
+| Hover target | What it shows | Where the data already is |
+|---|---|---|
+| A call in a snippet that resolves inside the tree | callee's summary, its module, a jump | `ir.edges` call resolution — the Calls view already draws exactly this |
+| An external module in a snippet or `require` | which of its functions this file actually calls, and how often | `calls_external` — the `+ external` tooltip already renders this shape elsewhere |
+| A type name in a signature or annotation | its `@class` fields and where it is declared | `types_detail`, present whenever the map was generated `--full` |
+| A function's own name in the snippet header | its complexity, fan-in/fan-out, whether a test names it | the Analysis tab computes all four over the same IR |
+| A `require`/`import` path | resolved in-tree, external, or unresolved — three different answers currently indistinguishable at a glance | `requires`, `requires_external`, and the absence of both |
+| A `@deprecated` / `@internal` marker in a snippet | what it means here, and who still calls it anyway | the tag plus `required_by` |
+| A line in the snippet | the commit that last touched it | git — **only where a host can run it**, which is `:DocMap serve` and `docmap-desktop`, not a published page. Degrades to "needs a host", the message this page already has for History |
+
+And the language-specific ones, which are the reason the glossary sits on the
+backend rather than in one shared table — each is meaningless in every
+language but its own:
+
+- **Lua:** `:` vs `.` on a call, varargs, metamethod names, `<close>`/
+  `<const>` (and the LuaJIT caveat this document already insists on).
+- **JS/TS:** `async`/`await` semantics, `=>` binding of `this`, `?.`/`??`,
+  TS's `satisfies`/`as const`, decorators.
+- **Python:** decorators, `self`/`cls`, dunder methods, `*args`/`**kwargs`.
+- **Rust:** lifetimes (`'a`), `&`/`&mut`, `?`, `impl Trait`, `unsafe`.
+- **Go:** receivers, `defer`, channel operators, exported-by-capitalisation.
+- **C:** storage classes, `const` placement, macro vs. function.
+
+These are also the clearest argument that this feature belongs *with*
+`MULTILANG.md` rather than beside it: a language backend that ships an
+extractor and no glossary is a language the reader can see but not ask about.
+Make the glossary part of what "supporting a language" means, from the second
+backend onward.
+
+### Links, and the staleness objection — answered, not waved away
+
+The concern is real and this repository has already paid for it once: the
+`dead-readme-link` check exists because a dead link shipped. A reference
+panel full of 404s is worse than no panel, and the sections above already
+insist that exact URLs be verified before they ship.
+
+Three rules that make linking survivable:
+
+1. **The explanation never depends on the link.** One sentence of our own
+   prose, offline, in the artifact. The link is an enhancement; if every URL
+   on the internet broke tomorrow the feature would still answer the question
+   it exists to answer. This is the same two-tier shape `docs/ECOSYSTEM.md`
+   §3.5 already uses for hover previews — always-available tier first,
+   enhancement second.
+2. **One base URL per language, anchors derived.** Not one URL per keyword.
+   `goto` links to `<lua-5.1-manual>#pdf-goto`, `await` to
+   `<mdn-js-reference>/Operators/await`. Then the surface that can rot is a
+   handful of base URLs, checkable by one CI gate, instead of several hundred
+   independently rotting links. An anchor that moves degrades to landing on
+   the right page at the wrong position — a much softer failure than a 404.
+3. **Version-pinned, per this document's own existing insistence.** Neovim
+   runs LuaJIT: 5.1 plus selected 5.2 extensions, so the 5.4 manual is
+   actively misleading about `goto`, integer division and `<close>`. The Lua
+   glossary pins 5.1 and marks the 5.2-isms Neovim does provide. For JS/TS
+   the equivalent question is which reference — MDN is the stable answer and
+   its URL structure has been stable for a decade, which is a fact to check
+   at implementation time rather than assert here.
+
+A fourth rule if the base URLs turn out to rot anyway: ship the anchors and
+make linking opt-in (`opts.reference_links = false` to suppress). Not built
+unless it is needed — recorded so the fallback is not re-derived under
+pressure.
+
+### Sequencing
+
+The keyword surface is now the *cheapest* of the four, not the weakest: the
+source is already rendered, the container already exists, and unlike the tag
+panel it needs no `TAGS` refactor first. That inverts this document's
+"recommended sequencing" above, which put the syntax crib sheet last
+specifically because of the proximity argument that has since expired.
+
+1. **Lookup registry + keyword glossary for Lua, in-place hover on
+   `.fn-snip`.** No new tab, no `TAGS` table, no context menu. Self-contained.
+2. **Same for JS/TS**, which is one more table against the existing `ecma.lua`
+   registrations and proves the per-language seam.
+3. **Stdlib glossary**, same machinery, larger table.
+4. **`TAGS` table refactor** — still the shared precondition it always was,
+   still paying twice (this document's tag panel, `IDEAS_IMPLEMENTATION_PLAN.md`
+   §2.1's adoption panel), and now a third time as the lookup layer's third
+   kind.
+5. **Check catalogue as the fourth kind** — land it with `MULTILANG.md` 3.6
+   and `I18N.md` I18N-0, which are already required to touch the same data in
+   one pass.
+6. **The Reference tab itself**, if the panels still earn a tab once the
+   in-place lookups exist. Genuinely open: the hover may be most of the value,
+   and a tab nobody navigates to was this document's own warning.
+
+The curated link-list fallback stays what it always was: the version to ship
+if none of the above happens.
