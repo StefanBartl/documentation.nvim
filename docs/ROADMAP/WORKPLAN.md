@@ -104,8 +104,10 @@ is which.
 - [x] **A legend and a filter in the Tree view** — built 2026-08-18. Drawn
       only when the map holds more than one language, so the common case pays
       nothing (verified: single-language map renders an empty, hidden bar).
-- [ ] The same for the **Hierarchy** views, which still show every language's
-      nodes with no way to separate them.
+- [x] The same for the **Hierarchy** views — built 2026-08-18. Dims rather
+      than removes: taking boxes out of a graph re-flows every remaining one
+      and can disconnect the picture, so the reader loses the shape they
+      were looking at in order to ask a question about part of it.
 - [ ] Doc-coverage split per language, rather than one average that is true
       of neither half.
 - **Acceptance:** the mixed fixture's map distinguishes its Lua and its
