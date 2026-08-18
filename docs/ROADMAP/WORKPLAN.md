@@ -83,27 +83,26 @@ the verification evidence lives in `docs/FEATURES/FEATURES.md`.
 
 ## Part 2 — next, and why in this order
 
-### 2.1 The report says what it did *not* look at — engine
+### 2.1 ~~The report says what it did not look at~~ — **built 2026-08-18**
 
 The failure this session found twice was the same shape both times: a map
 that looks healthy and is silently missing half its subject. `VENDOR_DIRS`
 and the multi-root walk both narrow it; neither closes it.
 
-- [ ] Count files that no backend claimed, and files that a backend *would*
-      have claimed but which sit outside every source root.
-- [ ] Put both in the engine's report and in `ir.meta`, so the page and the
-      desktop can show them without recounting.
-- **Acceptance:** pointing the engine at a tree with a `tools/` directory of
-  TypeScript outside `src/` produces a report naming it. No silent absence.
+`ir.meta.unclaimed`/`outside`/`claimed`. The report fires only for a
+language wholly absent from the map, because `outside` alone would print a
+line on every run for every repository with a `scripts/`. Detail in
+`FEATURES/FEATURES.md`.
 
 ### 2.2 Language legend in the page — engine
 
 A map can now hold several languages, and nothing on screen says which node
 is which.
 
-- [ ] `language` per node (MULTILANG stage 3.1 — this is that item, brought
-      forward because multi-root made it visible rather than theoretical).
-- [ ] A legend and a filter in the Tree and Hierarchy views.
+- [x] `language` per node, schema 3 — **built 2026-08-18**, including the
+      schema-tolerance check against a real schema-2 artifact.
+- [ ] **A legend and a filter in the Tree and Hierarchy views.** The data is
+      in the artifact now; nothing shows it. This is the open half.
 - [ ] Doc-coverage split per language, rather than one average that is true
       of neither half.
 - **Acceptance:** the mixed fixture's map distinguishes its Lua and its
@@ -135,7 +134,7 @@ already rates everything in `IDEAS.md` by effort and benefit. Its open
 | 3.2 | Copy-link for the current view | The state is already in the URL fragment |
 | 6.3 | Publish the map to GitHub Pages | `pages.yml` already exists |
 | 6.4 | Mermaid export | The renderer already exists |
-| 9 | Schema versioning + a payload-contract test | See below — this one is now overdue |
+| ~~9~~ | ~~Schema versioning + a payload-contract test~~ | **Built 2026-08-18.** Its first run caught a sixth victim: `endpoints`, absent from the artifact since `core/endpoints.lua` shipped |
 
 **§9 has earned promotion.** `html.lua`'s own comment thread records that
 `duplicates`, `docs`, `quicks` and `checklist` were each added to `ir` and
@@ -144,6 +143,9 @@ hand and separately. This session added `glossaries` as the fifth, and only
 got it right by reading that comment. A contract test asserting the two
 lists agree is the fix; the comment thread is evidence it has already cost
 four features.
+
+**§1.7's precondition is met**, and the entry in
+`IDEAS_IMPLEMENTATION_PLAN.md` has been updated to say so — see Part 4.
 
 ### Additional items from this session, not previously recorded
 

@@ -2699,3 +2699,140 @@ work.
   `browse_loaded_spec.lua`/`browse_telemetry_spec.lua`/
   `browse_endpoints_spec.lua`/`check_type_vs_class_spec.lua` are all their
   own files too).
+
+## Language backends advertised in `--capabilities` (2026-08-18)
+
+A host asking what this engine can do got routes and nothing about
+languages, so "why did this map come back nearly empty" had no answerable
+form. `lang_registry.report()` answers off the registry rather than a
+written list, the same way `--capabilities` already reads its routes off
+`core/api.routes`.
+
+Two things it gets right that a simpler version would not. `grammar` is a
+field on the backend, not derived from its name: three of four disagree
+(`js` parses with `javascript`), and `lua` agreeing is a coincidence.
+`grammar_loaded` is **three-valued** — `false` means "wants a grammar,
+could not load one" (degraded fidelity, module tree only), absent means
+"needs no parser", and a host flattening the two reports a healthy backend
+as broken. It probes rather than caching: grammar resolution happens
+against `$DOCMAP_TS_DIR` or the runtimepath at first use, so a cached
+"missing" would survive the user pointing at the grammars directory, which
+is the exact moment it should change.
+
+Measured on the author's machine: `lua=true`, `javascript`/`typescript`/
+`tsx=false` — the degraded state the field exists to surface, and which
+nothing said before.
+
+## Keyword lookup inside rendered snippets (2026-08-18)
+
+`docs/ROADMAP/IDEAS/ReferenceTab.md` turned its keyword panel down because
+the page rendered no source, so there was nowhere a `goto` was displayed to
+point at. `core/snippet.lua` made that false and nothing noticed. Hovering a
+keyword in a snippet now gives a sentence and one optional link.
+
+The glossary lives on the language backend, reached through
+`lang_registry.glossaries()`, keyed by file extension. A backend without one
+decorates **nothing** — never a fallback to another language's keywords,
+which would explain `goto` in a file where it means something else, the one
+failure worse than the feature's absence. It goes into the page and
+deliberately not into `module_map.json`: the same bytes in every checkout do
+not belong in a byte-deterministic artifact describing a repository.
+
+Strings and comments are skipped, driven by per-language delimiters rather
+than a lexer in the page. Every known limit (Lua long brackets above level
+zero, JS template interpolation, regex literals holding comment-shaped
+bytes) costs a *missing* decoration and never a wrong one.
+
+Links are one base URL per language, no per-entry anchors; the Lua one is
+pinned to 5.1 because Neovim runs LuaJIT and the 5.4 manual actively
+misleads about `goto`, integer division and `<close>`. Anchors are supported
+by the renderer and left unfilled until someone opens them — this repository
+has a `dead-readme-link` check because that lesson was already paid for.
+
+The card is a second floating layer, which the feature's own "one card
+component" rule would forbid if the nesting were avoidable. It is not: a
+snippet renders *inside* the annotation popup, so reusing it would destroy
+the function card the reader opened. Same component, same positioning and
+flip, same dismissal.
+
+Verified by pulling the tokenizer out of the *generated page* against twelve
+inputs, and then in a real browser DOM: dwell respected (closed at 150 ms,
+open at 500 ms), the annotation popup survives underneath, Escape closes.
+
+## Source-root detection per language, and multi-root scans (2026-08-18)
+
+Two failures, found by measuring rather than reasoning, one of them total.
+
+`config.detect_source` was a Lua heuristic and nothing else. It returned
+`"lua"` for every tree it did not recognise, so `scan.lua`'s assert killed
+the run with `source directory not found: <root>/lua` — **no JavaScript
+project could be scanned at all**, despite the engine having read JS/TS
+since Phase 1. Detection is now asked of the backends, each owning its own
+heuristic and each declining rather than guessing, and neither claims a
+directory that does not hold a file it can read.
+
+Taking only the *first* answer was the quieter half of the same mistake: a
+tree with `lua/` beside `src/` mapped one half and never visited the other.
+`opts.source` now takes a list and `scan.lua` walks each root, with a
+synthetic parent node **only** when there is more than one — `ir.root` is
+one id and a dozen consumers read it as one, so giving several roots a real
+parent (the repository directory they share) is cheaper and more honest than
+teaching every consumer that "the root" is sometimes a list. A candidate
+containing another is dropped, or `lua/thing` would be walked twice.
+
+`meta.source` stays a string; `meta.sources` is emitted only when there is
+more than one, so a single-root map is byte-identical to every map generated
+before this. Verified on this repository: same source, same root, same
+counts, same node set, no depth changes.
+
+`scan.lua` gained `VENDOR_DIRS`, which a `src`-or-root `source` makes
+necessary — `.gitignore` is deliberately not consulted, since a repository
+can reasonably ignore a directory this map should still describe.
+
+## The report names what it did not look at (2026-08-18)
+
+Three fields on `ir.meta`, and the distinction between them is the design.
+`unclaimed` is extensions inside the scanned roots no backend reads;
+`outside` is files a backend *can* read sitting outside every source root;
+`claimed` is what each backend actually read.
+
+`outside` alone would be noise — a `scripts/` of Lua beside a `lua/` root is
+outside it on purpose, and this repository would have printed a line on
+every run. Joined against `claimed`, the report fires only for a language
+that has files in the tree and contributed **nothing** to the map. Nobody
+chooses that, and nothing else in the output mentions it. `unclaimed` is
+recorded and not printed: mostly READMEs, better ranked by a UI than
+repeated on every run.
+
+## `language` per node, schema 3 (2026-08-18)
+
+MULTILANG stage 3.1, brought forward because multi-root scanning made it
+visible rather than theoretical. `nil` for a grouping namespace with no
+module file — guessing from its children would make a directory holding both
+look like whichever child came first.
+
+Schema bumped rather than added silently, so absence means "this backend did
+not say" (schema 3) rather than "this artifact predates the field" (schema
+2). `diff.lua`'s tolerance is written `>= 2`, so it needed no change —
+verified against a real schema-2 artifact from this repository's history,
+through the production path (`browse.source.rehydrate` → `compare` →
+`render`), not assumed.
+
+## IR-to-artifact contract test, and the sixth field it caught (2026-08-18)
+
+`Documentation.Node` and `to_json`'s field list are maintained separately by
+hand. A field added to one and forgotten in the other gives a correct scan
+and an artifact silently missing the data — which `--check` cannot see drift
+in, and which every consumer reading `module_map.json` rather than the page
+sees as absent.
+
+`endpoints` had been missing since `core/endpoints.lua` shipped: the page
+shows routes because it encodes node tables wholesale, the artifact carried
+none. Five earlier victims are recorded in `core/render/html.lua`'s own
+payload comment thread.
+
+`TESTS/artifact_contract_spec.lua` compares the two mechanically in both
+directions, with an allowlist that has to argue for itself. It builds a
+fixture with a module *and* a leaf, because `walk_dir` builds those at two
+sites with different field sets. Verified to fail rather than assumed to
+work.
