@@ -427,3 +427,178 @@ This is a reconsideration to make explicitly with the project owner before
 re-ordering Part 2's phase list, not a silent renumbering here — Part 1's
 own "no half-finished implementations... at ten times the surface area"
 caution applies exactly as much to re-sequencing as to scope.
+
+---
+
+## Part 4 — revised stage plan, 2026-08-18
+
+Part 3 ends by asking for an explicit re-ordering decision rather than a
+silent renumbering. This part is that decision, plus three things Parts 1–3
+do not cover at all: polyglot trees, the host side (`docmap-desktop`), and
+cross-language edges.
+
+Stages are named rather than numbered from Part 2's list, because Part 2's
+"Phase 5 — C" and a stage *called* C would collide the moment the ordering
+Part 3 recommends is followed.
+
+### Stage 1 — polyglot verification (small, first, blocks everything)
+
+`scan.lua` already asks `lang_registry.for_file` per leaf (line 415) and
+`lang_registry.all()` per directory (line 310). **A mixed tree is therefore
+structurally supported today, and has never been measured.** That claim is
+exactly the kind Part 2's own closing caution says to re-verify against a
+real parse rather than take this document's word for.
+
+- [ ] Scan a real Rust+JS tree (`docmap-desktop` itself) and a Lua+TS tree.
+      The expected result is a map with JS nodes and no Rust nodes — what is
+      actually being tested is whether that happens *honestly or silently*.
+- [ ] Count files claimed by no backend, and put the count in the report.
+- [ ] `--languages` / `:DocMap languages`: registered backends, which
+      grammars loaded, unclaimed extensions with frequencies.
+- **Acceptance:** a mixed tree produces a map whose report names the half it
+  skipped. `3 812 .py files skipped, no Python backend` — the standing
+  answer to silent degradation, applied to the one place it is now most
+  likely.
+
+### Stage 2 — the host side (`docmap-desktop`), parallel
+
+Depends on Stage 1's third item only, not on any new backend, and is the one
+strand that pays off even if no further language is ever built. Tracked in
+detail in `docmap-desktop/docs/ROADMAP.md`; the engine-side half of it is one
+change:
+
+- [ ] `--capabilities` grows `languages: [{ name, grammar_loaded }]`, read off
+      the registry the same way `routes` is read off `core/api.routes` —
+      advertised without `standalone/docmap.lua` being told. Backward
+      compatible: a missing field means "older engine", the same distinction
+      `docmap-desktop`'s `server.rs` already draws for `--api`.
+
+### Stage 3 — shared seams (blocks Python, Rust, Go)
+
+Part 2's open Phase-0 items, plus two seams Parts 1–3 identify the *need* for
+without naming as work.
+
+- [ ] **3.1** `language` per node; schema version bump; verify `diff.lua`'s
+      tolerance path against a **real** old artifact from this repo's history,
+      not a synthesised one.
+- [ ] **3.2** Owning scope on `Documentation.FunctionInfo` — four customers
+      (Python classes, Rust `impl`, Go receivers, JS class methods), one
+      field.
+- [ ] **3.3** One file, many modules. Do not implement before a real
+      multi-module `.rs` exists as a fixture.
+- [ ] **3.4** Visibility as a field.
+- [ ] **3.5** **A doc-convention registry, separate from `lang_registry`.**
+      The language seam exists; the documentation seam does not. LuaCATS,
+      JSDoc and Doxygen are one family with one tag vocabulary; rustdoc and
+      godoc are prose with none. Modelled as a second registry, three
+      languages share one parser and two need none — instead of five
+      implementations, or worse, invented `@param` recognition in prose that
+      was never structured that way. **The decision about where this seam
+      sits has to be made before Rust, not during it.**
+- [ ] **3.6** **Check profiles.** Each check declares which doc convention it
+      requires; a check with no applicable convention reports *not
+      applicable* rather than passing. Without this, the first tagless
+      language produces a wall of false findings on its first run, and the
+      only available response is disabling the check globally. See
+      [`I18N.md`](I18N.md) Part 5 — that plan rewrites the same `add()`
+      function, and the two changes must land in one pass.
+- [ ] **3.7** Real per-language sample trees in CI. Not optional; this is the
+      only thing that would have caught `core/plugins.lua`'s 235 false
+      positives.
+- [ ] **3.8** Write the cross-backend layer rule (`core.lang.x` must not
+      require `core.lang.y`) — possible as soon as a second prefix exists.
+- **Acceptance:** Lua and the three ECMA grammars produce byte-identical maps
+  to before, except for the fields deliberately added.
+
+### Stage 4 — next backend: C, ahead of Python
+
+Following Part 3's revised recommendation rather than Part 2's original
+order. C needs none of 3.2/3.3, so like JS/TS it can land beside Stage 3
+rather than behind it, proving the backend interface a second time on a
+second grammar family before the riskier IR surgery is touched. Doxygen is
+where LuaCATS's vocabulary descends from, so it is also the first real
+customer of 3.5.
+
+Open question Part 2 already flags and this stage must answer first: a `.h`
+prototype and its `.c` body are two nodes for one function, and there is no
+module system to key `Documentation.Node.module` on. Decide both before
+writing the extractor.
+
+### Stage 5 — Python
+
+The first backend that actually exercises 3.2, and the hardest test of 3.5: a
+docstring is a runtime string literal, not a comment block, and three styles
+(reST/Google/NumPy) coexist. Style detection per file with
+`opts.lang.python.docstring_style` as an override; report "unknown" rather
+than guess. Decide whether decorators are metadata on `FunctionInfo` or a
+check's concern **before** the extractor, not after. Analysis panel:
+decorators, the same shape as the existing React-hooks panel.
+
+- **Acceptance:** a real Python repository — not fixtures — produces a map
+  whose doc coverage survives a manual spot check, with all three docstring
+  styles each verified against real code.
+
+### Stage 6 — Rust
+
+3.3's real test (`mod x { … }`, declared by the parent), 3.2's second, and
+3.5's first prose-convention customer: `missing-summary` applies, the
+param-shaped checks report *not applicable*. Panel: `impl`/traits, `unsafe`
+blocks.
+
+- **Acceptance:** `docmap-desktop/src-tauri` maps itself correctly.
+
+### Stage 7 — cross-language bridges
+
+Only meaningful here: after Stage 6, `docmap-desktop` is the first codebase
+whose halves are *both* mapped — and the seam between them the obvious
+remaining blind spot. Both graphs stop at the process boundary today.
+
+- [ ] A `bridge` edge kind in `ir.edges`, parallel to `require`/`call`/
+      `type`/`extends`.
+- [ ] First recognizer, Tauri: `#[tauri::command] fn name` ↔ `invoke("name")`.
+      Name-based, therefore fallible — exact matches only, near-matches are
+      never guessed. The same position `calls.lua` already takes on computed
+      targets.
+- [ ] Rendering: its own edge kind in Deps and Calls, toggleable.
+- [ ] `bridge-orphan`: a command nothing invokes, an `invoke` with no
+      counterpart. Real bugs that nothing in this ecosystem can currently see.
+- **Acceptance:** every `#[tauri::command]` in `docmap-desktop`'s
+  `src-tauri/src/main.rs` finds its caller in `src/main.js`, against a hand
+  count.
+
+**The honest risk, recorded before building:** this is the stage most likely
+to invent meaning where there is only a matching string. If exact-match-only
+turns out to under-report badly on a real codebase, the answer is to report
+less, not to loosen the match.
+
+### Stage 8 — Go, and C++ if ever
+
+Unchanged from Part 2's Phase 4 and Part 3's table, with one precondition
+added: **not before 3.6 exists.** Go replaces six checks with one, which is
+survivable as a profile and indefensible as a wall of false findings. Ask
+once more at that point whether a map with almost no drift checks is still
+this product or just a diagram — Part 1's question, still unanswered because
+it cannot be answered until 3.6 makes the trade visible.
+
+### Ordering
+
+```
+Stage 1 (polyglot verification)
+├─ Stage 2 (host capabilities)            <- independently useful, parallel
+├─ Stage 4 (C)                            <- needs none of Stage 3's hard items
+└─ Stage 3 (shared seams)
+   └─ Stage 5 (Python)
+      └─ Stage 6 (Rust)
+         └─ Stage 7 (bridges)
+            └─ Stage 8 (Go)
+```
+
+One language at a time still holds — Stage 4 running beside Stage 3 is not
+two languages at once, it is one language beside infrastructure it does not
+depend on, which is the same shape Phase 1 already proved.
+
+### The other axis, for the record
+
+`docs/ROADMAP/IDEAS/I18N.md` plans the languages this tool *speaks* — tab
+labels, findings, health output, the desktop app's buttons. Independent of
+everything above except 3.6, as its own Part 5 records.
