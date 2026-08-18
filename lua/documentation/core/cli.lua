@@ -35,6 +35,30 @@ local function report(findings)
   return tally
 end
 
+---Write `findings` as SARIF to `path`, when one was asked for.
+---
+---A failure to write is reported and does not change the exit code: the
+---drift verdict is what the run is *for*, and losing a machine-readable copy
+---of it must not turn a passing tree into a failing build.
+---@param path string?
+---@param ir Documentation.IR
+---@param findings Documentation.Finding[]
+---@param opts Documentation.Opts
+local function write_sarif(path, ir, findings, opts)
+  if not path or path == "" then
+    return
+  end
+  local body = require("documentation.core.render.sarif").render(ir, findings, opts)
+  local fd, err = io.open(path, "w")
+  if not fd then
+    io.stderr:write(("could not write %s: %s\n"):format(path, tostring(err)))
+    return
+  end
+  fd:write(body)
+  fd:close()
+  io.stdout:write("wrote " .. path .. "\n")
+end
+
 ---Run the CLI over `opts` with `argv` (`_G.arg`-shaped: `--check`, `--lenient`,
 ---`--full`). Writes to stdout/stderr as a side effect; returns the process
 ---exit code rather than calling `os.exit`/`vim.cmd("cq ...")`, so the caller
@@ -47,6 +71,8 @@ function M.run(opts, argv)
   local root = opts.root:gsub("\\", "/"):gsub("/+$", "")
 
   local check_only, strict = false, true
+  ---@type string?
+  local sarif_path = nil
   for _, a in ipairs(argv) do
     if a == "--check" then
       check_only = true
@@ -54,6 +80,10 @@ function M.run(opts, argv)
       strict = false
     elseif a == "--full" then
       opts.luals = true
+    elseif a:match("^%-%-sarif=") then
+      -- A path rather than stdout: the report already owns stdout, and a CI
+      -- step wants a file to hand to `upload-sarif` anyway.
+      sarif_path = a:sub(#"--sarif=" + 1)
     end
   end
 
@@ -91,6 +121,7 @@ function M.run(opts, argv)
       return 1
     end
 
+    write_sarif(sarif_path, ir, findings, opts)
     local tally = report(findings)
 
     if tally.error > 0 then
@@ -193,6 +224,7 @@ function M.run(opts, argv)
       )
     )
   end
+  write_sarif(sarif_path, ir, findings, opts)
   local tally = report(findings)
   return (strict and tally.error > 0) and 1 or 0
 end
