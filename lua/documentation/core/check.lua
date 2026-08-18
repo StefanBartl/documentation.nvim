@@ -700,6 +700,118 @@ local function check_examples(ir, findings)
   end
 end
 
+---A consumer requires something under this library's namespace that this
+---library does not have.
+---
+---The check half of `docs/ROADMAP/IDEAS/IDEAS.md` §1.7, and the *only* half
+---that can honestly be a check.
+---
+---## Why the obvious one was not built
+---
+---"A module no consumer requires" is the finding this section invites, and it
+---cannot be an assertion. `core/consumers.lua`'s own header says why: the
+---number is a floor, not a fact — a project not in the set, a map not
+---regenerated since its last require was added, and a user who never
+---committed a map are all invisible and all normal. Against `lib.nvim` it
+---would raise 33 findings today, nearly all of them wrong, and a check whose
+---premise is "I may not have seen all your consumers" is a check nobody can
+---act on. It stays a report, where the caveat can be read.
+---
+---This direction has no such problem. A consumer's map says, in writing,
+---that it requires `lib.nvim.thing`; if the library has no such module, that
+---is a positive claim about data that exists. Two explanations, both worth
+---knowing and both named in the message: the consumer is broken right now, or
+---its map predates a rename it has already followed in code.
+---
+---`warn`, not `error`. The stale-map explanation is real and common, and a
+---library failing its own CI because a downstream project has not
+---regenerated would make this the check people disable rather than the one
+---they read.
+---
+---**Inert unless `opts.consumers` names a directory.** Most projects are not
+---libraries with a knowable consumer set, and a check that silently reads
+---whatever happens to sit beside a checkout would be guessing at the most
+---important input it has.
+---
+---Measured before it shipped: 29 sibling maps, 0 broken references. A check
+---that fires on a healthy ecosystem is a check people turn off, so knowing
+---the floor is zero mattered more than knowing it works on a fixture.
+---@param ir Documentation.IR
+---@param findings Documentation.Finding[]
+---@param opts Documentation.Opts
+local function check_consumer_requires(ir, findings, opts)
+  local dir = opts.consumers
+  if not dir or dir == "" then
+    return
+  end
+
+  local consumers = require("documentation.core.consumers")
+  local root = (tostring(opts.root):gsub("\\", "/"):gsub("/+$", ""))
+  local maps = consumers.load((tostring(dir):gsub("\\", "/"):gsub("/+$", "")), root)
+  if #maps == 0 then
+    return
+  end
+
+  local namespaces = consumers.namespaces(ir)
+  local mine = {}
+  for _, id in ipairs(ir.order) do
+    local module = ir.nodes[id].module
+    if module then
+      mine[module] = true
+    end
+  end
+
+  ---@type table<string, string[]>
+  local broken = {}
+  local order = {}
+  for _, map in ipairs(maps) do
+    for _, id in ipairs(map.ir.order or {}) do
+      local node = map.ir.nodes[id]
+      for _, ext in ipairs((node and node.requires_external) or {}) do
+        -- Only under a namespace this library owns. A consumer requiring
+        -- `plenary.async` or `vim.fn` is not this library's business, and
+        -- reporting every foreign require would bury the one that matters.
+        local ns = ext:match("^([^.]+)") or ext
+        if namespaces[ns] and not mine[ext] then
+          if not broken[ext] then
+            broken[ext] = {}
+            order[#order + 1] = ext
+          end
+          local who = broken[ext]
+          -- A set by construction: one consumer requiring the same missing
+          -- module from six of its files is one broken consumer.
+          local seen = false
+          for _, name in ipairs(who) do
+            if name == map.name then
+              seen = true
+              break
+            end
+          end
+          if not seen then
+            who[#who + 1] = map.name
+          end
+        end
+      end
+    end
+  end
+
+  table.sort(order)
+  for _, module in ipairs(order) do
+    local who = broken[module]
+    table.sort(who)
+    add(
+      findings,
+      "warn",
+      "consumer-require-missing",
+      nil,
+      ("%s is required by %s but no module here declares it — either they are broken, or their map predates a rename"):format(
+        module,
+        table.concat(who, ", ")
+      )
+    )
+  end
+end
+
 local function check_require_cycles(ir, findings)
   for _, component in ipairs(M.require_cycles(ir)) do
     local names = {}
@@ -1367,6 +1479,7 @@ function M.run(ir, opts)
   check_require_cycles(ir, findings)
   check_require_not_declared(ir, findings, opts)
   check_unused_requires(ir, findings, opts)
+  check_consumer_requires(ir, findings, opts)
   check_layers(ir, findings, opts)
   check_see_targets(ir, findings)
   check_type_vs_class(ir, findings, opts)
