@@ -184,9 +184,15 @@ function M.scan_full(opts)
   if opts.luals then
     local luals = require("documentation.core.luals")
     local doc_json, err =
-      luals.run(opts.root, opts.source or "lua", { timeout_ms = opts.luals_timeout_ms })
+      -- LuaLS is given one directory, so a multi-root tree gets the
+      -- repository root rather than an arbitrary third of itself.
+      luals.run(
+        opts.root,
+        require("documentation.config").primary_source(opts) or ".",
+        { timeout_ms = opts.luals_timeout_ms }
+      )
     if doc_json then
-      luals.merge(ir, doc_json, opts.source or "lua")
+      luals.merge(ir, doc_json, require("documentation.config").primary_source(opts) or ".")
     else
       -- Enrichment failing is not a reason to fail the whole scan — everything
       -- scan() produced is still valid. Surface it as a finding instead of

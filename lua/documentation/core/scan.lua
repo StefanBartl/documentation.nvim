@@ -308,6 +308,14 @@ function M.scan(opts)
     sources[#sources + 1] = chomp(slash(entry))
   end
   local types_dir = opts.types_dir or "@types"
+  -- Excluded from the outside-the-roots count below, not from the walk: a
+  -- test tree is *declared* (`opts.tests_dir`), so skipping it is reading a
+  -- stated fact rather than guessing at a directory name. Without this, this
+  -- repository's own polyglot fixture -- three JS/TS files that exist
+  -- precisely to be scanned by a spec -- made every single run report "3
+  -- files of a language this map contains none of", which is true and is
+  -- exactly the noise the report line was designed to avoid being.
+  local tests_dir = opts.tests_dir or "TESTS"
 
   -- Resolved once per scan, not threaded through every language backend's
   -- shared `scan_file(path)` signature — that interface is common to five
@@ -655,7 +663,12 @@ function M.scan(opts)
               break
             end
           end
-          if not inside and not M.VENDOR_DIRS[e.name] and e.name ~= types_dir then
+          if
+            not inside
+            and not M.VENDOR_DIRS[e.name]
+            and e.name ~= types_dir
+            and e.name ~= tests_dir
+          then
             stack[#stack + 1] = { abs = cur.abs .. "/" .. e.name, rel = child_rel }
           end
         else

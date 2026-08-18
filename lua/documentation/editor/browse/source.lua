@@ -81,7 +81,12 @@ function M.stale(opts)
   end
   local map_mtime = st.mtime.sec
 
-  local source_dir = M.norm_root(opts.root) .. "/" .. (opts.source or "lua")
+  -- The first root, not every one: this resolves a single directory to read
+  -- a file from, and widening it to the repository root would make an
+  -- unrelated file outside every source root look like part of the tree.
+  local source_dir = M.norm_root(opts.root)
+    .. "/"
+    .. require("documentation.config").sources(opts)[1]
   local ok, files = pcall(function()
     return require("lib.nvim.fs.collect_recursive").files(source_dir)
   end)

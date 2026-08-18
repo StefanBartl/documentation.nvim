@@ -71,7 +71,13 @@ function M.ensure_watch(root)
   end
 
   local opts = entry.opts
-  local source_dir = root .. "/" .. (opts.source or "lua")
+  -- Every source root, not one: this decides whether a buffer belongs to the
+  -- tree, and with `lua/` beside `src/` a single directory would silently
+  -- stop watching half of it.
+  local source_dirs = {}
+  for _, src in ipairs(require("documentation.config").sources(opts)) do
+    source_dirs[#source_dirs + 1] = root .. "/" .. src
+  end
   local is_subpath = require("lib.nvim.fs.is_subpath")
   -- Raw nvim_create_augroup on purpose, not autocmd.group(): uninstall()
   -- below deletes this group by numeric id (nvim_del_augroup_by_id), which
@@ -94,7 +100,16 @@ function M.ensure_watch(root)
   -- instead of trusting the glob engine with directory structure.
   autocmd.create({ "BufWritePost" }, function(args)
     local buf_path = vim.api.nvim_buf_get_name(args.buf)
-    if buf_path ~= "" and is_subpath(buf_path, source_dir) then
+    local in_tree = false
+    if buf_path ~= "" then
+      for _, dir in ipairs(source_dirs) do
+        if is_subpath(buf_path, dir) then
+          in_tree = true
+          break
+        end
+      end
+    end
+    if in_tree then
       debounce.call()
     end
   end, {
@@ -132,20 +147,35 @@ function M.ensure_callhierarchy(root)
   end
 
   local opts = entry.opts
-  local source_dir = root .. "/" .. (opts.source or "lua")
+  -- Every source root, not one: this decides whether a buffer belongs to the
+  -- tree, and with `lua/` beside `src/` a single directory would silently
+  -- stop watching half of it.
+  local source_dirs = {}
+  for _, src in ipairs(require("documentation.config").sources(opts)) do
+    source_dirs[#source_dirs + 1] = root .. "/" .. src
+  end
   local is_subpath = require("lib.nvim.fs.is_subpath")
   local callhierarchy = require("documentation.editor.callhierarchy")
 
   local group = vim.api.nvim_create_augroup("LibDocmapCallHierarchy:" .. root, { clear = true })
   -- BufReadPost/BufNewFile, not FileType: a buffer can be `lua`-filetyped
   -- before its name is set (a `:enew` later saved as `.lua`), and the path
-  -- check below needs a real name to compare against `source_dir`. Both
+  -- check below needs a real name to compare against `source_dirs`. Both
   -- events fire with the buffer name already in place for the cases that
   -- matter here — an existing file being opened, or a new one being
   -- written for the first time.
   autocmd.create({ "BufReadPost", "BufNewFile" }, function(args)
     local buf_path = vim.api.nvim_buf_get_name(args.buf)
-    if buf_path ~= "" and is_subpath(buf_path, source_dir) then
+    local in_tree = false
+    if buf_path ~= "" then
+      for _, dir in ipairs(source_dirs) do
+        if is_subpath(buf_path, dir) then
+          in_tree = true
+          break
+        end
+      end
+    end
+    if in_tree then
       -- `entry.handle` is read here, not captured — at the time this
       -- function is *defined* (inside `install()`, before the handle table
       -- exists yet), it would be nil; by the time an autocmd actually
@@ -188,7 +218,13 @@ function M.ensure_diagnostics(root)
   end
 
   local opts = entry.opts
-  local source_dir = root .. "/" .. (opts.source or "lua")
+  -- Every source root, not one: this decides whether a buffer belongs to the
+  -- tree, and with `lua/` beside `src/` a single directory would silently
+  -- stop watching half of it.
+  local source_dirs = {}
+  for _, src in ipairs(require("documentation.config").sources(opts)) do
+    source_dirs[#source_dirs + 1] = root .. "/" .. src
+  end
   local is_subpath = require("lib.nvim.fs.is_subpath")
   local diagnostics = require("documentation.bindings.diagnostics")
 
@@ -200,7 +236,16 @@ function M.ensure_diagnostics(root)
   local group = vim.api.nvim_create_augroup("LibDocmapDiagnostics:" .. root, { clear = true })
   autocmd.create({ "BufReadPost", "BufNewFile" }, function(args)
     local buf_path = vim.api.nvim_buf_get_name(args.buf)
-    if buf_path ~= "" and is_subpath(buf_path, source_dir) then
+    local in_tree = false
+    if buf_path ~= "" then
+      for _, dir in ipairs(source_dirs) do
+        if is_subpath(buf_path, dir) then
+          in_tree = true
+          break
+        end
+      end
+    end
+    if in_tree then
       diagnostics.publish(root, entry.handle)
     end
   end, {

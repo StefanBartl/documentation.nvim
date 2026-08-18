@@ -296,21 +296,33 @@ function M.check()
   end
 
   h_info(("root      %s"):format(cfg.root))
-  h_info(("source    %s   (auto-detected; override with opts.source)"):format(cfg.source))
+  local sources = require("documentation.config").sources(cfg)
+  h_info(
+    ("source    %s   (auto-detected; override with opts.source)"):format(
+      table.concat(sources, ", ")
+    )
+  )
   h_info(("out_dir   %s"):format(cfg.out_dir))
 
-  local source_dir = cfg.root .. "/" .. cfg.source
-  if vim.fn.isdirectory(source_dir) == 0 then
-    h_error(("source directory does not exist: %s"):format(source_dir), {
-      "A :DocMap here would scan nothing and write an empty map.",
-      "Set opts.root or opts.source, or run from the repository you meant.",
-    })
-  else
-    local n = count_lua(source_dir)
-    if n == 0 then
-      h_warn(("%s contains no .lua files"):format(cfg.source))
+  -- One report per root. A tree with `lua/` beside `src/` has two answers to
+  -- "does the source directory exist and hold anything", and collapsing them
+  -- into one would hide whichever half is broken.
+  for _, src in ipairs(sources) do
+    local source_dir = cfg.root .. "/" .. src
+    if vim.fn.isdirectory(source_dir) == 0 then
+      h_error(("source directory does not exist: %s"):format(source_dir), {
+        "A :DocMap here would scan nothing and write an empty map.",
+        "Set opts.root or opts.source, or run from the repository you meant.",
+      })
     else
-      h_ok(("%s contains %d .lua file%s"):format(cfg.source, n, n == 1 and "" or "s"))
+      local n = count_lua(source_dir)
+      if n == 0 then
+        -- Not a warning for a non-Lua root: `src/` full of TypeScript is a
+        -- perfectly good source root, and this counter only knows `.lua`.
+        h_info(("%s contains no .lua files"):format(src))
+      else
+        h_ok(("%s contains %d .lua file%s"):format(src, n, n == 1 and "" or "s"))
+      end
     end
   end
 
@@ -435,7 +447,12 @@ function M.check()
       end
     end
   end
-  pcall(walk, source_dir)
+  -- Every source root. This asks "is the map older than the newest source
+  -- file"; walking only one of two roots would answer it for half the tree
+  -- and report the map fresh while the other half had moved on.
+  for _, src in ipairs(require("documentation.config").sources(cfg)) do
+    pcall(walk, cfg.root .. "/" .. src)
+  end
 
   if art_stat and newest > art_stat.mtime.sec then
     h_warn("the map is older than the newest source file", {
