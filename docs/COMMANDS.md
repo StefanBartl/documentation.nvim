@@ -141,6 +141,34 @@ Deliberately **not** wired to a `dot` binary — that would add an external
 dependency and a "dot not found" failure mode to a feature whose entire output
 is text. Yank it, `:w` it, or pipe it through `:%!dot -Tsvg`.
 
+### `:DocMap mermaid [tree|deps]`
+
+The module tree, or the require graph, as **Mermaid** source in a scratch
+buffer. The renderer already existed — `overview.md` embeds it, because
+GitHub draws mermaid fences and does not run the HTML page's JavaScript —
+this is the way to ask for it on its own. `markdown` filetype, not
+`mermaid`: the output is a fenced block, so that is what the buffer holds.
+
+### `:DocMap consumers [dir]`
+
+**Who actually uses this library.** Reads every `*/docs/map/module_map.json`
+under `dir` (the parent directory by default, where sibling checkouts live)
+and joins them against this project's own map. The join key is the module
+path: a consumer's `requires_external` holds exactly the paths its own scan
+could not resolve internally, which is what a foreign library looks like
+from inside it, so neither side needs a table of the other's names.
+
+Three answers, and the middle one is why it exists. Against `lib.nvim` and
+29 sibling maps: **107** modules required by at least one consumer, **108**
+required only by the library itself, **33** referenced by nobody. A two-way
+used/unused answer reports 141 as unused — every one of those 108 wrongly.
+
+**`unreferenced` does not mean dead.** It means no consumer among the maps
+supplied: a project not in the set, a map not regenerated since its last
+require was added, and a user who never committed a map are all invisible
+here and all perfectly normal. The report says so itself rather than leaving
+a reader to act on a number that is a floor.
+
 ### `:DocMap diff [ref]`
 
 What a revision changed about the **shape** of the tree: modules and functions
