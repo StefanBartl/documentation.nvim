@@ -58,7 +58,7 @@ even if it looks cheap.
 | 6.7 | REUSE.md recipe for "many repos, one config" | S | Low–Medium | No — depends on 6.6 |
 | 7 | Scale and performance (four items) | — | Unknown | No — not a problem yet |
 | 8.2 follow-up | Checklist trend/history data | S–M | Medium | No — needs (b) actually in use first |
-| ~~9~~ | ~~Schema versioning + payload-contract test~~ | — | — | **Built 2026-08-18** — see `FEATURES/FEATURES.md`. Its first run caught `endpoints`, missing from the artifact since `core/endpoints.lua` shipped |
+| ~~9~~ | ~~Schema versioning + payload-contract test~~ | — | — | **Built 2026-08-18**, both halves — `ir` against `to_json` and `ir` against `html.lua`'s payload list. The first run of the first half caught `endpoints`, missing from the artifact since `core/endpoints.lua` shipped |
 
 ---
 

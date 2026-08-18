@@ -150,10 +150,11 @@ that comment. The test's first run found the sixth without anyone looking:
 shipped, invisible because the *page* encodes node tables wholesale and so
 showed routes the artifact never carried.
 
-**One half of §9 is still open:** the same contract between `ir` and
-`html.lua`'s payload field list. `TESTS/artifact_contract_spec.lua` covers
-`ir` against `to_json` only — the payload list that produced four of the six
-victims is still unchecked.
+**Both halves of §9 are now built.** `TESTS/artifact_contract_spec.lua`
+covers `ir` against `to_json`; `TESTS/payload_contract_spec.lua` covers `ir`
+against `html.lua`'s payload list — the half the trap actually lived in, and
+the one that swallowed four of the six victims. Each was verified by
+deleting a field and watching it fail, rather than by passing.
 
 **Every quick win in that list is now closed**, one of them by discovering it
 had shipped already. What is left in `IDEAS.md` is the work that was never
