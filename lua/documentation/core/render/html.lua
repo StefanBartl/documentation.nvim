@@ -191,6 +191,17 @@ main{grid-template-columns:minmax(300px,1.1fr) minmax(0,1.4fr);gap:0;align-items
 .lb-n{margin-left:5px;opacity:.65}
 .lb-clear{font-size:11px;padding:2px 7px;border-radius:11px;border:1px dashed var(--line);
   background:transparent;color:var(--muted);cursor:pointer}
+/* In the Hierarchy control row the bar is one control among several, not a
+   band across the top: no border, no padding of its own. */
+.langbar-h{border-bottom:none;padding:0}
+/* Filtered out by language. Same opacity as the right-click dim above and a
+   separate class on purpose -- a box the reader dimmed by hand must stay
+   dimmed when the language filter clears, and the reverse. The
+   `#hgraph.focusing` overrides repeat for the same reason they do there:
+   equal specificity, decided by source order. */
+.hnode.langoff{opacity:.08;pointer-events:none}
+#hgraph.focusing .hnode.langoff{opacity:.08}
+#hgraph.focusing .hnode.langoff.near{opacity:.08}
 /* The keyword card: the same component as .sigpop, one layer above it,
    because a snippet is rendered *inside* .sigpop and its triggers therefore
    cannot borrow it. Narrower, because the content is two sentences. */
@@ -866,6 +877,10 @@ local JS = [[
   // on every tab but Hierarchy (`hboxes` is empty until drawHierarchy runs
   // at least once), which is why this is safe to call unconditionally from
   // applyState alongside syncMarks rather than gated on `state.tab`.
+  // Boxes are created and destroyed by `reconcile()` on every redraw, so a
+  // class set once does not survive a view switch or a re-centre. Painted
+  // alongside `syncHidden` for exactly that reason -- same problem, same
+  // solution, same call sites.
   function syncHidden(){
     Object.keys(hboxes).forEach(function(key){
       hboxes[key].classList.toggle("hidden", isHidden(key));
@@ -937,6 +952,7 @@ local JS = [[
     state.hidden.sort();
     saveHidden(state.hidden);
     syncHidden();
+    syncLangFilter();
     history.replaceState(state, "", serializeState(state));
   }
 
@@ -945,6 +961,7 @@ local JS = [[
     state.hidden = [];
     saveHidden(state.hidden);
     syncHidden();
+    syncLangFilter();
     history.replaceState(state, "", serializeState(state));
   }
 
@@ -1736,6 +1753,7 @@ local JS = [[
     // replaced.
     syncMarks();
     syncHidden();
+    syncLangFilter();
     syncGraphControls(s);
     syncSearchBox(s);
 
@@ -6323,7 +6341,12 @@ local JS = [[
   // polyglot tree and never in any other tree; a filter answers it without
   // putting a marker on all ninety of them.
   // =====================================================================
-  var langBar = document.getElementById("langbar");
+  // Two elements, one state. The Tree and the Hierarchy live in separate
+  // view containers, so a single shared bar would either sit above every
+  // tab (including the ones it means nothing for) or be absent from one of
+  // the two. Two elements painted by one function keeps the filter itself
+  // single -- switching tabs never changes what is filtered.
+  var langBars = [document.getElementById("langbar"), document.getElementById("langbar-h")];
   var activeLangs = null; // null = no filter; otherwise a set of names
 
   function languageCounts(){
@@ -6394,9 +6417,63 @@ local JS = [[
     if(v) treeEl.querySelectorAll(".kids").forEach(function(k){ k.classList.remove("hide"); });
   }
 
+  // Which language a Hierarchy box belongs to, or `null` for "cannot say".
+  //
+  // `hboxes` keys are not all node ids — `boxSpec` resolves four kinds: a
+  // node id, an `ext:<module>` box for something outside this map, a class
+  // name (Types/Inheritance), and an `fnKey` (Calls). Only two of the four
+  // can answer, and the other two are answered honestly rather than guessed:
+  //
+  //   * `ext:` is by definition not part of this map, so it has no language
+  //     *here*, whatever it is written in.
+  //   * A class name comes from LuaLS enrichment, which is Lua-only today —
+  //     but saying "therefore Lua" would be inferring a fact from the
+  //     limitations of a tool rather than from the tree.
+  //
+  // A box that cannot say is never filtered out. Hiding boxes on the strength
+  // of a guess is how a graph starts lying about its own shape.
+  function languagesOfBoxKey(key){
+    if(key.indexOf("ext:") === 0) return null;
+    if(byId[key]) return subtreeLanguages(key);
+    var entry = fnByKey[key];
+    if(entry && entry.node && entry.node.language){
+      var one = {};
+      one[entry.node.language] = true;
+      return one;
+    }
+    return null;
+  }
+
+  // Dim, never remove.
+  //
+  // The Tree view hides filtered rows because a list with gaps is still a
+  // list. A graph is not: taking boxes out re-flows every remaining one and
+  // can disconnect the picture, so the reader loses the shape they were
+  // looking at in order to ask a question about part of it. This is the same
+  // reasoning — and deliberately the same opacity — as the right-click
+  // hide/dim above, kept on its own class so the two never fight over one:
+  // a box the reader dimmed by hand must stay dimmed when the language
+  // filter clears, and vice versa.
+  function syncLangFilter(){
+    Object.keys(hboxes).forEach(function(key){
+      var off = false;
+      if(activeLangs){
+        var langs = languagesOfBoxKey(key);
+        if(langs){
+          off = true;
+          for(var k in langs){ if(activeLangs[k]){ off = false; break; } }
+        }
+      }
+      hboxes[key].classList.toggle("langoff", off);
+    });
+  }
+
   function renderLangBar(){
     var info = languageCounts();
-    if(info.order.length < 2){ langBar.hidden = true; return; }
+    if(info.order.length < 2){
+      langBars.forEach(function(bar){ if(bar) bar.hidden = true; });
+      return;
+    }
 
     var h = ['<span class="lb-label">Languages</span>'];
     info.order.forEach(function(name){
@@ -6408,13 +6485,18 @@ local JS = [[
     if(activeLangs){
       h.push('<button type="button" class="lb-clear" data-lang-clear="1">show all</button>');
     }
-    langBar.innerHTML = h.join("");
-    langBar.hidden = false;
+    langBars.forEach(function(bar){
+      if(!bar) return;
+      bar.innerHTML = h.join("");
+      bar.hidden = false;
+    });
   }
 
-  langBar.addEventListener("click", function(ev){
+  langBars.forEach(function(bar){ if(bar) bar.addEventListener("click", onLangBarClick); });
+
+  function onLangBarClick(ev){
     var clear = ev.target.closest && ev.target.closest("[data-lang-clear]");
-    if(clear){ activeLangs = null; renderLangBar(); applyTreeFilter(); return; }
+    if(clear){ activeLangs = null; renderLangBar(); applyLangFilter(); return; }
     var chip = ev.target.closest && ev.target.closest("[data-lang]");
     if(!chip) return;
     var name = chip.dataset.lang;
@@ -6436,8 +6518,15 @@ local JS = [[
       activeLangs[name] = true;
     }
     renderLangBar();
+    applyLangFilter();
+  }
+
+  ///Both surfaces the filter reaches, in one call, so a chip click cannot
+  ///update one and leave the other showing a stale selection.
+  function applyLangFilter(){
     applyTreeFilter();
-  });
+    syncLangFilter();
+  }
 
   // Drawn at load, not on first interaction: the legend's whole job is to
   // tell a reader the map holds more than one language before they wonder.
@@ -7697,6 +7786,10 @@ function M.render(ir, findings, opts)
     -- Right-click a box to dim/show it — see the context menu. This pill
     -- only says how many are dimmed right now and clears all of them,
     -- mirroring #markbar's own role for Compare marks.
+    -- The language legend again, same state as the Tree tab's. Inline in the
+    -- control row rather than a band above the graph: the graph area is the
+    -- scarce space here, and this is a control among controls.
+    '<span id="langbar-h" class="langbar langbar-h" hidden></span>',
     '<button id="hiddenbar" class="markbar" hidden></button>',
     '<span class="hpath" id="hpath"></span>',
     "</div>",
