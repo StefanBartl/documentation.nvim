@@ -470,21 +470,34 @@ could be pointed at it. Fixed by asking the backends (each owns its own
 heuristic, each declines rather than guessing) and by giving the walk the
 vendored-directory skip list a `src`-or-root `source` makes necessary.
 
-**What remains genuinely open is the mixed tree, and it is a design
-question rather than a bug.** `source` is *one* directory. A repository with
-`lua/` and `src/` resolves to whichever backend answers first — verified:
-a Lua+JS+TS fixture produced one Lua module and never looked at `src/`. Two
-honest options, neither cheap:
+**The mixed tree is closed too, the expensive way.** `source` was one
+directory, so a repository with `lua/` beside `src/` mapped whichever
+backend answered first and said nothing about the other — verified against a
+Lua+JS+TS fixture: one Lua module, `src/` never visited. `opts.source` now
+takes a list, `config.detect_source` collects every backend's answer instead
+of the first, and `scan.lua` walks each root.
 
-- `source` becomes a list, and every consumer that treats it as a single
-  path (`out_depth`, the root node, `check.expected_module`) learns to
-  handle several roots.
-- Detection stays single-rooted and the *report* says what it skipped,
-  which is this stage's acceptance criterion above and is strictly less
-  useful than mapping both halves.
+Two decisions inside that, both about not breaking what already works:
 
-Decide before Stage 4, because a C backend lands in exactly this shape:
-`src/` beside `include/`, in the same repository, with no Lua anywhere.
+- **A synthetic parent node, only when there is more than one root.**
+  `ir.root` is one id and a dozen consumers read it as one (the tree view
+  renders from it, the hierarchy centres on it, `check.lua` exempts it).
+  Giving several roots a real parent — the repository directory they
+  actually share — is cheaper and more honest than teaching every consumer
+  that "the root" is sometimes a list. With one root there is no wrapper at
+  all, so no existing map gains a meaningless "repository" node or shifts
+  every node's depth by one.
+- **A candidate containing another is dropped.** Lua answering `lua/thing`
+  while ECMA falls back to the repository root for a stray `.js` would walk
+  `lua/thing` twice and duplicate every node in it. The narrower answer
+  wins: that loses the stray file and keeps the map correct, where the
+  alternative loses nothing and breaks the map.
+
+`meta.source` stays a string (the shared root when there are several);
+`meta.sources` lists them and is emitted *only* when there is more than one,
+so a single-root map is byte-identical to the ones generated before this.
+Verified on this repository: same source, same root, same counts, same node
+set, no depth changes.
 
 ### Stage 2 — the host side (`docmap-desktop`), parallel
 

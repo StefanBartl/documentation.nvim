@@ -296,8 +296,17 @@ end
 ---@return Documentation.IR
 function M.scan(opts)
   local root = chomp(slash(opts.root))
-  local source = chomp(slash(opts.source or "lua"))
-  local abs_source = root .. "/" .. source
+  -- `opts.source` is one directory or several. One is the overwhelmingly
+  -- common case and stays exactly what it was; several exist because a
+  -- repository can hold two languages in two places (`lua/` beside `src/`,
+  -- or C's `src/` beside `include/`), and a single starting directory means
+  -- the walk never *sees* the other one -- not skips it, never visits it,
+  -- and says nothing about it either. See `docs/ROADMAP/IDEAS/MULTILANG.md`
+  -- Stage 1 for the measurement that forced this.
+  local sources = {}
+  for _, entry in ipairs(type(opts.source) == "table" and opts.source or { opts.source or "lua" }) do
+    sources[#sources + 1] = chomp(slash(entry))
+  end
   local types_dir = opts.types_dir or "@types"
 
   -- Resolved once per scan, not threaded through every language backend's
@@ -320,7 +329,9 @@ function M.scan(opts)
   require("documentation.core.bindings").WRAPPERS = (opts.bindings and opts.bindings.wrappers)
     or require("documentation.core.bindings").DEFAULT_WRAPPERS
 
-  assert(is_dir(abs_source), "docmap: source directory not found: " .. abs_source)
+  for _, src in ipairs(sources) do
+    assert(is_dir(root .. "/" .. src), "docmap: source directory not found: " .. root .. "/" .. src)
+  end
 
   local index = {} ---@type table<string, Documentation.Node>
   local order = {} ---@type string[]
@@ -505,14 +516,83 @@ function M.scan(opts)
     return id
   end
 
-  local root_id = walk_dir(abs_source, source, nil, 0)
+  -- One source root is still one tree, byte-for-byte as before: no synthetic
+  -- node, no extra depth, the module itself is the root of the map. The
+  -- alternative -- always wrapping, for uniformity -- would put a
+  -- meaningless "repository" node above every existing map and shift every
+  -- node id's depth by one, which is a breaking change to buy tidiness in a
+  -- branch most trees never take.
+  local root_id
+  if #sources == 1 then
+    root_id = walk_dir(root .. "/" .. sources[1], sources[1], nil, 0)
+  else
+    -- Several roots need something above them, because `ir.root` is one id
+    -- and every consumer reads it as one: the tree view renders from it, the
+    -- hierarchy centres on it, `check.lua` exempts it. Giving them a real
+    -- parent is cheaper and more honest than teaching a dozen consumers that
+    -- "the root" is sometimes a list -- and the parent is not invented, it
+    -- is the repository directory these subtrees actually sit in.
+    root_id = "."
+    counts.namespace = counts.namespace + 1
+    ---@type Documentation.Node
+    index[root_id] = {
+      id = root_id,
+      kind = "namespace",
+      name = opts.title or (root:match("([^/]+)$") or root),
+      path = root_id,
+      -- No `source`/`module`/`functions`: this directory is not a module and
+      -- claiming otherwise would put a node in the map that answers to
+      -- nothing on disk. What it does carry is the repository's own README,
+      -- which is real and is the one thing a reader landing here wants.
+      summary = "",
+      body = "",
+      readme = is_file(root .. "/README.md") and "README.md" or nil,
+      types = {},
+      parent = nil,
+      depth = 0,
+      children = {},
+      functions = {},
+      symbols = {},
+      plugins = {},
+      endpoints = {},
+      bindings = {},
+      stats = (function()
+        local z = zero_stats()
+        z.namespaces = 1
+        return z
+      end)(),
+      requires = {},
+      required_by = {},
+      requires_external = {},
+      calls_external = {},
+      requires_raw = {},
+      calls_raw = {},
+    }
+    -- Pushed before the walk so the reverse-`order` stats rollup below still
+    -- sees every child after its parent, which is the invariant that makes
+    -- that loop a valid post-order.
+    order[#order + 1] = root_id
+    for _, src in ipairs(sources) do
+      index[root_id].children[#index[root_id].children + 1] =
+        walk_dir(root .. "/" .. src, src, root_id, 1)
+    end
+  end
   index[root_id].name = opts.title or index[root_id].name
 
   ---@type Documentation.IR
   local ir = {
     meta = {
-      title = opts.title or source,
-      source = source,
+      title = opts.title or (#sources == 1 and sources[1] or index[root_id].name),
+      -- Stays a string, always: nothing reads it, and a field that is
+      -- sometimes a string and sometimes a list is worse than one that is
+      -- always the honest single answer -- with several roots the scan
+      -- really did start at the repository directory.
+      source = #sources == 1 and sources[1] or root_id,
+      -- Emitted only when there is more than one, so a single-root map is
+      -- byte-identical to the maps every existing user already has. Its
+      -- absence is not ambiguous: it means `source` alone describes the
+      -- scan, which is exactly what it did before this field existed.
+      sources = #sources > 1 and sources or nil,
       types_dir = types_dir,
       repo_url = opts.repo_url,
       branch = opts.branch or "main",
