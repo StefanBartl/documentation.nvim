@@ -460,6 +460,32 @@ real parse rather than take this document's word for.
   answer to silent degradation, applied to the one place it is now most
   likely.
 
+**Measured 2026-08-18, and the walk was the wrong thing to doubt.** The
+per-file dispatch is fine. What failed was one step earlier:
+`config.detect_source` was a Lua heuristic and nothing else, returning
+`"lua"` for any tree it did not recognise, so a three-file JS/TS repository
+died on `scan.lua`'s own assert — `source directory not found: <root>/lua`.
+The engine has read JavaScript since Phase 1 and no JavaScript repository
+could be pointed at it. Fixed by asking the backends (each owns its own
+heuristic, each declines rather than guessing) and by giving the walk the
+vendored-directory skip list a `src`-or-root `source` makes necessary.
+
+**What remains genuinely open is the mixed tree, and it is a design
+question rather than a bug.** `source` is *one* directory. A repository with
+`lua/` and `src/` resolves to whichever backend answers first — verified:
+a Lua+JS+TS fixture produced one Lua module and never looked at `src/`. Two
+honest options, neither cheap:
+
+- `source` becomes a list, and every consumer that treats it as a single
+  path (`out_depth`, the root node, `check.expected_module`) learns to
+  handle several roots.
+- Detection stays single-rooted and the *report* says what it skipped,
+  which is this stage's acceptance criterion above and is strictly less
+  useful than mapping both halves.
+
+Decide before Stage 4, because a C backend lands in exactly this shape:
+`src/` beside `include/`, in the same repository, with no Lua anywhere.
+
 ### Stage 2 — the host side (`docmap-desktop`), parallel
 
 Depends on Stage 1's third item only, not on any new backend, and is the one

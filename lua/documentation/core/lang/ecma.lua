@@ -676,6 +676,42 @@ local function file_header(root, src)
   return { module = nil, summary = "", body = "", tags = {} }
 end
 
+---Conventional source roots for a JS/TS project, in the order a reader
+---would look. Not a guess: each is only accepted when it actually holds a
+---file this backend claims, so a Lua repository with a `src/` of shell
+---scripts is not mistaken for a JavaScript one.
+---@type string[]
+local ECMA_ROOTS = { "src", "lib", "app", "source" }
+
+---Does `dir` hold a file `claims` accepts, anywhere below it?
+---
+---Depth-bounded and stops at the first hit: this runs during option
+---resolution, before any scan, and "is there evidence of this language here"
+---does not need an exhaustive walk to answer. Vendored trees are skipped so
+---a `node_modules` full of JavaScript cannot make an unrelated directory
+---look like the project's own source.
+---@param dir string
+---@param claims fun(filename: string): boolean
+---@param depth integer
+---@return boolean
+local function holds_source(dir, claims, depth)
+  if depth <= 0 or vim.fn.isdirectory(dir) == 0 then
+    return false
+  end
+  for name, kind in vim.fs.dir(dir) do
+    if kind == "file" then
+      if claims(name) then
+        return true
+      end
+    elseif kind == "directory" and not require("documentation.core.scan").VENDOR_DIRS[name] then
+      if holds_source(dir .. "/" .. name, claims, depth - 1) then
+        return true
+      end
+    end
+  end
+  return false
+end
+
 ---Build one backend table for `lang` (a `vim.treesitter` language name),
 ---registered under `name` for the given extensions.
 ---@param name string
@@ -687,6 +723,11 @@ function M.backend(name, lang, extensions, module_file)
   local ext_set = {}
   for _, e in ipairs(extensions) do
     ext_set[e] = true
+  end
+
+  local function is_source(filename)
+    local ext = filename:match("%.([%w]+)$")
+    return ext ~= nil and ext_set[ext] == true
   end
 
   return {
@@ -702,9 +743,25 @@ function M.backend(name, lang, extensions, module_file)
     glossary = require("documentation.core.lang.glossary.ecma"),
     module_file = module_file,
     module_tag = false,
-    is_source = function(filename)
-      local ext = filename:match("%.([%w]+)$")
-      return ext ~= nil and ext_set[ext] == true
+    is_source = is_source,
+    ---`nil` unless one of the conventional roots actually holds a file this
+    ---backend claims — see `Documentation.LangBackend.detect_source` on why
+    ---answering unconditionally is the bug rather than the feature.
+    ---
+    ---Falls back to the repository root itself when a file this backend
+    ---claims sits directly in it, which is the shape of a small package with
+    ---no `src/`. Last resort rather than first guess: scanning from the root
+    ---pulls in everything the walk does not skip.
+    detect_source = function(root)
+      for _, candidate in ipairs(ECMA_ROOTS) do
+        if holds_source(root .. "/" .. candidate, is_source, 6) then
+          return candidate
+        end
+      end
+      if holds_source(root, is_source, 1) then
+        return "."
+      end
+      return nil
     end,
     parse_header = function(path)
       local fd = io.open(path, "rb")

@@ -74,37 +74,40 @@ local KNOWN_OPTS_KEYS = {
   generate_all = true,
 }
 
----Directory names under `lua/` that are never a plugin's own source root.
----@type table<string, true>
-local NOT_SOURCE = { ["@types"] = true, spec = true, tests = true }
-
----Guess `source` for `root`: `lua/<single subdirectory>` when `lua/` holds
----exactly one candidate directory, otherwise plain `lua`.
+---Where `root`'s sources live, asked of the language backends rather than
+---assumed.
 ---
----Neovim plugins almost always have exactly that shape (`lua/documentation`,
----`lua/telescope`, …), and scanning `lua` itself instead would put a
----meaningless extra root node above every real module. When the shape is not
----that — several directories, or none — `lua` is the honest answer rather than
----picking one of several arbitrarily.
+---**This function used to be a Lua heuristic and nothing else**, and that
+---was a hard failure rather than a limitation: it returned `"lua"` for every
+---tree it did not recognise, including trees with no `lua/` directory at
+---all, so `scan.lua`'s own `assert` killed the run with
+---`source directory not found: <root>/lua`. Measured against a three-file
+---JavaScript project, not reasoned about — the engine reads JS/TS, and a
+---JavaScript repository could not be scanned at all.
+---
+---Each backend answers for itself or declines (`nil`); first answer in
+---registration order wins. The heuristics moved with the answers:
+---`core/lang/lua.lua` still owns `lua/<plugin>`, `core/lang/ecma.lua` owns
+---`src`/`lib`/`app` — and neither claims a directory that does not actually
+---hold a file it can read, so a Lua repository with a `src/` full of shell
+---scripts is not mistaken for a JavaScript one.
+---
+---`"."` when nothing answers: the repository root, which always exists.
+---An honest empty map for a tree this tool cannot read beats an assertion
+---naming a directory the user never had — and `scan.lua`'s `VENDOR_DIRS`
+---is what keeps that fallback from walking into `node_modules`.
 ---@param root string Absolute repository root, forward slashes.
 ---@return string source Relative to `root`.
 function M.detect_source(root)
-  local lua_dir = root .. "/lua"
-  if vim.fn.isdirectory(lua_dir) == 0 then
-    return "lua"
-  end
-
-  local found
-  for name, kind in vim.fs.dir(lua_dir) do
-    if kind == "directory" and not NOT_SOURCE[name] then
-      if found then
-        return "lua" -- more than one candidate: do not guess
+  for _, backend in ipairs(require("documentation.core.lang_registry").all()) do
+    if backend.detect_source then
+      local guess = backend.detect_source(root)
+      if guess then
+        return guess
       end
-      found = name
     end
   end
-
-  return found and ("lua/" .. found) or "lua"
+  return "."
 end
 
 ---Build a full `Documentation.Opts` for `root`, with `overrides` winning over
