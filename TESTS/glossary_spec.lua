@@ -20,7 +20,10 @@ return function(H)
       table.sort(exts)
       return table.concat(exts, ",")
     end)(),
-    "js,lua,ts,tsx",
+    "js,jsx,lua,ts,tsx",
+    -- `jsx` appearing here is not incidental: this assertion is what noticed
+    -- `js.lua` claiming a fifth extension, which is exactly the drift a
+    -- literal list is for.
     "glossary: keyed by every extension the registered backends claim"
   )
 

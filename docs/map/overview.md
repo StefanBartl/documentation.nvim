@@ -208,20 +208,21 @@ flowchart LR
 
 ## Drift
 
-0 errors · 1 warnings · 11 info
+0 errors · 1 warnings · 12 info
 
 | Severity | Check | Message |
 |---|---|---|
 | warn | `doc-references-missing` | docs/ROADMAP/IDEAS/IDEAS.md:105 references 'documentation.core.scan.something', but documentation.core.scan has no 'something' |
 
 <details>
-<summary>11 informational findings</summary>
+<summary>12 informational findings</summary>
 
 
 | Check | Message |
 |---|---|
 | `missing-readme` | lua/documentation/mcp has no README.md |
 | `undocumented-param` | check_require_cycles has 2 parameter(s) but only 0 @param line(s) |
+| `undocumented-param` | build_fn has 6 parameter(s) but only 5 @param line(s) |
 | `undocumented-param` | complexity has 3 parameter(s) but only 2 @param line(s) |
 | `unreferenced-module` | documentation.bindings.docs is required by no other file in the tree |
 | `unreferenced-module` | documentation.core.config is required by no other file in the tree |

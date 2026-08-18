@@ -222,20 +222,28 @@ extraction, and CI now building all three grammars from source. Not
 re-detailed here — read `FEATURES.md`'s own entries for the verification
 evidence.
 
-Three real gaps left open, not yet built:
+**All three gaps are closed, 2026-08-18.** Every node shape was re-verified
+against a real parse first, as this document's own closing caution demands.
 
-- [ ] **Class-method owning-scope.** `ecma.lua` recognizes standalone
-  functions only; a method inside a `class` body has no representation
-  yet — the same Phase-0 owning-scope gap Python/Rust/Go will also need,
-  not unique to JS/TS.
-- [ ] **`.jsx` support.** Deliberately left to `js.lua` to extend (its own
-  header says so) rather than claimed by `tsx.lua`, which the `tsx`
-  grammar could technically parse — a `.jsx` file is JavaScript, not
-  TypeScript, and conflating the two here would be a wrong module
-  identity, not a shortcut.
-- [ ] **`module.exports = {...}`** (the CommonJS export-object idiom): not
-  recognized — a file using only this form contributes no functions today,
-  the same honest gap as class methods.
+- [x] ~~**Class-method owning-scope.**~~ Methods are recorded as
+  `Class.method` — the flat shape Lua already uses for `function M.foo()`,
+  needing no new IR field and touching none of `duplicates.lua`,
+  `churn.lua`, the Analysis renderers or the Calls view. **The Phase-0
+  owning-scope field is still required and this is not a substitute for
+  it**: Python's `self`-bound methods and Rust's `impl` blocks carry
+  semantics a dotted name cannot express. This is the cheap correct answer
+  for the one language where it is cheap. Accessors (`get x()`) are skipped
+  rather than given a signature that reads as callable and is not.
+- [x] ~~**`.jsx` support.**~~ Claimed by `js.lua`, exactly as `tsx.lua`'s
+  header said it should be. Verified rather than assumed: the `javascript`
+  grammar parses a real JSX component with **zero** ERROR nodes, so no
+  second grammar was needed for it.
+- [x] ~~**`module.exports = {...}`**~~ — the shorthand method form, a
+  `function` value and an arrow value, each carrying its own JSDoc. A
+  non-function property is not mistaken for one, and the indirect form
+  (`module.exports = someIdentifier`) is deliberately **not** followed:
+  tracing an identifier back to its assignment is exactly the guess
+  `deps.lua` already refuses to make about computed requires.
 
 Also still open, not JS/TS-specific: **cross-file call resolution**. JS's
 named imports (`import { helper } from "./bar"`) bind the function directly
