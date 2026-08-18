@@ -178,6 +178,25 @@ main{grid-template-columns:minmax(300px,1.1fr) minmax(0,1.4fr);gap:0;align-items
   max-height:60vh;overflow-y:auto;background:var(--bg);border:1px solid var(--line);
   border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:12px 14px}
 .sigpop.on{display:block}
+/* The keyword card: the same component as .sigpop, one layer above it,
+   because a snippet is rendered *inside* .sigpop and its triggers therefore
+   cannot borrow it. Narrower, because the content is two sentences. */
+.kwpop{position:fixed;z-index:70;display:none;max-width:340px;
+  background:var(--bg);border:1px solid var(--line);border-radius:8px;
+  box-shadow:0 8px 28px rgba(0,0,0,.18);padding:10px 12px}
+.kwpop.on{display:block}
+.kw-word{font-family:var(--mono);font-size:12px;color:var(--accent);margin-bottom:4px}
+.kw-sum{font-size:12px;line-height:1.45}
+/* The surprising-fact line, set apart because it is the exception rather
+   than a second half of the definition. */
+.kw-note{font-size:11.5px;line-height:1.4;color:var(--muted);margin-top:6px}
+.kw-ref{font-size:11px;margin-top:8px}
+/* Decorated keywords stay unobtrusive until pointed at: a snippet where
+   every keyword is coloured is syntax highlighting, which this page turned
+   down on purpose. A dotted underline says "there is an answer here" and
+   nothing more. */
+.kw{border-bottom:1px dotted var(--muted);cursor:help}
+.kw:hover,.kw:focus{border-bottom-color:var(--accent);color:var(--accent);outline:none}
 .sigpop .fn-sig{font-size:12.5px}
 /* The trigger. Kept at full opacity for keyboard focus and while its popup
    is open, so tabbing through a list does not chase an invisible control. */
@@ -1264,6 +1283,96 @@ local JS = [[
     return h.join("");
   }
 
+  // The keyword lookup inside a rendered snippet.
+  //
+  // The page has shown source since `core/snippet.lua` existed; it just
+  // never said anything about it. `IR.glossaries` carries one entry per
+  // file extension (see `lang_registry.glossaries()`), and a backend that
+  // ships none decorates nothing at all — which is the honest degradation.
+  // Falling back to another language's keywords would explain `goto` in a
+  // file where it means something else.
+  //
+  // The glossary is chosen by the *snippet's own* extension, not by the
+  // page's or the reader's: a polyglot tree has Lua snippets and TS
+  // snippets on the same screen, and each has to answer for itself.
+  function glossaryForPath(path){
+    if(!path || !IR.glossaries) return null;
+    var m = /\.([A-Za-z0-9]+)$/.exec(path);
+    if(!m) return null;
+    return IR.glossaries[m[1].toLowerCase()] || null;
+  }
+
+  // Which spans of a snippet are *not* code.
+  //
+  // A keyword decorated inside a string or a comment is a false positive:
+  // the definition shown would be right and the context wrong, which is
+  // worse than leaving it plain. So this skips those spans, driven by the
+  // per-language delimiters in `glossary.syntax` rather than by a lexer per
+  // language living here.
+  //
+  // Every known limit (Lua long brackets above level zero, JS template
+  // interpolation, a regex literal containing comment-looking bytes) costs
+  // a *missing* decoration rather than a wrong one. That is the direction
+  // to fail in, and it is why this is allowed to be approximate at all.
+  function snipBodyHTML(src, path){
+    var gl = glossaryForPath(path);
+    if(!gl || !gl.keywords) return esc(src);
+    var sx = gl.syntax || {};
+    var strs = sx.strings || [];
+    var out = "", plain = "", i = 0, n = src.length;
+
+    function flush(){ if(plain){ out += esc(plain); plain = ""; } }
+    function at(tok){ return tok && src.substr(i, tok.length) === tok; }
+
+    while(i < n){
+      if(at(sx.line_comment)){
+        var eol = src.indexOf("\n", i);
+        if(eol < 0) eol = n;
+        plain += src.slice(i, eol); i = eol; continue;
+      }
+      var bc = sx.block_comment;
+      if(bc && at(bc[0])){
+        var close = src.indexOf(bc[1], i + bc[0].length);
+        var stop = close < 0 ? n : close + bc[1].length;
+        plain += src.slice(i, stop); i = stop; continue;
+      }
+      var str = null;
+      for(var s = 0; s < strs.length; s++){
+        if(at(strs[s][0])){ str = strs[s]; break; }
+      }
+      if(str){
+        var j = i + str[0].length;
+        while(j < n){
+          if(sx.escape && src.charAt(j) === sx.escape){ j += 2; continue; }
+          if(src.substr(j, str[1].length) === str[1]){ j += str[1].length; break; }
+          j++;
+        }
+        if(j > n) j = n;
+        plain += src.slice(i, j); i = j; continue;
+      }
+      var ch = src.charAt(i);
+      if(/[A-Za-z_]/.test(ch)){
+        var k = i;
+        while(k < n && /[A-Za-z0-9_]/.test(src.charAt(k))) k++;
+        var word = src.slice(i, k);
+        // `hasOwnProperty` rather than a truthiness test: a glossary is a
+        // plain object from JSON, so a word like "constructor" would
+        // otherwise find Object.prototype's own member and decorate a
+        // keyword that does not exist.
+        if(Object.prototype.hasOwnProperty.call(gl.keywords, word)){
+          flush();
+          out += '<span class="kw" data-kw="' + esc(word) + '" tabindex="0">' + esc(word) + '</span>';
+        } else {
+          plain += word;
+        }
+        i = k; continue;
+      }
+      plain += ch; i++;
+    }
+    flush();
+    return out;
+  }
+
   // The bounded source snippet, popup-only — deliberately **not** folded
   // into `fnAnnotationHTML` above, unlike everything else that function
   // renders. That function is shared with the Tree tab's detail pane, which
@@ -1275,14 +1384,19 @@ local JS = [[
   // navigating — where the tradeoff runs the other way. See
   // `docs/ECOSYSTEM.md` §3.5 for the "bounded snippet, embeddable tier"
   // this implements.
-  function snippetHTML(fn){
+  function snippetHTML(fn, node){
     if(!fn.snippet) return "";
     var omitted = fn.snippet_omitted
       ? ' <span class="bd" title="truncated — not carried into the artifact">+' +
         fn.snippet_omitted + ' more line' + (fn.snippet_omitted === 1 ? '' : 's') + '</span>'
       : '';
+    // The path rides on the container rather than on every keyword span:
+    // one attribute per snippet instead of one per word, and the lookup
+    // walks up to it, which is what `.closest` is for.
+    var path = node ? (node.source || node.path || "") : "";
     return '<div class="fn-snip-label">Source' + omitted + '</div>' +
-      '<div class="fn-snip">' + esc(fn.snippet) + '</div>';
+      '<div class="fn-snip" data-path="' + esc(path) + '">' +
+      snipBodyHTML(fn.snippet, path) + '</div>';
   }
 
   // Artifact lives in out_dir; repo-relative paths need to climb back out.
@@ -6449,6 +6563,108 @@ local JS = [[
     els[ctxHi].classList.add("hi");
   });
 
+
+  // =====================================================================
+  // Keyword card
+  //
+  // A second floating layer, which the governing rule for this feature
+  // ("one card component, one card at a time") would normally forbid — and
+  // the exception is structural rather than a concession. A snippet is
+  // rendered *inside* the annotation popup, so a keyword trigger lives
+  // inside the very card that would otherwise have to display its answer;
+  // reusing `sigpop` would mean a keyword hover destroying the function
+  // card the reader opened to look at. Two layers is what the nesting
+  // actually is.
+  //
+  // What the rule still buys, and what is kept: the same visual component
+  // (`.sigpop` styling), the same positioning and flip logic, the same
+  // dismissal rules. Only the content and the nesting differ.
+  //
+  // Opens on a dwell, never on hover-through: a card that appears while the
+  // pointer merely crosses a word is chrome nobody asked for, and a snippet
+  // is full of words a pointer crosses on the way somewhere else.
+  // =====================================================================
+  var kwpop = document.getElementById("kwpop");
+  var kwAnchor = null, kwOpenTimer = null, kwCloseTimer = null;
+  var KW_DWELL = 260;
+
+  function kwClearTimers(){
+    if(kwOpenTimer){ clearTimeout(kwOpenTimer); kwOpenTimer = null; }
+    if(kwCloseTimer){ clearTimeout(kwCloseTimer); kwCloseTimer = null; }
+  }
+
+  function kwClose(){
+    kwClearTimers();
+    kwpop.classList.remove("on");
+    kwAnchor = null;
+  }
+
+  function kwOpen(el){
+    var snip = el.closest && el.closest(".fn-snip");
+    var gl = glossaryForPath(snip && snip.dataset.path);
+    var entry = gl && gl.keywords
+      ? (Object.prototype.hasOwnProperty.call(gl.keywords, el.dataset.kw) ? gl.keywords[el.dataset.kw] : null)
+      : null;
+    // Nothing behind the trigger is a bug in whatever decorated it, not
+    // something to show an empty card for.
+    if(!entry) return;
+
+    var h = '<div class="kw-word">' + esc(el.dataset.kw) + '</div>' +
+      '<div class="kw-sum">' + esc(entry.summary) + '</div>';
+    if(entry.note) h += '<div class="kw-note">' + esc(entry.note) + '</div>';
+    if(gl.reference && gl.reference.url){
+      // The one link, per language, that this feature is allowed to depend
+      // on nothing for: every sentence above it is already the answer. See
+      // `docs/ROADMAP/IDEAS/ReferenceTab.md` on why there is one base URL
+      // rather than one URL per keyword.
+      h += '<div class="kw-ref"><a href="' + esc(gl.reference.url + (entry.anchor || "")) +
+        '" target="_blank" rel="noreferrer noopener">' + esc(gl.reference.label) + ' &#8599;</a></div>';
+    }
+
+    kwAnchor = el;
+    kwpop.innerHTML = h;
+    kwpop.classList.add("on");
+
+    // Positioned exactly like the annotation popup, including the flip: a
+    // card pinned below the viewport edge would cover the line the reader
+    // is pointing at.
+    var a = el.getBoundingClientRect();
+    var r = kwpop.getBoundingClientRect();
+    kwpop.style.left = Math.max(8, Math.min(a.left, window.innerWidth - r.width - 8)) + "px";
+    kwpop.style.top = ((a.bottom + r.height + 8 <= window.innerHeight)
+      ? a.bottom + 6
+      : Math.max(8, a.top - r.height - 6)) + "px";
+  }
+
+  document.addEventListener("mouseover", function(ev){
+    var el = ev.target.closest && ev.target.closest("[data-kw]");
+    if(el){
+      kwClearTimers();
+      if(el !== kwAnchor) kwOpenTimer = setTimeout(function(){ kwOpen(el); }, KW_DWELL);
+      return;
+    }
+    if(!kwAnchor && !kwOpenTimer) return;
+    // Same grace period on the way out as the annotation popup, and for the
+    // same reason: the pointer has to be able to travel into the card to
+    // reach the reference link.
+    if(ev.target.closest && ev.target.closest("#kwpop")){ kwClearTimers(); return; }
+    kwClearTimers();
+    kwCloseTimer = setTimeout(kwClose, 180);
+  });
+
+  // Keyboard parity. The spans are focusable, so a reader who never touches
+  // a pointer still reaches every explanation -- the same reason `.sigi`
+  // above is kept at full opacity while focused.
+  document.addEventListener("focusin", function(ev){
+    var el = ev.target.closest && ev.target.closest("[data-kw]");
+    if(el){ kwClearTimers(); kwOpen(el); }
+    else if(!(ev.target.closest && ev.target.closest("#kwpop"))) kwClose();
+  });
+
+  document.addEventListener("keydown", function(ev){ if(ev.key === "Escape") kwClose(); });
+  window.addEventListener("scroll", kwClose, true);
+  window.addEventListener("resize", kwClose);
+
   // =====================================================================
   // Annotation popup
   //
@@ -6490,7 +6706,7 @@ local JS = [[
       // A key with no entry is a bug in whatever rendered the trigger, not
       // something to paper over with an empty card — say nothing at all.
       if(!entry) return;
-      html = fnAnnotationHTML(entry.fn) + snippetHTML(entry.fn) +
+      html = fnAnnotationHTML(entry.fn) + snippetHTML(entry.fn, entry.node) +
         '<div class="fn-desc fn-see"><a href="#" data-sig-goto="' +
         esc(entry.node.id) + '">' + esc(entry.node.module || entry.node.path) +
         ':' + entry.fn.line + '</a></div>';
@@ -6809,7 +7025,7 @@ local JS = [[
       // The same renderer the detail pane and the popup use. A third copy of
       // "how a function's annotations look" is exactly the drift this plugin
       // exists to detect.
-      h.push(fnAnnotationHTML(e.fn) + snippetHTML(e.fn));
+      h.push(fnAnnotationHTML(e.fn) + snippetHTML(e.fn, e.node));
     } else {
       h.push('<div class="fn-sig">' + esc(e.node.module || e.node.name) + '</div>');
       if(e.node.summary) h.push('<div class="fn-desc">' + esc(e.node.summary) + '</div>');
@@ -7190,6 +7406,14 @@ function M.render(ir, findings, opts)
     -- `nil` here is the real, common answer "this repo ships no
     -- docs/CHECKLIST/", which `drawAnalysisChecklist` already handles.
     checklist = ir.checklist,
+    -- Keyword glossaries, keyed by file extension. Tool data rather than
+    -- scanned data -- the same bytes in every checkout -- so it rides on
+    -- the page and deliberately not in `module_map.json`, which is
+    -- byte-deterministic and describes the repository rather than the
+    -- renderer. Reached through the registry, never by requiring a backend:
+    -- `documentation.core` must not name `documentation.core.lang.*`, and
+    -- this module is under that prefix.
+    glossaries = require("documentation.core.lang_registry").glossaries(),
   })
   -- `</script>` inside JSON would terminate the block early.
   payload = payload:gsub("</", "<\\/")
@@ -7412,6 +7636,7 @@ function M.render(ir, findings, opts)
 
     '<div id="ctx" role="menu"></div>',
     '<div id="sigpop" class="sigpop" role="tooltip"></div>',
+    '<div id="kwpop" class="kwpop" role="tooltip"></div>',
 
     '<script type="application/json" id="ir">',
     payload,

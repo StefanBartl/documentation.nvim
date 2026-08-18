@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**5 modules** · 5 namespaces · 87 helper files
+**5 modules** · 6 namespaces · 89 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -148,6 +148,7 @@ flowchart LR
   nlua_documentation_core_loaded_diff_lua --> nlua_documentation_core_soft_require_lua
   nlua_documentation_core_quicks_lua --> nlua_documentation_core_doccoverage_lua
   nlua_documentation_core_render --> nlua_documentation_core_json_lua
+  nlua_documentation_core_render --> nlua_documentation_core_lang_registry_lua
   nlua_documentation_core_scan_lua --> nlua_documentation_core_bindings_lua
   nlua_documentation_core_scan_lua --> nlua_documentation_core_calls_lua
   nlua_documentation_core_scan_lua --> nlua_documentation_core_deps_lua
@@ -194,6 +195,7 @@ flowchart LR
 | `documentation.config` | Resolving a full `Documentation.Opts` for a repository: the defaults in [`DEFAULTS.lua`](DEFAULTS.lua), what can be derived from `root`, and the merge rule… | 2 | [README](../../lua/documentation/config/README.md) · [src](../../lua/documentation/config/init.lua) |
 | `core` |  |  | [README](../../lua/documentation/core/README.md) |
 | &nbsp;&nbsp;`lang` |  |  |  |
+| &nbsp;&nbsp;&nbsp;&nbsp;`glossary` |  |  |  |
 | &nbsp;&nbsp;`render` |  |  |  |
 | `editor` |  |  | [README](../../lua/documentation/editor/README.md) |
 | &nbsp;&nbsp;`documentation.editor.browse` | `:DocBrowse` — the module map inside the editor. | 37 | [README](../../lua/documentation/editor/browse/README.md) · [src](../../lua/documentation/editor/browse/init.lua) |

@@ -65,6 +65,41 @@
 ---@field body string
 ---@field tags table<string, string>
 
+---Where a language's glossary points for more than one sentence.
+---
+---One base URL per language rather than one per keyword: see
+---`docs/ROADMAP/IDEAS/ReferenceTab.md` on why several hundred independently
+---rotting links are a worse bargain than one, and why the explanation in
+---`Documentation.Glossary.Entry.summary` never depends on this being alive.
+---@class Documentation.Glossary.Reference
+---@field label string Shown as the link text, e.g. "Lua 5.1 reference manual".
+---@field url string Base URL. An entry may append its own `anchor`.
+
+---What the page's tokenizer needs in order to *not* decorate a keyword that
+---is really part of a string or a comment.
+---
+---Data rather than a lexer per language: the page reads this and skips the
+---spans it describes. Deliberately approximate — every documented limit in
+---the two glossaries costs a missing decoration, never a wrong one, which is
+---the direction to fail in for a feature whose whole job is explaining.
+---@class Documentation.Glossary.Syntax
+---@field line_comment string? Prefix that comments out the rest of the line.
+---@field block_comment [string, string]? Opening and closing delimiter.
+---@field strings [string, string][] Opening/closing delimiter pairs.
+---@field escape string? Character that escapes the next one inside a string.
+
+---One keyword, and what the reader is told about it.
+---@class Documentation.Glossary.Entry
+---@field summary string One sentence, offline, never dependent on a link.
+---@field note string? A second sentence for the thing that surprises people — the `and`/`or`-return-operands class of fact. Omitted far more often than not; a note on every entry is a tutorial, which this is not.
+---@field anchor string? Appended to `Documentation.Glossary.Reference.url`. Absent until someone has actually opened the resulting link.
+
+---A language's whole glossary, as a backend exposes it.
+---@class Documentation.Glossary
+---@field reference Documentation.Glossary.Reference?
+---@field syntax Documentation.Glossary.Syntax?
+---@field keywords table<string, Documentation.Glossary.Entry>
+
 ---One supported source language, selected by file extension. See
 ---`core/lang_registry.lua` for why this exists as a registry rather than an
 ---if/elseif chain in `scan.lua`, and `docs/ROADMAP/IDEAS/MULTILANG.md` for what
@@ -73,6 +108,8 @@
 ---@class Documentation.LangBackend
 ---@field name string Short identifier, e.g. `"lua"` — the same string it registers itself under, kept on the table too so `lang_registry.reset()` can re-register an already-cached backend by name without needing to re-require (and thus re-execute) its module.
 ---@field module_file string? Filename that marks a directory as owning a module of its own (Lua: `"init.lua"`). `nil` for a language with no such convention, where every source file is its own node.
+---@field extensions string[]? Bare extensions this backend claims, e.g. `{"ts"}`. Redundant with `is_source` by construction and kept anyway: a predicate can answer "does this backend claim x.ts" but cannot be *enumerated*, and the page needs the list to decide which glossary a rendered snippet belongs to. Absent for a backend that would rather not say, which the page treats as "no glossary" rather than guessing.
+---@field glossary Documentation.Glossary? Keyword explanations for the page's in-place lookup. Optional: a backend without one decorates nothing, which is the honest degradation — falling back to another language's keywords would explain `goto` in a file where it means something else.
 ---@field grammar string? Tree-sitter grammar this backend parses with, e.g. `"javascript"` for the backend named `"js"`. Named separately because the two genuinely differ: three of the four backends today have a grammar name that is not their own. `nil` for a backend that needs no parser at all — which is not the same as a backend whose grammar is merely missing, and `lang_registry.report()` keeps the two apart.
 ---@field is_source fun(filename: string): boolean Whether `filename` (bare, no path) is a source file this backend scans.
 ---@field module_tag boolean? Whether this language has a `@module`-tag-shaped authoring convention worth `check.lua`'s `missing-module-tag` checking the absence of. Lua: `true` (its canonical module name cannot be recovered from the file path alone). A language whose module identity already is its file path (JS/TS's ESM imports resolve by path): `false` — nothing tag-shaped can be "missing." Absent/`nil` is treated as `true`, the conservative default that preserves today's behavior for a backend that never states an opinion.
