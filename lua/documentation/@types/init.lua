@@ -138,6 +138,7 @@
 ---@field kind Documentation.Kind
 ---@field name string Display name (directory or file name).
 ---@field path string Repo-relative path to the directory or file.
+---@field language string? Which language backend read this node, by its registered name (`lua`, `js`, `ts`, `tsx`). `nil` for a grouping namespace that has no module file of any language — guessing one from its children would make a directory holding both look like whichever child came first. Absent throughout an artifact of schema < 3, which is a different fact and why the schema was bumped.
 ---@field source string? Repo-relative path to the Lua source backing this node.
 ---@field module string? The declared `---@module` path.
 ---@field summary string One-sentence description, from the header block.
