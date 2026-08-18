@@ -25,6 +25,41 @@ local uv = vim.uv
 -- self-registration require now lives instead.
 local lang_registry = require("documentation.core.lang_registry")
 
+---Directories the walk never descends into, and the same list
+---`core/lang/ecma.lua` consults when deciding whether a candidate directory
+---is evidence of its own language.
+---
+---Only ever mattered once `source` could be something other than
+---`lua/<plugin>`. A Neovim plugin's source root contains none of these, so
+---the walk got away without a list for as long as Lua was the only backend;
+---a JavaScript project whose `source` resolves to `src` or to the repository
+---root does not, and a `node_modules` with forty thousand files in it is
+---both unusably slow to walk and wrong to report as the project's own code.
+---
+---Vendored dependencies and generated output, deliberately in one list
+---because the walk does not care which applies. **Not** a general ignore
+---mechanism: `.gitignore` is not read, because a repository can quite
+---reasonably ignore a directory this map should still describe.
+---@type table<string, true>
+M.VENDOR_DIRS = {
+  ["node_modules"] = true,
+  ["vendor"] = true,
+  ["bower_components"] = true,
+  ["target"] = true,
+  ["dist"] = true,
+  ["build"] = true,
+  ["out"] = true,
+  [".next"] = true,
+  [".nuxt"] = true,
+  [".svelte-kit"] = true,
+  ["__pycache__"] = true,
+  [".venv"] = true,
+  ["venv"] = true,
+  [".git"] = true,
+  [".deps"] = true,
+  [".claude"] = true,
+}
+
 ---Normalize to forward slashes; every path in the IR is stored this way so
 ---the artifact is byte-identical regardless of which OS generated it.
 ---@param p string
@@ -415,7 +450,7 @@ function M.scan(opts)
       local leaf_backend = e.type ~= "directory" and lang_registry.for_file(e.name) or nil
 
       if e.type == "directory" then
-        if e.name ~= types_dir then
+        if e.name ~= types_dir and not M.VENDOR_DIRS[e.name] then
           node.children[#node.children + 1] = walk_dir(child_abs, child_rel, id, depth + 1)
         end
       elseif leaf_backend and e.name ~= (module_backend and module_backend.module_file) then

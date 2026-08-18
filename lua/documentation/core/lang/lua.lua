@@ -63,6 +63,45 @@ M.extensions = { "lua" }
 ---read by the renderer, long after load.
 M.glossary = require("documentation.core.lang.glossary.lua")
 
+---Directory names under `lua/` that are never a plugin's own source root.
+---@type table<string, true>
+local NOT_SOURCE = { ["@types"] = true, spec = true, tests = true }
+
+---`lua/<single subdirectory>` when `lua/` holds exactly one candidate,
+---otherwise plain `lua` — and **`nil` when there is no `lua/` at all**.
+---
+---Moved here from `config/init.lua`, where it was the *only* answer any tree
+---could get. That was fine while Lua was the only backend and became a hard
+---failure the moment it was not: a JavaScript repository has no `lua/`, so
+---the guess came back `"lua"` anyway and `scan.lua` asserted on a directory
+---that does not exist. Measured, not theorised — a three-file JS/TS tree
+---died on `source directory not found`.
+---
+---Neovim plugins almost always have the `lua/<plugin>` shape, and scanning
+---`lua` itself instead would put a meaningless extra root node above every
+---real module. Several candidates, or none, and `lua` is the honest answer
+---rather than picking one arbitrarily.
+---@param root string
+---@return string?
+function M.detect_source(root)
+  local lua_dir = root .. "/lua"
+  if vim.fn.isdirectory(lua_dir) == 0 then
+    return nil
+  end
+
+  local found
+  for name, kind in vim.fs.dir(lua_dir) do
+    if kind == "directory" and not NOT_SOURCE[name] then
+      if found then
+        return "lua"
+      end
+      found = name
+    end
+  end
+
+  return found and ("lua/" .. found) or "lua"
+end
+
 ---@param path string
 ---@return Documentation.Header
 function M.parse_header(path)
