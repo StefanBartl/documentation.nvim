@@ -33,7 +33,7 @@ even if it looks cheap.
 | 1.4 | Tests naming a function that no longer exists | S | Medium | Candidate |
 | 1.5 | Orphaned `@class`/`@alias` | S | Medium | Candidate |
 | 1.6 | `@since` / version-tag drift | S | Low (unused convention) | No |
-| 1.7 | Cross-repo checks over `tag_files` | S–M | Medium | No — needs real multi-repo case first |
+| 1.7 | Cross-repo checks over `tag_files` | S–M | Medium | **Precondition met** — 33 `.nvim` repositories, ~30 with a committed map, one shared `lib.nvim`. See `ROADMAP/WORKPLAN.md` Part 4 |
 | 2.1 | Annotation adoption panel (generated) | M | High | No — needs `TAGS` table refactor first |
 | 2.2 | Public API surface panel | S–M | Medium–High | Candidate |
 | 2.3 | Ownership / bus factor command | S | Low (single-author repo) | No |
@@ -58,7 +58,7 @@ even if it looks cheap.
 | 6.7 | REUSE.md recipe for "many repos, one config" | S | Low–Medium | No — depends on 6.6 |
 | 7 | Scale and performance (four items) | — | Unknown | No — not a problem yet |
 | 8.2 follow-up | Checklist trend/history data | S–M | Medium | No — needs (b) actually in use first |
-| 9 | Schema versioning + payload-contract test | S | Medium (prevents a recurring bug class) | **Yes** |
+| ~~9~~ | ~~Schema versioning + payload-contract test~~ | — | — | **Built 2026-08-18** — see `FEATURES/FEATURES.md`. Its first run caught `endpoints`, missing from the artifact since `core/endpoints.lua` shipped |
 
 ---
 
