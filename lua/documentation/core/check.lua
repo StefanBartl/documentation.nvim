@@ -561,6 +561,87 @@ local function check_binding_conflicts(ir, findings)
   end
 end
 
+---A `require` bound to a local name that is never mentioned again.
+---
+---The mirror of `require-not-declared`: that one finds a dependency the
+---module uses without declaring, this one finds a dependency it declares
+---without using. Left behind by a refactor that removed the last call, and
+---invisible afterwards — the line still reads like a dependency, the module
+---still loads it, and nothing anywhere says it is dead weight.
+---
+---**Only aliased requires.** `require("x")` with no binding is a load for
+---its side effects, which is a real and deliberate pattern (registering a
+---backend, installing a metatable), and there is no name to look for.
+---Reporting those would mean reporting the one shape that cannot be wrong.
+---
+---**The reference count is deliberately coarse**, the same way
+---`Documentation.FunctionInfo.local_refs` is and for the same reason: a
+---mention inside a comment or a string counts as a use. Over-counting errs
+---toward "used", which is the safe direction — a missed dead require costs
+---a line nobody deletes, a false one costs trust in the check.
+---
+---Measured before it was written: 144 aliased requires in this repository,
+---none unreferenced. A check that fires on a healthy tree is a check people
+---turn off, so knowing the floor is zero here mattered more than knowing it
+---works on a fixture.
+---@param ir Documentation.IR
+---@param findings Documentation.Finding[]
+---@param opts Documentation.Opts
+local function check_unused_requires(ir, findings, opts)
+  local read = require("lib.nvim.fs.read")
+  local root = (tostring(opts.root):gsub("\\", "/"):gsub("/+$", ""))
+
+  for _, id in ipairs(ir.order) do
+    local node = ir.nodes[id]
+    -- `requires_raw` is scan-internal and absent from a rehydrated artifact
+    -- (see `to_json`'s own note on why it is not serialised), so this check
+    -- runs on a live scan and quietly does nothing on anything else rather
+    -- than reporting every require in a loaded map as unused.
+    if node.source and node.requires_raw and #node.requires_raw > 0 then
+      local content = read(root .. "/" .. node.source)
+      if content then
+        local lines = vim.split(content, "\n", { plain = true })
+        for _, req in ipairs(node.requires_raw) do
+          if req.alias then
+            local uses = 0
+            for i, line in ipairs(lines) do
+              -- The requiring line itself is skipped: the binding occurrence
+              -- is not a use of the binding.
+              if i ~= req.line then
+                local from = 1
+                while true do
+                  local a, b = line:find("[%a_][%w_]*", from)
+                  if not a then
+                    break
+                  end
+                  if line:sub(a, b) == req.alias then
+                    uses = uses + 1
+                  end
+                  from = b + 1
+                end
+              end
+            end
+            if uses == 0 then
+              add(
+                findings,
+                "info",
+                "unused-require",
+                id,
+                ("%s:%d binds require('%s') to '%s' and never uses it"):format(
+                  node.source,
+                  req.line,
+                  req.module,
+                  req.alias
+                )
+              )
+            end
+          end
+        end
+      end
+    end
+  end
+end
+
 local function check_require_cycles(ir, findings)
   for _, component in ipairs(M.require_cycles(ir)) do
     local names = {}
@@ -1226,6 +1307,7 @@ function M.run(ir, opts)
   check_binding_conflicts(ir, findings)
   check_require_cycles(ir, findings)
   check_require_not_declared(ir, findings, opts)
+  check_unused_requires(ir, findings, opts)
   check_layers(ir, findings, opts)
   check_see_targets(ir, findings)
   check_type_vs_class(ir, findings, opts)
