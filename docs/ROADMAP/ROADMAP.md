@@ -10,6 +10,10 @@ table, where it has one).
 Deeper reasoning, cost estimates and task breakdowns live in
 [`IDEAS/`](IDEAS/) — this file is the index, not the analysis.
 
+**The resume point for work in progress is [`WORKPLAN.md`](WORKPLAN.md)** —
+what is done, what is next, and everything agreed but not built, written so
+the work survives a cold start in a new session.
+
 ## Genuinely open
 
 - **Multi-language support.** Extending the scanner past Lua — cost analysis,
