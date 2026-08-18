@@ -191,6 +191,10 @@ main{grid-template-columns:minmax(300px,1.1fr) minmax(0,1.4fr);gap:0;align-items
 .lb-n{margin-left:5px;opacity:.65}
 .lb-clear{font-size:11px;padding:2px 7px;border-radius:11px;border:1px dashed var(--line);
   background:transparent;color:var(--muted);cursor:pointer}
+/* Sized off the toolbar's own buttons rather than styled separately: it is
+   one more control in that row, not a feature announcing itself. The fixed
+   width keeps "Copied" from resizing the toolbar under the pointer. */
+#copylink{min-width:82px}
 /* In the Hierarchy control row the bar is one control among several, not a
    band across the top: no border, no padding of its own. */
 .langbar-h{border-bottom:none;padding:0}
@@ -6532,6 +6536,60 @@ local JS = [[
   // tell a reader the map holds more than one language before they wonder.
   renderLangBar();
 
+  // =====================================================================
+  // Copy link
+  //
+  // The whole page state already lives in the URL fragment -- that is what
+  // `:DocMap graph` and `gO` exploit, and what every `navigate()` call
+  // maintains. What was missing is any way for a reader to *get* it: the
+  // address bar shows it, but a map opened from a file:// path or inside an
+  // iframe (docmap-desktop) has no address bar to select from.
+  //
+  // Reads `location.href` rather than rebuilding the URL from `state`: the
+  // hash is written by `applyState` on every navigation, so the address is
+  // already correct by construction, and a second serializer here would be a
+  // second answer to "what is this view called" that could drift from the
+  // first.
+  // =====================================================================
+  var copyBtn = document.getElementById("copylink");
+  var copyTimer = null;
+
+  function flashCopy(text){
+    if(copyTimer) clearTimeout(copyTimer);
+    copyBtn.textContent = text;
+    copyTimer = setTimeout(function(){ copyBtn.textContent = "Copy link"; copyTimer = null; }, 1400);
+  }
+
+  copyBtn.addEventListener("click", function(){
+    var url = location.href;
+    // `navigator.clipboard` is unavailable on an insecure origin, which
+    // includes the `file://` case this page is most often opened as. The
+    // fallback is the old `execCommand` route, and if even that fails the
+    // reader is told rather than left looking at a button that did nothing.
+    var done = function(){ flashCopy("Copied"); };
+    var failed = function(){
+      try {
+        var ta = document.createElement("textarea");
+        ta.value = url;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        var okExec = document.execCommand && document.execCommand("copy");
+        document.body.removeChild(ta);
+        flashCopy(okExec ? "Copied" : "Press Ctrl+C");
+      } catch(e){
+        flashCopy("Press Ctrl+C");
+      }
+    };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(url).then(done, failed);
+    } else {
+      failed();
+    }
+  });
+
   q.addEventListener("input", function(){
     var v = this.value.toLowerCase().trim();
 
@@ -7744,6 +7802,11 @@ function M.render(ir, findings, opts)
     -- while reading *any* list, so the control that says how many there are and
     -- opens them has to be visible from all of them.
     '<button id="markbar" class="markbar" hidden></button>',
+    -- Beside the marks pill for the same reason it is: the state being
+    -- copied is whatever tab, node, graph view and filter the reader is
+    -- looking at right now, so the control belongs where it is reachable
+    -- from all of them rather than inside one.
+    '<button id="copylink" title="Copy a link to exactly this view">Copy link</button>',
     "</div>",
 
     '<main id="view-tree" class="view active"><div id="langbar" class="langbar" hidden></div>'

@@ -642,6 +642,64 @@ local function check_unused_requires(ir, findings, opts)
   end
 end
 
+---An `@example` block that is not valid Lua.
+---
+---Extraction and rendering already existed — `functions.lua` collects the
+---block, the annotation popup shows it — so this is one call to the
+---interpreter's own parser over text already in the IR. An example that does
+---not parse is documentation demonstrating something that cannot be typed.
+---
+---**Two attempts, not one.** An `@example` is as often a fragment as a
+---chunk: `{ timeout = 5000 }` is a perfectly good illustration of an options
+---table and not a valid statement. Parsed as a chunk first, then as an
+---expression (`return (…)`), and only reported when both fail. Without the
+---second attempt this check would fire on the most common shape of example
+---there is, which is the definition of a check nobody keeps.
+---
+---**Honest about its evidence.** No tree in this ecosystem uses `@example` —
+---measured before writing it: zero blocks in this repository, and none in
+---the thirty-odd sibling plugins. So the false-positive question is settled
+---against fixtures and reasoning, not against real usage, and this check has
+---never fired on anything real. Recorded because "cheapest real check in the
+---backlog" (`IDEAS.md` §1.2) was true about the cost and optimistic about
+---the *real*.
+---
+---`loadstring or load`: the first exists under LuaJIT, the second under PUC
+---Lua 5.4 with string support. `standalone/` runs the second.
+---@param ir Documentation.IR
+---@param findings Documentation.Finding[]
+local function check_examples(ir, findings)
+  local loader = loadstring or load
+  if not loader then
+    return
+  end
+  for _, id in ipairs(ir.order) do
+    for _, fn in ipairs(ir.nodes[id].functions or {}) do
+      if fn.example and vim.trim(fn.example) ~= "" then
+        local ok_chunk, err = loader(fn.example, "@example")
+        if not ok_chunk then
+          local ok_expr = loader("return (" .. fn.example .. "\n)", "@example")
+          if not ok_expr then
+            add(
+              findings,
+              "warn",
+              "example-does-not-parse",
+              id,
+              ("%s's @example is not valid Lua: %s"):format(
+                fn.name,
+                -- The chunk error, not the expression one: the reader wrote
+                -- a statement far more often than a value, so that message
+                -- points at what they meant.
+                tostring(err):gsub('^%[string "@example"%]:', "line ")
+              )
+            )
+          end
+        end
+      end
+    end
+  end
+end
+
 local function check_require_cycles(ir, findings)
   for _, component in ipairs(M.require_cycles(ir)) do
     local names = {}
@@ -1298,6 +1356,7 @@ function M.run(ir, opts)
   local findings = {}
 
   check_summaries(ir, findings)
+  check_examples(ir, findings)
   check_module_paths(ir, findings, opts)
   check_readmes(ir, findings)
   check_readme_links(ir, findings, opts)

@@ -133,12 +133,12 @@ already rates everything in `IDEAS.md` by effort and benefit. Its open
 
 | § | Idea | Note |
 |---|---|---|
-| 1.2 | `@example` blocks that do not parse | Cheapest real check in the backlog; extraction already exists |
-| 6.1 | SARIF output for CI | Findings already carry file/line/severity — a serialiser, not analysis |
-| 2.5 | Unused requires | Mirror of an existing check; IR has both halves already |
-| 3.2 | Copy-link for the current view | The state is already in the URL fragment |
-| 6.3 | Publish the map to GitHub Pages | `pages.yml` already exists |
-| 6.4 | Mermaid export | The renderer already exists |
+| ~~1.2~~ | ~~`@example` blocks that do not parse~~ | Built. Cheap as rated, but no tree in this ecosystem uses `@example` — it has never fired on real code |
+| ~~6.1~~ | ~~SARIF output for CI~~ | Built as `--sarif=<path>`. Findings carry **no** line, contrary to that entry's claim; every result points at line 1 and says so |
+| ~~2.5~~ | ~~Unused requires~~ | Built as `unused-require`. 144 aliased requires here, none unused |
+| ~~3.2~~ | ~~Copy-link for the current view~~ | Built |
+| ~~6.3~~ | ~~Publish the map to GitHub Pages~~ | **Was already built** — `pages.yml`. Listed as open because nobody checked |
+| ~~6.4~~ | ~~Mermaid export~~ | Built as `:DocMap mermaid [tree\|deps]` |
 | ~~9~~ | ~~Schema versioning + a payload-contract test~~ | **Built 2026-08-18.** Its first run caught a sixth victim: `endpoints`, absent from the artifact since `core/endpoints.lua` shipped |
 
 **§9 was built the same day it was promoted, and was worth it immediately.**
@@ -154,6 +154,12 @@ showed routes the artifact never carried.
 `html.lua`'s payload field list. `TESTS/artifact_contract_spec.lua` covers
 `ir` against `to_json` only — the payload list that produced four of the six
 victims is still unchecked.
+
+**Every quick win in that list is now closed**, one of them by discovering it
+had shipped already. What is left in `IDEAS.md` is the work that was never
+rated cheap: §1.1 (code blocks checked against the API), §1.3 (API-surface
+change detection), §2.1/§2.2 (the panels gated on the `TAGS` refactor), §5.x
+(framework conventions) and §6.2/§6.6.
 
 **§1.7's precondition is met**, and the entry in
 `IDEAS_IMPLEMENTATION_PLAN.md` has been updated to say so — see Part 4.
