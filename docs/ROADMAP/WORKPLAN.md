@@ -172,10 +172,12 @@ change detection), §2.1/§2.2 (the panels gated on the `TAGS` refactor), §5.x
       names a tree uses; it tracks required *modules*, and `table.concat` is
       a global. The entries were chosen from a direct count of the source
       instead (`ipairs` 405, `require` 328, `table.sort` 79, `vim.trim` 40).
-- [ ] **A mixed-language fixture in CI.** MULTILANG stage 3.7 asks for
-      per-language sample trees; a *polyglot* one is the case that would
-      have caught the `detect_source` failure on the day the JS backend
-      shipped rather than months later. Cheap: three files.
+- [x] ~~**A mixed-language fixture in CI.**~~ Built 2026-08-18 as
+      `TESTS/fixtures/polyglot/` — a tree, not snippets: two source roots, a
+      helper beside a module, a file outside every root, an extension no
+      backend claims. Verified to fail rather than assumed to pass: with
+      ECMA source detection disabled it reports `expected "lua/pgl + src",
+      got "lua/pgl"`, which is the exact shape of the failure it exists for.
 - [ ] **Per-entry reference anchors**, once someone has opened them. The
       renderer already supports them; they are unfilled on purpose.
 - [x] ~~**`.jsx`**, **class methods**, **`module.exports = {…}`**~~ — all

@@ -201,11 +201,15 @@ changes the shape every language backend plugs into.
   old/new-schema `:DocMap diff` before any further language backend ships.
   Genuinely open: no IR *node* field changed yet by Phase 1, since the
   interface work added new *modules* only.
-- [ ] **A real per-language sample tree**, checked into `TESTS/fixtures/`
+- [~] **A real per-language sample tree**, checked into `TESTS/fixtures/`
   or fetched by the runner, per language — not just hand-written snippets.
   Not optional: this repository's own `core/plugins.lua` work is the
   concrete evidence a synthetic-fixture-only approach misses real bugs (see
-  *Considerations*).
+  *Considerations*). **The polyglot one is built** —
+  `TESTS/fixtures/polyglot/`, Lua beside JS/TS, which is the tree that would
+  have caught the `detect_source` failure the day the JS backend shipped.
+  A per-language tree for each *new* backend is still owed as that backend
+  lands.
 
 ### Phase 1 — JavaScript / TypeScript — **done (2026-08-03), three gaps remain**
 
