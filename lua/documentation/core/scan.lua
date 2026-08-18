@@ -445,6 +445,12 @@ function M.scan(opts)
       kind = kind,
       name = name,
       path = rel,
+      -- Which backend read this node, by its registered name. `nil` for a
+      -- directory with no module file of any language -- a grouping
+      -- namespace has no language of its own, and guessing one from its
+      -- children would make a directory holding both look like whichever
+      -- child happened to be first.
+      language = module_backend and module_backend.name or nil,
       source = module_backend and (rel .. "/" .. module_backend.module_file) or nil,
       module = header and header.module or nil,
       summary = header and header.summary or "",
@@ -514,6 +520,7 @@ function M.scan(opts)
         ---@type Documentation.Node
         local leaf = {
           id = child_rel,
+          language = leaf_backend.name,
           kind = "file",
           name = e.name,
           path = child_rel,
@@ -689,7 +696,14 @@ function M.scan(opts)
       types_dir = types_dir,
       repo_url = opts.repo_url,
       branch = opts.branch or "main",
-      schema = 2,
+      -- 3: nodes carry `language`. Bumped rather than added silently so a
+      -- consumer can tell "this backend did not say" (schema 3, field
+      -- absent) from "this artifact predates the field" (schema 2) --
+      -- the same distinction every other absence in this map is careful
+      -- about. `diff.lua`'s tolerance is written `>= 2`, not `== 2`, so it
+      -- keeps working unchanged; verified against a real schema-2 artifact
+      -- out of this repository's own history, not assumed.
+      schema = 3,
       counts = counts,
     },
     root = root_id,

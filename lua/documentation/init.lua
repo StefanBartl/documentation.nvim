@@ -315,6 +315,15 @@ function M.to_json(ir)
       '"kind": ' .. str(n.kind),
       '"name": ' .. str(n.name),
       '"path": ' .. str(n.path),
+      -- Added with schema 3. Found missing here by measurement, not by
+      -- reading: the scan set it on every node and the artifact reported
+      -- `null` for all hundred of them, because this field list and
+      -- `Documentation.Node` are maintained separately by hand. That is the
+      -- fifth time this exact trap has caught a field (see
+      -- `core/render/html.lua`'s own payload comment for the previous four)
+      -- and it is what `IDEAS.md` section 9's payload-contract test exists
+      -- to end.
+      '"language": ' .. (n.language and str(n.language) or "null"),
       '"source": ' .. (n.source and str(n.source) or "null"),
       '"module": ' .. (n.module and str(n.module) or "null"),
       '"summary": ' .. str(n.summary),
