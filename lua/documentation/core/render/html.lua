@@ -178,6 +178,19 @@ main{grid-template-columns:minmax(300px,1.1fr) minmax(0,1.4fr);gap:0;align-items
   max-height:60vh;overflow-y:auto;background:var(--bg);border:1px solid var(--line);
   border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:12px 14px}
 .sigpop.on{display:block}
+/* The language legend. Drawn only for a polyglot map -- see renderLangBar --
+   so a single-language tree pays nothing for it. Quiet by default: a row of
+   coloured chips over every map would be exactly the permanent chrome the
+   rest of this page avoids. */
+.langbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  padding:6px 10px;border-bottom:1px solid var(--line)}
+.lb-label{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.lb-chip{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:11px;
+  border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer}
+.lb-chip.on{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.lb-n{margin-left:5px;opacity:.65}
+.lb-clear{font-size:11px;padding:2px 7px;border-radius:11px;border:1px dashed var(--line);
+  background:transparent;color:var(--muted);cursor:pointer}
 /* The keyword card: the same component as .sigpop, one layer above it,
    because a snippet is rendered *inside* .sigpop and its triggers therefore
    cannot borrow it. Narrower, because the content is two sentences. */
@@ -6292,6 +6305,144 @@ local JS = [[
     treeEl.querySelectorAll(".row").forEach(function(r){ r.style.display = ""; });
   }
 
+  // =====================================================================
+  // Language legend
+  //
+  // A map can hold more than one language since `opts.source` became a list,
+  // and until now nothing on screen said which node was which. `n.language`
+  // (schema 3) is the backend that read it.
+  //
+  // **Drawn only when there is more than one.** A legend over a single-
+  // language tree is a row of permanent chrome restating what the repository
+  // already is — and single-language is nearly every repository, so the
+  // common case gets nothing at all. This is the same rule the keyword card
+  // follows: depth where there is depth, silence where there is not.
+  //
+  // No per-row language badge either, for the same reason. The question
+  // "which language is this node" is asked about a handful of nodes in a
+  // polyglot tree and never in any other tree; a filter answers it without
+  // putting a marker on all ninety of them.
+  // =====================================================================
+  var langBar = document.getElementById("langbar");
+  var activeLangs = null; // null = no filter; otherwise a set of names
+
+  function languageCounts(){
+    var counts = {}, order = [];
+    IR.nodes.forEach(function(n){
+      if(!n.language) return;
+      if(counts[n.language] === undefined){ counts[n.language] = 0; order.push(n.language); }
+      counts[n.language]++;
+    });
+    order.sort(function(a, b){ return counts[b] - counts[a] || (a < b ? -1 : 1); });
+    return { counts: counts, order: order };
+  }
+
+  // Does this node, or anything below it, belong to an active language?
+  //
+  // Ancestors have to survive the filter or the nodes it selects become
+  // unreachable — a `src/util.js` whose parent `src` is hidden is a row with
+  // no path to it. A namespace has no language of its own by construction
+  // (see scan.lua), so without this it would always be filtered out.
+  var langSubtree = {};
+  function subtreeLanguages(id){
+    if(langSubtree[id]) return langSubtree[id];
+    var n = byId[id], set = {};
+    if(!n) return set;
+    langSubtree[id] = set; // set first: a cycle would otherwise recurse forever
+    if(n.language) set[n.language] = true;
+    (n.children || []).forEach(function(kid){
+      var sub = subtreeLanguages(kid);
+      for(var k in sub) set[k] = true;
+    });
+    return set;
+  }
+
+  function rowMatchesLanguage(r){
+    if(!activeLangs) return true;
+    // Function rows and the group header follow the module they sit under,
+    // which the DOM already expresses: they have no id of their own.
+    var id = r.dataset.id;
+    if(!id) return true;
+    var sub = subtreeLanguages(id);
+    for(var k in sub) if(activeLangs[k]) return true;
+    return false;
+  }
+
+  // One pass for both filters.
+  //
+  // The search box and the legend both decide row visibility through
+  // `style.display`, and two independent handlers writing that property make
+  // the second one to run silently undo the first. Deciding once, from both
+  // inputs, is the only version that cannot drift.
+  function applyTreeFilter(){
+    var v = (q.value || "").toLowerCase().trim();
+    treeEl.querySelectorAll(".row").forEach(function(r){
+      var hit;
+      if(r.dataset.fn){
+        var entry = fnByKey[r.dataset.fn];
+        hit = !v || !entry ||
+          (entry.fn.signature + " " + (entry.fn.summary || "")).toLowerCase().indexOf(v) >= 0;
+      } else if(r.classList.contains("fnhead")){
+        hit = !v;
+      } else {
+        var n = byId[r.dataset.id];
+        hit = !v || !n ||
+          (n.name + " " + (n.module || "") + " " + (n.summary || "")).toLowerCase().indexOf(v) >= 0;
+      }
+      r.style.display = (hit && rowMatchesLanguage(r)) ? "" : "none";
+    });
+    if(v) treeEl.querySelectorAll(".kids").forEach(function(k){ k.classList.remove("hide"); });
+  }
+
+  function renderLangBar(){
+    var info = languageCounts();
+    if(info.order.length < 2){ langBar.hidden = true; return; }
+
+    var h = ['<span class="lb-label">Languages</span>'];
+    info.order.forEach(function(name){
+      var on = !activeLangs || activeLangs[name];
+      h.push('<button type="button" class="lb-chip' + (on ? " on" : "") +
+        '" data-lang="' + esc(name) + '" aria-pressed="' + (on ? "true" : "false") + '">' +
+        esc(name) + '<span class="lb-n">' + info.counts[name] + '</span></button>');
+    });
+    if(activeLangs){
+      h.push('<button type="button" class="lb-clear" data-lang-clear="1">show all</button>');
+    }
+    langBar.innerHTML = h.join("");
+    langBar.hidden = false;
+  }
+
+  langBar.addEventListener("click", function(ev){
+    var clear = ev.target.closest && ev.target.closest("[data-lang-clear]");
+    if(clear){ activeLangs = null; renderLangBar(); applyTreeFilter(); return; }
+    var chip = ev.target.closest && ev.target.closest("[data-lang]");
+    if(!chip) return;
+    var name = chip.dataset.lang;
+    // First click on an unfiltered bar selects *only* that language rather
+    // than deselecting it. "Show me the TypeScript" is the thing a reader
+    // wants from a legend; "show me everything except TypeScript" is not,
+    // and starting from all-on makes the first click do the useless one.
+    if(!activeLangs){
+      activeLangs = {};
+      activeLangs[name] = true;
+    } else if(activeLangs[name]){
+      delete activeLangs[name];
+      // Emptied by unticking the last one: that is "show nothing", which is
+      // never what was meant, so it means "show all" instead.
+      var any = false;
+      for(var k in activeLangs){ any = true; break; }
+      if(!any) activeLangs = null;
+    } else {
+      activeLangs[name] = true;
+    }
+    renderLangBar();
+    applyTreeFilter();
+  });
+
+  // Drawn at load, not on first interaction: the legend's whole job is to
+  // tell a reader the map holds more than one language before they wonder.
+  renderLangBar();
+
   q.addEventListener("input", function(){
     var v = this.value.toLowerCase().trim();
 
@@ -6327,26 +6478,12 @@ local JS = [[
       if(match) drawHierarchy(match, state.view, true);
       return;
     }
-    treeEl.querySelectorAll(".row").forEach(function(r){
-      // Three row shapes now share this list: node rows, function rows (which
-      // carry data-fn and match on their own signature, not their module's
-      // summary), and the function-group header, which has no data at all and
-      // would have thrown on `n.name` before this branch existed.
-      var hit;
-      if(r.dataset.fn){
-        var entry = fnByKey[r.dataset.fn];
-        hit = !v || !entry ||
-          (entry.fn.signature + " " + (entry.fn.summary || "")).toLowerCase().indexOf(v) >= 0;
-      } else if(r.classList.contains("fnhead")){
-        hit = !v;
-      } else {
-        var n = byId[r.dataset.id];
-        hit = !v || !n ||
-          (n.name+" "+(n.module||"")+" "+(n.summary||"")).toLowerCase().indexOf(v) >= 0;
-      }
-      r.style.display = hit ? "" : "none";
-    });
-    if(v) treeEl.querySelectorAll(".kids").forEach(function(k){ k.classList.remove("hide"); });
+    // Three row shapes share this list -- node rows, function rows (which
+    // match on their own signature, not their module's summary) and the
+    // function-group header, which has no data at all -- and the language
+    // legend filters the same rows. `applyTreeFilter` owns all of it, so the
+    // two inputs cannot take turns undoing each other's `display`.
+    applyTreeFilter();
   });
   q.addEventListener("keydown", function(ev){
     if(ev.key === "Enter" && state.tab === "hierarchy"){
@@ -7520,7 +7657,8 @@ function M.render(ir, findings, opts)
     '<button id="markbar" class="markbar" hidden></button>',
     "</div>",
 
-    '<main id="view-tree" class="view active"><div id="tree"></div><div id="detail"></div></main>',
+    '<main id="view-tree" class="view active"><div id="langbar" class="langbar" hidden></div>'
+      .. '<div id="tree"></div><div id="detail"></div></main>',
 
     '<div id="view-hierarchy" class="view">',
     '<div class="hctl">',
