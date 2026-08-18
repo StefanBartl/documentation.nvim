@@ -197,15 +197,15 @@ ordinary annotated Lua trees and the existing map already serves them. What
 the corpus is, is the missing prerequisite for something already in the
 backlog and already deferred for its absence:
 
-- [ ] **Cross-repository checks over `tag_files` (IDEAS §1.7)**, rated "No —
-      needs real multi-repo case first". The real case exists: 33 repos, ~30
-      maps, one shared dependency. `core/tagfiles.lua`'s own header already
-      names this exact scenario as "the normal case, not a hypothetical one".
-- [ ] **A reverse index over `lib.nvim`** — which of its modules is required
-      by which consumer, and which by nobody. Computable only across maps,
-      and no single map can answer it. This is the concrete, valuable version
-      of §1.7: dead-code detection for a library, from its consumers'
-      committed artifacts rather than from guesses.
+- [x] ~~**Cross-repository checks over `tag_files` (IDEAS §1.7)**~~ — the
+      reverse index below is the concrete, valuable half of it. What remains
+      unbuilt is the *check* half: a finding rather than a report, which
+      needs a decision about what a library may legitimately fail CI over.
+- [x] ~~**A reverse index over `lib.nvim`**~~ — built 2026-08-18 as
+      `core/consumers.lua` and `:DocMap consumers`. Against 29 sibling maps:
+      107 modules required by a consumer, 108 required only by the library
+      itself, 33 by nobody. The two-way version says 141 unused, wrong about
+      all 108 in between.
 - [ ] **A cross-repo dashboard** in `docmap-desktop`, which is the one place
       that already holds several projects at once. The workspace-level view
       no single repository can have.
