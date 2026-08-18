@@ -447,6 +447,120 @@ end
 --- a deliberate one.
 ---@param ir Documentation.IR
 ---@param findings Documentation.Finding[]
+---Two places registering the same binding, where the second silently wins.
+---
+---The one check in this file that is meaningless for a plugin and valuable
+---for a *config*. A Neovim config is where `<leader>ff` gets bound in
+---`lua/bindings/mappings/telescope.lua` and again, months later, in
+---`lua/plugins/fzf.lua` — after which one of them simply never fires, with
+---nothing anywhere saying so. `:map <leader>ff` shows the winner and gives
+---no hint that there was a loser.
+---
+---No new extraction: `core/bindings.lua` has collected `lhs`, `modes`,
+---`buffer` and the registering line since it shipped. This is a check over
+---data the artifact already carries.
+---
+---Three things it deliberately does not report, each of which would make it
+---the noisy check nobody keeps enabled:
+---
+---  * **Buffer-local against global.** Shadowing a global map inside one
+---    buffer is the mechanism, not a mistake — it is what `buffer = true` is
+---    *for*. Only global-against-global is a conflict.
+---  * **A non-literal `lhs`.** `bindings.lua` records `nil` rather than
+---    guessing at `prefix .. "x"`, and two unknowns are not a known clash.
+---  * **One call, several modes.** `vim.keymap.set({ "n", "v" }, ...)` is one
+---    registration, and counting it twice would make every multi-mode map in
+---    every config a finding.
+---
+---User commands are the same statement about a different namespace (two
+---`nvim_create_user_command("Foo")` calls, the second wins), so they share
+---this check rather than getting a near-identical second one.
+---@param ir Documentation.IR
+---@param findings Documentation.Finding[]
+local function check_binding_conflicts(ir, findings)
+  ---Registration sites per key, plus the human name of what that key means.
+  ---
+  ---The description is carried rather than parsed back out of the key. An
+  ---earlier draft packed mode and `lhs` into one string separated by NUL and
+  ---unpacked it with `%z`, which works under LuaJIT and **does not exist** in
+  ---PUC Lua 5.4 — the interpreter `standalone/` is built against. Two fields
+  ---cost nothing and cannot break on a host this file never sees.
+  ---@type table<string, { what: string, sites: { node: string, line: integer, callee: string }[] }>
+  local seen = {}
+  ---Key order, so the findings come out in `ir.order` and not in whatever
+  ---order `pairs` feels like — the same determinism `--check` needs
+  ---everywhere else.
+  ---@type string[]
+  local order = {}
+
+  ---@param key string
+  ---@param what string
+  ---@param node_id string
+  ---@param binding Documentation.BindingSpec
+  local function record(key, what, node_id, binding)
+    if not seen[key] then
+      seen[key] = { what = what, sites = {} }
+      order[#order + 1] = key
+    end
+    local sites = seen[key].sites
+    sites[#sites + 1] = { node = node_id, line = binding.line, callee = binding.callee }
+  end
+
+  for _, id in ipairs(ir.order) do
+    for _, b in ipairs(ir.nodes[id].bindings or {}) do
+      if b.kind == "keymap" and b.lhs and not b.buffer then
+        for _, mode in ipairs(b.modes) do
+          record(
+            ("keymap/%s/%s"):format(mode, b.lhs),
+            ("keymap %s in mode %s"):format(b.lhs, mode),
+            id,
+            b
+          )
+        end
+      elseif b.kind == "usercmd" and b.name then
+        record(("usercmd/%s"):format(b.name), ("user command :%s"):format(b.name), id, b)
+      end
+    end
+  end
+
+  for _, key in ipairs(order) do
+    local entry = seen[key]
+
+    -- Distinct *sites*, not distinct records: one call declaring several
+    -- modes is recorded once per mode, with the same node and line each
+    -- time, and is one registration.
+    local at_seen, sites = {}, {}
+    for _, site in ipairs(entry.sites) do
+      local at = ("%s:%d"):format(site.node, site.line)
+      if not at_seen[at] then
+        at_seen[at] = true
+        sites[#sites + 1] = site
+      end
+    end
+
+    if #sites > 1 then
+      local where = {}
+      for _, site in ipairs(sites) do
+        where[#where + 1] = ("%s:%d (%s)"):format(site.node, site.line, site.callee)
+      end
+      -- Reported against the *last* site, because that is the one that wins:
+      -- the finding lands on the file whose author is most likely looking at
+      -- it, rather than on the one whose binding silently disappeared.
+      add(
+        findings,
+        "warn",
+        "binding-conflict",
+        sites[#sites].node,
+        ("%s is registered %d times; the last one wins: %s"):format(
+          entry.what,
+          #sites,
+          table.concat(where, ", ")
+        )
+      )
+    end
+  end
+end
+
 local function check_require_cycles(ir, findings)
   for _, component in ipairs(M.require_cycles(ir)) do
     local names = {}
@@ -1109,6 +1223,7 @@ function M.run(ir, opts)
   check_doc_references(ir, findings)
   check_tools_spec(ir, findings)
   check_orphans(ir, findings)
+  check_binding_conflicts(ir, findings)
   check_require_cycles(ir, findings)
   check_require_not_declared(ir, findings, opts)
   check_layers(ir, findings, opts)

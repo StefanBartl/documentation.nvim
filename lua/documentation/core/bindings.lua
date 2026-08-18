@@ -259,6 +259,49 @@ local function table_string_field(node, key, src)
   return nil
 end
 
+---Whether an options table sets `key` to anything other than `false`/`nil`.
+---
+---Separate from `table_string_field` because the values differ in kind, not
+---just in name: `desc` is always a string, and `buffer` is `true` or a buffer
+---*number* (`buffer = 0` is the current buffer). `table_string_field` runs
+---its result through `string_value`, which returns `nil` for a boolean — so
+---asking it about `buffer` reported every `{ buffer = true }` keymap as
+---global.
+---
+---Found by `check.lua`'s binding-conflict check firing on two deliberately
+---buffer-local maps: the field's own documented contract said this worked,
+---and nothing had ever read it back.
+---@param node TSNode?
+---@param key string
+---@param src string
+---@return boolean
+local function table_truthy_field(node, key, src)
+  if not node or node:type() ~= "table_constructor" then
+    return false
+  end
+  for child in node:iter_children() do
+    if child:type() == "field" then
+      local name = child:field("name")[1]
+      if name then
+        local ok, name_text = pcall(vim.treesitter.get_node_text, name, src)
+        if ok and name_text == key then
+          local value = child:field("value")[1]
+          if not value then
+            return false
+          end
+          local ok_v, text = pcall(vim.treesitter.get_node_text, value, src)
+          -- Anything that is not literally false/nil counts, which includes
+          -- a variable this parser will not resolve. Erring toward "buffer
+          -- local" is the safe direction here: it suppresses a conflict
+          -- finding rather than inventing one.
+          return ok_v and text ~= "false" and text ~= "nil"
+        end
+      end
+    end
+  end
+  return false
+end
+
 ---Depth-first over every node, since a binding call can sit anywhere — a
 ---module's top level, inside a `setup()`, inside an autocmd callback.
 ---`plugins.lua` walks only the top-level `return`, which is right for a
@@ -319,7 +362,7 @@ function M.extract(root, src)
       spec.events = string_list(args[layout.event], src)
     end
     spec.desc = table_string_field(opts_node, "desc", src)
-    if opts_node and table_string_field(opts_node, "buffer", src) ~= nil then
+    if table_truthy_field(opts_node, "buffer", src) then
       spec.buffer = true
     end
 
