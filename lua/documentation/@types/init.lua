@@ -365,6 +365,7 @@
 ---@field module string The module path as written.
 ---@field alias string? Local name it was bound to, if any.
 ---@field member string? Trailing field access, as in `local x = require("y").z`.
+---@field names table<string, string>? Bare names this import binds, mapped to the member each refers to — `import { a, b as c }` gives `{ a = "a", c = "b" }`. JS binds an imported function directly into scope, so a call to it looks like a file-local one and has nothing for the alias-then-member model to resolve through; this is what `calls.lua` matches a bare callee against. Absent for every shape that binds no such name, including a *default* import, which names the default export rather than the module object.
 ---@field deferred boolean? The call sits inside a function body — a lazy load, not a load-time dependency.
 ---@field line integer
 

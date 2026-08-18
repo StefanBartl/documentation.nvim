@@ -99,6 +99,33 @@ return function(H)
   local ok_js, has_js = pcall(vim.treesitter.language.add, "javascript")
   if ok_js and has_js then
     ok(names["polyglotFixtureJoin"], "polyglot: the JS function is extracted too")
+
+    -- A relative specifier resolving to a node at all. Before this, `./util.js`
+    -- was recorded as an external module, because the module index is keyed on
+    -- declared `@module` paths and an ECMA node declares none — so no JS import
+    -- could resolve, ever.
+    local ts = by_id["src/parse.ts"]
+    eq(
+      table.concat(ts.requires, ","),
+      "src/util.js",
+      "polyglot: a relative import resolves to a node instead of counting as external"
+    )
+    eq(#ts.requires_external, 0, "polyglot: ... and is no longer reported as external")
+
+    -- The cross-file call. JS binds an imported function directly into scope,
+    -- so `polyglotFixtureJoin()` looks exactly like a call to a file-local
+    -- function; without the import binding it resolved to nothing.
+    local crossed
+    for _, e in ipairs(ir.edges or {}) do
+      if e.kind == "call" and e.from == "src/parse.ts" and e.to == "src/util.js" then
+        crossed = e
+      end
+    end
+    ok(crossed ~= nil, "polyglot: a bare call to a named import crosses the file boundary")
+    eq(crossed and crossed.to_fn, "polyglotFixtureJoin", "polyglot: ... to the right function")
+    -- An import is a fact, not a guess: the heuristic path would have marked
+    -- this `heuristic`, and does not run at all here.
+    eq(crossed and crossed.confidence, "exact", "polyglot: ... and is exact, not heuristic")
   else
     ok(true, "polyglot: javascript parser not installed — function-level JS assertions skipped")
   end

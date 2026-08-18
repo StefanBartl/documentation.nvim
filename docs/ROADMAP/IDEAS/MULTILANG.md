@@ -249,13 +249,43 @@ against a real parse first, as this document's own closing caution demands.
   tracing an identifier back to its assignment is exactly the guess
   `deps.lua` already refuses to make about computed requires.
 
-Also still open, not JS/TS-specific: **cross-file call resolution**. JS's
-named imports (`import { helper } from "./bar"`) bind the function directly
-into scope as a bare name, not through an alias-then-`.member` shape the
-way `local fs = require(...)` then `fs.read()` works in Lua —
-`calls.lua`'s alias/prefix resolution model has no equivalent branch for
-"this bare name came from a specific import." Real, valuable, and a
-separate task from same-file resolution (which is done).
+**Cross-file call resolution — built 2026-08-18, and it had a prerequisite
+this document did not name.** The stated gap was that `extract_requires`
+never recorded *which names* an import binds, so a bare `helper()` had
+nothing for `calls.lua`'s alias-then-`.member` model to resolve through.
+True, and not the whole story: measured first, `./util.js` was being recorded
+as an **external** module. `deps.module_index` keys on a declared `@module`
+path, an ECMA node declares none (`ecma.lua`: "module identity is the file
+path itself"), so no JS import could resolve to a node at all — the name
+binding would have had nothing to bind *to*.
+
+Both layers now exist:
+
+- `deps.path_index`/`deps.resolve_relative` resolve `./`, `../`,
+  extensionless and `dir/index.*` specifiers against node paths. Candidate
+  extensions come from `lang_registry`, so a future backend resolves without
+  `deps.lua` learning its name. Bare specifiers (`react`, `plenary.async`)
+  are never resolved locally — guessing that `utils` might mean a file here
+  is the invention this pipeline declines everywhere else.
+- `Documentation.RawRequire.names` records what a named import binds
+  (`import { a, b as c }` → `{ a = "a", c = "b" }`), and `calls.lua` matches a
+  bare callee against it. Order matters and is deliberate: file-local first,
+  then the import, then the heuristic — a file declaring its own `helper`
+  *and* importing one means its own, and an import is an exact fact where the
+  heuristic is a guess.
+- `* as ns` is recorded as an `alias`, which is exactly what it is, so
+  `ns.thing()` resolves through machinery that already existed.
+- A **default** import is deliberately left unbound: it names the default
+  export, not the module object, and treating it as an alias would resolve
+  `def.thing()` against members that may not be reachable that way — a wrong
+  answer dressed as a resolved one.
+
+Verified on `TESTS/fixtures/polyglot/`: `src/parse.ts` requires
+`src/util.js` as a node rather than an external, and the call edge
+`polyglotFixtureSplit → polyglotFixtureJoin` lands with `exact` confidence.
+This repository's own map gained only the edges of the new code itself and
+lost none, which is the check that mattered — Lua's dotted requires are never
+relative, so nothing about them moved.
 
 ### Phase 2 — Python — **not started**
 

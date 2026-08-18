@@ -262,6 +262,108 @@ function M.module_index(ir)
   return by_module
 end
 
+---Map every node's repo-relative path to its id.
+---
+---The other half of `module_index`. That one keys on a *declared* module
+---path, which is how Lua names things; a language whose module identity is
+---its file path (`ecma.lua`'s header: "Module identity is the file path
+---itself") declares none, so its nodes are absent from that index entirely
+---and no import of theirs could ever resolve.
+---@param ir Documentation.IR
+---@return table<string, string> path -> node id
+function M.path_index(ir)
+  local by_path = {}
+  for _, id in ipairs(ir.order) do
+    local node = ir.nodes[id]
+    if node.path then
+      by_path[node.path] = id
+    end
+    -- A module node is reachable by its own source file too: `./util.js`
+    -- names the file, while the node's `path` for a directory-module is the
+    -- directory.
+    if node.source then
+      by_path[node.source] = id
+    end
+  end
+  return by_path
+end
+
+---Normalise a joined path, resolving `.` and `..` textually.
+---@param path string
+---@return string
+local function normalise(path)
+  local parts = {}
+  for seg in path:gmatch("[^/]+") do
+    if seg == ".." then
+      table.remove(parts)
+    elseif seg ~= "." then
+      parts[#parts + 1] = seg
+    end
+  end
+  return table.concat(parts, "/")
+end
+
+---Extensions any registered backend claims, longest first.
+---
+---Asked of the registry rather than written out, so a relative import
+---resolves for every language the build can read without this module
+---learning their names — the same seam `scan.lua` uses, and the reason
+---`Documentation.LangBackend.extensions` is enumerable at all.
+---@return string[]
+local function candidate_extensions()
+  local exts = {}
+  for _, backend in ipairs(require("documentation.core.lang_registry").all()) do
+    for _, ext in ipairs(backend.extensions or {}) do
+      exts[#exts + 1] = ext
+    end
+  end
+  table.sort(exts)
+  return exts
+end
+
+---Resolve a relative import specifier against the tree.
+---
+---**Only `./` and `../`.** A bare specifier (`react`, `plenary.async`) names
+---a package or another project's module and is external by definition;
+---guessing that `utils` might mean a file in this tree is exactly the kind of
+---resolution this pipeline declines elsewhere.
+---
+---Tries the specifier as written first, then with each backend's extensions
+---appended, then as a directory holding an index file — the three shapes a
+---JS/TS resolver actually takes, minus the ones that need `package.json`
+---(`exports` maps, `node_modules` walking), which are a package manager's job
+---and not this map's.
+---@param by_path table<string, string> From `M.path_index`.
+---@param from_path string Repo-relative path of the *importing* node.
+---@param spec string The specifier as written.
+---@return string? id
+function M.resolve_relative(by_path, from_path, spec)
+  if spec:sub(1, 2) ~= "./" and spec:sub(1, 3) ~= "../" then
+    return nil
+  end
+
+  -- The importing node's directory. A file node's own path includes the
+  -- filename, which is not part of the base.
+  local base = from_path:match("^(.*)/[^/]*$") or ""
+  local joined = normalise((base == "" and "" or base .. "/") .. spec)
+  if joined == "" then
+    return nil
+  end
+
+  if by_path[joined] then
+    return by_path[joined]
+  end
+  for _, ext in ipairs(candidate_extensions()) do
+    if by_path[joined .. "." .. ext] then
+      return by_path[joined .. "." .. ext]
+    end
+    if by_path[joined .. "/index." .. ext] then
+      return by_path[joined .. "/index." .. ext]
+    end
+  end
+  return nil
+end
+
 ---Resolve every node's `requires_raw` into `kind="require"` edges, appended to
 ---`ir.edges`, and fill the `requires`/`required_by` index on each node.
 ---
@@ -272,6 +374,7 @@ end
 ---@return Documentation.Edge[] added The require edges appended, for callers that want them separately.
 function M.build(ir)
   local by_module = M.module_index(ir)
+  local by_path = M.path_index(ir)
   ir.edges = ir.edges or {}
 
   local edges = {}
@@ -286,7 +389,10 @@ function M.build(ir)
     local seen_external = {}
     local seen = {}
     for _, req in ipairs(node.requires_raw or {}) do
-      local target = by_module[req.module]
+      -- Declared module path first, then the relative-specifier fallback: a
+      -- Lua `require("a.b")` is never relative, and a JS `./util.js` is never
+      -- a declared module, so the two never compete for the same string.
+      local target = by_module[req.module] or M.resolve_relative(by_path, node.path, req.module)
 
       -- Requires that resolve to nothing in this tree are still facts about
       -- the module: `fidget.progress` is a real dependency, it just is not
