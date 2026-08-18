@@ -77,6 +77,7 @@ local specs = {
   "lang_registry_spec.lua",
   "detect_source_spec.lua",
   "coverage_gaps_spec.lua",
+  "artifact_contract_spec.lua",
   "docs_spec.lua",
   "quicks_spec.lua",
   "lang_js_spec.lua",
