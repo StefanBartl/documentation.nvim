@@ -136,13 +136,19 @@ already rates everything in `IDEAS.md` by effort and benefit. Its open
 | 6.4 | Mermaid export | The renderer already exists |
 | ~~9~~ | ~~Schema versioning + a payload-contract test~~ | **Built 2026-08-18.** Its first run caught a sixth victim: `endpoints`, absent from the artifact since `core/endpoints.lua` shipped |
 
-**§9 has earned promotion.** `html.lua`'s own comment thread records that
-`duplicates`, `docs`, `quicks` and `checklist` were each added to `ir` and
-forgotten in the page payload, because the two field lists are maintained by
-hand and separately. This session added `glossaries` as the fifth, and only
-got it right by reading that comment. A contract test asserting the two
-lists agree is the fix; the comment thread is evidence it has already cost
-four features.
+**§9 was built the same day it was promoted, and was worth it immediately.**
+`html.lua`'s comment thread records `duplicates`, `docs`, `quicks` and
+`checklist` each added to `ir` and forgotten in the page payload; this
+session added `glossaries` as the fifth and only got it right by reading
+that comment. The test's first run found the sixth without anyone looking:
+`endpoints`, absent from `module_map.json` since `core/endpoints.lua`
+shipped, invisible because the *page* encodes node tables wholesale and so
+showed routes the artifact never carried.
+
+**One half of §9 is still open:** the same contract between `ir` and
+`html.lua`'s payload field list. `TESTS/artifact_contract_spec.lua` covers
+`ir` against `to_json` only — the payload list that produced four of the six
+victims is still unchecked.
 
 **§1.7's precondition is met**, and the entry in
 `IDEAS_IMPLEMENTATION_PLAN.md` has been updated to say so — see Part 4.
