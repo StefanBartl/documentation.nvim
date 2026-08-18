@@ -337,6 +337,23 @@ function M.scan(opts)
   local order = {} ---@type string[]
   local counts = { module = 0, namespace = 0, file = 0 }
 
+  ---Bound on the second traversal below. Generous enough never to stop early
+  ---on a real repository, small enough that a home directory picked by mistake
+  ---does not turn a scan into a filesystem crawl — the same reasoning
+  ---`docmap-desktop`'s own language counter uses for the same shape of walk.
+  local OUTSIDE_MAX_FILES = 20000
+
+  ---Extensions seen inside the scanned roots that no backend claimed.
+  ---@type table<string, integer>
+  local unclaimed = {}
+
+  ---Files each backend *did* read, by backend name. What tells a language
+  ---that is merely partly outside the source roots (`scripts/` next to
+  ---`lua/`, normal and intentional) from one that is *entirely* outside
+  ---them — which is the real gap and the only one worth a line on every run.
+  ---@type table<string, integer>
+  local claimed = {}
+
   ---Build one node from a directory.
   ---@param abs string
   ---@param rel string Path relative to `root`
@@ -363,6 +380,9 @@ function M.scan(opts)
       end
     end
     local has_init = module_backend ~= nil
+    if module_backend then
+      claimed[module_backend.name] = (claimed[module_backend.name] or 0) + 1
+    end
     local header = module_backend and module_backend.parse_header(module_abs) or nil
 
     -- `@types/` is an attribute of its module, not a node of its own: a
@@ -464,6 +484,17 @@ function M.scan(opts)
         if e.name ~= types_dir and not M.VENDOR_DIRS[e.name] then
           node.children[#node.children + 1] = walk_dir(child_abs, child_rel, id, depth + 1)
         end
+      elseif e.type ~= "directory" and not leaf_backend then
+        -- Counted, not ignored. A file no backend claims is the ordinary
+        -- case for a README or a lockfile and the *interesting* case for a
+        -- `.py` in a tree this build cannot read -- and the two are
+        -- indistinguishable unless someone counts. Keyed by extension so
+        -- the report can name what it was.
+        local ext = e.name:match("%.([%w]+)$")
+        if ext then
+          ext = ext:lower()
+          unclaimed[ext] = (unclaimed[ext] or 0) + 1
+        end
       elseif leaf_backend and e.name ~= (module_backend and module_backend.module_file) then
         -- Helper files are real, documented units and stay visible as leaves
         -- rather than being folded into the parent's detail pane. The
@@ -472,6 +503,7 @@ function M.scan(opts)
         -- appearing a second time as its own leaf.
         local h = leaf_backend.parse_header(child_abs)
         counts.file = counts.file + 1
+        claimed[leaf_backend.name] = (claimed[leaf_backend.name] or 0) + 1
         local leaf_fns, leaf_calls, leaf_requires, leaf_syms, leaf_plugins, leaf_endpoints, leaf_loc, leaf_binds =
           leaf_backend.scan_file(child_abs)
         local leaf_stats = zero_stats()
@@ -579,6 +611,57 @@ function M.scan(opts)
   end
   index[root_id].name = opts.title or index[root_id].name
 
+  -- What a backend could have read but never got the chance to.
+  --
+  -- The failure this closes was found twice in one session, the same shape
+  -- both times: a map that looks healthy and is missing half its subject.
+  -- `source` bounds the walk, which is the whole point of it — but a
+  -- `tools/` directory of TypeScript sitting outside every source root is
+  -- invisible today, and invisible is the one thing this map must not be
+  -- about its own coverage.
+  --
+  -- A second traversal rather than a wider first one, deliberately: the walk
+  -- builds nodes and must not build them for files outside the map's stated
+  -- scope. This one builds nothing, counts by backend, and stops early.
+  ---@type table<string, integer>
+  local outside = {}
+  do
+    local seen = 0
+    local stack = { { abs = root, rel = "" } }
+    while #stack > 0 and seen < OUTSIDE_MAX_FILES do
+      local cur = table.remove(stack)
+      for _, e in ipairs(entries(cur.abs)) do
+        local child_rel = cur.rel == "" and e.name or (cur.rel .. "/" .. e.name)
+        if e.type == "directory" then
+          -- Skipped when it is a source root or inside one: those files are
+          -- in the map already, and counting them here would report the
+          -- whole tree as missing from itself.
+          local inside = false
+          for _, src in ipairs(sources) do
+            if
+              src == "."
+              or child_rel == src
+              or src:sub(1, #child_rel + 1) == (child_rel .. "/")
+              or child_rel:sub(1, #src + 1) == (src .. "/")
+            then
+              inside = true
+              break
+            end
+          end
+          if not inside and not M.VENDOR_DIRS[e.name] and e.name ~= types_dir then
+            stack[#stack + 1] = { abs = cur.abs .. "/" .. e.name, rel = child_rel }
+          end
+        else
+          seen = seen + 1
+          local backend = lang_registry.for_file(e.name)
+          if backend then
+            outside[backend.name] = (outside[backend.name] or 0) + 1
+          end
+        end
+      end
+    end
+  end
+
   ---@type Documentation.IR
   local ir = {
     meta = {
@@ -593,6 +676,16 @@ function M.scan(opts)
       -- absence is not ambiguous: it means `source` alone describes the
       -- scan, which is exactly what it did before this field existed.
       sources = #sources > 1 and sources or nil,
+      -- Emitted only when non-empty, so a tree with nothing to report is
+      -- byte-identical to the maps generated before this existed. Absence
+      -- means "nothing was missed", which is the common and the good case.
+      unclaimed = next(unclaimed) and unclaimed or nil,
+      outside = next(outside) and outside or nil,
+      -- Kept beside `outside` so a consumer can tell "this language is
+      -- partly outside the roots" (ordinary: a scripts/ next to lua/) from
+      -- "this language is entirely outside them" (the real gap). The CLI
+      -- prints only the second; the artifact carries both.
+      claimed = next(claimed) and claimed or nil,
       types_dir = types_dir,
       repo_url = opts.repo_url,
       branch = opts.branch or "main",

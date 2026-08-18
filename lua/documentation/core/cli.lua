@@ -116,6 +116,46 @@ function M.run(opts, argv)
       ir.meta.counts.file
     )
   )
+  -- The one coverage gap unambiguous enough to print on every run: a whole
+  -- language that has files in this tree and contributed nothing to the map,
+  -- because all of them sit outside every source root. That is a fixable
+  -- configuration fact, not an opinion, and nothing else in this output
+  -- would ever mention it.
+  --
+  -- `ir.meta.unclaimed` (files in scope that no backend reads) is
+  -- deliberately *not* printed here. It is mostly READMEs in every healthy
+  -- repository, so a line on every run would be noise; it stays in the
+  -- artifact, where a surface that can rank and filter -- the page, the
+  -- desktop app -- can show it usefully.
+  if ir.meta.outside then
+    local parts = {}
+    for name, n in pairs(ir.meta.outside) do
+      -- Only a language that contributed *nothing* to the map. A `scripts/`
+      -- of Lua beside a `lua/` source root is outside it on purpose and
+      -- reporting that on every run would be the noise this line exists to
+      -- avoid being. A language with files in the tree and no nodes in the
+      -- map is the opposite: nobody chose that, and nothing else says it.
+      if not (ir.meta.claimed and ir.meta.claimed[name]) then
+        parts[#parts + 1] = ("%s %d"):format(name, n)
+      end
+    end
+    table.sort(parts)
+    local total = 0
+    for name, n in pairs(ir.meta.outside) do
+      if not (ir.meta.claimed and ir.meta.claimed[name]) then
+        total = total + n
+      end
+    end
+    if total > 0 then
+      io.stdout:write(
+        ("%d file%s of a language this map contains none of, outside every source root (%s)\n"):format(
+          total,
+          total == 1 and "" or "s",
+          table.concat(parts, ", ")
+        )
+      )
+    end
+  end
   local tested, tested_total = require("documentation.core.coverage").summary(ir)
   if tested_total > 0 then
     io.stdout:write(
