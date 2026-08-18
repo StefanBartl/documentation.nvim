@@ -691,6 +691,7 @@ function M.backend(name, lang, extensions, module_file)
 
   return {
     name = name,
+    grammar = lang,
     module_file = module_file,
     module_tag = false,
     is_source = function(filename)
