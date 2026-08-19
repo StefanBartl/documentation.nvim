@@ -6480,9 +6480,14 @@ local JS = [[
   // exported file matches the theme it was exported from rather than always
   // being the light one.
   // =====================================================================
-  function exportSvg(){
+  /// The diagram as a standalone SVG string, or `null` when none is drawn.
+  ///
+  /// Split out from `exportSvg` so a host can ask for the bytes without a
+  /// download happening: an embedded page's `<a download>` lands wherever
+  /// the embedder decides, which is not a place anybody chose.
+  function buildSvg(){
     var svg = document.getElementById("hsvg");
-    if(!svg) return;
+    if(!svg) return null;
     var w = svg.getAttribute("width"), h = svg.getAttribute("height");
     var cs = getComputedStyle(document.body);
     var parts = ['<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'" '+
@@ -6528,12 +6533,22 @@ local JS = [[
     });
 
     parts.push('</svg>');
+    return parts.join("\n");
+  }
 
-    var blob = new Blob([parts.join("\n")], { type: "image/svg+xml" });
+  /// The name this diagram would be saved under.
+  function svgName(){
+    return (state.view || "modules") + "-" +
+      (hcenter || "map").replace(/[^\w.-]+/g, "_") + ".svg";
+  }
+
+  function exportSvg(){
+    var text = buildSvg();
+    if(!text) return;
+    var blob = new Blob([text], { type: "image/svg+xml" });
     var a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = (state.view || "modules") + "-" +
-      (hcenter || "map").replace(/[^\w.-]+/g, "_") + ".svg";
+    a.download = svgName();
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -6548,6 +6563,68 @@ local JS = [[
   }
 
   document.getElementById("hexport").addEventListener("click", exportSvg);
+
+  // =====================================================================
+  // The inbound channel — questions only
+  //
+  // This page has always spoken to a host and never listened. Opening that
+  // direction is a change of security posture, so the shape is chosen to
+  // give away as little of it as possible:
+  //
+  // **It answers questions about itself. It does not take instructions.**
+  // There is no "go to this tab", no "run this", no "set this value" — a
+  // host that wants the page somewhere navigates the frame's own URL, which
+  // it already controls and which the page already validates on the way in.
+  // What a host cannot do from outside is *read* a cross-origin document,
+  // and that is exactly what the one verb below exists for.
+  //
+  // Consequences of that choice, stated so a later verb has to argue against
+  // them rather than quietly break them:
+  //
+  //   * A malicious embedder gains nothing it did not have. Everything
+  //     answerable here is already rendered on the page it embedded.
+  //   * A fixed vocabulary, not a dispatch table keyed by whatever arrived.
+  //     An unknown verb is answered with silence, not with an error echoing
+  //     the input back.
+  //   * Replies go to the asker's own origin, never to `"*"`. An `opener`
+  //     that is not the embedder therefore learns nothing by listening.
+  //
+  // The theme deliberately does *not* come through here: `?theme=` is read
+  // from the URL instead, because it has to apply before first paint and a
+  // message cannot arrive that early.
+  // =====================================================================
+  window.addEventListener("message", function(ev){
+    var msg = ev.data;
+    if(!msg || typeof msg !== "object" || msg.source !== "docmap-host") return;
+
+    var reply = null;
+    if(msg.ask === "export-svg"){
+      // `null` when no diagram is drawn — a real answer, and the one the
+      // host needs in order to say "there is nothing to export" rather than
+      // writing an empty file.
+      var text = (typeof buildSvg === "function") ? buildSvg() : null;
+      reply = text
+        ? { ok: true, kind: "svg", name: svgName(), data: text }
+        : { ok: false, reason: "no-diagram" };
+    }else if(msg.ask === "state"){
+      // The same coarse context this page already volunteers on every
+      // navigation — repeated here so a host can ask rather than wait.
+      reply = { ok: true, kind: "state", tab: state.tab,
+                atool: state.atool, view: state.view };
+    }
+    if(!reply) return;
+
+    reply.source = "docmap";
+    reply.replyTo = msg.id;
+    try {
+      // `ev.origin` is `"null"` for a sandboxed or file: embedder, and
+      // `postMessage` rejects that as a target — those hosts get no answer,
+      // which is the correct outcome rather than a broadcast.
+      if(ev.origin && ev.origin !== "null" && ev.source){
+        ev.source.postMessage(reply, ev.origin);
+      }
+    } catch(e) { /* a host that went away mid-question is not an error here */ }
+  });
 
   zoomLabel = document.getElementById("hzoomlabel");
   document.getElementById("hzoomreset").addEventListener("click", function(){ setZoom(1); });
