@@ -307,6 +307,26 @@ organised by the plan they came from and none of these did.
 
 ## Part 5 — document hygiene
 
+> **Escalated 2026-08-19 from hygiene to a rebuild.** The items below are
+> corrections — idea files that still list built things. The request that
+> came back from the installed app is larger and it is right: a great deal
+> has shipped that the docs and the README cover thinly or not at all, and
+> the fixes made today were patches. They repaired what had become false,
+> not what was never written.
+>
+> Do it as a rewrite with an inventory first — what exists, what is
+> documented, then close the gap. `docs/FEATURES/` is the nearest thing to
+> that inventory and is itself incomplete.
+>
+> One thing it has to say that nothing anywhere says today: **a generated
+> map is a snapshot of the engine that wrote it.** Page-side features
+> arrive by regenerating, not by updating whatever is reading the map.
+> That was found the hard way — a fixed feature looked broken in an
+> installed app because the map on disk predated the fix.
+>
+> Tracked jointly with `docmap-desktop`'s `docs/WORKPLAN.md` §10.7, since
+> it is one job across two repositories.
+
 Agreed convention, to be applied across both repos' `docs/`:
 
 - Anything **built** moves to `docs/FEATURES/FEATURES.md` (engine) with its
