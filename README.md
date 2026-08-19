@@ -7,6 +7,8 @@
                                                                   .nvim
 ```
 
+> **know your project**
+
 [![CI](https://github.com/StefanBartl/documentation.nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/StefanBartl/documentation.nvim/actions/workflows/ci.yml)
 ![Neovim 0.10+](https://img.shields.io/badge/Neovim-0.10%2B-57A143?logo=neovim&logoColor=white)
 ![Lua](https://img.shields.io/badge/Lua-5.1%2FLuaJIT-2C2D72?logo=lua&logoColor=white)
@@ -25,7 +27,7 @@
 > third leg, the same map read entirely outside Neovim, for anyone not
 > sitting in the editor.
 
-Doxygen for annotated Lua trees, as a Neovim plugin. Point it at a repository
+Point it at a repository
 whose files carry `---@module`, and it produces a **module map**: an
 interactive HTML page, a Markdown overview, a deterministic JSON artifact, and
 a set of drift checks that fail CI when the documentation and the code stop
