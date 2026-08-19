@@ -26,6 +26,17 @@ local uv = vim.uv
 local lang_registry = require("documentation.core.lang_registry")
 local marker_scan = require("documentation.core.markers")
 
+---The artifact schema this build writes.
+---
+---Named rather than inlined at the one place it is stamped, because a
+---second reader appeared: `--capabilities` reports it so a host can say
+---*which* engine it is looking at. A rolling release has no version number
+---to give -- the tag is literally `standalone-latest` -- and the schema is
+---the thing that actually decides whether two artifacts are comparable, so
+---it is the honest answer to that question rather than a semver nobody
+---bumps.
+M.SCHEMA = 4
+
 ---Directories the walk never descends into, and the same list
 ---`core/lang/ecma.lua` consults when deciding whether a candidate directory
 ---is evidence of its own language.
@@ -730,7 +741,7 @@ function M.scan(opts)
       -- artifact predates marker scanning" (schema 3, field absent). The
       -- Notes tab would otherwise render an older map as a repository
       -- with nothing left to do.
-      schema = 4,
+      schema = M.SCHEMA,
       counts = counts,
     },
     root = root_id,
