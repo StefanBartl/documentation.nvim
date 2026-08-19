@@ -342,24 +342,48 @@ relative, so nothing about them moved.
   `init.lua`-marks-a-module convention than to JS/Python/Rust — likely the
   cheapest walk-level fit of the five once Phase 0 lands.
 
-### Phase 5 — C — **not started**
+### Phase 5 — C (and C++) — **built 2026-08-19, out of order**
 
-- [ ] Declaration vs. definition — a `.h` prototype and its `.c` body are
-  two nodes referring to one function. `Documentation.FunctionInfo` today
-  models one function as one node; decide whether this becomes a new
-  `declares`/`defines` edge kind (parallel to the existing `require`/
-  `call`/`type`/`extends` discriminated union in `ir.edges`) before writing
-  the extractor.
-- [ ] Doxygen `\param`/`@param` where present, absent where not — "free
-  where present" since Doxygen's vocabulary is where LuaCATS's ultimately
-  descends from, but real C codebases vary enormously in whether they use
-  it at all; the doc-coverage checks need to degrade honestly on a tree
-  that never adopted it, the same way `coverage.lua` already degrades on a
-  tree with no `tests_dir`.
-- [ ] No package/module system to key `Documentation.Node.module` on at
-  all — headers and translation units are the closest analogue, and the
-  mapping is not obvious. Likely the hardest walk-level fit of the five;
-  reasonable to leave last regardless of check-count arguments.
+Built ahead of Phases 2–4 because it was asked for. The three open
+questions below were the real content of this phase, and each got an
+answer; they are kept, struck, with the answer attached, because the
+answers are the part worth reading.
+
+- [x] ~~Declaration vs. definition~~ — **decided per file, not per
+  function, and no new edge kind.** In a header a prototype *is* the
+  function (a header is the published surface and the file people read; a
+  header reporting nothing would be the emptiest node on the map). In a
+  source file only definitions are reported, since a forward declaration
+  there duplicates the body below it. The two are deliberately *not*
+  joined: `util.h`'s `add` and `util.c`'s `add` are two entries on two
+  nodes with the include edge between them. Joining them still needs the
+  `declares`/`defines` edge kind described here — this is the honest
+  version that fits today's schema, not a substitute for it.
+- [x] ~~Doxygen `\param`/`@param` where present~~ — both sigils accepted,
+  as are `/**`, `/*!`, `///` and `//!`. **And the warning in this entry
+  turned out to understate the problem, which measuring caught:** scanned
+  against `antirez/sds` (1328 lines, 45 functions, nearly all commented)
+  the Doxygen-only rule found **zero** summaries, because that codebase
+  writes plain `/* ... */`. Degrading honestly there would have meant
+  reporting a thoroughly documented C file as undocumented — wrong about
+  the one thing the map exists to show. So a comment directly above a
+  declaration documents it whatever its punctuation, with one filter
+  (`looks_like_prose`) against commented-out code, and the *file* header
+  rule still demands Doxygen style so a license banner never becomes a
+  file summary. Same tree, after: 34 of 45.
+- [x] ~~No package/module system~~ — **the path is the identity**,
+  `module_tag = false`, a directory is a namespace. Zig established the
+  shape and C agrees with it for free: the preprocessor works on paths, not
+  on names. The "hardest walk-level fit" prediction was wrong, and worth
+  recording as wrong — the hard part of C was documentation conventions,
+  not identity.
+- [x] ~~C++~~ — same file (`core/lang/cfamily.lua`), the way `ecma.lua` is
+  shared by three registrations. What C++ adds: `Thing::go` as a written
+  name (taken as written, not reconstructed), members declared inside a
+  class body, and an access specifier that is *positional* — everything
+  after `private:` is private until the next one, `class` starts private,
+  `struct` starts public. That last one is tracked while walking because
+  there is nothing on the member node to read.
 
 ### Requested out of phase order — Zig, Java, and what is left
 
@@ -398,10 +422,8 @@ proves the comment token *works* instead of that it is declared.
 
 Still requested and not built:
 
-- [ ] **C / C++** — Phase 5 above already argues the hard part (declaration
-      vs. definition, and no module system to key `Documentation.Node.
-      module` on). The request does not make that easier; it makes it
-      next.
+- [x] ~~**C / C++**~~ — built 2026-08-19; both questions Phase 5 raised are
+      answered there, with what measuring changed about the second one.
 - [ ] **Assembly** — the one request that needs a decision before any code:
       there is no function-visibility concept, no module system, no
       documentation convention, and *which* assembly (GAS, NASM, ARM) is a

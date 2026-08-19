@@ -45,6 +45,8 @@ local KNOWN_BACKENDS = {
   "documentation.core.lang.tsx",
   "documentation.core.lang.zig",
   "documentation.core.lang.java",
+  "documentation.core.lang.c",
+  "documentation.core.lang.cpp",
 }
 
 local loaded = false
