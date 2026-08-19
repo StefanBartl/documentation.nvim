@@ -178,6 +178,24 @@ change detection), §2.1/§2.2 (the panels gated on the `TAGS` refactor), §5.x
       backend claims. Verified to fail rather than assumed to pass: with
       ECMA source detection disabled it reports `expected "lua/pgl + src",
       got "lua/pgl"`, which is the exact shape of the failure it exists for.
+- [x] ~~**Marker comments in the Notes tab**~~ — built 2026-08-19,
+      `core/markers.lua`. Reported by an author whose tree is full of
+      `-- TODO:` and whose Notes tab said `Todo 0`: those sections read
+      LuaCATS annotations and were never counting comments. Keyword set is
+      `todo-comments.nvim`'s, alias for alias. Comment boundaries come from
+      the grammar, not from a pattern — the text-scanning first version
+      reported three to-dos that live inside string literals in this
+      repository's own renderer. Schema 4.
+- [ ] **Marker comments for the languages added after Lua and ECMA.** The
+      backend contract now carries `line_comments`/`block_comments`, and a
+      backend declaring neither is skipped rather than guessed at — so a
+      Python or Rust backend that forgets them scans clean and silently
+      finds nothing. Worth a registry check rather than trust.
+- [ ] **Markers in `check.lua` and Quicks**, if wanted: a `FIX`/`BUG`
+      marker is a defect the author recorded, which is exactly the shape
+      Quicks reports on. Deliberately not done with the tab — one surface
+      at a time, and a verdict that counts to-dos as defects needs its own
+      argument first.
 - [ ] **Per-entry reference anchors**, once someone has opened them. The
       renderer already supports them; they are unfilled on purpose.
 - [x] ~~**`.jsx`**, **class methods**, **`module.exports = {…}`**~~ — all
