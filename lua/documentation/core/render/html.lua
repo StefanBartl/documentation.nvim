@@ -7427,6 +7427,24 @@ local JS = [[
       var frag = fnEntry ? "#L" + fnEntry.fn.line : "";
       items.push({ label: u ? "Open source ↗" : "Open source",
         run: function(){ window.open(u ? u + frag : rel(n.source), u ? "_blank" : "_self"); } });
+      // Open it in an editor — only when something is embedding this page.
+      // A browser cannot start an editor, so in a plain tab this item would
+      // be a menu entry that does nothing, which is worse than an absent
+      // one. `window.parent !== window` is the whole test: a host that
+      // embeds this is a host that can be told, and one that ignores the
+      // message leaves the item doing what it appears to do — nothing —
+      // rather than lying about it.
+      if(window.parent !== window){
+        items.push({ label: "Open in editor", run: function(){
+          try {
+            window.parent.postMessage({
+              source: "docmap", kind: "open-file",
+              path: n.source,
+              line: fnEntry ? fnEntry.fn.line : null
+            }, "*");
+          } catch(e){ /* no host, same as no item */ }
+        } });
+      }
     }
     if(n.readme){
       items.push({ label: "Open README", run: function(){ window.open(rel(n.readme), "_self"); } });
