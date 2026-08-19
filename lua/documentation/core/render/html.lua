@@ -439,6 +439,15 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 /* The explanation card. Narrower than the annotation card it borrows from:
    these are two sentences about a control, not a function signature with a
    snippet under it, and a wide card over a tab strip covers the tabs. */
+/* The graph's own breadcrumb. Quiet: it is orientation, not a control
+   group, and it sits beside two buttons that are. */
+.hcrumb{display:flex;align-items:center;gap:4px;flex-wrap:wrap;
+  font-size:12px;color:var(--muted);margin-left:4px}
+.hcrumb[hidden]{display:none}
+.hcrumb button{border:none;background:none;padding:1px 4px;border-radius:4px;
+  color:var(--accent);font:inherit;cursor:pointer}
+.hcrumb button:hover{background:var(--accent-soft)}
+.hcrumb .here{color:var(--ink);font-weight:600;padding:1px 4px}
 .explainpop{max-width:340px}
 .explainpop .fn-desc{white-space:normal;line-height:1.5}
 #view-analysis{padding:22px 26px 60px}
@@ -2300,6 +2309,46 @@ local JS = [[
   //               at all: they open it, scroll to the first row of that
   //               severity, and flash it.
   // =====================================================================
+  /// The path from the root to whatever the graph is currently rooted at.
+  ///
+  /// `Up` and `Root` already existed and neither answers "where am I" —
+  /// after two recentres a reader knows they moved and not from where. Each
+  /// segment is also a way back to exactly that level, which `Up` only
+  /// reaches one at a time.
+  function renderCrumb(){
+    var host = document.getElementById("hcrumb");
+    if(!host) return;
+    var chain = [];
+    for(var id = hcenter; id && byId[id]; id = byId[id].parent){
+      chain.unshift(byId[id]);
+      // A malformed parent chain would spin here rather than fail; the
+      // scan cannot produce one, and a loop that trusts that is a loop
+      // that hangs the page if it is ever wrong.
+      if(chain.length > 64) break;
+    }
+    host.innerHTML = "";
+    // One level deep is the root itself, which `⌂ Root` already says. A
+    // breadcrumb of one entry is a label pretending to be navigation.
+    if(chain.length < 2){ host.hidden = true; return; }
+    host.hidden = false;
+    chain.forEach(function(n, i){
+      if(i) host.appendChild(document.createTextNode(" / "));
+      if(i === chain.length - 1){
+        var here = document.createElement("span");
+        here.className = "here";
+        here.textContent = n.name;
+        host.appendChild(here);
+        return;
+      }
+      var a = document.createElement("button");
+      a.type = "button";
+      a.textContent = n.name;
+      a.title = n.module || n.path;
+      a.addEventListener("click", function(){ navigate({ center: n.id, fn: null }); });
+      host.appendChild(a);
+    });
+  }
+
   function revealFinding(severity){
     var box = document.getElementById("findings");
     if(!box) return;
@@ -3710,7 +3759,9 @@ local JS = [[
     "tab.hierarchy":
       "The dependency graph, drawn from one module outward. Boxes are modules " +
       "and namespaces, arrows are requires and calls; the slider decides how " +
-      "far from the centre it reaches. The one view that exports as an SVG.",
+      "far from the centre it reaches. Double-click a box to root the graph " +
+      "there; the path above the graph shows where you are and every level " +
+      "is a way back. The one view that exports as an SVG.",
     "tab.index":
       "Flat lists of everything the map found, for when you know the name and " +
       "not the place. Three ways of listing the same repository — as a tree, " +
@@ -6186,7 +6237,8 @@ local JS = [[
     // The key the view considers "the middle": a node id in three views, a
     // function id in Calls. Used for the highlight ring and the scroll
     // target, so both follow whatever the view is actually about.
-    var centerKey = hcenter;
+      renderCrumb();
+  var centerKey = hcenter;
     if(view === "types") centerKey = built.layers[0] && built.layers[0][0];
     else if(view === "inheritance") centerKey = built.centerKey;
     else if(view === "calls") centerKey = wantFn || (built.layers[0] && built.layers[0][0]);
@@ -8490,6 +8542,10 @@ function M.render(ir, findings, opts)
     '<div id="view-hierarchy" class="view">',
     '<div class="hctl">',
     '<button id="hup">▲ Up</button><button id="hroot">⌂ Root</button>',
+    -- Where the graph is rooted, and every level above it. `Up` and `Root`
+    -- were the only way back and neither says where you are — after two
+    -- recentres the reader knows they moved and not from where.
+    '<nav id="hcrumb" class="hcrumb" aria-label="Graph root"></nav>',
     '<div class="hview-toggle">',
     '<button class="hview-btn active" data-view="modules">Modules</button>',
     '<button class="hview-btn" data-view="deps">Deps</button>',
