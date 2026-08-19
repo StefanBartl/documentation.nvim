@@ -248,9 +248,26 @@ local function parsed_comments(src, backend)
   end
 
   local out = {}
+
+  ---What a grammar calls a comment.
+  ---
+  ---Not one name: Lua and Zig produce `comment`, Java produces
+  ---`line_comment` and `block_comment`, and this set is the difference
+  ---between a backend reporting its markers and reporting none. It failed
+  ---in the quiet direction — the parser answered with an empty list, which
+  ---reads as "this file has no comments" rather than as "this grammar was
+  ---not understood", so the text fallback never ran either. Found by
+  ---`backend_contract_spec.lua`, which is why that spec proves the token
+  ---*works* rather than that it is declared.
+  local COMMENT_NODES = {
+    comment = true,
+    line_comment = true,
+    block_comment = true,
+  }
+
   ---@param node TSNode
   local function walk(node)
-    if node:type() == "comment" then
+    if COMMENT_NODES[node:type()] then
       -- The node's own bytes, not the lines it sits on. Taking whole lines
       -- would put the code back in — and `local s = "TODO: x" -- TODO: real`
       -- would report the string literal, since the leftmost keyword wins.

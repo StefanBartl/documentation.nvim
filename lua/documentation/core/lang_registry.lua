@@ -44,6 +44,7 @@ local KNOWN_BACKENDS = {
   "documentation.core.lang.ts",
   "documentation.core.lang.tsx",
   "documentation.core.lang.zig",
+  "documentation.core.lang.java",
 }
 
 local loaded = false

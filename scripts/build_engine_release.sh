@@ -165,11 +165,13 @@ git clone --quiet --depth 1 https://github.com/tree-sitter-grammars/tree-sitter-
 git clone --quiet --depth 1 https://github.com/tree-sitter/tree-sitter-javascript.git "$work/tree-sitter-javascript"
 git clone --quiet --depth 1 https://github.com/tree-sitter/tree-sitter-typescript.git "$work/tree-sitter-typescript"
 git clone --quiet --depth 1 https://github.com/tree-sitter-grammars/tree-sitter-zig.git "$work/tree-sitter-zig"
+git clone --quiet --depth 1 https://github.com/tree-sitter/tree-sitter-java.git "$work/tree-sitter-java"
 "$TSC" build --output "$work/grammars/lua.$GSUF" "$work/tree-sitter-lua"
 "$TSC" build --output "$work/grammars/javascript.$GSUF" "$work/tree-sitter-javascript"
 "$TSC" build --output "$work/grammars/typescript.$GSUF" "$work/tree-sitter-typescript/typescript"
 "$TSC" build --output "$work/grammars/tsx.$GSUF" "$work/tree-sitter-typescript/tsx"
 "$TSC" build --output "$work/grammars/zig.$GSUF" "$work/tree-sitter-zig"
+"$TSC" build --output "$work/grammars/java.$GSUF" "$work/tree-sitter-java"
 
 echo "== packaging the engine (scripts/package.lua)"
 STATIC_LIBS="$work/static-libs"
