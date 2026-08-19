@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**5 modules** · 6 namespaces · 94 helper files
+**5 modules** · 6 namespaces · 95 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -212,14 +212,14 @@ flowchart LR
 
 ## Drift
 
-0 errors · 1 warnings · 12 info
+0 errors · 1 warnings · 13 info
 
 | Severity | Check | Message |
 |---|---|---|
 | warn | `doc-references-missing` | docs/ROADMAP/IDEAS/IDEAS.md:105 references 'documentation.core.scan.something', but documentation.core.scan has no 'something' |
 
 <details>
-<summary>12 informational findings</summary>
+<summary>13 informational findings</summary>
 
 
 | Check | Message |
@@ -234,6 +234,7 @@ flowchart LR
 | `unreferenced-module` | documentation.core.lang.lua is required by no other file in the tree |
 | `unreferenced-module` | documentation.core.lang.ts is required by no other file in the tree |
 | `unreferenced-module` | documentation.core.lang.tsx is required by no other file in the tree |
+| `unreferenced-module` | documentation.core.lang.zig is required by no other file in the tree |
 | `unreferenced-module` | documentation.editor.health is required by no other file in the tree |
 | `unreferenced-module` | documentation.mcp is required by no other file in the tree |
 

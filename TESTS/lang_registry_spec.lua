@@ -82,11 +82,17 @@ return function(H)
 
   -- report(): what a host asks before trusting this build.
   --
-  -- Run after reset() on purpose, so the registry holds exactly the four
-  -- real backends and nothing this file added -- the shape a host actually
+  -- Run after reset() on purpose, so the registry holds exactly the real
+  -- backends and nothing this file added -- the shape a host actually
   -- sees, not one with fixtures in it.
+  --
+  -- Compared against `all()` rather than against a number: the count was
+  -- hardcoded at four and the fifth backend made this fail for being
+  -- right. What the assertion means is *every* registered backend, and
+  -- that is now what it says.
   local report = reg.report()
-  eq(#report, 4, "lang_registry: report covers every registered backend")
+  eq(#report, #reg.all(), "lang_registry: report covers every registered backend")
+  ok(#report >= 4, "lang_registry: ... and there are backends to cover")
 
   local by_name = {}
   for _, entry in ipairs(report) do
