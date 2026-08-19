@@ -27,11 +27,14 @@
 > third leg, the same map read entirely outside Neovim, for anyone not
 > sitting in the editor.
 
-Point it at a repository
-whose files carry `---@module`, and it produces a **module map**: an
-interactive HTML page, a Markdown overview, a deterministic JSON artifact, and
-a set of drift checks that fail CI when the documentation and the code stop
-agreeing.
+Point it at a repository and it produces a **module map**: an interactive
+HTML page, a Markdown overview, a deterministic JSON artifact, and a set of
+drift checks that fail CI when the documentation and the code stop agreeing.
+
+It reads **nine languages** — Lua, JavaScript, TypeScript, TSX, Zig, Java,
+C, C++ and assembly — through one backend contract, so a tree that mixes
+them comes out as one map rather than several. See
+[Languages](#languages).
 
 ```vim
 :DocMap          " regenerate the artifacts
@@ -48,6 +51,7 @@ plugin](docs/PIPELINE.md#why-this-is-its-own-plugin).
 ## Table of Contents
 
 - [What it produces](#what-it-produces)
+- [Languages](#languages)
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Commands](#commands)
@@ -63,11 +67,18 @@ plugin](docs/PIPELINE.md#why-this-is-its-own-plugin).
 
 | Artifact | What it is |
 |---|---|
-| `docs/map/index.html` | The interactive map: **Hierarchy**, **Index** (Tree / Functions / Modules), **Analysis**, **Compare**, **Features**, **Quicks**, **Notes** and **History** tabs. Self-contained — no CDN, no build step. |
+| `docs/map/index.html` | The interactive map: **Hierarchy**, **Index** (Tree / Functions / Modules), **Analysis**, **Compare**, **Features**, **Quicks**, **Notes**, **History** and **Findings** tabs. Self-contained — no CDN, no build step. |
 | `docs/map/overview.md` | The same tree as Markdown, so it renders on GitHub. |
 | `docs/map/module_map.json` | The IR, byte-deterministic. What `--check` compares and what `:DocMap diff` reads out of old commits. |
 | `docs/map/coverage.svg` | Optional (`opts.badge`): a doc-coverage badge, hand-rolled, no network call. |
 | `docs/map/overview.pdf` | Optional (`opts.pdf`): the same content as `overview.md`, via [pdfport.nvim](https://github.com/StefanBartl/pdfport.nvim) (optional dependency). |
+
+**Every one of these is a snapshot of the version that wrote it.** The page
+is generated, not rendered live, so a tab or a panel that arrived in a
+later release of this plugin reaches an existing map by *regenerating* it —
+never by updating the plugin alone. That is the price of an artifact you
+can commit, open offline and diff, and it is worth stating once rather than
+being discovered.
 
 This repository maps itself with the same tool, and publishes the result:
 **<https://stefanbartl.github.io/documentation.nvim/>**. [docs/map/overview.md](docs/map/overview.md)
@@ -152,6 +163,88 @@ Markdown subset instead of just linked out to. See
 [`docs/FEATURES_FORMAT.md`](docs/FEATURES_FORMAT.md) for the format this
 tab reads, and this repository's own [`docs/FEATURES/`](docs/FEATURES) for
 a real (if deliberately small) example — including one promoted feature.
+
+## Languages
+
+Nine backends behind one contract, so a repository that mixes them produces
+one map rather than several. A backend answers the same five questions —
+which files it claims, where its sources live, what documents a file, what
+documents a declaration, and what makes a declaration public — and the map
+does not care which language answered.
+
+| Language | Extensions | What documents a declaration | What makes it public |
+|---|---|---|---|
+| **Lua** | `.lua` | LuaCATS `---` block, `@param`/`@return`/`@see` | anything without `@internal` |
+| **JavaScript** | `.js`, `.jsx` | JSDoc `/** … */` | anything without `@internal`/`@private` |
+| **TypeScript** | `.ts`, `.mts`, `.cts` | JSDoc | same |
+| **TSX** | `.tsx` | JSDoc | same |
+| **Zig** | `.zig` | `///` above the declaration | `pub` |
+| **Java** | `.java` | Javadoc, with `@param`/`@return`/`@throws`/`@deprecated` parsed | `public` |
+| **C** | `.c`, `.h` | any comment directly above it, Doxygen or not | not `static` |
+| **C++** | `.cc`, `.cpp`, `.cxx`, `.hpp`, `.hh`, `.hxx` | same | not `static`, and not under `private:`/`protected:` |
+| **Assembly** | `.s`, `.asm`, `.nasm`, `.inc` | the comment above the label, or trailing it | `.globl` / `global` / `PUBLIC` |
+
+**The fourth column is worth reading as a spectrum**, because it is the one
+place these languages genuinely disagree rather than merely differing in
+syntax. Zig, Java, C, C++ and assembly state visibility *in the language*,
+so the backend reads a fact. Lua and the ECMA family have no such keyword
+at the granularity this map needs, so they read an authoring convention —
+`@internal` — which is a claim the author made rather than one the compiler
+enforces. Both are honest; they are not the same strength of evidence, and
+a reader comparing two projects should know which they are looking at.
+
+C++'s access specifier is *positional* — everything after `private:` is
+private until the next one, `class` starts private and `struct` starts
+public — so it is tracked while walking rather than read off the member,
+because there is nothing on the member node to read.
+
+**What documents a *file*** differs the same way and is worth knowing,
+because it is what fills the map's summaries: Lua's `---@module` block,
+Zig's `//!`, a Javadoc block above `package`, a Doxygen-style header in C
+and C++ (deliberately strict, so a license banner never becomes a file
+summary), and in assembly the top comment block — with the same banner
+filter, reached by content because assembly has no punctuation to reach it
+by.
+
+**Only Lua has a module tag.** Everywhere else the file's path *is* its
+identity, because that is how those languages resolve imports — so
+`check.lua` never reports a missing `@module` for a language that has no
+such concept. Only Lua has a directory-owns-a-module convention
+(`init.lua`); `index.js` plays that role for JavaScript. Everywhere else a
+directory is a namespace and every file is its own module.
+
+### Grammars, and the one backend that needs none
+
+Eight of the nine parse with a tree-sitter grammar. Without the grammar
+they still produce a complete module tree — correctly, and saying so — but
+no function-level data. `scripts/build_engine_release.sh` builds all eight
+into a release; inside Neovim they come from the runtimepath.
+
+**Assembly is the exception, by design rather than by omission.** GAS, NASM
+and the ARM/MASM families are a fork rather than dialects, and a grammar is
+written against exactly one side of it — a NASM file read by an x86-GAS
+grammar is not a degraded parse, it is a confident wrong one. Everything
+that backend needs is line-directed in all of those syntaxes, because
+assembly is line-oriented by construction. So the capability handshake
+reports three states, not two: a grammar loaded, a grammar wanted and
+missing, and **no grammar needed** — which is full fidelity, not a
+degradation, and a host that collapsed the last two would report a healthy
+backend as broken.
+
+### Adding one
+
+The seam is `core/lang_registry.lua` plus the `Documentation.LangBackend`
+contract, and `TESTS/backend_contract_spec.lua` fails a backend that
+forgets any part of it — including the one whose absence is silent, comment
+syntax, which it proves by *finding a marker* rather than by checking the
+field is set.
+
+Measured costs, so a tenth language is an estimate rather than a guess:
+roughly 230–430 lines of backend, 120–200 of spec, one grammar, and half a
+day — most of it spent deciding the contract answers rather than writing
+extraction. [`docs/ROADMAP/IDEAS/MULTILANG.md`](docs/ROADMAP/IDEAS/MULTILANG.md)
+records each one, including the three designs that a scan of somebody
+else's repository changed and a fixture would not have.
 
 ## Installation
 
@@ -550,7 +643,7 @@ Repository-specific checks go in `opts.extra_checks`.
 | [docs/CALL_HIERARCHY.md](docs/CALL_HIERARCHY.md) | Incoming/outgoing calls in Neovim, alongside LuaLS (which has none): setup, keymaps, and how to tell an unattached client from a function with no callers. |
 | [docs/MCP.md](docs/MCP.md) | The MCP server: exposing the module tree, require graph, call graph and drift findings to a coding agent as tools. |
 | [docs/ROADMAP/IDEAS/PORTABILITY.md](docs/ROADMAP/IDEAS/PORTABILITY.md) | Mapping a Lua project that is not a Neovim plugin — and what a Neovim-free port would actually cost. |
-| [docs/ROADMAP/IDEAS/MULTILANG.md](docs/ROADMAP/IDEAS/MULTILANG.md) | What supporting other languages would take, and how much of the code survives it. |
+| [docs/ROADMAP/IDEAS/MULTILANG.md](docs/ROADMAP/IDEAS/MULTILANG.md) | Every language backend: what each one cost, the contract answers it had to give, and the measurements against real repositories that changed three of them. |
 | [docs/ROADMAP/IDEAS/I18N.md](docs/ROADMAP/IDEAS/I18N.md) | The other language axis: translating what this tool says, not what it reads. Which surfaces cost what, the four rules decided up front, and what each locale needs beyond a catalog. |
 | [docs/FRAMEWORK_CONVENTIONS.md](docs/FRAMEWORK_CONVENTIONS.md) | The layer above language support — recognizing one ecosystem's structural convention (lazy.nvim specs today; Next.js-style file routing and React hooks costed as the web-ecosystem case). |
 | [docs/FEATURES/ECOSYSTEM.md](docs/FEATURES/ECOSYSTEM.md) | **Architectural concept**, agreed, nothing implemented: where docs cross-references, API-endpoint inventory, hover previews and an API request runner each belong — and why the runtime half is its own plugin (`runtime-analysis.nvim`), a Neovim plugin rather than a binary, meeting this one in the editor rather than in the committed artifact. |
