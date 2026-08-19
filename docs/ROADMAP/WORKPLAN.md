@@ -113,15 +113,23 @@ is which.
 - **Acceptance:** the mixed fixture's map distinguishes its Lua and its
   TS nodes without the reader inspecting paths.
 
-### 2.3 Look at the window — desktop
+### 2.3 ~~Look at the window~~ — partly closed 2026-08-19
 
-Still not done and still the oldest debt. The sidebar language line, the
-Engine panel's new language list, and the keyword card have all been
-verified structurally and in a real browser DOM; **none has been seen by a
-human**. Specifically worth checking: does the third line in the project
-list break the row height, and does real Tab-navigation reach the keyword
-spans (unverifiable here — a non-compositing pane never takes window focus,
-so `focusin` never fires).
+Screenshots arrived, and they were worth more than every structural check
+before them: the menu bar, the feedback dialog and two real maps in the
+window. Three things only a human could have reported came out of them —
+a promoted feature tab pushing the permanent tabs onto a second row, the
+Features tab rendering raw Markdown, and a dark theme that stopped at the
+sidebar because the map is a different origin.
+
+**Still not seen:** the keyword card's Tab-navigation. Unverifiable from
+here for the same reason as before — a non-compositing pane never takes
+window focus, so `focusin` never fires — and unchanged since the note
+that first said so.
+
+The project list that this worried about no longer exists: `docmap-desktop`
+replaced it with a picker, so "does the third line break the row height"
+is moot rather than answered.
 
 ---
 
@@ -186,11 +194,12 @@ change detection), §2.1/§2.2 (the panels gated on the `TAGS` refactor), §5.x
       the grammar, not from a pattern — the text-scanning first version
       reported three to-dos that live inside string literals in this
       repository's own renderer. Schema 4.
-- [ ] **Marker comments for the languages added after Lua and ECMA.** The
-      backend contract now carries `line_comments`/`block_comments`, and a
-      backend declaring neither is skipped rather than guessed at — so a
-      Python or Rust backend that forgets them scans clean and silently
-      finds nothing. Worth a registry check rather than trust.
+- [x] ~~**Marker comments for the languages added after Lua and ECMA.**~~
+      Closed 2026-08-19 by `TESTS/backend_contract_spec.lua`, which fails a
+      registered backend that declares no comment syntax — and fails it
+      naming the consequence, since the default (skip rather than guess) is
+      right and silent. Checked by emptying the Lua backend's tokens: two
+      specs go red.
 - [ ] **Markers in `check.lua` and Quicks**, if wanted: a `FIX`/`BUG`
       marker is a defect the author recorded, which is exactly the shape
       Quicks reports on. Deliberately not done with the tab — one surface
@@ -263,6 +272,36 @@ What is genuinely missing and is meaningful *only* for a config:
 Sequence note: keymap conflicts first. It is a check over data that already
 exists, so it proves the config-shaped direction is worth extending before
 any new extractor is written for it.
+
+---
+
+## Part 4b — shipped 2026-08-19, after this file was last rewritten
+
+Recorded here rather than folded into the parts above, because those are
+organised by the plan they came from and none of these did.
+
+- [x] **Marker comments** — `-- TODO:`, `// FIXME:`, `-- PERF:` in the
+      Notes tab, `todo-comments.nvim`'s keyword set alias for alias.
+      Comment boundaries come from the grammar, not from a pattern: the
+      text-scanning first version reported three to-dos that live inside
+      string literals in this repository's own renderer. Schema 4.
+- [x] **`?theme=`** — the page takes its theme from the URL, read in
+      `<head>` before first paint. Built because an embedding host cannot
+      reach across an origin boundary, which is why choosing dark in
+      `docmap-desktop` left a white page inside a dark window.
+- [x] **An inbound channel, questions only** — `export-svg` and `state`.
+      No instructions: a host that wants the page somewhere navigates the
+      frame's URL. Unknown verbs get silence; replies go to the asker's
+      origin, never `"*"`.
+- [x] **Eight tabs and a second level** — Index owns Tree/Functions/
+      Modules, Features owns the promoted ones. `state.tab` unchanged, so
+      every shared link still lands where it did.
+- [x] **The engine says which build it is** — `--capabilities` reports the
+      artifact schema and, in a bundled binary, the commit it was built
+      from and whether that tree was clean. A version number would have
+      been fiction: the only tag is `standalone-latest`.
+- [x] **Branding** — a topbar naming the tool, and `· documentation.nvim`
+      in the browser title of every map except this repository's own.
 
 ---
 
