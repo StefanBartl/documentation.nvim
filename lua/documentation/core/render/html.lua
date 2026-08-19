@@ -275,7 +275,10 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 #view-notes h3:first-child{margin-top:0}
 #view-notes .nsub,#view-index .nsub,#view-analysis .nsub,#view-features .nsub{
   font-size:12.5px;color:var(--muted);margin:0 0 10px}
-#view-notes .ncount,#view-index .ncount{color:var(--muted);font-weight:400;font-size:11.5px;
+/* `#view-features` was missing here while the Features panel emitted the
+   same span, so its counter had no rule at all and rendered glued to the
+   heading: `FAVORITES6`. Three panels use this badge; three selectors. */
+#view-notes .ncount,#view-index .ncount,#view-features .ncount{color:var(--muted);font-weight:400;font-size:11.5px;
   margin-left:6px}
 .nlist{list-style:none;margin:0;padding:0}
 .nlist li{padding:7px 0;border-bottom:1px dashed var(--line)}
@@ -315,6 +318,15 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 #view-features{padding:22px 26px 60px}
 .feat-wrap{max-width:820px}
 .feat-intro{font-size:13px;color:var(--ink);line-height:1.5;margin-bottom:16px}
+/* The intros are rendered Markdown now, so they arrive as real block
+   elements. Without these the first paragraph's own top margin pushes the
+   block away from its heading and the last one's pushes the next section
+   down twice. */
+.feat-intro>:first-child,.feat-fileintro>:first-child{margin-top:0}
+.feat-intro>:last-child,.feat-fileintro>:last-child{margin-bottom:0}
+.feat-intro h1,.feat-intro h2,.feat-intro h3{font-size:13.5px;margin:14px 0 6px}
+.feat-intro ul,.feat-fileintro ul{margin:6px 0;padding-left:18px}
+.feat-intro code,.feat-fileintro code{font-family:var(--mono);font-size:12px}
 .feat-card{border:1px solid var(--line);border-radius:8px;background:var(--panel);
   padding:11px 14px;margin-bottom:8px}
 .feat-name{font-size:13px;font-weight:600;color:var(--ink)}
@@ -3366,7 +3378,13 @@ local JS = [[
     }
 
     if(feats.intro){
-      parts.push('<div class="feat-intro">' + esc(feats.intro) + '</div>');
+      // Through the same Markdown-subset renderer a promoted feature's body
+      // uses, not `esc`. This text is the top of somebody's FEATURES.md and
+      // is written as Markdown — escaping it printed `#`, `**` and
+      // `[text](url)` literally and ran every heading, list and paragraph
+      // together into one wall, which is what the folder's own intro looked
+      // like in every generated map until now.
+      parts.push('<div class="feat-intro">' + renderFeatureBody(feats.intro) + '</div>');
     }
 
     // A `Tab: true` feature has its own top-level tab (see
@@ -3388,7 +3406,9 @@ local JS = [[
       parts.push('<h3 class="nhead">' + esc(themeTitle(f.theme)) +
         '<span class="ncount">' + visible.length + '</span></h3>');
       if(f.intro){
-        parts.push('<p class="nsub">' + esc(f.intro) + '</p>');
+        // Same reason as the folder intro above: a file's own preamble is
+        // Markdown too.
+        parts.push('<div class="nsub feat-fileintro">' + renderFeatureBody(f.intro) + '</div>');
       }
       if(f.entries.length === 0){
         parts.push('<p class="ntext none">No <code>##</code> sections in this file.</p>');
@@ -3455,6 +3475,47 @@ local JS = [[
       .replace(/^-+|-+$/g, "");
   }
 
+  // A tab label is a fixed, scarce surface — nine of them share one row —
+  // and a promoted feature's name is a *heading*, written to be read in a
+  // document. `The \`:Cmdlog <subcommand>\` command tree` is a good heading
+  // and an unreadable tab: it crowds every other tab off the row and is
+  // still too long to scan.
+  //
+  // Shortened rather than truncated where the name says how. A heading of
+  // the form "The X …" is about X, and the backticked term in it is the
+  // thing being named — so `:Cmdlog` survives and the sentence around it
+  // does not. Only then does a hard cap apply, and the full name is always
+  // in the tooltip.
+  //
+  // Deliberately not solved by asking authors to write shorter headings:
+  // this page does not get to dictate how someone's FEATURES.md reads, and
+  // a layout that only works for cooperative input is not a layout.
+  function tabLabel(name){
+    // Declared inside, not beside: `buildPromotedTabs` runs during boot,
+    // which is before this point in the script body executes. A `var` at
+    // file scope would be hoisted but still unassigned, and
+    // `slice(0, undefined)` returns the whole string — so every label came
+    // out full-length with an ellipsis glued on, which is the one outcome
+    // worse than not shortening at all.
+    var TAB_LABEL_MAX = 22;
+    var s = String(name || "").trim();
+
+    // A backticked term is the author naming the thing themselves; prefer it
+    // over any guess this code could make.
+    var quoted = s.match(/`([^`]+)`/);
+    if(quoted && quoted[1].length <= TAB_LABEL_MAX) return quoted[1];
+
+    s = s.replace(/^(The|A|An)\s+/i, "");
+    if(s.length <= TAB_LABEL_MAX) return s;
+
+    // Cut on a word boundary rather than mid-word: a label ending in "com…"
+    // reads as broken, one ending in "command…" reads as shortened.
+    var cut = s.slice(0, TAB_LABEL_MAX);
+    var space = cut.lastIndexOf(" ");
+    if(space > TAB_LABEL_MAX / 2) cut = cut.slice(0, space);
+    return cut.replace(/[\s\-–—:,.]+$/, "") + "…";
+  }
+
   var promotedFeatures = null;
   function collectPromotedFeatures(){
     if(promotedFeatures) return promotedFeatures;
@@ -3493,8 +3554,11 @@ local JS = [[
       var btn = document.createElement("button");
       btn.className = "tab-btn";
       btn.dataset.tab = p.slug;
-      btn.title = "Promoted feature (docs/FEATURES_FORMAT.md \"Tab: true\")";
-      btn.textContent = p.entry.name;
+      // The full name in the tooltip, always — the label below may be a
+      // shortened form, and the reader has to be able to recover what it
+      // stands for.
+      btn.title = p.entry.name + "\n\nPromoted feature (docs/FEATURES_FORMAT.md \"Tab: true\")";
+      btn.textContent = tabLabel(p.entry.name);
       afterBtn.insertAdjacentElement("afterend", btn);
       afterBtn = btn;
 
@@ -6991,7 +7055,14 @@ local JS = [[
   });
 
   document.addEventListener("keydown", function(ev){ if(ev.key === "Escape") kwClose(); });
-  window.addEventListener("scroll", kwClose, true);
+  // Same exemption as the annotation popup below: the keyword card is short
+  // today, but it lives *inside* that card, so a scroll gesture aimed at the
+  // snippet behind it must not take it down either.
+  window.addEventListener("scroll", function(ev){
+    if(ev.target && ev.target.nodeType === 1 && ev.target.closest &&
+       (ev.target.closest("#kwpop") || ev.target.closest("#sigpop"))) return;
+    kwClose();
+  }, true);
   window.addEventListener("resize", kwClose);
 
   // =====================================================================
@@ -7164,7 +7235,20 @@ local JS = [[
 
   window.addEventListener("blur", sigClose);
   window.addEventListener("resize", sigClose);
-  document.addEventListener("scroll", sigClose, true);
+  // Capture phase, so a scroll anywhere on the page reaches this — the card
+  // is `position:fixed` against an anchor that scrolls away, so it has to go
+  // when the page moves under it.
+  //
+  // But **not when the scroll is the card's own**. It is `max-height:60vh;
+  // overflow-y:auto` on purpose: a forty-line snippet is meant to be
+  // scrolled inside it. Without this test the card showed a scrollbar and
+  // shut the instant anyone used it — an affordance that advertised
+  // something it then refused to do, which is worse than not offering it.
+  document.addEventListener("scroll", function(ev){
+    if(ev.target && ev.target.nodeType === 1 && ev.target.closest &&
+       ev.target.closest("#sigpop")) return;
+    sigClose();
+  }, true);
 
   // =====================================================================
   // Quicks — the tree's own state, in sentences.
