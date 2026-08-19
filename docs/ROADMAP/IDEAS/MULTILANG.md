@@ -158,6 +158,15 @@ applies at ten times the surface area to a language backend (see
 
 ### Phase 0 — shared infrastructure (blocks every language) — **mostly done**
 
+> **Since this section was written**, two things landed that every later
+> language backend inherits, and both are contract rather than
+> convenience: `line_comments`/`block_comments` on
+> `Documentation.LangBackend`, read by `core/markers.lua`; and
+> `TESTS/backend_contract_spec.lua`, which fails a backend that declares
+> neither — because the default is to *skip* rather than guess, which is
+> right and silent. A new language that forgets the field would otherwise
+> scan clean and find no markers at all.
+
 None of the language-specific work can start before this phase, because it
 changes the shape every language backend plugs into.
 
@@ -193,14 +202,14 @@ changes the shape every language backend plugs into.
   capitalisation, TS has `private`. Lower urgency than the two above —
   `dead-function` degrades gracefully without it — but worth landing in the
   same pass since it touches the same struct.
-- [ ] **`module_map.json` schema versioning, revisited.** `diff.lua`
-  already tolerates older schema versions reading historical artifacts.
-  Adding a `language` field to every node and the three struct changes
-  above is exactly the kind of change that check exists for — confirm the
-  tolerance path still degrades rather than errors on a mixed
-  old/new-schema `:DocMap diff` before any further language backend ships.
-  Genuinely open: no IR *node* field changed yet by Phase 1, since the
-  interface work added new *modules* only.
+- [x] ~~**`module_map.json` schema versioning, revisited.**~~ Closed. Two
+  node fields have shipped since this was written — `language` (schema 3)
+  and `markers` (schema 4) — and the tolerance path was verified rather
+  than assumed both times: `diff.lua`'s check is written `>= 2`, not
+  `== 2`, and was run against a real schema-2 artifact out of this
+  repository's own history. `scan.M.SCHEMA` is now the single site the
+  number lives at, because `--capabilities` reports it too and a second
+  copy of a constant starts exactly that way.
 - [~] **A real per-language sample tree**, checked into `TESTS/fixtures/`
   or fetched by the runner, per language — not just hand-written snippets.
   Not optional: this repository's own `core/plugins.lua` work is the
