@@ -630,11 +630,49 @@ The ten highest-traffic languages on either list that are not already built.
       **Measured on `serilog/serilog`:** 113 files, 590 functions (473
       public, 327 documented), 727 documented parameters, 370 symbols, 36 of
       36 usings, and 107 of 113 files carrying a fully qualified module name.
-- [ ] **Go** — `.go`. The doc comment is the plain comment block above a
-      declaration (Go has no doc sigil), and **visibility is
-      capitalisation** — an exported identifier starts with an upper-case
-      letter, which is a fact from the language rather than a convention.
-      `package` names the module; a directory is a package.
+- [x] ~~**Go**~~ — `core/lang/go.lua`, built 2026-08-20, the twelfth
+      backend. Everything this entry said held, and Part 1's much older
+      verdict — that Go is the *worst fit* of the five it costed, because
+      godoc has no tag vocabulary at all — held too, and is now measurable
+      rather than predicted.
+
+      **Visibility is the cheapest and most reliable of the twelve.**
+      Capitalisation, enforced by the compiler: no keyword to find, no tag to
+      trust, no export list to read, and nobody can be wrong about it.
+
+      **Third `param_docs = false` language, and the first for this reason.**
+      Assembly has no parameter list; Zig documents the declaration as a
+      whole; **Go has parameters and documents them nowhere.** That leaves
+      exactly one checkable claim, and godoc really does make it — *a doc
+      comment begins with the name of the thing it documents* — which is
+      machine-checkable and which no check in this tool tests yet. Recorded
+      rather than built: a new check is a decision about what fails somebody's
+      CI.
+
+      **No module name, and this is the one language where the name exists
+      and still cannot be used.** A package is a *directory*: every `.go` file
+      in it declares the same `package foo`, so using that as the module name
+      would have three files claiming one identity. The path is the identity,
+      as with Zig, C and assembly.
+
+      **The measurement changed one thing, and it was worth the scan.**
+      Against `spf13/cobra`: Go's own test naming (`TestXxx`, `BenchmarkXxx`,
+      `ExampleXxx` — all necessarily capitalised) made every test function
+      look like published API. 184 exported functions in the sources, **289
+      more** in the tests, so the published surface read two and a half times
+      its real size; documentation coverage averaged 38% for a library whose
+      sources are at 75%. The fix is a compiler fact rather than a
+      convention: a `_test.go` file is excluded from the importable package
+      entirely, so nothing declared there is API whatever its spelling. The
+      tests stay in the map — Go puts them beside the code by design — they
+      simply stop claiming to be API. After: 184 exported, 175 of them
+      documented.
+
+      Also here and not in the entry: an **interface's methods** are
+      `method_elem` nodes with no body and no receiver, so they are missed by
+      the function branch and an interface would have shown its name and
+      nothing it promises. The lesson C# taught one backend earlier by
+      getting the same construct backwards.
 - [ ] **Rust** — `.rs`. `///` and `//!` map onto the same split Zig
       established, `pub` is visibility, and `mod`/`use` are the module
       system. The one wrinkle worth naming now: a file can declare several

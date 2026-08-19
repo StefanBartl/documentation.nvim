@@ -50,6 +50,7 @@ local KNOWN_BACKENDS = {
   "documentation.core.lang.asm",
   "documentation.core.lang.python",
   "documentation.core.lang.csharp",
+  "documentation.core.lang.go",
 }
 
 local loaded = false
