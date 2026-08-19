@@ -359,6 +359,14 @@ function M.to_json(ir)
       -- rather than the page saw a tree with no routes in it. Emitted
       -- unconditionally for the same reason `bindings` above is.
       '"endpoints": ' .. json.encode(n.endpoints or {}),
+      -- The seventh candidate for this list, and the first that was a
+      -- failing test instead of a discovery: `artifact_contract_spec.lua`
+      -- named it before the page ever rendered one. Unconditional for the
+      -- same reason as its two neighbours -- an empty array is "this file
+      -- has no markers", an absent key is "this artifact predates marker
+      -- scanning", and the Notes tab shows very different things for the
+      -- two.
+      '"markers": ' .. json.encode(n.markers or {}),
       '"export": ' .. (n.export and str(n.export) or "null"),
       '"parent": ' .. (n.parent and str(n.parent) or "null"),
       '"depth": ' .. tostring(n.depth),

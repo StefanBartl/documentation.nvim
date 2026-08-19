@@ -55,3 +55,40 @@ function reads as generic in the map, the same way it reads in the source.
 
 - **Module:** `core/functions.lua` (`parse_doc_block`)
 - **Config:** none.
+
+## Marker comments — `-- TODO:`, `// FIXME:`, `-- PERF:`
+
+The Notes tab used to list only annotations: `---@todo`, `---@bug`,
+`---@deprecated`, `---@test`, all of them attached to a function's doc
+block. A repository whose author marks work the ordinary way — a
+`-- TODO:` on the line that needs it — was told "Nothing carries
+`---@todo` in this map", which is true and reads as "nothing left to do".
+
+Marker comments are now read from the source text and listed in their own
+half of the tab, grouped by keyword, each with its file, line and the
+spelling the author actually typed.
+
+The keyword set is [`todo-comments.nvim`](https://github.com/folke/todo-comments.nvim)'s,
+alias for alias — `TODO`, `FIX`/`FIXME`/`BUG`/`FIXIT`/`ISSUE`, `HACK`,
+`WARN`/`WARNING`/`XXX`, `PERF`/`OPTIM`/`PERFORMANCE`/`OPTIMIZE`,
+`NOTE`/`INFO`, `TEST`/`TESTING`/`PASSED`/`FAILED` — so what is highlighted
+in the buffer is what appears in the map. `KEYWORD(author):` keeps the
+author.
+
+**A keyword only counts inside a comment.** Which parts of a file are
+comments comes from the grammar, not from a pattern: `--` opens a comment
+everywhere on the line except inside a string, and this repository's own
+renderer — which writes JavaScript inside Lua strings and documents the
+syntaxes it recognises — was reported as carrying three to-dos that do not
+exist. Without a grammar the module falls back to a text scan driven by the
+backend's declared comment tokens, which is the standalone binary's state
+when `DOCMAP_TS_DIR` points at nothing; the fallback's limits are written
+down in its own tests.
+
+- **Module:** `core/markers.lua` (`M.scan_source`, `M.scan_file`,
+  `M.KEYWORDS`)
+- **Backend contract:** `Documentation.LangBackend.line_comments` /
+  `.block_comments` — a backend that declares neither is not scanned, rather
+  than guessed at
+- **Artifact:** `Documentation.Node.markers`, schema 4
+- **Tests:** `TESTS/markers_spec.lua`

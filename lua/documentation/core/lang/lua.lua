@@ -54,6 +54,19 @@ M.module_file = "init.lua"
 ---why both exist rather than one deriving the other.
 M.extensions = { "lua" }
 
+---What opens a comment here, for `core/markers.lua`.
+---
+---Stated rather than assumed: a keyword is only a marker if it sits
+---inside a comment, and every language draws that line differently.
+---`--[[` is listed as a block opener even though `--` already matches it
+---as a line opener — the earliest-opener rule in `markers.lua` picks the
+---same byte either way, but a multi-line `--[[ ... ]]` region is only
+---read to its end if the pair is known.
+M.line_comments = { "--" }
+
+---@type { [1]: string, [2]: string }[]
+M.block_comments = { { "--[[", "]]" } }
+
 ---Keyword explanations for the page's in-place lookup. Required rather than
 ---inlined for the reason `glossary/lua.lua`'s header gives: it is several
 ---times this file's size and has nothing to do with scanning.

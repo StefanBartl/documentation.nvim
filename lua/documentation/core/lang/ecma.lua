@@ -976,6 +976,12 @@ function M.backend(name, lang, extensions, module_file)
     -- information rather than an error -- see the glossary's own header.
     glossary = require("documentation.core.lang.glossary.ecma"),
     module_file = module_file,
+
+    -- What opens a comment here, for `core/markers.lua`. Shared by all
+    -- three registrations because JavaScript, TypeScript and TSX agree on
+    -- it exactly.
+    line_comments = { "//" },
+    block_comments = { { "/*", "*/" } },
     module_tag = false,
     is_source = is_source,
     ---`nil` unless one of the conventional roots actually holds a file this

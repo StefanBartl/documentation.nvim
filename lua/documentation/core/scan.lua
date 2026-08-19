@@ -24,6 +24,7 @@ local uv = vim.uv
 -- `core/lang_registry.lua`'s own `KNOWN_BACKENDS` list is where that
 -- self-registration require now lives instead.
 local lang_registry = require("documentation.core.lang_registry")
+local marker_scan = require("documentation.core.markers")
 
 ---Directories the walk never descends into, and the same list
 ---`core/lang/ecma.lua` consults when deciding whether a candidate directory
@@ -474,6 +475,10 @@ function M.scan(opts)
       plugins = plugins,
       endpoints = endpoints,
       bindings = binds,
+      -- Markers live in the module file itself. A namespace with no
+      -- module file of any language has no text of its own to read,
+      -- and gets an empty list rather than the parent's.
+      markers = module_backend and marker_scan.scan_file(module_abs, module_backend) or {},
       stats = own,
       requires = {},
       required_by = {},
@@ -547,6 +552,7 @@ function M.scan(opts)
           plugins = leaf_plugins,
           endpoints = leaf_endpoints,
           bindings = leaf_binds,
+          markers = marker_scan.scan_file(child_abs, leaf_backend),
           stats = leaf_stats,
           requires = {},
           required_by = {},
@@ -603,6 +609,7 @@ function M.scan(opts)
       plugins = {},
       endpoints = {},
       bindings = {},
+      markers = {},
       stats = (function()
         local z = zero_stats()
         z.namespaces = 1
@@ -716,7 +723,14 @@ function M.scan(opts)
       -- about. `diff.lua`'s tolerance is written `>= 2`, not `== 2`, so it
       -- keeps working unchanged; verified against a real schema-2 artifact
       -- out of this repository's own history, not assumed.
-      schema = 3,
+      -- 4: nodes carry `markers` -- the marker comments (`-- TODO:`,
+      -- `// FIXME:`) `core/markers.lua` reads out of the source text.
+      -- Bumped for the same reason 3 was: a consumer must be able to tell
+      -- "this file has no markers" (schema 4, empty array) from "this
+      -- artifact predates marker scanning" (schema 3, field absent). The
+      -- Notes tab would otherwise render an older map as a repository
+      -- with nothing left to do.
+      schema = 4,
       counts = counts,
     },
     root = root_id,
