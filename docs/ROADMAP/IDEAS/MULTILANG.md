@@ -197,11 +197,21 @@ changes the shape every language backend plugs into.
   assumption `scan.lua`'s walk is built on. **Not blocking Phase 1 either**:
   a JS/TS module IS its file, the same shape Lua already has — this is
   Rust's problem specifically.
-- [ ] **Visibility as a first-class `Documentation.FunctionInfo` field.**
-  `@internal` is a tag today; Rust has `pub`, Go has identifier
-  capitalisation, TS has `private`. Lower urgency than the two above —
-  `dead-function` degrades gracefully without it — but worth landing in the
-  same pass since it touches the same struct.
+- [x] ~~**Visibility as a first-class `Documentation.FunctionInfo` field.**~~
+  Closed — and it closed by being *used* rather than by a refactor. `internal`
+  was already the field; what this entry wanted was for it to carry a fact
+  from the language rather than only the `@internal` tag, and five backends
+  now fill it that way: Zig's `pub`, Java's `public`, C's `static`, C++'s
+  positional access specifier, and assembly's `.globl`/`global`/`PUBLIC`.
+  Lua and the ECMA family still read the tag, because those languages have
+  no keyword at this granularity — which is a spectrum worth knowing about
+  rather than a gap, and the README's language table now says so.
+- [x] ~~**Per-parameter documentation is not universal either.**~~ Not
+  foreseen here and found by measuring: `param_docs = false` on Zig and
+  assembly, because judging a language by a convention it does not have
+  produces a wrong number rather than a low one. Same shape as
+  `module_tag = false`. See `doccoverage.by_language`, which is what made it
+  visible.
 - [x] ~~**`module_map.json` schema versioning, revisited.**~~ Closed. Two
   node fields have shipped since this was written — `language` (schema 3)
   and `markers` (schema 4) — and the tolerance path was verified rather
