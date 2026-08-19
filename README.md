@@ -63,7 +63,7 @@ plugin](docs/PIPELINE.md#why-this-is-its-own-plugin).
 
 | Artifact | What it is |
 |---|---|
-| `docs/map/index.html` | The interactive map: **Quicks**, **Tree**, **Hierarchy**, **Notes**, **Index**, **History**, **Analysis**, **Compare** and **Features** tabs. Self-contained — no CDN, no build step. |
+| `docs/map/index.html` | The interactive map: **Hierarchy**, **Index** (Tree / Functions / Modules), **Analysis**, **Compare**, **Features**, **Quicks**, **Notes** and **History** tabs. Self-contained — no CDN, no build step. |
 | `docs/map/overview.md` | The same tree as Markdown, so it renders on GitHub. |
 | `docs/map/module_map.json` | The IR, byte-deterministic. What `--check` compares and what `:DocMap diff` reads out of old commits. |
 | `docs/map/coverage.svg` | Optional (`opts.badge`): a doc-coverage badge, hand-rolled, no network call. |
@@ -73,8 +73,8 @@ This repository maps itself with the same tool, and publishes the result:
 **<https://stefanbartl.github.io/documentation.nvim/>**. [docs/map/overview.md](docs/map/overview.md)
 is the same tree as Markdown, rendered straight on GitHub.
 
-The published copy is honest about what it can answer: Tree, Hierarchy,
-Analysis, Index, Notes and Compare need no server and work fully; History,
+The published copy is honest about what it can answer: Hierarchy, Index,
+Analysis, Notes, Quicks and Compare need no server and work fully; History,
 Telemetry and Loaded are computed on demand from git and from runtime data on
 the machine that ran the scan, and say so when opened there. See
 [docs/REUSE.md § Linking to your own map from your README](docs/REUSE.md#linking-to-your-own-map-from-your-readme)
