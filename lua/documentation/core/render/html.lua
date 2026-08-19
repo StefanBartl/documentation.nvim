@@ -280,6 +280,19 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
    heading: `FAVORITES6`. Three panels use this badge; three selectors. */
 #view-notes .ncount,#view-index .ncount,#view-features .ncount{color:var(--muted);font-weight:400;font-size:11.5px;
   margin-left:6px}
+/* A group heading, one level above the per-keyword headings under it.
+   The Notes tab now has two halves that answer different questions --
+   annotations on functions, markers on lines -- and a reader who cannot
+   see the seam reads the second half as more of the first. */
+#view-notes h3.ngroup{margin-top:34px;font-size:11px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);
+  padding-bottom:6px}
+#view-notes h3.ngroup:first-child{margin-top:0}
+/* The spelling the author actually typed, when it differs from the
+   section it landed in -- `BUG` under FIX. A tag, not prose. */
+.nlist .nauthor{font-size:11.5px;color:var(--muted);margin-left:8px}
+.nlist .nword{font-family:var(--mono);font-size:11px;color:var(--muted);
+  border:1px solid var(--line);border-radius:3px;padding:1px 5px;margin-left:8px}
 .nlist{list-style:none;margin:0;padding:0}
 .nlist li{padding:7px 0;border-bottom:1px dashed var(--line)}
 .nlist li:last-child{border-bottom:0}
@@ -3272,6 +3285,107 @@ local JS = [[
     return out;
   }
 
+  // =====================================================================
+  // Marker comments — the other half of the Notes tab.
+  //
+  // The annotation sections above read `---@todo` and friends off function
+  // doc blocks. These read `-- TODO:`, `// FIXME:`, `-- PERF:` off the
+  // source text, wherever they sit. Two collectors and two section groups
+  // rather than one merged list, because the two answer different
+  // questions: an annotation is a claim about a function and is shown
+  // beside its signature, a marker is a claim about a line and is shown
+  // with its location. Merging them would produce rows whose function name
+  // is a guess.
+  //
+  // `core/markers.lua` decided which keywords exist and what each means;
+  // `IR.marker_kinds` carries that table so this code names none of them.
+  // =====================================================================
+
+  function collectMarkers(){
+    var byKind = {};
+    IR.nodes.forEach(function(n){
+      (n.markers || []).forEach(function(m){
+        (byKind[m.kind] = byKind[m.kind] || []).push({ node: n, m: m });
+      });
+    });
+    // By file, then by line — the order they would be read in, not the
+    // order the walk happened to produce them in.
+    Object.keys(byKind).forEach(function(kind){
+      byKind[kind].sort(function(a, b){
+        var ap = a.node.source || a.node.path, bp = b.node.source || b.node.path;
+        if(ap !== bp) return ap < bp ? -1 : 1;
+        return a.m.line - b.m.line;
+      });
+    });
+    return byKind;
+  }
+
+  function markerItem(it){
+    var where = (it.node.source || it.node.path) + ":" + it.m.line;
+    var bits = ['<li><a class="nfn" tabindex="0" role="button" data-node="' +
+      esc(it.node.id) + '">' + esc(where) + "</a>"];
+    // The spelling the author typed, shown only when it differs from the
+    // section it landed in: a `BUG:` under the FIX heading needs saying, a
+    // `TODO:` under TODO does not.
+    if(it.m.word && it.m.word !== it.m.kind){
+      bits.push('<span class="nword">' + esc(it.m.word) + "</span>");
+    }
+    if(it.m.author){
+      // Prefixed and given its own class: beside a file path, a bare name
+      // reads as another piece of the location.
+      bits.push('<span class="nauthor">@' + esc(it.m.author) + "<\/span>");
+    }
+    bits.push('<div class="ntext">' + (it.m.text ? esc(it.m.text) : "&mdash;") + "</div></li>");
+    return bits.join("");
+  }
+
+  function drawMarkers(parts){
+    var kinds = IR.marker_kinds || [];
+    var byKind = collectMarkers();
+    var total = 0;
+    kinds.forEach(function(k){ total += (byKind[k.name] || []).length; });
+
+    parts.push('<h3 class="ngroup">Marker comments<span class="ncount">' +
+      total + "</span></h3>");
+    parts.push('<p class="nsub">Keywords written in ordinary comments — ' +
+      '<code>-- TODO:</code>, <code>// FIXME:</code>, <code>-- PERF:</code> — ' +
+      "read from the source text rather than from an annotation. The same " +
+      "keyword set <code>todo-comments.nvim</code> highlights in the editor, " +
+      "so what is coloured in the buffer is what is listed here.</p>");
+
+    // An artifact generated before marker scanning existed carries no
+    // `markers` key at all, and rendering that as "nothing to do" would be
+    // the exact silent-degradation failure this page keeps being caught by.
+    // Schema 4 is where the field arrived.
+    if(!((IR.meta || {}).schema >= 4)){
+      parts.push('<p class="ntext none">This map predates marker scanning. ' +
+        "Regenerate it to list them.</p>");
+      return;
+    }
+
+    var empty = [];
+    kinds.forEach(function(k){
+      var items = byKind[k.name] || [];
+      if(items.length === 0){ empty.push(k.name); return; }
+      parts.push("<h3>" + esc(k.name) +
+        '<span class="ncount">' + items.length + "</span></h3>");
+      parts.push('<p class="nsub">' + esc(k.sub) + "</p>");
+      parts.push('<ul class="nlist">');
+      items.forEach(function(it){ parts.push(markerItem(it)); });
+      parts.push("</ul>");
+    });
+
+    // The keywords that found nothing get one line between them rather than
+    // a heading each: seven empty sections is the whole tab, and this page's
+    // rule is density on demand, never on screen.
+    if(empty.length === kinds.length){
+      parts.push('<p class="ntext none">No marker comments in this map.</p>');
+    } else if(empty.length){
+      parts.push('<p class="ntext none">Nothing marked ' +
+        esc(empty.join(", ")) + ".</p>");
+    }
+  }
+
   var notesDrawn = false;
   function drawNotes(){
     if(notesDrawn) return; // static over one IR; nothing invalidates it
@@ -3279,14 +3393,24 @@ local JS = [[
 
     var host = document.getElementById("view-notes");
     var parts = [];
+
+    // Named rather than implied. Before this heading existed the tab
+    // opened straight into `Deprecated 0 / Todo 0 / Bug 0`, which reads as
+    // "this repository has nothing outstanding" -- and was reported as
+    // exactly that misreading by an author whose tree is full of
+    // `-- TODO:`. Those four sections were never counting comments.
+    parts.push('<h3 class="ngroup">Annotations<\/h3>');
+    parts.push('<p class="nsub">Tags written in a documentation block, shown '
+      + 'beside the function they describe. Comment markers such as '
+      + '<code>-- TODO:<\/code> are a separate list, further down.<\/p>');
     NOTE_KINDS.forEach(function(kind){
       var items = collectNotes(kind);
       parts.push('<h3>' + esc(kind.title) +
         '<span class="ncount">' + items.length + '</span></h3>');
       parts.push('<p class="nsub">' + esc(kind.sub) + '</p>');
       if(items.length === 0){
-        parts.push('<p class="ntext none">Nothing carries <code>---@' +
-          esc(kind.key) + '</code> in this map.</p>');
+        parts.push('<p class="ntext none">No function carries <code>---@' +
+          esc(kind.key) + '<\/code>. Comment markers are listed under Marker comments below.<\/p>');
         return;
       }
       parts.push('<ul class="nlist">');
@@ -3300,6 +3424,8 @@ local JS = [[
       });
       parts.push("</ul>");
     });
+    drawMarkers(parts);
+
     host.innerHTML = parts.join("");
 
     host.querySelectorAll(".nfn").forEach(function(a){
@@ -7827,6 +7953,14 @@ function M.render(ir, findings, opts)
     -- `documentation.core` must not name `documentation.core.lang.*`, and
     -- this module is under that prefix.
     glossaries = require("documentation.core.lang_registry").glossaries(),
+    -- The keyword table `core/markers.lua` matched with, so the Notes tab
+    -- renders sections in the same order and with the same names the
+    -- scanner used. Passed rather than repeated in JavaScript: a second
+    -- copy of this list is a second thing to keep in step, and the page
+    -- would show a `PERF` section that the scanner had stopped filling.
+    -- Tool data, like `glossaries` above, so it rides on the page and not
+    -- in the byte-deterministic artifact.
+    marker_kinds = require("documentation.core.markers").KEYWORDS,
   })
   -- `</script>` inside JSON would terminate the block early.
   payload = payload:gsub("</", "<\\/")

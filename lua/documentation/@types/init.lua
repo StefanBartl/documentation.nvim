@@ -116,6 +116,8 @@
 ---@field glossary Documentation.Glossary? Keyword explanations for the page's in-place lookup. Optional: a backend without one decorates nothing, which is the honest degradation — falling back to another language's keywords would explain `goto` in a file where it means something else.
 ---@field grammar string? Tree-sitter grammar this backend parses with, e.g. `"javascript"` for the backend named `"js"`. Named separately because the two genuinely differ: three of the four backends today have a grammar name that is not their own. `nil` for a backend that needs no parser at all — which is not the same as a backend whose grammar is merely missing, and `lang_registry.report()` keeps the two apart.
 ---@field is_source fun(filename: string): boolean Whether `filename` (bare, no path) is a source file this backend scans.
+---@field line_comments string[]? Tokens that open a comment running to end of line, e.g. `{"--"}` for Lua, `{"//"}` for the ECMA family. Read by `core/markers.lua`. Absent means this backend's files are not scanned for marker comments at all — the honest default, because `#` opens a comment in Python and a preprocessor directive in C, and guessing wrong attributes a `TODO:` to a line that has none.
+---@field block_comments { [1]: string, [2]: string }[]? Opener/closer pairs for comments spanning lines, e.g. `{{"/*", "*/"}}`. Also read by `core/markers.lua`, and needed even where the opener is already covered by `line_comments` (Lua's `--[[` starts with `--`): without the closer, a marker on the third line of a commented-out region is invisible.
 ---@field module_tag boolean? Whether this language has a `@module`-tag-shaped authoring convention worth `check.lua`'s `missing-module-tag` checking the absence of. Lua: `true` (its canonical module name cannot be recovered from the file path alone). A language whose module identity already is its file path (JS/TS's ESM imports resolve by path): `false` — nothing tag-shaped can be "missing." Absent/`nil` is treated as `true`, the conservative default that preserves today's behavior for a backend that never states an opinion.
 ---@field parse_header fun(path: string): Documentation.Header
 ---@field scan_file fun(path: string): Documentation.FunctionInfo[], Documentation.RawCall[], Documentation.RawRequire[], Documentation.SymbolInfo[], table[], Documentation.EndpointSpec[], integer, Documentation.BindingSpec[] Same eight-value shape `functions.lua`'s `scan_file` already returns. The fifth (`plugins`), sixth (`endpoints`) and eighth (`bindings`) are ecosystem-specific — see `docs/FRAMEWORK_CONVENTIONS.md`/`docs/ECOSYSTEM.md` on why each is a layer *above* language support, not part of this contract — and a backend with no equivalent convention returns `{}` there, not `nil`. `bindings` sits after `lines` rather than beside its two siblings on purpose: this tuple is destructured positionally by every caller, so appending is additive where inserting would silently shift `lines`.
@@ -153,6 +155,7 @@
 ---@field depth integer Distance from the root node.
 ---@field children string[] Child node ids, directories first, then files.
 ---@field types_detail Documentation.TypeInfo[]? `@class`/`@alias` detail for this node's `types` files, from `lua-language-server --doc`. `nil` when LuaLS enrichment did not run; `{}` is a real "ran, found nothing here" result.
+---@field markers Documentation.MarkerNote[] Marker comments (`-- TODO:`, `// FIXME:`) found in this node's own source file, in line order. Always an array. Empty for a namespace with no module file of any language, and for a backend that declares no comment syntax — see `Documentation.LangBackend.line_comments`. Absent throughout an artifact of schema < 4.
 ---@field functions Documentation.FunctionInfo[] Documented functions found in this node's own source file (not its `@types/` files). Always an array, never nil — unlike `types_detail`, this runs unconditionally as part of `scan()`, no LuaLS required.
 ---@field plugins Documentation.PluginSpec[] Plugin-manager (lazy.nvim-shaped) spec entries found in this node's own source — see `core/plugins.lua`. Always an array, empty for a source file that is not a plugin-spec file, which is nearly all of them; runs unconditionally as part of `scan()`, no configuration required.
 ---@field bindings Documentation.BindingSpec[] Keymaps, user commands and autocmds registered in this node's own source — see `core/bindings.lua`. Always an array. The `vim.*` APIs are recognized unconditionally; a config registering through its own wrapper (`map(...)`, the common case) needs `opts.bindings.wrappers` to declare it, which is why this can legitimately be empty for a file that visibly binds keys.
@@ -708,3 +711,18 @@
 ---@field render table
 
 return {}
+
+---One marker comment — `-- TODO:`, `// FIXME(stefan):`, `-- PERF:` —
+---found in source text by `core/markers.lua`.
+---
+---Deliberately not merged with the `---@todo` annotations already on
+---`Documentation.FunctionInfo`. Those are attached to a function and are
+---shown beside its signature; these are attached to a line and often sit
+---nowhere near a function. Folding the two into one list would produce
+---entries whose `function` field is sometimes a lie.
+---@class Documentation.MarkerNote
+---@field kind string Canonical keyword — one of `core/markers.lua`'s `KEYWORDS` names (`TODO`, `FIX`, `HACK`, `WARN`, `PERF`, `NOTE`, `TEST`).
+---@field word string The spelling the author actually used, e.g. `FIXME` for kind `FIX`. Kept because `todo-comments.nvim` highlights the written word and a map that renamed it would not match the buffer.
+---@field author string? From the `KEYWORD(author):` form. `nil` for the plain form.
+---@field text string The rest of the line after the colon, trimmed. May be empty — a bare `-- TODO:` is a real marker and dropping it would undercount.
+---@field line integer 1-based line number within the file it was found in.

@@ -112,11 +112,15 @@ return function(H)
   -- something nothing writes.
   local orphaned = {}
   for key in pairs(payload) do
-    -- `glossaries` is the one payload field that is not an IR field by
-    -- design: it is tool data read straight off `lang_registry`, deliberately
-    -- kept out of the byte-deterministic artifact because it is the same
-    -- bytes in every checkout. See `M.render`'s own note.
-    if ir[key] == nil and key ~= "glossaries" then
+    -- Two payload fields are not IR fields by design, both for the same
+    -- reason: they are tool data, the same bytes in every checkout, and so
+    -- deliberately kept out of the byte-deterministic artifact that
+    -- describes the repository. `glossaries` is read straight off
+    -- `lang_registry`; `marker_kinds` is `core/markers.lua`'s keyword table,
+    -- passed so the Notes tab does not keep a second copy of it. See
+    -- `M.render`'s own notes on both.
+    local TOOL_DATA = { glossaries = true, marker_kinds = true }
+    if ir[key] == nil and not TOOL_DATA[key] then
       orphaned[#orphaned + 1] = key
     end
   end
