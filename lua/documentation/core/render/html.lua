@@ -72,6 +72,14 @@ local CSS = [[
    minority actually shifted. No rule's *relative* ordering changed. */
 body{margin:0;background:var(--bg);color:var(--ink);
   font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+/* Who made the thing you are reading. Muted and one line: this page is
+   someone else's project, and a tool that shouts inside its own output is
+   a tool people strip out. */
+.topbar{padding:6px 24px;font-size:11.5px;color:var(--muted);
+  display:flex;gap:8px;align-items:baseline;border-bottom:1px solid var(--line)}
+.topbar .brand{color:var(--muted);text-decoration:none;font-weight:600;letter-spacing:.02em}
+.topbar .brand:hover{color:var(--ink);text-decoration:underline}
+.topbar .tagline{opacity:.75}
 header{padding:20px 24px 14px;border-bottom:1px solid var(--line);
   display:flex;flex-wrap:wrap;gap:14px;align-items:baseline}
 h1{margin:0;font-size:20px;font-weight:650;letter-spacing:-.01em}
@@ -8161,7 +8169,12 @@ function M.render(ir, findings, opts)
     '<meta name="viewport" content="width=device-width,initial-scale=1">',
     "<title>",
     esc(ir.meta.title),
-    " — module map</title>",
+    " — module map",
+    -- Suppressed when the scanned project *is* documentation.nvim:
+    -- "documentation.nvim — module map · documentation.nvim" repeats the
+    -- name for no reason. Every other project gets the credit.
+    (ir.meta.title ~= "documentation.nvim") and " · documentation.nvim" or "",
+    "</title>",
     "<style>",
     CSS,
     "</style>",
@@ -8193,6 +8206,15 @@ function M.render(ir, findings, opts)
     [[})();</script>]],
 
     "</head><body>",
+
+    -- Above the project's own header, not inside it: the header names the
+    -- repository being read, and putting the tool's name in there would
+    -- make the two look like one thing.
+    '<div class="topbar">'
+      .. '<a class="brand" href="https://github.com/StefanBartl/documentation.nvim"'
+      .. ' target="_blank" rel="noopener">documentation.nvim</a>'
+      .. '<span class="tagline">know your project</span>'
+      .. '</div>',
 
     "<header><h1>",
     esc(ir.meta.title),
