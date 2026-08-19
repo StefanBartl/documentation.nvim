@@ -3802,9 +3802,10 @@ local JS = [[
     "tab.hierarchy":
       "The dependency graph, drawn from one module outward. Boxes are modules " +
       "and namespaces, arrows are requires and calls; the slider decides how " +
-      "far from the centre it reaches. Double-click a box to root the graph " +
-      "there; the path above the graph shows where you are and every level " +
-      "is a way back. The one view that exports as an SVG.",
+      "far from the centre it reaches. A single click opens that module in " +
+      "the Tree and leaves this view; double-click a box to root the graph " +
+      "here instead, and the path above the graph shows where you are with " +
+      "every level a way back. The one view that exports as an SVG.",
     "tab.index":
       "Flat lists of everything the map found, for when you know the name and " +
       "not the place. Three ways of listing the same repository — as a tree, " +
