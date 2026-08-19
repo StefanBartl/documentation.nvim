@@ -6620,6 +6620,20 @@ local JS = [[
       reply = text
         ? { ok: true, kind: "svg", name: svgName(), data: text }
         : { ok: false, reason: "no-diagram" };
+    }else if(msg.ask === "counts"){
+      // What the header shows, for a host that has a place to show it and
+      // cannot read this document. Everything here is already on the page:
+      // the three structural counts come from the artifact, the two
+      // finding counts from `FIND`, which is why this needs no new payload
+      // and cannot drift from the header beside it.
+      var sev = { error: 0, warn: 0 };
+      FIND.forEach(function(f){
+        if(sev[f.severity] !== undefined) sev[f.severity]++;
+      });
+      var c = (IR.meta && IR.meta.counts) || {};
+      reply = { ok: true, kind: "counts", modules: c.module || 0,
+                namespaces: c.namespace || 0, files: c.file || 0,
+                errors: sev.error, warnings: sev.warn };
     }else if(msg.ask === "state"){
       // The same coarse context this page already volunteers on every
       // navigation — repeated here so a host can ask rather than wait.
