@@ -64,6 +64,17 @@ even if it looks cheap.
 
 ## The quick wins, in the order worth doing them
 
+> **All five below have shipped** — verified against `lua/` on 2026-08-19,
+> not from memory: `example-does-not-parse` and `unused-require` are
+> checks in `core/check.lua`, SARIF is `core/render/sarif.lua`, the
+> copy-link button is in the generated page, and Mermaid is
+> `core/render/mermaid.lua`, called by the Markdown renderer for both the
+> tree and the dependency graph.
+
+> The ordering below is kept as written rather than deleted: it is the
+> record of *why* they were done in that order, and the reasoning is the
+> part worth re-reading when the next batch is rated.
+
 **1. `@example` blocks that do not parse (§1.2).** Extraction and rendering
 already exist; running the extracted content through the Lua parser and
 reporting a syntax error is close to free, and unambiguous — no judgement
