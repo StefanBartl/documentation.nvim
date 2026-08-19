@@ -92,3 +92,53 @@ down in its own tests.
   than guessed at
 - **Artifact:** `Documentation.Node.markers`, schema 4
 - **Tests:** `TESTS/markers_spec.lua`
+
+## The page takes its theme from `?theme=`
+
+`index.html?theme=dark` renders dark, `?theme=light` light, anything else
+— including no parameter — follows the operating system. Read in `<head>`
+before any element exists, because a theme applied after first paint is a
+flash of the wrong one.
+
+It exists because a host embedding this page cannot reach into it: the
+attribute `docmap-desktop` stamps on its own document never crosses the
+origin boundary, so choosing dark there left a white page inside a dark
+window. A query parameter is also the thing a person can type.
+
+- **Module:** `core/render/html.lua`
+
+## The page answers questions from a host, and takes no instructions
+
+A `postMessage` channel with a fixed vocabulary: `export-svg` returns the
+hierarchy diagram as a standalone SVG string, `state` returns the coarse
+context the page already volunteers on navigation.
+
+**Questions only.** There is no "go to this tab" and no "set this value" —
+a host that wants the page somewhere navigates the frame's URL, which it
+already controls and which the page validates on the way in. What a host
+cannot do from outside is *read* a cross-origin document, which is the one
+thing these verbs are for.
+
+Unknown verbs are answered with silence rather than an error echoing the
+input back; replies go to the asker's own origin, never `"*"`; a `"null"`
+origin gets no answer at all.
+
+- **Module:** `core/render/html.lua` (`buildSvg`, the `message` listener)
+- **Consumer:** `docmap-desktop`'s File → Export current view…
+
+## Eight tabs, and a second level under two of them
+
+Hierarchy, Index, Analysis, Compare, Features, Quicks, Notes, History.
+
+**Index owns Tree, Functions and Modules** — three ways of listing the same
+repository, which used to be one top-level tab and two buttons inside
+another. **Features owns whatever this repository promotes** with
+`Tab: true`; those used to append themselves to the top bar, so a project
+documenting five features pushed the eight permanent tabs onto a second
+row.
+
+`state.tab` is unchanged by the restructure: `tree` is still `tree` and a
+promoted feature is still `feature-<slug>`, so every `#tab=` link ever
+shared still lands where it did.
+
+- **Module:** `core/render/html.lua` (`topTab`, `subTabs`, `renderSubTabs`)
