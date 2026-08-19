@@ -93,6 +93,7 @@ local specs = {
   "lang_java_spec.lua",
   "lang_cfamily_spec.lua",
   "lang_asm_spec.lua",
+  "lang_python_spec.lua",
   "doccoverage_by_language_spec.lua",
   "lang_js_gaps_spec.lua",
   "polyglot_fixture_spec.lua",

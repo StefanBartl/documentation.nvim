@@ -549,11 +549,45 @@ before it meets anything exotic.
 **Wave 1 — a grammar exists and the contract answers are obvious.**
 The ten highest-traffic languages on either list that are not already built.
 
-- [ ] **Python** — `.py`, `.pyi`. Docstrings (the first string literal in a
-      module/def, not a comment) are the doc source, which no backend here
-      has met yet. `_name` is the visibility convention, `__all__` overrides
-      it where present. Packages are directories with `__init__.py` — the
-      first `module_file` since Lua's `init.lua`.
+- [x] ~~**Python**~~ — `core/lang/python.lua`, built 2026-08-20, the tenth
+      backend and the first of these thirty. Everything this entry predicted
+      held: docstrings are the doc source, `__all__` overrides the
+      underscore, and `__init__.py` is the first `module_file` since Lua's
+      `init.lua`.
+
+      **Two decisions the entry did not anticipate.** The docstring
+      convention forks three ways — reST, Google, NumPy — so the style is
+      detected **per docstring** rather than per project, because one
+      repository mixes them and a project-wide guess is wrong exactly on the
+      function somebody wrote differently. And `self`/`cls` are dropped from
+      the emitted signature: the map shows the *call* signature, and keeping
+      the receiver would make every method in every Python project report an
+      undocumented parameter forever, since no convention documents it.
+
+      **Four bugs, and all four were silent — wrong answers, not missing
+      ones.** One from the fixture: `owner and nil or exported` judged every
+      *method* against the module's export list, because `x and nil` is
+      falsy and the `or` branch runs — the `and`/`or`-return-operands trap
+      the Lua glossary carries an entry for. Three more from scanning
+      `psf/requests` (19 files, 257 functions):
+
+      * A **typed splat** nests one level deeper, so `**kwargs: Unpack[T]`
+        vanished from every annotated signature — and `requests`' whole
+        public API is written that way.
+      * **reST escapes the asterisks**, so a documented `\*\*kwargs` could
+        never match the declared `**kwargs`: a `param-name-mismatch` on
+        every reST-documented project.
+      * A **reST section underline** joined its title, giving
+        `requests.api ~~~~~~~~~~~~` as that module's summary. Assembly's
+        banner filter, in a different alphabet.
+
+      A fifth came from the spec rather than from a scan: a stray ``
+      survived into any description built by joining lines, which is every
+      CRLF-saved Python file on Windows.
+
+      **Measured on `psf/requests`:** 257 functions, 159 documented, 143
+      parameters across 49 functions, 104 symbols, and 66 of 163 imports
+      relative — which is to say resolvable to real edges inside the tree.
 - [ ] **C#** — `.cs`. XML doc comments (`/// <summary>`), real access
       modifiers, `namespace` as module identity, `using` as the require edge.
 - [ ] **Go** — `.go`. The doc comment is the plain comment block above a
