@@ -96,6 +96,13 @@ M.extensions = { "s", "asm", "nasm", "inc" }
 ---The path is the identity; nothing tag-shaped can be missing.
 M.module_tag = false
 
+---A label has no parameter list, so there is nothing a per-parameter
+---convention could name. The trailing comment this backend reads *is* the
+---calling convention where an author wrote one, but it is prose rather than
+---a form with slots in it, and parsing it into `params` would be inventing
+---structure the file does not have.
+M.param_docs = false
+
 ---What opens a comment, across the fork.
 ---
 ---All four are listed because one repository can contain all four: `;` is

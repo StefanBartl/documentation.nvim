@@ -26,12 +26,47 @@
 
 local M = {}
 
+---Whether `language`'s backend has a per-parameter documentation
+---convention at all.
+---
+---**Not every language does, and judging one that does not by one that does
+---produces a wrong number rather than a low one.** LuaCATS, JSDoc, Javadoc
+---and Doxygen all name parameters individually; Zig documents a declaration
+---with a `///` block and has no `@param`, and an assembly label has no
+---parameter list to name. Before this existed, every Zig function in a tree
+---scored undocumented forever however carefully it was written — which the
+---single tree-wide average hid and `M.by_language` made impossible to miss.
+---
+---The same shape as `module_tag = false`: a backend states that its language
+---has no such concept, and the checks stop reporting the absence of
+---something that cannot be present. Absent/`nil` means "yes it has one", the
+---conservative default that preserves the behaviour every backend written
+---before this had.
+---@param language string? From `Documentation.Node.language`; `nil` for a namespace.
+---@return boolean
+function M.language_documents_params(language)
+  if not language then
+    return true
+  end
+  local backend = require("documentation.core.lang_registry").get(language)
+  return not backend or backend.param_docs ~= false
+end
+
 ---True when `fn`'s declared parameters are fully and correctly documented:
 ---same count, same names at each position — exactly what
 ---`undocumented-param` and `param-name-mismatch` each check one half of.
+---
+---Vacuously true for a language with no per-parameter convention, which is
+---the honest answer rather than a lenient one: there is no set of parameter
+---documentation this function could have written that would satisfy a rule
+---its language does not have.
 ---@param fn Documentation.FunctionInfo
+---@param language string? The node's language. Omitted, the strict rule applies.
 ---@return boolean
-function M.params_documented(fn)
+function M.params_documented(fn, language)
+  if not M.language_documents_params(language) then
+    return true
+  end
   local check = require("documentation.core.check")
   local declared = check.declared_param_names(fn)
 
@@ -72,9 +107,11 @@ end
 ---can never quietly disagree about a single function.
 ---@param fn Documentation.FunctionInfo
 ---@return boolean
-function M.is_documented(fn)
+---@param language string? The node's language, so a language with no
+---per-parameter convention is judged on its summary alone.
+function M.is_documented(fn, language)
   local has_summary = fn.summary ~= nil and fn.summary ~= ""
-  return has_summary and M.params_documented(fn)
+  return has_summary and M.params_documented(fn, language)
 end
 
 ---Stamp `fn.documented` onto every non-`@internal` function in `ir` —
@@ -86,8 +123,9 @@ end
 ---@param ir Documentation.IR
 function M.resolve(ir)
   for _, id in ipairs(ir.order) do
-    for _, fn in ipairs(ir.nodes[id].functions) do
-      fn.documented = (not fn.internal) and M.is_documented(fn) or false
+    local node = ir.nodes[id]
+    for _, fn in ipairs(node.functions) do
+      fn.documented = (not fn.internal) and M.is_documented(fn, node.language) or false
     end
   end
 end
@@ -101,16 +139,76 @@ end
 function M.summary(ir)
   local documented, total = 0, 0
   for _, id in ipairs(ir.order) do
-    for _, fn in ipairs(ir.nodes[id].functions) do
+    local node = ir.nodes[id]
+    for _, fn in ipairs(node.functions) do
       if not fn.internal then
         total = total + 1
-        if M.is_documented(fn) then
+        if M.is_documented(fn, node.language) then
           documented = documented + 1
         end
       end
     end
   end
   return documented, total
+end
+
+---The same measure, split by the language each node was read with.
+---
+---**Why one average stopped being enough.** When this module was written the
+---tree it measured was Lua. There are nine language backends now, and they do
+---not set the same bar: Java's Javadoc has a tool behind it and its `@param`
+---tags are parsed, while an assembly label has no parameter list at all and
+---is documented by whatever comment sits above it. Averaging those produces a
+---number that is true of no language in the tree — a repository at 60% might
+---be 95% Lua and 5% C, and the single figure hides exactly the fact worth
+---acting on.
+---
+---The average stays, and stays the headline: it is what the badge and
+---`--check` compare, and one number is what a reader wants first. This is the
+---second question, and it is only asked when the tree can answer it — a
+---breakdown of one row is the average with extra words.
+---
+---Grouped by `node.language`, the field the walk already stamps from whichever
+---backend claimed the file. A namespace has none and contributes nothing,
+---which is correct rather than convenient: it holds no functions to count.
+---@param ir Documentation.IR
+---@return { language: string, documented: integer, total: integer }[] # Largest first, ties by name, so the order is deterministic across runs.
+function M.by_language(ir)
+  local acc = {}
+  for _, id in ipairs(ir.order) do
+    local node = ir.nodes[id]
+    local lang = node.language
+    if lang then
+      for _, fn in ipairs(node.functions) do
+        if not fn.internal then
+          local slot = acc[lang]
+          if not slot then
+            slot = { language = lang, documented = 0, total = 0 }
+            acc[lang] = slot
+          end
+          slot.total = slot.total + 1
+          if M.is_documented(fn, lang) then
+            slot.documented = slot.documented + 1
+          end
+        end
+      end
+    end
+  end
+
+  local out = {}
+  for _, slot in pairs(acc) do
+    out[#out + 1] = slot
+  end
+  -- Largest first because that is the order a reader scans, and by name on a
+  -- tie because `pairs` order differs between runs of the same binary — which
+  -- would make this line churn in a byte-deterministic artifact.
+  table.sort(out, function(a, b)
+    if a.total ~= b.total then
+      return a.total > b.total
+    end
+    return a.language < b.language
+  end)
+  return out
 end
 
 ---`M.summary(ir)` rendered as a shields.io-shaped SVG badge — what

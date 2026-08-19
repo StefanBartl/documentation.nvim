@@ -198,7 +198,8 @@ function M.run(opts, argv)
       )
     )
   end
-  local documented, doc_total = require("documentation.core.doccoverage").summary(ir)
+  local doccoverage = require("documentation.core.doccoverage")
+  local documented, doc_total = doccoverage.summary(ir)
   if doc_total > 0 then
     io.stdout:write(
       ("%d/%d published functions fully documented (%.0f%%)\n"):format(
@@ -207,6 +208,25 @@ function M.run(opts, argv)
         100 * documented / doc_total
       )
     )
+    -- The per-language split, and only when the tree has more than one
+    -- language to split into: a breakdown of one row is the line above it
+    -- with extra words. Nine backends do not set the same documentation bar
+    -- — Javadoc has a tool behind it, an assembly label has no parameter
+    -- list at all — so an average across them can be true of no language in
+    -- the tree.
+    local per = doccoverage.by_language(ir)
+    if #per > 1 then
+      for _, row in ipairs(per) do
+        io.stdout:write(
+          ("  %-6s %d/%d (%.0f%%)\n"):format(
+            row.language,
+            row.documented,
+            row.total,
+            100 * row.documented / row.total
+          )
+        )
+      end
+    end
   end
   -- ECOSYSTEM.md step 8's two aggregate lines — silently absent, not zero,
   -- when no telemetry data exists for this run: see telemetry_join.lua's own
