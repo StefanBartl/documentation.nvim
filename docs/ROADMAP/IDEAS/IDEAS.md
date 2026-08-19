@@ -81,12 +81,19 @@ ground.
 
 ## 1. New drift checks
 
-The 14 existing checks are the plugin's core. These are the gaps in that
-catalogue — ordered by how much of a real, silent problem each one catches.
+There are **20** existing checks — this said 14, and the drift is the
+reason this document was audited. They are the plugin's core; what follows
+are the gaps in that catalogue, ordered by how much of a real, silent
+problem each one catches. Three entries below are struck through because
+they became checks and nobody came back to say so.
 
 ---
 
-### 1.1 Code blocks in Markdown, checked against the real API
+### 1.1 Code blocks in Markdown, checked against the real API — **done, shipped as `doc-references-missing`**
+
+Shipped exactly as sketched below, including the conservatism the objection
+demanded: qualified calls only, `info` severity. The section stays because
+its reasoning is the reasoning the check runs on.
 
 `doc-references-missing` reads *inline code spans* in prose. It does not
 read **fenced code blocks** — which is where a README's usage examples
@@ -102,15 +109,16 @@ calls in it against the same index.
 **The obvious objection, which has an answer:** an example block is often
 deliberately partial or pseudo-code. So the check has to be conservative in
 exactly the way `docs_heuristic` already is — qualified calls only
-(`documentation.core.scan.something`), never bare names — and it should
+(`documentation.core.scan.<name>`), never bare names — and it should
 report at `info` severity, the same class `dead-function` sits in for the
 same reason.
 
 ---
 
-### 1.2 `@example` blocks that do not parse
+### 1.2 `@example` blocks that do not parse — **done, shipped as `example-does-not-parse`**
 
-Same idea, one step easier: `@example` content is already extracted and
+The prediction held: it was the cheapest real check here and it was built
+first. Same idea, one step easier: `@example` content is already extracted and
 already rendered in the annotation popup. Running it through the Lua parser
 and reporting a syntax error is nearly free, and an `@example` that does not
 parse is unambiguously wrong — no judgement call, no false-positive class.
@@ -241,11 +249,14 @@ place only if the number turns out to point somewhere specific.
 
 ---
 
-### 2.5 Unused requires
+### 2.5 Unused requires — **done, shipped as `unused-require`**
 
-A `require` whose result is never referenced. Adjacent to
-`require-not-declared` (which exists) but the opposite direction, and
-cheap: the IR already has both the require edges and the symbol references.
+Built as a check rather than as the Analysis panel this section files it
+under, which is the more useful of the two: a `require` whose result is
+never referenced is a finding, not a ranking. A `require` whose result is
+never referenced. Adjacent to `require-not-declared` (which exists) but the
+opposite direction, and cheap: the IR already has both the require edges
+and the symbol references.
 
 ---
 
@@ -446,7 +457,18 @@ already have. **Probably not**; noted so the question is not re-asked.
 
 ---
 
-### 6.6 A generic CLI entry, no per-repo copy
+### 6.6 A generic CLI entry, no per-repo copy — **answered, by a different mechanism**
+
+The need is met and the sketch below was not what met it:
+`standalone/docmap.lua` takes a root as its first argument and maps an
+arbitrary repository from wherever you happen to be, with no `gen_map.lua`
+copy in it — which is exactly the case this section was written for. It is
+also what `docmap-desktop` runs for every project in its list.
+
+Kept rather than deleted because the sketch is still the answer to a
+*different* question: a CLI entry inside a Neovim host, for someone who has
+the plugin installed and does not want the standalone build. Nobody has
+asked for that yet.
 
 [REUSE.md](../../REUSE.md)'s CI path is "copy `scripts/gen_map.lua`, edit five
 lines". That is the right shape for a repository that maps *itself* on every

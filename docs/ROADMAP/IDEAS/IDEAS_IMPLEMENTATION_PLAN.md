@@ -27,7 +27,7 @@ even if it looks cheap.
 
 | § | Idea | Effort | Benefit | Quick win? |
 |---|---|---|---|---|
-| 1.1 | Fenced code blocks checked against the API | S–M | High | Candidate |
+| ~~1.1~~ | ~~Fenced code blocks checked against the API~~ | — | — | **Built**, as `doc-references-missing` — listed as a candidate because nobody came back to say so, the same way 6.3 was. It fires on real prose: it caught `IDEAS.md`'s own illustrative `documentation.core.scan.something`, which had been a standing warning in every CI run of this repository |
 | ~~1.2~~ | ~~`@example` blocks that do not parse~~ | — | — | **Built 2026-08-18.** Cheap as rated; the "High" benefit was not: no tree in this ecosystem uses `@example`, so it has never fired on real code |
 | 1.3 | API-surface breaking-change detection | M | Medium–High | No — "public" is undefined |
 | 1.4 | Tests naming a function that no longer exists | S | Medium | Candidate |
@@ -54,7 +54,7 @@ even if it looks cheap.
 | ~~6.3~~ | ~~Publish the map to GitHub Pages~~ | — | — | **Already built** before this pass — `.github/workflows/pages.yml`. Listed as open because nobody checked |
 | ~~6.4~~ | ~~Mermaid export~~ | — | — | **Built 2026-08-18** as `:DocMap mermaid [tree|deps]`. The renderer already existed; only the way to ask for it was missing |
 | 6.5 | Workspace symbols from the IR | — | Low | No — recorded rejection, not reopened |
-| 6.6 | Generic CLI entry, no per-repo copy | S–M | Medium (author's own use case) | Candidate — two open design questions first |
+| ~~6.6~~ | ~~Generic CLI entry, no per-repo copy~~ | — | — | **The need is met, by a different mechanism than the sketch.** `standalone/docmap.lua` takes a root and maps an arbitrary repository from anywhere, with no per-repo copy — and it is what `docmap-desktop` runs. The sketched in-Neovim CLI stays unbuilt and unasked-for |
 | 6.7 | REUSE.md recipe for "many repos, one config" | S | Low–Medium | No — depends on 6.6 |
 | 7 | Scale and performance (four items) | — | Unknown | No — not a problem yet |
 | 8.2 follow-up | Checklist trend/history data | S–M | Medium | No — needs (b) actually in use first |
