@@ -268,7 +268,11 @@ li:hover>.sigi,tr:hover .sigi{opacity:.8}
 .fn-ov-raw{font-family:var(--mono);font-size:11.5px;color:var(--muted);font-style:italic}
 code{font-family:var(--mono);font-size:.92em;background:var(--accent-soft);
   padding:1px 4px;border-radius:4px}
-#findings{padding:0 24px 50px}
+/* Inside its own view now, so it gets the same padding every other view has
+   rather than the trailing gap it needed when it sat at the foot of the
+   page under everything else. */
+#view-findings{padding:22px 26px 60px}
+#findings{padding:0}
 #findings table{border-collapse:collapse;width:100%;font-size:12.5px}
 #findings th{text-align:left;padding:6px 9px;border-bottom:1px solid var(--line);
   color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em}
@@ -1825,6 +1829,7 @@ local JS = [[
     document.getElementById("view-index").classList.toggle("active", s.tab === "index");
     document.getElementById("view-analysis").classList.toggle("active", s.tab === "analysis");
     document.getElementById("view-history").classList.toggle("active", s.tab === "history");
+    document.getElementById("view-findings").classList.toggle("active", s.tab === "findings");
     document.getElementById("view-quicks").classList.toggle("active", s.tab === "quicks");
     document.getElementById("view-compare").classList.toggle("active", s.tab === "compare");
     document.getElementById("view-features").classList.toggle("active", s.tab === "features");
@@ -2298,6 +2303,11 @@ local JS = [[
   function revealFinding(severity){
     var box = document.getElementById("findings");
     if(!box) return;
+    // The list lives in its own tab now, so getting there is a navigation
+    // rather than a scroll. The header count stays where it is: a number
+    // behind a click is a number nobody reads, and that number is the
+    // whole reason the check exists.
+    navigate({ tab: "findings" });
     var details = box.querySelector("details");
     if(details) details.open = true;
 
@@ -3745,14 +3755,13 @@ local JS = [[
       "The index of every feature file, above the ones promoted to a tab of " +
       "their own.",
 
-    findings:
-      "Where the drift checks report. Each row is one check disagreeing with " +
-      "the code — a doc reference to something that no longer exists, an " +
-      "example that does not parse, a binding declared twice. This is the " +
-      "list that fails CI. There is one of it, below the tabs rather than " +
-      "inside any of them, because a finding is about the repository and " +
-      "not about the view: a doc reference pointing at nothing is equally " +
-      "true from Tree and from Notes.",
+    "tab.findings":
+      "Where the drift checks report. Each row is one check disagreeing " +
+      "with the code — a doc reference to something that no longer exists, " +
+      "an example that does not parse, a binding declared twice. The same " +
+      "list that fails CI and lands on GitHub as SARIF. Its count stays in " +
+      "the header rather than moving in here, because a number behind a " +
+      "click is a number nobody reads.",
   };
 
   var explainpop = null;
@@ -8456,6 +8465,7 @@ function M.render(ir, findings, opts)
     '<button class="tab-btn" data-tab="quicks" data-explain="tab.quicks">Quicks</button>',
     '<button class="tab-btn" data-tab="notes" data-explain="tab.notes">Notes</button>',
     '<button class="tab-btn" data-tab="history" data-explain="tab.history">History</button>',
+    '<button class="tab-btn" data-tab="findings" data-explain="tab.findings">Findings</button>',
     "</div>",
 
     '<div class="subtabs" id="subtabs" hidden></div>',
@@ -8582,12 +8592,12 @@ function M.render(ir, findings, opts)
     '<div id="anbody"></div>',
     "</div>",
 
-    '<div id="findings"><details><summary data-explain="findings">Drift findings (',
+    '<div id="view-findings" class="view"><div id="findings"><details open><summary>Drift findings (',
     tostring(#findings),
     ')</summary><div class="wrap"><table>',
     "<thead><tr><th>Severity</th><th>Check</th><th>Message</th></tr></thead><tbody>",
     table.concat(rows),
-    "</tbody></table></div></details></div>",
+    "</tbody></table></div></details></div></div>",
 
     '<div id="ctx" role="menu"></div>',
     '<div id="sigpop" class="sigpop" role="tooltip"></div>',
