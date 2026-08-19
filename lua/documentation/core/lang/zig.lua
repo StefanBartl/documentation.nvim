@@ -37,6 +37,13 @@ M.name = "zig"
 ---there.
 M.grammar = "zig"
 
+---Zig documents a declaration with a `///` block and has no per-parameter
+---form — no `@param`, by design rather than by omission, the same way it has
+---no block comment. So a Zig function is judged on its summary alone; before
+---this field existed every one of them scored undocumented forever, however
+---carefully written.
+M.param_docs = false
+
 ---@type string[]
 M.extensions = { "zig" }
 

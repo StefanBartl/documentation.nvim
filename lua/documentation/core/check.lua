@@ -1202,11 +1202,19 @@ end
 local function check_undocumented_params(ir, findings)
   for _, id in ipairs(ir.order) do
     local node = ir.nodes[id]
+    -- A language with no per-parameter documentation convention cannot fail
+    -- this check, and reporting it would be reporting the absence of
+    -- something that cannot be present — the same reason `missing-module-tag`
+    -- skips a language whose identity is its path. Zig documents a
+    -- declaration with one `///` block; an assembly label has no parameter
+    -- list to name at all.
+    local params_documentable =
+      require("documentation.core.doccoverage").language_documents_params(node.language)
     for _, fn in ipairs(node.functions) do
       -- `@internal` says this is implementation, not published surface, so
       -- the documentation bar is the author's own. Nagging about it is how a
       -- heuristic check earns its way onto someone's ignore list.
-      if not fn.internal then
+      if params_documentable and not fn.internal then
         local declared = 0
         for _, token in ipairs(M.declared_param_names(fn)) do
           if token ~= "..." then
