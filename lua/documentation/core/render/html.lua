@@ -1701,6 +1701,11 @@ local JS = [[
     } else {
       if(s.center) parts.push("center=" + encodeURIComponent(s.center));
       parts.push("view=" + encodeURIComponent(s.view || "modules"));
+      // Orientation, and only when it is not the default — the common case
+      // stays the link this page has always produced. It belongs to every
+      // graph view, unlike `dir`/`depth`, because every one of them is
+      // laid out in layers.
+      if(s.hdir === "lr") parts.push("hdir=lr");
       // Modules only, same "only where it applies" rule as `ext` below —
       // Deps/Calls/Module Calls/Types/Inheritance have no notion of a
       // directory root to peel layers off of.
@@ -1772,6 +1777,9 @@ local JS = [[
       // same posture `sha`/`q` already take: a value that does not
       // actually name a saved snapshot just gets "snapshot not found" back
       // from `/api/telemetry`, not silently dropped before it can ask.
+      // Orientation. Anything but "lr" is top-down, so an old link and a
+      // typo land in the same place — the one this page has always had.
+      else if(k === "hdir") s.hdir = (v === "lr") ? "lr" : null;
       else if(k === "tsnap") s.tsnap = v || null;
       else if(k === "tsnapb") s.tsnapb = v || null;
       // Same posture as tsnap/tsnapb: a snapshot name runtime-analysis.
@@ -2491,6 +2499,18 @@ local JS = [[
   var MAX_HNODES = 90;
   var BOX_W = 168, BOX_H = 52, GAP_X = 16, GAP_Y = 44, PAD = 20;
 
+  /// Whether the graph runs left-to-right instead of top-down.
+  ///
+  /// A layout choice, not a second layout: every view already produces
+  /// *layers*, and an orientation is which axis a layer index becomes.
+  /// Three places turn layers into geometry — positions, edges, canvas —
+  /// and this is the only thing they consult.
+  ///
+  /// Worth having because module names are wide and shallow: a top-down
+  /// graph of a deep tree is a tall column of half-empty rows, and the same
+  /// tree sideways fills the screen it is on.
+  function isLR(){ return state.hdir === "lr"; }
+
   // Downward edges keep the original S-curve between the boxes' facing sides.
   // Backedges — an edge to a box on the same layer or above — are a new
   // problem the tree views never had: a require or call graph has cycles, so
@@ -2499,8 +2519,21 @@ local JS = [[
   // through every box in between; routed out of the side and back in, they
   // read as the loop they are.
   function edgePath(a, b){
+    if(isLR()){
+      // The same curve, a quarter turn round: forward edges leave the right
+      // side and enter the left, and anything not going forward falls
+      // through to the sideways route below, which already handles a graph
+      // whose cycles point backwards.
+      if(b.x > a.x){
+        var lx1 = a.x + BOX_W, lx2 = b.x;
+        var ly1 = a.y + BOX_H/2, ly2 = b.y + BOX_H/2;
+        var midX = (lx1 + lx2) / 2;
+        return "M" + lx1 + "," + ly1 + " C" + midX + "," + ly1 + " " +
+          midX + "," + ly2 + " " + lx2 + "," + ly2;
+      }
+    }
     var x1 = a.x + BOX_W/2, x2 = b.x + BOX_W/2;
-    if(b.y > a.y){
+    if(!isLR() && b.y > a.y){
       var y1 = a.y + BOX_H, y2 = b.y;
       var midY = (y1 + y2) / 2;
       return "M" + x1 + "," + y1 + " C" + x1 + "," + midY + " " + x2 + "," + midY + " " + x2 + "," + y2;
@@ -3043,21 +3076,31 @@ local JS = [[
   }
 
   function layerPositions(layers){
-    var maxRowWidth = 0;
+    var lr = isLR();
+    // The extent of the widest layer, across the axis a layer spreads on.
+    var span = 0;
     layers.forEach(function(layer){
       if(!layer) return;
-      maxRowWidth = Math.max(maxRowWidth, layer.length * BOX_W + (layer.length - 1) * GAP_X);
+      var n = layer.length;
+      span = Math.max(span, lr
+        ? n * BOX_H + (n - 1) * GAP_Y
+        : n * BOX_W + (n - 1) * GAP_X);
     });
     var positions = {};
     layers.forEach(function(layer, d){
       if(!layer) return;
-      var rowWidth = layer.length * BOX_W + (layer.length - 1) * GAP_X;
-      var startX = PAD + (maxRowWidth - rowWidth) / 2;
+      var n = layer.length;
+      var own = lr ? n * BOX_H + (n - 1) * GAP_Y : n * BOX_W + (n - 1) * GAP_X;
+      // Layers are centred against the widest one, so the graph reads as a
+      // shape rather than as a left-aligned staircase.
+      var start = PAD + (span - own) / 2;
       layer.forEach(function(key, i){
-        positions[key] = { x: startX + i * (BOX_W + GAP_X), y: PAD + d * (BOX_H + GAP_Y) };
+        positions[key] = lr
+          ? { x: PAD + d * (BOX_W + GAP_X), y: start + i * (BOX_H + GAP_Y) }
+          : { x: start + i * (BOX_W + GAP_X), y: PAD + d * (BOX_H + GAP_Y) };
       });
     });
-    return { positions: positions, maxRowWidth: maxRowWidth };
+    return { positions: positions, maxRowWidth: span };
   }
 
   // =====================================================================
@@ -6238,6 +6281,8 @@ local JS = [[
     // function id in Calls. Used for the highlight ring and the scroll
     // target, so both follow whatever the view is actually about.
       renderCrumb();
+    var lrBtn = document.getElementById("hlr");
+    if(lrBtn) lrBtn.classList.toggle("active", isLR());
   var centerKey = hcenter;
     if(view === "types") centerKey = built.layers[0] && built.layers[0][0];
     else if(view === "inheritance") centerKey = built.centerKey;
@@ -6248,8 +6293,13 @@ local JS = [[
 
     var moved = reconcile(positions, view, centerKey);
 
-    var totalW = laid.maxRowWidth + PAD * 2;
-    var totalH = PAD * 2 + built.layers.length * BOX_H + Math.max(0, built.layers.length - 1) * GAP_Y;
+    // The layer axis and the spread axis swap with the orientation; the
+    // canvas has to swap with them or half the graph is outside it.
+    var depth = built.layers.length;
+    var alongLayers = PAD * 2 + depth * (isLR() ? BOX_W : BOX_H) +
+      Math.max(0, depth - 1) * (isLR() ? GAP_X : GAP_Y);
+    var totalW = isLR() ? alongLayers : laid.maxRowWidth + PAD * 2;
+    var totalH = isLR() ? laid.maxRowWidth + PAD * 2 : alongLayers;
 
     var svgNS = "http://www.w3.org/2000/svg";
     var old = document.getElementById("hsvg");
@@ -6681,6 +6731,10 @@ local JS = [[
     var n = parseInt(ev.target.value, 10);
     navigate({ hideroot: isNaN(n) ? 0 : n });
   });
+  document.getElementById("hlr").addEventListener("click", function(){
+    navigate({ hdir: isLR() ? null : "lr" });
+  });
+
   document.querySelectorAll(".hview-btn").forEach(function(b){
     b.addEventListener("click", function(){ navigate({ view: b.dataset.view }); });
   });
@@ -8546,6 +8600,7 @@ function M.render(ir, findings, opts)
     -- were the only way back and neither says where you are — after two
     -- recentres the reader knows they moved and not from where.
     '<nav id="hcrumb" class="hcrumb" aria-label="Graph root"></nav>',
+    [[<button id="hlr" title="Lay the graph out left-to-right instead of top-down">&#8644; Sideways</button>]],
     '<div class="hview-toggle">',
     '<button class="hview-btn active" data-view="modules">Modules</button>',
     '<button class="hview-btn" data-view="deps">Deps</button>',
