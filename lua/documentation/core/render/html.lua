@@ -6910,12 +6910,16 @@ local JS = [[
       reply = { ok: true, kind: "counts", modules: c.module || 0,
                 namespaces: c.namespace || 0, files: c.file || 0,
                 errors: sev.error, warnings: sev.warn };
-    }else if(msg.ask === "state"){
-      // The same coarse context this page already volunteers on every
-      // navigation — repeated here so a host can ask rather than wait.
-      reply = { ok: true, kind: "state", tab: state.tab,
-                atool: state.atool, view: state.view };
     }
+    // **There was a third question, `state`, and it was removed rather than
+    // kept.** It answered with the same coarse context this page already
+    // volunteers on every navigation, added on the reasoning that asking is
+    // cheaper than waiting. A round later nothing had ever asked it — the
+    // one host there is reads the volunteered message, because by the time
+    // it has a reason to care the message has already arrived. A question
+    // nobody asks is not free: it is a branch in a published channel that
+    // every generated artifact carries and that any future change to
+    // `state` has to keep answering correctly.
     if(!reply) return;
 
     reply.source = "docmap";
