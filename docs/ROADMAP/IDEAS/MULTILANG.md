@@ -361,6 +361,55 @@ relative, so nothing about them moved.
   mapping is not obvious. Likely the hardest walk-level fit of the five;
   reasonable to leave last regardless of check-count arguments.
 
+### Requested out of phase order — Zig, Java, and what is left
+
+Asked for directly on 2026-08-19, and built ahead of Phases 2–5 for a
+reason worth writing down: **phase order was scoped by check-count, and a
+request is a better signal than an estimate.** Both were built against a
+real parse, with a grammar built from source for that purpose, which is the
+bar Phase 1 set and the thing Phases 2–5 are explicitly warned not to claim
+without.
+
+- [x] ~~**Zig**~~ — `core/lang/zig.lua`, built 2026-08-19. The closest fit of
+      any language added so far, because its documentation convention is
+      part of the language rather than bolted onto comments: `//!` is the
+      file's doc, `///` documents the declaration below it, and `pub` is
+      visibility rather than a naming convention. `module_tag = false` — a
+      Zig file's identity is its path.
+- [x] ~~**Java**~~ — `core/lang/java.lua`, built 2026-08-19. The first
+      backend whose doc convention is older and stricter than this tool's:
+      Javadoc's `@param` / `@return` / `@throws` / `@deprecated` are parsed
+      rather than guessed, and the parse is close to `ecma.lua`'s JSDoc
+      because JSDoc descends from Javadoc. `package a.b.c;` plus the file
+      stem gives a genuinely fully qualified module name — something no
+      other backend here gets from the language itself — while
+      `module_tag` stays `false`, since a package declaration is not a
+      documentation tag and a file in the default package is legal.
+
+**What Java cost, measured rather than estimated:** one backend file, one
+spec, one grammar, and **one engine bug it exposed** — `core/markers.lua`
+only recognised comment nodes named `comment`, so every grammar that names
+them `line_comment` / `block_comment` (Java does) reported zero markers.
+It failed in the quiet direction: the parser answered with an empty list,
+which reads as "no comments in this file" rather than "this grammar was not
+understood", so the text fallback never ran either. Caught by
+`backend_contract_spec.lua`, which exists precisely because that spec
+proves the comment token *works* instead of that it is declared.
+
+Still requested and not built:
+
+- [ ] **C / C++** — Phase 5 above already argues the hard part (declaration
+      vs. definition, and no module system to key `Documentation.Node.
+      module` on). The request does not make that easier; it makes it
+      next.
+- [ ] **Assembly** — the one request that needs a decision before any code:
+      there is no function-visibility concept, no module system, no
+      documentation convention, and *which* assembly (GAS, NASM, ARM) is a
+      real fork rather than a dialect. A backend that reports labels and
+      nothing else is honest but close to useless; whether that is worth
+      building is a question for whoever asked, not an implementation
+      detail to decide here.
+
 ---
 
 ## Considerations
