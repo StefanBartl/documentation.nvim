@@ -8214,7 +8214,7 @@ function M.render(ir, findings, opts)
       .. '<a class="brand" href="https://github.com/StefanBartl/documentation.nvim"'
       .. ' target="_blank" rel="noopener">documentation.nvim</a>'
       .. '<span class="tagline">know your project</span>'
-      .. '</div>',
+      .. "</div>",
 
     "<header><h1>",
     esc(ir.meta.title),
