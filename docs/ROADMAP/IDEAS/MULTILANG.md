@@ -420,17 +420,62 @@ understood", so the text fallback never ran either. Caught by
 `backend_contract_spec.lua`, which exists precisely because that spec
 proves the comment token *works* instead of that it is declared.
 
-Still requested and not built:
-
 - [x] ~~**C / C++**~~ — built 2026-08-19; both questions Phase 5 raised are
       answered there, with what measuring changed about the second one.
-- [ ] **Assembly** — the one request that needs a decision before any code:
-      there is no function-visibility concept, no module system, no
-      documentation convention, and *which* assembly (GAS, NASM, ARM) is a
-      real fork rather than a dialect. A backend that reports labels and
-      nothing else is honest but close to useless; whether that is worth
-      building is a question for whoever asked, not an implementation
-      detail to decide here.
+- [x] ~~**Assembly**~~ — `core/lang/asm.lua`, built 2026-08-19, the ninth
+      backend, and the last of the five requested. The decision this entry
+      was waiting for came back *build it, labels and includes*, and the
+      building found the entry's own premises half wrong.
+
+      **It is the first backend here with no tree-sitter grammar, and that
+      is the design rather than a shortcut.** This entry called GAS/NASM/ARM
+      a fork and it is right — which is exactly why a grammar is the wrong
+      instrument: one is written against one side of the fork, so a NASM
+      file read by an x86-GAS grammar is not a degraded parse but a
+      confident wrong one. Everything this backend needs is line-directed in
+      *all* of those syntaxes, because assembly is line-oriented by
+      construction. `lang_registry.report()` already distinguished
+      `grammar = nil` ("needs no parser") from `false` ("wanted one, did not
+      get it"); until now nothing exercised the first, and
+      `lang_registry_spec.lua` asserted every backend had a grammar. It now
+      tests both branches, and `lang_asm_spec.lua` is the only language spec
+      here that never skips.
+
+      **What this entry got wrong: "no function-visibility concept."**
+      `.globl`/`.global` (GAS, ARM), `global` (NASM) and `PUBLIC` (MASM) are
+      explicit exports — a *stronger* signal than most languages here give,
+      and unlike C it needs no header file to read it from. The other two
+      premises held: no module system (so the path is the identity, as Zig
+      established) and no documentation convention.
+
+      **Two measurements changed the design, and both are the C lesson
+      again.** Scanned against `nemasu/asmttpd` (2334 lines of real NASM):
+
+      1. Reporting every label gave **129 "functions" for a program with
+         about sixty**, because branch targets are labels too. The signal
+         turned out to be layout, which every assembly file already uses: a
+         routine's label sits in column zero, a branch target is indented
+         with the instructions around it. asmttpd is 61 flush / 76 indented;
+         `musl`'s 304 assembly sources are 579 flush / **zero** indented —
+         so the rule removes noise where there is noise and costs nothing
+         where there is none. After: 63.
+      2. Reading only the comment *above* a label found **5 documented
+         routines of 63** in a codebase that annotates nearly all of them —
+         because it writes the calling convention *trailing* the label
+         (`add_content_type_header: ;rdi - buffer, rsi - type`). That is the
+         closest thing assembly has to a parameter list, and calling it
+         undocumented would repeat the Doxygen-only mistake exactly. After:
+         29 of 63.
+
+      A label followed by a data directive (`.asciz`, `db`, `resb`) becomes
+      a `SymbolInfo` rather than a function, as do `.equ`/`.set`/`equ` — so
+      the map separates an assembly file's code from its data the way its
+      author already did.
+
+Every requested language is now built. What assembly knowingly does not see
+is named in its own header rather than left to be discovered: NASM's
+column-zero label without a colon, MASM's `name PROC`, and anything a macro
+generates — each a "found nothing" rather than a wrong answer.
 
 ---
 

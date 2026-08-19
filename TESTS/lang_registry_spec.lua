@@ -114,16 +114,32 @@ return function(H)
     "lang_registry: ... and tsx with `tsx`, which happens to match"
   )
 
-  -- Three-valued on purpose. Every backend here declares a grammar, so none
-  -- may report `nil` -- that value is reserved for a backend needing no
-  -- parser, and a host that saw it here would read "needs nothing" where the
-  -- truth is "wanted one and did not get it".
+  -- Three-valued on purpose, and since `lang/asm.lua` arrived all three
+  -- values are actually reachable -- which is what makes this assertion a
+  -- test rather than a restatement. A backend that declares a grammar must
+  -- answer `true` or `false`; one that declares none must answer `nil`.
+  -- Collapsing the two would tell a host "needs nothing" where the truth is
+  -- "wanted one and did not get it", and the reverse: it would report the
+  -- one backend at full fidelity as broken on every machine.
   for _, entry in ipairs(report) do
-    ok(
-      type(entry.grammar_loaded) == "boolean",
-      "lang_registry: " .. entry.name .. " declares a grammar, so loaded is boolean, never nil"
-    )
+    if entry.grammar then
+      ok(
+        type(entry.grammar_loaded) == "boolean",
+        "lang_registry: " .. entry.name .. " declares a grammar, so loaded is boolean, never nil"
+      )
+    else
+      eq(
+        entry.grammar_loaded,
+        nil,
+        "lang_registry: " .. entry.name .. " declares no grammar, so loaded is nil -- not false"
+      )
+    end
   end
+
+  -- Named rather than left to the loop above: asm is the backend the `nil`
+  -- branch exists for, and an assertion that only holds while some backend
+  -- happens to have no grammar is one that quietly stops testing anything.
+  eq(by_name.asm and by_name.asm.grammar, nil, "lang_registry: asm parses by line, by decision")
 
   -- Not cached: a second call re-probes. Asserted as equality of the answer
   -- rather than by counting probes, since the point is only that calling

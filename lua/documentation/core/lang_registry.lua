@@ -47,6 +47,7 @@ local KNOWN_BACKENDS = {
   "documentation.core.lang.java",
   "documentation.core.lang.c",
   "documentation.core.lang.cpp",
+  "documentation.core.lang.asm",
 }
 
 local loaded = false

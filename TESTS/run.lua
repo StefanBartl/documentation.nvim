@@ -92,6 +92,7 @@ local specs = {
   "lang_zig_spec.lua",
   "lang_java_spec.lua",
   "lang_cfamily_spec.lua",
+  "lang_asm_spec.lua",
   "lang_js_gaps_spec.lua",
   "polyglot_fixture_spec.lua",
   "resolve_relative_spec.lua",
