@@ -409,7 +409,21 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .hist-diff .da{color:var(--file)} .hist-diff .dd{color:var(--error)}
 .hist-diff .dh{color:var(--accent);font-weight:600} .hist-diff .dm{color:var(--muted)}
 #view-index{padding:22px 26px 60px}
-#ixtoggle{margin-bottom:14px}
+/* The second level, under the tab bar and above the view.
+
+   Visually subordinate on purpose: smaller, no bottom border of its own,
+   and the active mark is a filled pill rather than the underline the top
+   bar uses. Two rows of identical-looking tabs would read as sixteen tabs
+   rather than as eight with a choice inside two of them. */
+.subtabs{display:flex;gap:4px;flex-wrap:wrap;padding:7px 20px;
+  border-bottom:1px solid var(--line);background:var(--panel)}
+.subtabs[hidden]{display:none}
+.subtab-btn{border:1px solid transparent;border-radius:999px;background:none;
+  color:var(--muted);font-size:12px;padding:3px 11px;cursor:pointer}
+.subtab-btn:hover{color:var(--ink)}
+.subtab-btn.active{background:var(--accent-soft);color:var(--accent);
+  border-color:var(--line);font-weight:600}
+.subtab-btn:focus-visible{outline:2px solid var(--accent-soft);outline-offset:1px}
 #view-analysis{padding:22px 26px 60px}
 #antoggle{margin-bottom:14px}
 .cl-h{margin:18px 0 6px;font-size:14px}
@@ -1527,7 +1541,7 @@ local JS = [[
   // unnecessary one.
   // =====================================================================
   var DEFAULT_STATE = {
-    tab: "tree", id: null, center: null, view: "modules",
+    tab: "hierarchy", id: null, center: null, view: "modules",
     dir: "out", depth: 2, fn: null, ext: false, iview: "functions", atool: "test",
     sha: null,
     // Modules view only: how many top layers of the real tree are peeled
@@ -1787,9 +1801,11 @@ local JS = [[
     }
     state = s;
 
+    var group = topTab(s.tab);
     document.querySelectorAll(".tab-btn").forEach(function(b){
-      b.classList.toggle("active", b.dataset.tab === s.tab);
+      b.classList.toggle("active", b.dataset.tab === group);
     });
+    renderSubTabs(s);
     document.getElementById("view-tree").classList.toggle("active", s.tab === "tree");
     document.getElementById("view-hierarchy").classList.toggle("active", s.tab === "hierarchy");
     document.getElementById("view-notes").classList.toggle("active", s.tab === "notes");
@@ -3642,6 +3658,86 @@ local JS = [[
     return cut.replace(/[\s\-–—:,.]+$/, "") + "…";
   }
 
+  // =====================================================================
+  // The second level
+  //
+  // Two tabs own one: Index is three ways of listing the same repository
+  // (Tree, Functions, Modules), and Features owns however many entries this
+  // repository promotes with `Tab: true`.
+  //
+  // One strip rather than one per owner. Two strips in the same place that
+  // are never both visible are one strip with extra code — and the promoted
+  // features used to have no strip at all: each appended a button to the
+  // *top* bar, so a repository documenting five features pushed the eight
+  // permanent tabs onto a second row and buried them under five that are
+  // particular to it.
+  //
+  // `state.tab` is unchanged by any of this. `tree` is still `tree` and a
+  // promoted feature is still `feature-<slug>`, so every link ever shared
+  // and every `#tab=` in anyone's history still lands where it did. What
+  // changed is only which button lights up for them.
+  // =====================================================================
+
+  /// The top-level tab a state belongs to.
+  ///
+  /// `tree` lives under Index and `feature-x` under Features; everything
+  /// else is its own group. This is the one place that mapping exists.
+  function topTab(tab){
+    if(tab === "tree") return "index";
+    if(tab && tab.indexOf("feature-") === 0) return "features";
+    return tab;
+  }
+
+  /// Entries for the strip, or `[]` when this group has no second level.
+  function subTabs(tab){
+    var group = topTab(tab);
+    if(group === "index"){
+      return [
+        { tab: "tree", label: "Tree" },
+        { tab: "index", iview: "functions", label: "Functions" },
+        { tab: "index", iview: "modules", label: "Modules" }
+      ];
+    }
+    if(group === "features"){
+      // "All features" first: without it, opening a promoted feature would
+      // leave no way back to the index of them except the browser's Back
+      // button.
+      var out = [{ tab: "features", label: "All features" }];
+      collectPromotedFeatures().forEach(function(p){
+        out.push({ tab: p.slug, label: tabLabel(p.entry.name), title: p.entry.name });
+      });
+      return out;
+    }
+    return [];
+  }
+
+  function renderSubTabs(s){
+    var host = document.getElementById("subtabs");
+    var entries = subTabs(s.tab);
+    if(!entries.length){
+      host.hidden = true;
+      host.innerHTML = "";
+      return;
+    }
+    host.hidden = false;
+    host.innerHTML = "";
+    entries.forEach(function(e){
+      var b = document.createElement("button");
+      b.className = "subtab-btn";
+      // Active when both the tab and — where it matters — the mode match.
+      // `Functions` and `Modules` are the same tab and differ only by
+      // `iview`, so tab equality alone would light both.
+      var on = e.tab === s.tab && (!e.iview || e.iview === (s.iview || "functions"));
+      if(on) b.classList.add("active");
+      b.textContent = e.label;
+      if(e.title) b.title = e.title;
+      b.addEventListener("click", function(){
+        navigate(e.iview ? { tab: e.tab, iview: e.iview } : { tab: e.tab });
+      });
+      host.append(b);
+    });
+  }
+
   var promotedFeatures = null;
   function collectPromotedFeatures(){
     if(promotedFeatures) return promotedFeatures;
@@ -3674,20 +3770,11 @@ local JS = [[
   function buildPromotedTabs(){
     var promoted = collectPromotedFeatures();
     if(!promoted.length) return;
-    var afterBtn = document.querySelector('.tab-btn[data-tab="features"]');
     var afterView = document.getElementById("view-features");
     promoted.forEach(function(p){
-      var btn = document.createElement("button");
-      btn.className = "tab-btn";
-      btn.dataset.tab = p.slug;
-      // The full name in the tooltip, always — the label below may be a
-      // shortened form, and the reader has to be able to recover what it
-      // stands for.
-      btn.title = p.entry.name + "\n\nPromoted feature (docs/FEATURES_FORMAT.md \"Tab: true\")";
-      btn.textContent = tabLabel(p.entry.name);
-      afterBtn.insertAdjacentElement("afterend", btn);
-      afterBtn = btn;
-
+      // Views only. The buttons are `renderSubTabs`'s now: appending them
+      // to the top bar is what pushed the eight permanent tabs onto a
+      // second row on any repository that promotes a few features.
       var view = document.createElement("div");
       view.id = "view-" + p.slug;
       view.className = "view";
@@ -3995,10 +4082,6 @@ local JS = [[
     var iview = state.iview === "modules" ? "modules" : "functions";
     host.innerHTML = iview === "modules" ? renderIndexModules() : renderIndexFunctions();
     wireIndexBody(host);
-
-    document.querySelectorAll("#ixtoggle .ixview-btn").forEach(function(b){
-      b.classList.toggle("active", b.dataset.iview === iview);
-    });
   }
 
   // =====================================================================
@@ -6371,9 +6454,6 @@ local JS = [[
   document.querySelectorAll(".hview-btn").forEach(function(b){
     b.addEventListener("click", function(){ navigate({ view: b.dataset.view }); });
   });
-  document.querySelectorAll(".ixview-btn").forEach(function(b){
-    b.addEventListener("click", function(){ navigate({ tab: "index", iview: b.dataset.iview }); });
-  });
   document.querySelectorAll(".anview-btn").forEach(function(b){
     b.addEventListener("click", function(){ navigate({ tab: "analysis", atool: b.dataset.atool }); });
   });
@@ -8074,17 +8154,31 @@ function M.render(ir, findings, opts)
     -- question the reader has before they have a question. It is deliberately
     -- *not* the default tab: `state.tab` still starts on "tree", so every link
     -- ever shared and every habit ever formed lands where it always did.
+    -- Eight tabs in reading order, and two of them own a second level.
+    --
+    -- **Tree is no longer one of them.** Tree, Functions and Modules are
+    -- three ways of listing the same repository, so they are three modes of
+    -- Index rather than one top-level tab and two buttons inside another.
+    -- Promoted features moved the same way: a feature marked `Tab: true`
+    -- used to append a button to *this* bar, so a repository documenting
+    -- five features pushed the tabs onto a second row and buried the eight
+    -- that are always there under five that are particular to it.
+    --
+    -- `#subtabs` below is the second level for both, rendered from whichever
+    -- group is active. One strip, not one per owner: two strips in the same
+    -- place that are never both visible are one strip with extra code.
     '<div class="tabs">',
-    '<button class="tab-btn" data-tab="quicks">Quicks</button>',
-    '<button class="tab-btn active" data-tab="tree">Tree</button>',
-    '<button class="tab-btn" data-tab="hierarchy">Hierarchy</button>',
-    '<button class="tab-btn" data-tab="notes">Notes</button>',
+    '<button class="tab-btn active" data-tab="hierarchy">Hierarchy</button>',
     '<button class="tab-btn" data-tab="index">Index</button>',
-    '<button class="tab-btn" data-tab="history">History</button>',
     '<button class="tab-btn" data-tab="analysis">Analysis</button>',
     '<button class="tab-btn" data-tab="compare">Compare</button>',
     '<button class="tab-btn" data-tab="features">Features</button>',
+    '<button class="tab-btn" data-tab="quicks">Quicks</button>',
+    '<button class="tab-btn" data-tab="notes">Notes</button>',
+    '<button class="tab-btn" data-tab="history">History</button>',
     "</div>",
+
+    '<div class="subtabs" id="subtabs" hidden></div>',
 
     '<div class="toolbar">',
     '<input id="q" type="search" placeholder="Filter modules, paths, descriptions…" autocomplete="off">',
@@ -8181,10 +8275,6 @@ function M.render(ir, findings, opts)
     '<div id="view-features" class="view"></div>',
 
     '<div id="view-index" class="view">',
-    '<div class="hview-toggle" id="ixtoggle">',
-    '<button class="ixview-btn active" data-iview="functions">Functions</button>',
-    '<button class="ixview-btn" data-iview="modules">Modules</button>',
-    "</div>",
     '<div id="ixbody"></div>',
     "</div>",
 
