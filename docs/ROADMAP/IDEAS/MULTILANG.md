@@ -581,15 +581,55 @@ The ten highest-traffic languages on either list that are not already built.
         `requests.api ~~~~~~~~~~~~` as that module's summary. Assembly's
         banner filter, in a different alphabet.
 
-      A fifth came from the spec rather than from a scan: a stray ``
+      A fifth came from the spec rather than from a scan: a stray `
+`
       survived into any description built by joining lines, which is every
       CRLF-saved Python file on Windows.
 
       **Measured on `psf/requests`:** 257 functions, 159 documented, 143
       parameters across 49 functions, 104 symbols, and 66 of 163 imports
       relative — which is to say resolvable to real edges inside the tree.
-- [ ] **C#** — `.cs`. XML doc comments (`/// <summary>`), real access
-      modifiers, `namespace` as module identity, `using` as the require edge.
+- [x] ~~**C#**~~ — `core/lang/csharp.lua`, built 2026-08-20, the eleventh
+      backend. **The first documentation format here that is markup**, which
+      makes three shapes in the tool now: tags (LuaCATS, JSDoc, Javadoc,
+      Doxygen), prose with sections (Python), and XML. It is also the only
+      one that names a parameter by *attribute* — `<param name="x">` states
+      which parameter it documents, where Javadoc relies on the first word
+      and a docstring on a section's layout.
+
+      Parsed with patterns rather than an XML parser, deliberately: a doc
+      comment is a fragment, not a document — unbalanced tags and
+      `<see cref="T"/>` mid-sentence are ordinary — and an XML parser would
+      reject a large share of the doc comments in any real project. The
+      elements that carry structure are read; the markup that only decorates
+      (`<c>`, `<see>`, `<paramref>`) is stripped, keeping the referenced name.
+
+      **Visibility has two defaults, and missing the second one is an
+      inversion rather than a near miss.** A *class* member with no modifier
+      is private; an *interface* member with no modifier is public. The first
+      version applied the class rule everywhere, and every method of every
+      interface came back internal — on the one construct that exists to
+      declare a published API. The fixture has an interface in it for exactly
+      that reason.
+
+      **The second real-code finding was the preprocessor.** `#if` wraps
+      whatever it guards, so a `using` or a type inside one hangs off a
+      `preproc_if` rather than off the compilation unit. Skipping those lost
+      three of Serilog's thirty-six usings — and, more than that, ten
+      functions and eleven symbols that live only inside a conditional
+      branch. Every branch is walked now, including ones a given build would
+      not compile: this map describes a repository, not one configuration
+      of it.
+
+      **What `using` cannot do**, stated in the backend rather than left to
+      be discovered: a `using` names a *namespace*, not a file, unlike Java's
+      `import a.b.C` which names a compilation unit. So C# `using` edges are
+      almost all external, and the edge C# really has at file level is a type
+      reference — which needs a resolution pass this pipeline does not run.
+
+      **Measured on `serilog/serilog`:** 113 files, 590 functions (473
+      public, 327 documented), 727 documented parameters, 370 symbols, 36 of
+      36 usings, and 107 of 113 files carrying a fully qualified module name.
 - [ ] **Go** — `.go`. The doc comment is the plain comment block above a
       declaration (Go has no doc sigil), and **visibility is
       capitalisation** — an exported identifier starts with an upper-case
