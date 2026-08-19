@@ -432,6 +432,11 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .subtab-btn.active{background:var(--accent-soft);color:var(--accent);
   border-color:var(--line);font-weight:600}
 .subtab-btn:focus-visible{outline:2px solid var(--accent-soft);outline-offset:1px}
+/* The explanation card. Narrower than the annotation card it borrows from:
+   these are two sentences about a control, not a function signature with a
+   snippet under it, and a wide card over a tab strip covers the tabs. */
+.explainpop{max-width:340px}
+.explainpop .fn-desc{white-space:normal;line-height:1.5}
 #view-analysis{padding:22px 26px 60px}
 #antoggle{margin-bottom:14px}
 .cl-h{margin:18px 0 6px;font-size:14px}
@@ -3667,6 +3672,158 @@ local JS = [[
   }
 
   // =====================================================================
+  // "What is this?" — hover explanations for the page's own furniture
+  //
+  // Every tab, every mode inside one, and the findings disclosure says what
+  // it *does* rather than repeating its label. A card that restates the
+  // heading costs a hover and teaches nothing, so each text below is written
+  // from what that view computes.
+  //
+  // One card, one attribute: anything carrying `data-explain` gets it. The
+  // texts live in `EXPLAIN` keyed by the same value, in this file rather
+  // than in the markup, because several of them are two sentences and
+  // markup with prose in its attributes is markup nobody edits twice.
+  //
+  // **On the worry that a section means different things in different
+  // tabs**: it was raised about "Drift findings", and that one turns out to
+  // be a single element at the foot of the page shared by every tab — so
+  // there is nothing to disambiguate there. Where a repeated heading *does*
+  // mean different things, the key is what distinguishes them, not the
+  // label: `index.functions` and `hierarchy.calls` are separate entries even
+  // though both could be titled "functions".
+  //
+  // Reuses `.sigpop`'s styling the way the keyword card already does. A
+  // third floating component with its own rules would be a third set of
+  // rules to keep in step for no gain.
+  // =====================================================================
+  var EXPLAIN = {
+    "tab.hierarchy":
+      "The dependency graph, drawn from one module outward. Boxes are modules " +
+      "and namespaces, arrows are requires and calls; the slider decides how " +
+      "far from the centre it reaches. The one view that exports as an SVG.",
+    "tab.index":
+      "Flat lists of everything the map found, for when you know the name and " +
+      "not the place. Three ways of listing the same repository — as a tree, " +
+      "as functions, as modules.",
+    "tab.analysis":
+      "Aggregate numbers over the whole tree: how much is tested, how much is " +
+      "documented, where dependencies concentrate. A palette of tools sharing " +
+      "one panel, not a single report.",
+    "tab.compare":
+      "Two or more modules side by side, on the same rows, so a difference is " +
+      "a difference in a column rather than something to remember between " +
+      "scrolls.",
+    "tab.features":
+      "This repository's own `docs/FEATURES/` files, read as an index — name, " +
+      "summary and metadata. Never the prose that follows them, which stays " +
+      "in the file it was written in.",
+    "tab.quicks":
+      "The verdicts: what is notable about this tree stated in sentences, " +
+      "good and bad, each with the count it is based on. Computed by the " +
+      "engine, not by this page.",
+    "tab.notes":
+      "Everything the authors left behind. Annotations on functions " +
+      "(`---@todo`, `---@bug`) and marker comments in the source " +
+      "(`-- TODO:`, `// FIXME:`) — two lists, because one is attached to a " +
+      "signature and the other to a line.",
+    "tab.history":
+      "This repository's git history, and what each commit did to the map. " +
+      "Computed on demand from git, so it needs a host that can run it — a " +
+      "map opened as a file says so instead of guessing.",
+
+    "sub.tree":
+      "The module tree as the scan walked it, with each node's own detail " +
+      "beside it. The default place to start reading a repository you do not " +
+      "know.",
+    "sub.functions":
+      "Every documented function in the map, alphabetically, with its " +
+      "signature and where it lives.",
+    "sub.modules":
+      "Every module and namespace, alphabetically. The same set the tree " +
+      "shows, without the nesting.",
+    "sub.features.all":
+      "The index of every feature file, above the ones promoted to a tab of " +
+      "their own.",
+
+    findings:
+      "Where the drift checks report. Each row is one check disagreeing with " +
+      "the code — a doc reference to something that no longer exists, an " +
+      "example that does not parse, a binding declared twice. This is the " +
+      "list that fails CI. There is one of it, below the tabs rather than " +
+      "inside any of them, because a finding is about the repository and " +
+      "not about the view: a doc reference pointing at nothing is equally " +
+      "true from Tree and from Notes.",
+  };
+
+  var explainpop = null;
+  var explainAnchor = null;
+  var explainTimer = null;
+
+  function explainClose(){
+    if(explainTimer){ clearTimeout(explainTimer); explainTimer = null; }
+    if(explainpop) explainpop.classList.remove("on");
+    explainAnchor = null;
+  }
+
+  function explainOpen(el){
+    var text = EXPLAIN[el.dataset.explain];
+    if(!text) return;
+    if(!explainpop){
+      explainpop = document.createElement("div");
+      explainpop.className = "sigpop explainpop";
+      explainpop.setAttribute("role", "tooltip");
+      document.body.appendChild(explainpop);
+    }
+    explainAnchor = el;
+    explainpop.innerHTML = '<div class="fn-desc"></div>';
+    // `textContent`, not `innerHTML`: these strings carry backticks as
+    // literal characters and nothing else, and a card that renders markup
+    // is a card somebody eventually puts a link in.
+    explainpop.querySelector(".fn-desc").textContent = text;
+    explainpop.classList.add("on");
+
+    // Under the control, flipped up when there is no room — the same rule
+    // the annotation and keyword cards already follow.
+    var r = el.getBoundingClientRect();
+    var p = explainpop.getBoundingClientRect();
+    var left = Math.min(r.left, window.innerWidth - p.width - 8);
+    var top = r.bottom + 6;
+    if(top + p.height > window.innerHeight - 8) top = r.top - p.height - 6;
+    explainpop.style.left = Math.max(8, left) + "px";
+    explainpop.style.top = Math.max(8, top) + "px";
+  }
+
+  // A deliberate dwell, not a pointer crossing the strip: eight tabs in a
+  // row means a card per tab on the way to the one you wanted.
+  document.addEventListener("mouseover", function(ev){
+    var el = ev.target.closest && ev.target.closest("[data-explain]");
+    if(!el){
+      if(explainAnchor && !explainTimer) explainTimer = setTimeout(explainClose, 120);
+      return;
+    }
+    if(explainTimer){ clearTimeout(explainTimer); explainTimer = null; }
+    if(el === explainAnchor) return;
+    explainClose();
+    explainTimer = setTimeout(function(){
+      explainTimer = null;
+      explainOpen(el);
+    }, 450);
+  });
+
+  // Keyboard focus opens it immediately. A `title` attribute would have been
+  // free and never appears on focus, which would leave exactly the controls
+  // a keyboard user reaches as the only ones with no explanation.
+  document.addEventListener("focusin", function(ev){
+    var el = ev.target.closest && ev.target.closest("[data-explain]");
+    if(el) explainOpen(el); else explainClose();
+  });
+  document.addEventListener("keydown", function(ev){
+    if(ev.key === "Escape") explainClose();
+  });
+  document.addEventListener("scroll", explainClose, true);
+  window.addEventListener("blur", explainClose);
+
+  // =====================================================================
   // The second level
   //
   // Two tabs own one: Index is three ways of listing the same repository
@@ -3701,16 +3858,19 @@ local JS = [[
     var group = topTab(tab);
     if(group === "index"){
       return [
-        { tab: "tree", label: "Tree" },
-        { tab: "index", iview: "functions", label: "Functions" },
-        { tab: "index", iview: "modules", label: "Modules" }
+        { tab: "tree", label: "Tree", explain: "sub.tree" },
+        { tab: "index", iview: "functions", label: "Functions",
+          explain: "sub.functions" },
+        { tab: "index", iview: "modules", label: "Modules",
+          explain: "sub.modules" }
       ];
     }
     if(group === "features"){
       // "All features" first: without it, opening a promoted feature would
       // leave no way back to the index of them except the browser's Back
       // button.
-      var out = [{ tab: "features", label: "All features" }];
+      var out = [{ tab: "features", label: "All features",
+                   explain: "sub.features.all" }];
       collectPromotedFeatures().forEach(function(p){
         out.push({ tab: p.slug, label: tabLabel(p.entry.name), title: p.entry.name });
       });
@@ -3739,6 +3899,7 @@ local JS = [[
       if(on) b.classList.add("active");
       b.textContent = e.label;
       if(e.title) b.title = e.title;
+      if(e.explain) b.dataset.explain = e.explain;
       b.addEventListener("click", function(){
         navigate(e.iview ? { tab: e.tab, iview: e.iview } : { tab: e.tab });
       });
@@ -8287,14 +8448,14 @@ function M.render(ir, findings, opts)
     -- group is active. One strip, not one per owner: two strips in the same
     -- place that are never both visible are one strip with extra code.
     '<div class="tabs">',
-    '<button class="tab-btn active" data-tab="hierarchy">Hierarchy</button>',
-    '<button class="tab-btn" data-tab="index">Index</button>',
-    '<button class="tab-btn" data-tab="analysis">Analysis</button>',
-    '<button class="tab-btn" data-tab="compare">Compare</button>',
-    '<button class="tab-btn" data-tab="features">Features</button>',
-    '<button class="tab-btn" data-tab="quicks">Quicks</button>',
-    '<button class="tab-btn" data-tab="notes">Notes</button>',
-    '<button class="tab-btn" data-tab="history">History</button>',
+    '<button class="tab-btn active" data-tab="hierarchy" data-explain="tab.hierarchy">Hierarchy</button>',
+    '<button class="tab-btn" data-tab="index" data-explain="tab.index">Index</button>',
+    '<button class="tab-btn" data-tab="analysis" data-explain="tab.analysis">Analysis</button>',
+    '<button class="tab-btn" data-tab="compare" data-explain="tab.compare">Compare</button>',
+    '<button class="tab-btn" data-tab="features" data-explain="tab.features">Features</button>',
+    '<button class="tab-btn" data-tab="quicks" data-explain="tab.quicks">Quicks</button>',
+    '<button class="tab-btn" data-tab="notes" data-explain="tab.notes">Notes</button>',
+    '<button class="tab-btn" data-tab="history" data-explain="tab.history">History</button>',
     "</div>",
 
     '<div class="subtabs" id="subtabs" hidden></div>',
@@ -8421,7 +8582,7 @@ function M.render(ir, findings, opts)
     '<div id="anbody"></div>',
     "</div>",
 
-    '<div id="findings"><details><summary>Drift findings (',
+    '<div id="findings"><details><summary data-explain="findings">Drift findings (',
     tostring(#findings),
     ')</summary><div class="wrap"><table>',
     "<thead><tr><th>Severity</th><th>Check</th><th>Message</th></tr></thead><tbody>",
