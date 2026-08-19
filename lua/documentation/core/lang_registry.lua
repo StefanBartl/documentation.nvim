@@ -48,6 +48,7 @@ local KNOWN_BACKENDS = {
   "documentation.core.lang.c",
   "documentation.core.lang.cpp",
   "documentation.core.lang.asm",
+  "documentation.core.lang.python",
 }
 
 local loaded = false

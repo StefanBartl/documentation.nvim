@@ -31,9 +31,9 @@ Point it at a repository and it produces a **module map**: an interactive
 HTML page, a Markdown overview, a deterministic JSON artifact, and a set of
 drift checks that fail CI when the documentation and the code stop agreeing.
 
-It reads **nine languages** — Lua, JavaScript, TypeScript, TSX, Zig, Java,
-C, C++ and assembly — through one backend contract, so a tree that mixes
-them comes out as one map rather than several. See
+It reads **ten languages** — Lua, JavaScript, TypeScript, TSX, Python, Zig,
+Java, C, C++ and assembly — through one backend contract, so a tree that
+mixes them comes out as one map rather than several. See
 [Languages](#languages).
 
 ```vim
@@ -166,7 +166,7 @@ a real (if deliberately small) example — including one promoted feature.
 
 ## Languages
 
-Nine backends behind one contract, so a repository that mixes them produces
+Ten backends behind one contract, so a repository that mixes them produces
 one map rather than several. A backend answers the same five questions —
 which files it claims, where its sources live, what documents a file, what
 documents a declaration, and what makes a declaration public — and the map
@@ -178,6 +178,7 @@ does not care which language answered.
 | **JavaScript** | `.js`, `.jsx` | JSDoc `/** … */` | anything without `@internal`/`@private` |
 | **TypeScript** | `.ts`, `.mts`, `.cts` | JSDoc | same |
 | **TSX** | `.tsx` | JSDoc | same |
+| **Python** | `.py`, `.pyi` | a docstring — the first *statement*, in reST, Google or NumPy style | not a leading `_`, unless `__all__` says otherwise |
 | **Zig** | `.zig` | `///` above the declaration | `pub` |
 | **Java** | `.java` | Javadoc, with `@param`/`@return`/`@throws`/`@deprecated` parsed | `public` |
 | **C** | `.c`, `.h` | any comment directly above it, Doxygen or not | not `static` |
@@ -206,18 +207,25 @@ summary), and in assembly the top comment block — with the same banner
 filter, reached by content because assembly has no punctuation to reach it
 by.
 
+**Python is the one language here whose documentation is not a comment.**
+A docstring is a string literal the interpreter keeps, so it is found by
+*position* — the first statement — rather than by adjacency, and a "TODO"
+inside one is prose the author published rather than a marker. Its style
+forks three ways (reST, Google, NumPy) and is detected per docstring, since
+one repository routinely mixes them.
+
 **Only Lua has a module tag.** Everywhere else the file's path *is* its
 identity, because that is how those languages resolve imports — so
 `check.lua` never reports a missing `@module` for a language that has no
-such concept. Only Lua has a directory-owns-a-module convention
-(`init.lua`); `index.js` plays that role for JavaScript. Everywhere else a
+such concept. Lua's `init.lua`, Python's `__init__.py` and JavaScript's
+`index.js` are the three directory-owns-a-module conventions. Everywhere else a
 directory is a namespace and every file is its own module.
 
 ### Grammars, and the one backend that needs none
 
-Eight of the nine parse with a tree-sitter grammar. Without the grammar
+Nine of the ten parse with a tree-sitter grammar. Without the grammar
 they still produce a complete module tree — correctly, and saying so — but
-no function-level data. `scripts/build_engine_release.sh` builds all eight
+no function-level data. `scripts/build_engine_release.sh` builds all nine
 into a release; inside Neovim they come from the runtimepath.
 
 **Assembly is the exception, by design rather than by omission.** GAS, NASM
