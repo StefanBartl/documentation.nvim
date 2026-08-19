@@ -479,6 +479,194 @@ generates — each a "found nothing" rather than a wrong answer.
 
 ---
 
+## The other 30 — requested 2026-08-19
+
+**The ask, stated as given:** the two rankings that matter in practice —
+TIOBE (search interest) and the Stack Overflow / GitHub Octoverse pair
+(actual use and contributor activity) — thirty languages each. Every one of
+them gets a backend.
+
+Deduplicated across both lists and with the nine built ones removed, that is
+**30 new languages**, listed below in the order they will be built. One is
+struck before it starts, for a reason recorded rather than assumed.
+
+**Where this sits in the running order:** second-to-last. Everything else
+open in `docmap-desktop`'s `docs/WORKPLAN.md` comes first, this block comes
+next, and the remaining documentation rewrite (that plan's §10.7) is last —
+deliberately, so the docs are written once against the finished set rather
+than rewritten thirty times.
+
+### Four decisions taken before any of it was built
+
+Taken up front because each one changes what gets written rather than how,
+and finding them mid-implementation would mean discarding work.
+
+1. **Scratch is not built, and the reason is that there is nothing to
+   read.** A `.sb3` is a ZIP holding `project.json`; there is no source
+   text, no comment syntax, no import, no visibility. A backend for it
+   would share not one line with the other twenty-nine — no tree-sitter, no
+   file scan, no comment extraction — which makes it a second tool wearing
+   this one's contract. Recorded here so the next reader does not have to
+   re-derive the same answer from the same evidence.
+2. **Visual Basic means VB.NET (`.vb`).** VBA is the other language of that
+   name and mostly lives *inside* a binary Office document this tool does
+   not open; reading only the exported `.bas`/`.cls` would produce a map
+   that is silently missing most of a project. VB.NET is plain text with
+   `Module`/`Class`, real `Public`/`Private` visibility and `Imports` as a
+   require edge, and fits the contract without an exception.
+3. **SQL is one backend, not one per dialect.** It has no modules, no
+   imports and no visibility — the same shape as assembly — and T-SQL,
+   PL/SQL and PL/pgSQL are a fork rather than dialects. So: the file is the
+   module, `CREATE FUNCTION`/`CREATE PROCEDURE` is the function, tables and
+   views are symbols, and `\i`/`SOURCE` is the require edge. One
+   statement-oriented scanner reading all of them beats three grammars
+   drifting apart.
+4. **Where no maintained tree-sitter grammar exists, the backend is a line
+   scanner** — the instrument assembly already proved. Fortran, Ada, COBOL,
+   Delphi/Object Pascal, MATLAB and VB.NET are all line- or
+   statement-oriented and declare procedures with a keyword at the start of
+   a line, which is exactly the shape that reads correctly without a parse
+   tree. `lang_registry.report()` already distinguishes "needs no parser"
+   from "wanted one and could not find it", so these are reported at full
+   fidelity rather than as broken.
+
+### The order, and why it is this one
+
+Grouped by how much of the contract is already answered by the language
+itself. The cheapest and most-used go first, so the seam is exercised hard
+before it meets anything exotic.
+
+**Wave 1 — a grammar exists and the contract answers are obvious.**
+The ten highest-traffic languages on either list that are not already built.
+
+- [ ] **Python** — `.py`, `.pyi`. Docstrings (the first string literal in a
+      module/def, not a comment) are the doc source, which no backend here
+      has met yet. `_name` is the visibility convention, `__all__` overrides
+      it where present. Packages are directories with `__init__.py` — the
+      first `module_file` since Lua's `init.lua`.
+- [ ] **C#** — `.cs`. XML doc comments (`/// <summary>`), real access
+      modifiers, `namespace` as module identity, `using` as the require edge.
+- [ ] **Go** — `.go`. The doc comment is the plain comment block above a
+      declaration (Go has no doc sigil), and **visibility is
+      capitalisation** — an exported identifier starts with an upper-case
+      letter, which is a fact from the language rather than a convention.
+      `package` names the module; a directory is a package.
+- [ ] **Rust** — `.rs`. `///` and `//!` map onto the same split Zig
+      established, `pub` is visibility, and `mod`/`use` are the module
+      system. The one wrinkle worth naming now: a file can declare several
+      modules inline, which is the "one file, many modules" IR case Phase 0
+      still has open.
+- [ ] **PHP** — `.php`. PHPDoc, `public`/`private`/`protected`, `namespace`,
+      and `require`/`include`/`use` as three different edges to tell apart.
+- [ ] **Ruby** — `.rb`. No visibility keyword at declaration site: `private`
+      is a *positional* statement affecting everything after it, the same
+      shape C++'s access specifier turned out to have, so it is tracked
+      while walking.
+- [ ] **Kotlin** — `.kt`, `.kts`. KDoc, four visibilities collapsing to two
+      exactly as Java's did, `package` plus file stem for identity.
+- [ ] **Swift** — `.swift`. Markup comments (`///`), five access levels
+      (`open`/`public`/`internal`/`fileprivate`/`private`) collapsing to
+      two, and no import-by-path — a module is a build target, so the path
+      is the identity here too.
+- [ ] **Dart** — `.dart`. `///` doc comments, and visibility is a **leading
+      underscore that the compiler enforces**, which makes Dart the one
+      language where the underscore convention is a fact rather than a
+      guess.
+- [ ] **Scala** — `.scala`, `.sc`. Scaladoc, `private[x]` qualified
+      visibility, `package` identity.
+
+**Wave 2 — a grammar exists, the paradigm is further from what is built.**
+
+- [ ] **Haskell** — `.hs`. Haddock (`-- |` and `-- ^`), and visibility is
+      the **module export list** rather than a per-declaration marker,
+      which is a shape nothing here has met: the header decides what the
+      rest of the file publishes.
+- [ ] **Elixir** — `.ex`, `.exs`. `@moduledoc`/`@doc` are genuinely
+      first-class documentation — attributes the compiler keeps — and
+      `def`/`defp` is real visibility. Closest fit in this wave.
+- [ ] **Erlang** — `.erl`, `.hrl`. `-module`/`-export` is an export list
+      like Haskell's; EDoc for prose.
+- [ ] **OCaml** — `.ml`, `.mli`. The `.mli` interface file *is* the
+      published surface, which is the header/source split C already forced a
+      decision on — and here the language means it rather than implies it.
+- [ ] **F#** — `.fs`, `.fsi`. Same interface-file shape, XML doc comments,
+      and file *order* is semantically meaningful, which nothing else here
+      has to model.
+- [ ] **Julia** — `.jl`. Docstrings above the definition, `module`/`export`.
+- [ ] **R** — `.R`, `.r`. Roxygen2 (`#'` with `@param`/`@return`) is a
+      documentation tool with a generator behind it, the same class of fact
+      Javadoc was; `NAMESPACE`'s export list is the visibility answer.
+- [ ] **Perl** — `.pl`, `.pm`. POD is a documentation format that is *not*
+      comments — it interleaves with code and has its own lexer, which is
+      the first time a backend has to read two syntaxes in one file.
+- [ ] **Groovy** — `.groovy`, `.gradle`. Groovydoc, JVM visibility. Its
+      real use is CI/CD and Gradle builds, so this is a build-file mapper as
+      much as a language one.
+- [ ] **Solidity** — `.sol`. NatSpec (`/// @notice`, `@dev`, `@param`) is a
+      documented standard, and visibility is four keywords the compiler
+      requires on every function — the strictest visibility of anything in
+      this list.
+
+**Wave 3 — the shells, which are a language question people argue about.**
+Included because both rankings list them and because a repository's
+automation is part of what a map should show.
+
+- [ ] **Bash** — `.sh`, `.bash`, `.zsh`. Functions exist; there is no
+      module system and no visibility, so path identity as with Zig, and
+      `source`/`.` is the require edge.
+- [ ] **PowerShell** — `.ps1`, `.psm1`, `.psd1`. Comment-based help
+      (`.SYNOPSIS`, `.PARAMETER`) is a real convention with `Get-Help`
+      behind it; `Export-ModuleMember` and the `.psd1` manifest are the
+      export list.
+
+**Wave 4 — no maintained grammar, so a line scanner, per decision 4.**
+
+- [ ] **Fortran** — `.f90`, `.f95`, `.f03`, `.f`, `.for`. `module`/`use`,
+      `public`/`private` statements, and fixed-form source in the older
+      extensions where column position is syntax.
+- [ ] **Ada** — `.ads`, `.adb`. Specification and body in separate files —
+      the OCaml/C shape again, and the third language to force that
+      decision, which is worth watching for a pattern the IR should carry.
+- [ ] **COBOL** — `.cob`, `.cbl`. Divisions and sections are the structure;
+      `COPY` is the require edge. Fixed-form columns again.
+- [ ] **Delphi / Object Pascal** — `.pas`, `.dpr`. `unit`/`interface`/
+      `implementation` is a genuine published-surface split declared in one
+      file, which is a shape neither C nor OCaml has.
+- [ ] **MATLAB** — `.m`. One function per file by convention, so the file
+      name *is* the function name. `.m` also being Objective-C's extension
+      is a conflict to resolve when an Objective-C backend exists, not
+      before.
+- [ ] **Visual Basic (.NET)** — `.vb`. `Module`/`Class`, `Public`/`Private`,
+      `Imports`, and XML doc comments.
+
+**Wave 5 — the one decided into its own shape.**
+
+- [ ] **SQL** — `.sql`. Per decision 3.
+
+**Not built, and here is the reason:**
+
+- [x] ~~**Scratch**~~ — see decision 1. Not a text language; there is
+      nothing for this contract to read.
+
+### And then: feature parity across all of them
+
+- [ ] **The parity pass, once every backend exists.** The rule asked for is
+      that a feature Lua has, every language has — *in its own terms*, not
+      by pretending each language is Lua. So this is an audit with a table:
+      one row per contract capability (file summary, declaration summary,
+      parameters, returns, visibility, module identity, require edges, call
+      edges, symbols, markers, glossary), one column per language, and every
+      empty cell either filled or given a written reason that names what in
+      the language makes it impossible.
+
+      **The reasons matter as much as the fills**, and the languages already
+      built prove it: assembly has no parameter list because a label has no
+      calling convention to read, and inventing `()` would claim one. That
+      is a filled-in reason, not a gap. A blank cell with no sentence beside
+      it is the only real failure this pass is looking for.
+
+---
+
 ## Considerations
 
 **Why "no half-finished implementations" is a real risk here, not a
