@@ -89,6 +89,7 @@ local specs = {
   "docs_spec.lua",
   "quicks_spec.lua",
   "lang_js_spec.lua",
+  "lang_zig_spec.lua",
   "lang_js_gaps_spec.lua",
   "polyglot_fixture_spec.lua",
   "resolve_relative_spec.lua",
