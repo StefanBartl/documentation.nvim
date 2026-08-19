@@ -175,7 +175,12 @@ if capabilities_only then
   end
   table.sort(names)
   print(require("documentation.core.json").encode({
-    capabilities = { "api", "languages" },
+    capabilities = { "api", "languages", "schema" },
+    -- Which artifact schema this build writes. The release is rolling
+    -- (`standalone-latest`), so there is no version number to report that
+    -- would not be fiction; the schema is what actually decides whether
+    -- two artifacts are comparable, and it is bumped deliberately.
+    schema = require("documentation.core.scan").SCHEMA,
     routes = names,
     languages = require("documentation.core.lang_registry").report(),
   }))
