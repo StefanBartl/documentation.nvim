@@ -6486,6 +6486,12 @@ local JS = [[
   /// download happening: an embedded page's `<a download>` lands wherever
   /// the embedder decides, which is not a place anybody chose.
   function buildSvg(){
+    // Only while the diagram is the thing on screen. `#hsvg` is hidden by
+    // CSS on every other tab rather than removed, so without this check a
+    // host asking from the Notes tab got the last hierarchy that happened
+    // to be drawn — exported under the name "current view", which it was
+    // not. Found by asking from Notes, not by reading this function.
+    if(state.tab !== "hierarchy") return null;
     var svg = document.getElementById("hsvg");
     if(!svg) return null;
     var w = svg.getAttribute("width"), h = svg.getAttribute("height");
