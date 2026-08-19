@@ -8001,7 +8001,35 @@ function M.render(ir, findings, opts)
     " — module map</title>",
     "<style>",
     CSS,
-    "</style></head><body>",
+    "</style>",
+
+    -- The theme, settable from outside the page.
+    --
+    -- `:root[data-theme]` has always been here; nothing could reach it.
+    -- That is not academic: `docmap-desktop` embeds this page in an
+    -- iframe served from `127.0.0.1` while its own shell is on `tauri://`,
+    -- so the attribute it stamps on its own document never crosses, and a
+    -- reader who chose dark on a light OS got a dark window with a white
+    -- page in it.
+    --
+    -- In `<head>`, before any element exists, because a theme applied
+    -- after first paint is a flash of the wrong one. `?theme=` is read
+    -- rather than a `postMessage` handler added: a page that executes
+    -- instructions from whatever embeds it is a different security
+    -- posture than one that only reads its own URL, and a query parameter
+    -- is also the thing a person can type into a browser.
+    --
+    -- Three states, like the app: `light` and `dark` decide, anything
+    -- else -- including no parameter at all -- means follow the OS.
+    [[<script>(function(){]],
+    [[  try{]],
+    [[    var t = new URLSearchParams(location.search).get("theme");]],
+    [[    if(t === "light" || t === "dark")]],
+    [[      document.documentElement.setAttribute("data-theme", t);]],
+    [[  }catch(e){}]],
+    [[})();</script>]],
+
+    "</head><body>",
 
     "<header><h1>",
     esc(ir.meta.title),
