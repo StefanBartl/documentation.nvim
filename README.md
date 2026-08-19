@@ -31,9 +31,9 @@ Point it at a repository and it produces a **module map**: an interactive
 HTML page, a Markdown overview, a deterministic JSON artifact, and a set of
 drift checks that fail CI when the documentation and the code stop agreeing.
 
-It reads **eleven languages** — Lua, JavaScript, TypeScript, TSX, Python,
-C#, Zig, Java, C, C++ and assembly — through one backend contract, so a tree
-that mixes them comes out as one map rather than several. See
+It reads **twelve languages** — Lua, JavaScript, TypeScript, TSX, Python,
+C#, Go, Zig, Java, C, C++ and assembly — through one backend contract, so a
+tree that mixes them comes out as one map rather than several. See
 [Languages](#languages).
 
 ```vim
@@ -166,7 +166,7 @@ a real (if deliberately small) example — including one promoted feature.
 
 ## Languages
 
-Eleven backends behind one contract, so a repository that mixes them
+Twelve backends behind one contract, so a repository that mixes them
 produces one map rather than several. A backend answers the same five questions —
 which files it claims, where its sources live, what documents a file, what
 documents a declaration, and what makes a declaration public — and the map
@@ -180,6 +180,7 @@ does not care which language answered.
 | **TSX** | `.tsx` | JSDoc | same |
 | **Python** | `.py`, `.pyi` | a docstring — the first *statement*, in reST, Google or NumPy style | not a leading `_`, unless `__all__` says otherwise |
 | **C#** | `.cs` | XML doc comments — `/// <summary>`, `<param name="x">` | `public`; an unmarked class member is private, an unmarked interface member is public |
+| **Go** | `.go` | the plain comment block above it — godoc has no tags at all | **capitalisation**, enforced by the compiler |
 | **Zig** | `.zig` | `///` above the declaration | `pub` |
 | **Java** | `.java` | Javadoc, with `@param`/`@return`/`@throws`/`@deprecated` parsed | `public` |
 | **C** | `.c`, `.h` | any comment directly above it, Doxygen or not | not `static` |
@@ -188,8 +189,9 @@ does not care which language answered.
 
 **The fourth column is worth reading as a spectrum**, because it is the one
 place these languages genuinely disagree rather than merely differing in
-syntax. Zig, Java, C, C++ and assembly state visibility *in the language*,
-so the backend reads a fact. Lua and the ECMA family have no such keyword
+syntax. Go is at one end: visibility is capitalisation, the compiler enforces
+it, and nobody can be wrong about it. Zig, Java, C#, C, C++ and assembly
+state it in a keyword, so the backend reads a fact. Lua and the ECMA family have no such keyword
 at the granularity this map needs, so they read an authoring convention —
 `@internal` — which is a claim the author made rather than one the compiler
 enforces. Both are honest; they are not the same strength of evidence, and
@@ -232,9 +234,9 @@ directory is a namespace and every file is its own module.
 
 ### Grammars, and the one backend that needs none
 
-Ten of the eleven parse with a tree-sitter grammar. Without the grammar
+Eleven of the twelve parse with a tree-sitter grammar. Without the grammar
 they still produce a complete module tree — correctly, and saying so — but
-no function-level data. `scripts/build_engine_release.sh` builds all ten
+no function-level data. `scripts/build_engine_release.sh` builds all eleven
 into a release; inside Neovim they come from the runtimepath.
 
 **Assembly is the exception, by design rather than by omission.** GAS, NASM
