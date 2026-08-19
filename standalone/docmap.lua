@@ -181,6 +181,14 @@ if capabilities_only then
     -- would not be fiction; the schema is what actually decides whether
     -- two artifacts are comparable, and it is bumped deliberately.
     schema = require("documentation.core.scan").SCHEMA,
+    -- Which build this is. Present only in a bundled binary --
+    -- `scripts/package.lua` writes it at bundle time and never into the
+    -- source tree, so a run from a checkout answers `nil` rather than
+    -- claiming a provenance it does not have.
+    build = (function()
+      local ok, b = pcall(require, "documentation.build")
+      return ok and b or nil
+    end)(),
     routes = names,
     languages = require("documentation.core.lang_registry").report(),
   }))
