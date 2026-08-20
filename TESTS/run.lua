@@ -129,6 +129,7 @@ local specs = {
   "telemetry_self_spec.lua",
   "browse_loaded_spec.lua",
   "docmap_browse_spec.lua",
+  "browse_lookup_spec.lua",
   "pdf_artifact_spec.lua",
   "check_type_vs_class_spec.lua",
   "check_test_references_spec.lua",

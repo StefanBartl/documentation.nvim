@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**5 modules** · 6 namespaces · 119 helper files
+**5 modules** · 6 namespaces · 120 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -192,6 +192,7 @@ flowchart LR
   nlua_documentation_editor_browse --> nlua_documentation_core_deps_lua
   nlua_documentation_editor_browse --> nlua_documentation_core_endpoint_coverage_lua
   nlua_documentation_editor_browse --> nlua_documentation_core_history_lua
+  nlua_documentation_editor_browse --> nlua_documentation_core_lang_registry_lua
   nlua_documentation_editor_browse --> nlua_documentation_core_loaded_diff_lua
   nlua_documentation_editor_browse --> nlua_documentation_core_soft_require_lua
   nlua_documentation_editor_browse --> nlua_documentation_core_telemetry_join_lua
@@ -228,7 +229,7 @@ flowchart LR
 | &nbsp;&nbsp;&nbsp;&nbsp;`glossary` |  |  |  |
 | &nbsp;&nbsp;`render` |  |  |  |
 | `editor` |  |  | [README](../../lua/documentation/editor/README.md) |
-| &nbsp;&nbsp;`documentation.editor.browse` | `:DocBrowse` — the module map inside the editor. | 38 | [README](../../lua/documentation/editor/browse/README.md) · [src](../../lua/documentation/editor/browse/init.lua) |
+| &nbsp;&nbsp;`documentation.editor.browse` | `:DocBrowse` — the module map inside the editor. | 42 | [README](../../lua/documentation/editor/browse/README.md) · [src](../../lua/documentation/editor/browse/init.lua) |
 | `documentation.mcp` | An MCP (Model Context Protocol) server exposing this repository's module map to a coding agent. | 1 | [src](../../lua/documentation/mcp/init.lua) |
 
 ## Drift

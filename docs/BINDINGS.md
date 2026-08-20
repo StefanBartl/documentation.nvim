@@ -52,6 +52,9 @@ rebindable — see `Documentation.Browse.KeyAction`.
 | `X` | `trail_delete` | trail | forget a saved trail |
 | `f` | `filter` | all | filter this list in place (-negate, "phrase"; empty clears) |
 | `/` | `search` | all | fuzzy jump across modules and functions |
+| `w` | `detail` | all | into the detail pane — scroll it, and `K` explains a word |
+| `q` `<Esc>` | `detail_back` | all | detail pane: back to the list |
+| `K` | `lookup` | all | detail pane: explain the `code` word under the cursor |
 | `?` | `help` | all | this list |
 | `q` `<Esc>` | `close` | all | close |
 
