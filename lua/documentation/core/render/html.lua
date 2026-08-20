@@ -650,6 +650,12 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .hnode{position:absolute;box-sizing:border-box;padding:7px 10px;border:1px solid var(--line);
   border-radius:7px;background:var(--panel);cursor:pointer;overflow:hidden}
 .hnode:hover{border-color:var(--accent);z-index:1}
+/* Pinned: the focus is being held rather than followed. A ring rather than
+   a different colour, because the box keeps whatever its language and kind
+   already say about it — this adds a state, it does not replace one. Without
+   it, a held focus and a hovered one look identical and the reader cannot
+   tell whether moving the mouse will cost them the view. */
+.hnode.pinned{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft);z-index:2}
 .hnode .hnm{font-family:var(--mono);font-size:12.5px;font-weight:600;white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis}
 .hnode .hsm{font-size:10.5px;color:var(--muted);margin-top:2px;max-height:2.6em;overflow:hidden}
@@ -3950,12 +3956,14 @@ local JS = [[
     "tab.hierarchy":
       "The dependency graph, drawn from one module outward. Boxes are modules " +
       "and namespaces, arrows are requires and calls; the slider decides how " +
-      "far from the centre it reaches. A single click roots the graph at that " +
-      "box and stays here; double-click opens it in the Tree and leaves the " +
-      "view. The path above the graph shows where you are, every level a way " +
-      "back. Reader of an older map: those two gestures used to be the other " +
-      "way round — the *Classic clicks* pill puts them back, and remembers. " +
-      "The one view that exports as an SVG.",
+      "far from the centre it reaches. Hovering a box lights it and its " +
+      "neighbours; the first click holds that, so you can read it and follow " +
+      "the edges without the pointer. Click the same box again to root the " +
+      "graph there — or double-click, which is the same two clicks at once. " +
+      "Escape, a click on empty space, or a click on another box lets go. " +
+      "The path above the graph shows where you are, every level a way back. " +
+      "The *Classic clicks* pill decides what that second click does: root " +
+      "here, or open in the Tree. The one view that exports as an SVG.",
     "tab.index":
       "Flat lists of everything the map found, for when you know the name and " +
       "not the place. Three ways of listing the same repository — as a tree, " +
@@ -7080,22 +7088,43 @@ local JS = [[
     else navigate({ center: box._spec.recenter, fn: null });
   }
 
-  hgraph.addEventListener("click", function(ev){
-    var box = boxOf(ev.target);
-    if(!box || !box._spec) return;
+  // What a click on a box actually does.
+  //
+  // **First click pins, second click acts** — added 2026-08-20, on top of the
+  // gesture swap above. Hovering already lights a box and its direct
+  // neighbours and dims everything else, and all of it vanished the moment
+  // the pointer moved, so the highlighted subgraph could not be read, traced
+  // or followed. Freezing it is what makes the view legible; the action is
+  // one click further on.
+  //
+  // **A double click is that sequence, only fast**, which is why there is no
+  // `dblclick` handler any more. The two `click` events a double click emits
+  // already pin and then act, so a reader who knows where they are going
+  // pays nothing for the pin and never sees it. A third handler on top would
+  // have fired *in addition* to those two and acted twice.
+  //
+  // The `classicClicks` pill keeps its meaning unchanged: it decides what the
+  // *second* click does — root the graph here, or open the module in Tree.
+  function actOn(box){
     if(classicClicks){ leaveForTree(box); return; }
     // An external box has nothing in this map to recentre on, so it keeps
     // its old meaning under either setting rather than becoming inert.
     if(box._spec.externalHtml || !box._spec.recenter){ leaveForTree(box); return; }
     recentreOn(box);
-  });
+  }
 
-  hgraph.addEventListener("dblclick", function(ev){
+  hgraph.addEventListener("click", function(ev){
     var box = boxOf(ev.target);
-    if(!box || !box._spec) return;
-    ev.stopPropagation();
-    if(classicClicks){ recentreOn(box); return; }
-    leaveForTree(box);
+    // A click on the graph's own background releases the pin. The gesture
+    // everybody tries reflexively to drop a selection, so it should not need
+    // discovering.
+    if(!box || !box._spec){ unpin(); return; }
+    var key = box.dataset.key;
+    if(pinnedKey === key){ actOn(box); return; }
+    // A different box re-pins there rather than releasing first. Without
+    // that, following a chain — the one thing this exists for — would be the
+    // most tedious way to use it.
+    pin(key);
   });
 
   document.getElementById("hgest").addEventListener("click", function(){
@@ -7107,32 +7136,69 @@ local JS = [[
     this.classList.toggle("active", classicClicks);
   });
 
-  // Hover focus: dim everything that is not a direct neighbour of the box
-  // under the cursor. Pure class toggling — on a dense require graph this is
-  // the difference between a readable diagram and a spider's web, and it
-  // costs no relayout.
-  function clearFocus(){ hgraph.classList.remove("focusing"); }
+  // Focus: dim everything that is not a direct neighbour of one box. Pure
+  // class toggling — on a dense require graph this is the difference between
+  // a readable diagram and a spider's web, and it costs no relayout.
+  //
+  // Driven by the pointer *or* by a pin, which is why it is a function of a
+  // key rather than of an event.
+  function focusOn(key){
+    var near = hgraphNeighbours[key] || {};
+    hgraph.classList.add("focusing");
+    Object.keys(hboxes).forEach(function(k){
+      hboxes[k].classList.toggle("near", k === key || near[k]);
+      hboxes[k].classList.toggle("pinned", k === pinnedKey);
+    });
+    var svg = document.getElementById("hsvg");
+    if(svg) svg.querySelectorAll(".hedge").forEach(function(p){
+      p.classList.toggle("near", p.dataset.from === key || p.dataset.to === key);
+    });
+  }
+
+  function clearFocus(){
+    hgraph.classList.remove("focusing");
+    Object.keys(hboxes).forEach(function(k){ hboxes[k].classList.remove("pinned"); });
+  }
+
+  // The pinned box, or null. Held here rather than in `state`: a pin is a
+  // way of looking at the graph, not a place in it, so it never rides in the
+  // URL and pressing Back does not undo one.
+  var pinnedKey = null;
+
+  function pin(key){
+    pinnedKey = key;
+    focusOn(key);
+  }
+
+  function unpin(){
+    if(pinnedKey === null) return;
+    pinnedKey = null;
+    clearFocus();
+  }
 
   hgraph.addEventListener("mouseover", function(ev){
+    // A pin holds against the pointer — that is the entire point of it.
+    // Hover behaves exactly as before whenever nothing is pinned.
+    if(pinnedKey !== null) return;
     var box = boxOf(ev.target);
     // Moving off a box onto the graph's own background has to un-focus:
     // mouseleave only fires when the pointer leaves #hgraph entirely, so
     // without this the last box hovered stayed lit while the cursor sat in
     // empty space next to it.
     if(!box){ clearFocus(); return; }
-    var key = box.dataset.key;
-    var near = hgraphNeighbours[key] || {};
-    hgraph.classList.add("focusing");
-    Object.keys(hboxes).forEach(function(k){
-      hboxes[k].classList.toggle("near", k === key || near[k]);
-    });
-    var svg = document.getElementById("hsvg");
-    if(svg) svg.querySelectorAll(".hedge").forEach(function(p){
-      p.classList.toggle("near", p.dataset.from === key || p.dataset.to === key);
-    });
+    focusOn(box.dataset.key);
   });
 
-  hgraph.addEventListener("mouseleave", clearFocus);
+  hgraph.addEventListener("mouseleave", function(){
+    if(pinnedKey !== null) return;
+    clearFocus();
+  });
+
+  // Escape releases, the same meaning it already carries for this page's
+  // popups — a further place for one gesture rather than a new gesture.
+  document.addEventListener("keydown", function(ev){
+    if(ev.key === "Escape" && pinnedKey !== null){ unpin(); }
+  });
 
   // =====================================================================
   // Graph toolbar. Direction and depth only apply to the directed views, so
