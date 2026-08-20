@@ -132,7 +132,7 @@ echo "== dynamic lua_tree_sitter.so (so bundle_manifest.lua's probe run can see 
 echo "== luastatic (a plain Lua script, not a build target)"
 curl -sL -o "$work/luastatic.lua" https://raw.githubusercontent.com/ers35/luastatic/master/luastatic.lua
 
-echo "== 18 grammars via the tree-sitter CLI"
+echo "== 19 grammars via the tree-sitter CLI"
 # The same mechanism .github/workflows/ci.yml's own `tests` job already
 # uses for JS/TS/TSX -- `tree-sitter build` needs no separate libtree-sitter
 # at all, since a grammar's shared library depends only on the C ABI in
@@ -177,6 +177,7 @@ git clone --quiet --depth 1 https://github.com/tree-sitter/tree-sitter-ruby.git 
 git clone --quiet --depth 1 https://github.com/fwcd/tree-sitter-kotlin.git "$work/tree-sitter-kotlin"
 git clone --quiet --depth 1 https://github.com/UserNobody14/tree-sitter-dart.git "$work/tree-sitter-dart"
 git clone --quiet --depth 1 https://github.com/tree-sitter/tree-sitter-scala.git "$work/tree-sitter-scala"
+git clone --quiet --depth 1 https://github.com/tree-sitter/tree-sitter-haskell.git "$work/tree-sitter-haskell"
 git clone --quiet --depth 1 https://github.com/alex-pinkus/tree-sitter-swift.git "$work/tree-sitter-swift"
 # Swift ships no generated parser, unlike every other grammar here.
 (cd "$work/tree-sitter-swift" && npm install --silent && npx tree-sitter generate)
@@ -198,6 +199,7 @@ git clone --quiet --depth 1 https://github.com/alex-pinkus/tree-sitter-swift.git
 "$TSC" build --output "$work/grammars/swift.$GSUF" "$work/tree-sitter-swift"
 "$TSC" build --output "$work/grammars/dart.$GSUF" "$work/tree-sitter-dart"
 "$TSC" build --output "$work/grammars/scala.$GSUF" "$work/tree-sitter-scala"
+"$TSC" build --output "$work/grammars/haskell.$GSUF" "$work/tree-sitter-haskell"
 
 echo "== packaging the engine (scripts/package.lua)"
 STATIC_LIBS="$work/static-libs"

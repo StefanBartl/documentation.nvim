@@ -58,6 +58,7 @@ local KNOWN_BACKENDS = {
   "documentation.core.lang.swift",
   "documentation.core.lang.dart",
   "documentation.core.lang.scala",
+  "documentation.core.lang.haskell",
 }
 
 local loaded = false

@@ -957,10 +957,40 @@ wave actually taught, beyond the ten:
 
 **Wave 2 — a grammar exists, the paradigm is further from what is built.**
 
-- [ ] **Haskell** — `.hs`. Haddock (`-- |` and `-- ^`), and visibility is
-      the **module export list** rather than a per-declaration marker,
-      which is a shape nothing here has met: the header decides what the
-      rest of the file publishes.
+- [x] ~~**Haskell**~~ — `core/lang/haskell.lua`, built 2026-08-20, the
+      twentieth backend and the first of wave 2. The export-list shape this
+      entry predicted is exactly it, and it is genuinely new: **a definition
+      looks identical whether or not it is exported**, and the only evidence
+      is a list at the top of the file.
+
+      **Two readings would invert a module, and both are asserted.** `module
+      Foo where` with no list publishes *every* top-level name; `module Foo
+      () where` publishes none. Returning an empty set for the first would
+      report a whole module as private — the same class of inversion C#'s
+      interface default was. And `Widget(..)` exports a type *and* its
+      constructors, so the name comes from the front of the entry.
+
+      **A declaration is two nodes**, which nothing else here has: `add ::
+      Int -> Int -> Int` is a `signature` and `add x y = …` is a `function`,
+      with the Haddock above the *signature*. The prose is collected per name
+      as signatures go past and read again when the definition arrives.
+
+      **Sixth `param_docs = false`, and the first where the *signature*
+      rather than the documentation makes it impossible:** a Haskell type
+      signature has no parameter names in it at all, so there is nothing to
+      match against.
+
+      **Two bugs, both found rather than reasoned about.** The keyword and
+      the module name are both `module` nodes and the keyword comes first, so
+      the first version named every file `module`. And **a Haddock block is
+      not always one node** — `-- | first` parses as `haddock` while its
+      continuation lines come back as ordinary `comment`s, with the split
+      falling differently on CRLF than on LF. The run is reassembled by row
+      now, and a run with no `-- |` at its top stays a note.
+
+      **Measured on `haskell/aeson`:** 32 files, all 32 with a module name,
+      308 functions (134 exported — the export lists doing visible work),
+      144 documented, 308 symbols, 494 imports.
 - [ ] **Elixir** — `.ex`, `.exs`. `@moduledoc`/`@doc` are genuinely
       first-class documentation — attributes the compiler keeps — and
       `def`/`defp` is real visibility. Closest fit in this wave.

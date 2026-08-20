@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**5 modules** · 6 namespaces · 110 helper files
+**5 modules** · 6 namespaces · 111 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -214,14 +214,14 @@ flowchart LR
 
 ## Drift
 
-0 errors · 1 warnings · 27 info
+0 errors · 1 warnings · 28 info
 
 | Severity | Check | Message |
 |---|---|---|
 | warn | `doc-references-missing` | docs/ROADMAP/IDEAS/IDEAS_IMPLEMENTATION_PLAN.md:30 references 'documentation.core.scan.something', but documentation.core.scan has no 'something' |
 
 <details>
-<summary>27 informational findings</summary>
+<summary>28 informational findings</summary>
 
 
 | Check | Message |
@@ -238,6 +238,7 @@ flowchart LR
 | `unreferenced-module` | documentation.core.lang.csharp is required by no other file in the tree |
 | `unreferenced-module` | documentation.core.lang.dart is required by no other file in the tree |
 | `unreferenced-module` | documentation.core.lang.go is required by no other file in the tree |
+| `unreferenced-module` | documentation.core.lang.haskell is required by no other file in the tree |
 | `unreferenced-module` | documentation.core.lang.java is required by no other file in the tree |
 | `unreferenced-module` | documentation.core.lang.js is required by no other file in the tree |
 | `unreferenced-module` | documentation.core.lang.kotlin is required by no other file in the tree |
