@@ -244,4 +244,61 @@ return function(H)
     registry.set_enabled(nil)
     eq(#registry.all(), before, "cleared again")
   end
+
+  -- ---------------------------------------------------------------------
+  -- One spelling per repository (`IDEAS.md` §3.4, the shared project key).
+  --
+  -- `config.normalise_root` and `lib.nvim.fs.project_key` have to agree, or
+  -- the three plugins in this ecosystem cannot join on "which project is
+  -- this" at all -- and this plugin cannot even agree with itself: the
+  -- registry keys live handles on the same string.
+  --
+  -- Every case below is a spelling a *host* can genuinely hand over. The
+  -- lower-case drive letter is not hypothetical: a shell, a plugin manager
+  -- or a hand-typed `opts.root` produces it, and before this the engine kept
+  -- it while `project_key` upper-cased it -- two repositories where there is
+  -- one.
+  -- ---------------------------------------------------------------------
+  do
+    local project_key = require("lib.nvim.fs.project_key")
+    local here = (vim.fn.getcwd():gsub("\\", "/"))
+
+    local spellings = {
+      here,
+      here:gsub("^(%a):", function(d)
+        return d:lower() .. ":"
+      end),
+      here .. "/",
+      here .. "//",
+      (here:gsub("/", "\\")),
+    }
+    for _, spelling in ipairs(spellings) do
+      eq(
+        config.normalise_root(spelling),
+        project_key(spelling),
+        "normalise_root agrees with lib.nvim.fs.project_key for " .. spelling
+      )
+    end
+
+    -- All of them are the *same* answer, not merely a consistent pair.
+    local first = config.normalise_root(spellings[1])
+    for _, spelling in ipairs(spellings) do
+      eq(config.normalise_root(spelling), first, "one repository, one key: " .. spelling)
+    end
+
+    -- The trailing separator specifically. `normkey` does not trim one --
+    -- under Neovim `uv.fs_realpath` hides that, and in the standalone build
+    -- there is no `fs_realpath` at all, so a bundled binary handed
+    -- `E:/repo/` would have treated it as a second repository. Asserted
+    -- here rather than trusted to the realpath that is only sometimes
+    -- there.
+    ok(config.normalise_root(here .. "/"):sub(-1) ~= "/", "a trailing separator is trimmed")
+
+    -- And the registry keys on the same function, so `install(root)` and a
+    -- later lookup with a differently-spelled root find one entry.
+    ok(
+      config.normalise_root(spellings[2]) == config.normalise_root(spellings[1]),
+      "a lower-case drive letter is not a second repository"
+    )
+  end
 end

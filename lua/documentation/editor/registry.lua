@@ -24,8 +24,14 @@ local registry = {}
 
 ---@param root string
 ---@return string
+---The registry's keys have to be the *same* spelling `config.build` produces,
+---or one repository gets two entries: `install()` stores under this, and
+---every later lookup arrives with an `opts.root` that went through
+---`config.build`. Two normalisations that merely happen to agree today are
+---a bug waiting for the first path they disagree on — which, before this,
+---was any explicitly passed root whose drive letter was lower case.
 local function norm_root(root)
-  return (root:gsub("\\", "/"):gsub("/+$", ""))
+  return require("documentation.config").normalise_root(root)
 end
 
 ---@param entry table
