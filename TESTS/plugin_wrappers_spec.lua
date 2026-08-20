@@ -166,4 +166,71 @@ return function(H)
     next(plugins.DEFAULT_WRAPPERS) == nil,
     "wrappers: the default is empty — nothing is assumed about anyone's config"
   )
+
+  -- ---------------------------------------------------------------------
+  -- Other plugin managers.
+  --
+  -- The plan rated packer / vim-plug / mini.deps **M**, as three separate
+  -- extractors. Measured first, they were not: all three register through a
+  -- call taking either a table or a string, which is what a declared wrapper
+  -- already walks. What was actually missing was two small things — a string
+  -- argument, and three key spellings — and those are what the cases below
+  -- pin down. Written as the three managers rather than as the two
+  -- mechanisms on purpose: the mechanisms are the implementation, the
+  -- managers are the promise.
+  -- ---------------------------------------------------------------------
+  do
+    local found = specs_of({
+      "---@module 'p'",
+      'return require("packer").startup(function(use)',
+      '  use "wbthomason/packer.nvim"',
+      "  use {",
+      '    "nvim-telescope/telescope.nvim",',
+      '    requires = { "nvim-lua/plenary.nvim" },',
+      '    cmd = "Telescope",',
+      "  }",
+      "end)",
+    }, { use = true })
+    eq(#found, 2, "packer: both the string and the table form of `use`")
+    eq(found[1].repo, "wbthomason/packer.nvim", 'packer: `use "a/b"` is a spec')
+    eq(found[2].cmd[1], "Telescope", "packer: shares lazy.nvim's trigger keys")
+    eq(
+      found[2].dependencies[1],
+      "nvim-lua/plenary.nvim",
+      "packer: `requires` is the same edge as `dependencies`"
+    )
+  end
+
+  do
+    local found = specs_of({
+      "---@module 'p'",
+      'Plug("tpope/vim-surround")',
+      'Plug("junegunn/fzf.vim")',
+      "}",
+    }, { Plug = true })
+    eq(#found, 2, "vim-plug: each `Plug(...)` call is one spec")
+    eq(found[1].repo, "tpope/vim-surround")
+  end
+
+  do
+    local found = specs_of({
+      "---@module 'p'",
+      'add("echasnovski/mini.nvim")',
+      'add({ source = "nvim-lua/plenary.nvim", depends = { "a/b" } })',
+    }, { add = true })
+    eq(#found, 2, "mini.deps: the string form and the table form")
+    eq(found[2].repo, "nvim-lua/plenary.nvim", "mini.deps: `source` is the repo")
+    eq(found[2].dependencies[1], "a/b", "mini.deps: `depends` is the same edge")
+  end
+
+  -- A declared wrapper called for something else stays silent: the string
+  -- has to look like a repo. This is what keeps `add = true` from turning
+  -- every `add("some string")` in the file into a plugin.
+  do
+    eq(
+      #specs_of({ "---@module 'p'", 'add("just a message")' }, { add = true }),
+      0,
+      "wrappers: a string argument that is not repo-shaped is not a plugin"
+    )
+  end
 end

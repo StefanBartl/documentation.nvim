@@ -361,8 +361,25 @@ correction is the useful part, not the feature.
       "every sampled file uses the direct form" was true when written and
       is corrected in place rather than deleted.
 
-Still open from Part 4: **other plugin managers** (packer, vim-plug,
-mini.deps) — separate extractors, not a bent lazy.nvim. **M.**
+- [x] **Other plugin managers — and they were not M.** Rated a day's work as
+      three separate extractors; measured first, they are none. packer's
+      `use`, vim-plug's `Plug` and mini.deps' `add` all register through a
+      call taking a table or a string, which the wrapper walk already
+      handled. What was genuinely missing was two small things: a *string*
+      argument (`use "a/b"`, and with it packer.nvim itself, which its own
+      config always lists that way), and three key spellings — `requires`,
+      `depends`, `source`. The trigger keys are spelled identically across
+      managers and needed nothing. Declaration per manager, one line each,
+      in REUSE.md.
+
+      vim-plug in its Lua call form only. `Plug 'a/b'` in a `.vim` file is
+      VimScript; that config is out of reach here rather than half-read, and
+      saying so is cheaper than a second parser.
+
+**Part 4's config-shaped work is complete.** The estimate that was wrong
+twice in one file — M for the extractors, S for the orphan check — was wrong
+in the same direction both times: it described the feature instead of the
+gap. The gap is only visible by running the thing against real code.
 
 ---
 
