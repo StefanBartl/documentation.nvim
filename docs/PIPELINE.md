@@ -1631,7 +1631,9 @@ the default), the same "only the axes a view actually uses" rule
 A tool palette, not a diagram — a fifth tab (`atool` state axis, same
 `iview=`-shaped URL rule as the Index tab) whose toolbar switches between
 panels the way Hierarchy's view buttons switch between graphs, applied to
-aggregate numbers instead of boxes. Eleven tools today:
+aggregate numbers instead of boxes. **Sixteen tools today**, and every one
+of them explains itself on hover and on focus — see *Explaining the page's
+own furniture* below:
 
 - **Test coverage** — `fn.tested` (R2, [`coverage.lua`](../lua/documentation/core/coverage.lua))
 - **Documentation** — `fn.documented` (R4, [`doccoverage.lua`](../lua/documentation/core/doccoverage.lua))
@@ -1644,10 +1646,20 @@ aggregate numbers instead of boxes. Eleven tools today:
 - **Tools** — `ir.tools` (this repo's own `lib.nvim.deps` manifest, [`tools.lua`](../lua/documentation/core/tools.lua))
 - **Telemetry** — `runtime-analysis.telemetry`'s call counts, joined by [`telemetry_join.lua`](../lua/documentation/core/telemetry_join.lua) — the one panel that is not IR-only, see its own paragraph below
 - **Loaded** — `runtime-analysis.loaded`'s persisted loaded-vs-declared snapshots, joined by [`loaded_diff.lua`](../lua/documentation/core/loaded_diff.lua) — also not IR-only, see its own paragraph below
+- **Bindings** — `n.bindings` (keymaps, user commands and autocommands, [`bindings.lua`](../lua/documentation/core/bindings.lua))
+- **Checklist** — `ir.checklist`, the hand-verified ledger. Baked in; the changed-since-verified verdict needs git, so it fills in under `:DocMap serve`
+- **Hooks** — functions named like a React hook (`^use[A-Z]`), set by `core/lang/ecma.lua`. JavaScript, TypeScript and TSX only
+- **Docs** — `ir.docs`: every Markdown file in the tree and how often the rest of the documentation points at it
+- **Endpoints** — `n.endpoints` (Express/Fastify/Koa-shaped route registrations, [`endpoints.lua`](../lua/documentation/core/endpoints.lua))
+
+**This list said "eleven" for five tools too long**, which is the ordinary
+way a hand-written inventory of a growing thing goes wrong — and the reason
+`atool.*` explanation texts live beside the buttons they describe rather
+than here.
 
 Each is `.plugin-gated` or not depending on whether it needs anything
 beyond the embedded IR to mean something (Tools, Telemetry and Loaded are;
-the other six never show an empty state a real project would hit). Marked
+the rest never show an empty state a real project would hit). Marked
 with a small badge (`::after`, `var(--ext)` tint — the same colour the
 Hierarchy graphs use for "connects outside this map") in the toolbar itself,
 so a reader can tell which panels are conditionally useful before clicking
@@ -1962,6 +1974,32 @@ a caller would have to keep in sync with `:RA loaded snapshot`'s own
 `<prefix>` argument by hand. Both sides computing the identical value
 independently is what lets the CLI command and this reading side agree
 without either passing the other a config value.
+
+### Explaining the page's own furniture
+
+Every tab, every mode inside one, the findings disclosure, all six Hierarchy
+views and all sixteen Analysis tools carry `data-explain`, keyed into an
+`EXPLAIN` table in the script. The card opens on a deliberate hover dwell and
+**immediately on focus**.
+
+**That is the whole reason it is not a `title` attribute.** A `title` is free
+and never appears on focus, which would have left exactly the controls a
+keyboard user reaches as the only ones with no explanation. Six controls did
+carry one — `Module Calls`, `Annotations`, `API surface`, `Tools`,
+`Telemetry`, `Loaded`, `Checklist` — and were converted rather than left as a
+second mechanism doing the same job worse.
+
+While the card is open the anchor carries `aria-describedby` pointing at it,
+and loses it again when the card closes. Without that, converting a `title`
+would have taken the explanation away from the readers least able to spare
+it; and a description pointing at a hidden element is announced anyway, which
+is why it is removed rather than left in place.
+
+**Each text says what the view *computes*, not what its label already says.**
+A card that restates the heading costs a hover and teaches nothing.
+`TESTS/explain_spec.lua` holds the join in both directions — a key with no
+text is a hover that does nothing, and a text no control reaches is prose
+nobody can ever read, and neither of those fails loudly on its own.
 
 ## Features tab
 

@@ -3953,6 +3953,110 @@ local JS = [[
   // rules to keep in step for no gain.
   // =====================================================================
   var EXPLAIN = {
+    // ── The six graphs inside Hierarchy ──────────────────────────────
+    //
+    // Added because the outer tab explains the *tab* and each of these
+    // computes something different from the same IR. Six of the controls
+    // below used to carry a plain `title` instead, which this mechanism's
+    // own `focusin` handler already argues against: a `title` never appears
+    // on focus, so it left exactly the controls a keyboard user reaches as
+    // the only ones with no explanation.
+    "view.modules":
+      "The directory hierarchy itself — every module and namespace, nested " +
+      "the way the tree is. The one view with no direction, because " +
+      "containment has none; the slider hides the top N levels instead.",
+    "view.deps":
+      "The require graph: an arrow means this module requires that one. " +
+      "`+ external` adds the modules outside this map, each box naming the " +
+      "functions actually called through it.",
+    "view.calls":
+      "Function-level callers and callees, resolved from real call sites " +
+      "rather than guessed. A weak match is drawn dimmed rather than " +
+      "hidden — see the Findings tab for what could not be resolved.",
+    "view.modulecalls":
+      "The same call graph collapsed module to module, with each edge " +
+      "weighted by how many calls it carries. Answers which modules lean on " +
+      "each other, where Calls answers which functions do.",
+    "view.types":
+      "How `@class` and `@alias` declarations reference each other through " +
+      "their fields. Needs LuaLS enrichment (`:DocMap full`) — without it " +
+      "this is empty rather than wrong.",
+    "view.inheritance":
+      "Only `@class Child : Parent` edges, drawn apart from Types because " +
+      "inheritance is a different claim than collaboration and reading both " +
+      "in one picture hides which is which.",
+
+    // ── The tools inside Analysis ────────────────────────────────────
+    //
+    // Written from what each panel computes, per this table's own rule.
+    // The `.plugin-gated` ones say what they need, because an empty panel
+    // that cannot say why is the failure this whole card exists against.
+    "atool.test":
+      "Which functions a test suite mentions by name, per module, worst " +
+      "first. A floor rather than a verdict: a name found under the tests " +
+      "directory counts, and a function exercised only indirectly does not.",
+    "atool.doc":
+      "Which functions carry a summary and fully documented parameters, per " +
+      "module, worst first. `@internal` functions are excluded — this is a " +
+      "question about the published surface, not about helpers.",
+    "atool.annotations":
+      "Which annotation tags this tree actually uses, counted per function. " +
+      "Generated, so unlike a hand-written inventory it cannot go stale.",
+    "atool.api":
+      "Every function this tree publishes, with its documentation state and " +
+      "how many other modules here call it — the question asked every time a " +
+      "module is extracted into its own plugin.",
+    "atool.deps":
+      "Fan-in and fan-out per module: how many modules it requires, and how " +
+      "many require it. The second number is the one that decides how " +
+      "expensive a rename is.",
+    "atool.complexity":
+      "Cyclomatic complexity per function, counted over its own subtree " +
+      "including nested closures. A ranking of where the branching is, not " +
+      "a threshold anything fails.",
+    "atool.duplicates":
+      "Functions whose parse-tree *shape* is identical, ignoring names and " +
+      "literals — the one kind of drift the require graph cannot see, since " +
+      "two modules that each grew their own `read(path)` do not require " +
+      "each other.",
+    "atool.plugins":
+      "Every lazy.nvim-shaped plugin spec in the tree. Matters when this is " +
+      "pointed at a Neovim *config* rather than a plugin, where most files " +
+      "are specs with no function in them and are invisible to every other " +
+      "panel.",
+    "atool.bindings":
+      "Keymaps, user commands and autocommands registered in this tree. The " +
+      "`vim.*` APIs are recognised unconditionally; a config binding through " +
+      "its own wrapper needs `opts.bindings.wrappers` to declare it.",
+    "atool.tools":
+      "The CLI tools this repository declares it wants, from its own " +
+      "`docs/install.json`. Declared only — a static page has no host to ask " +
+      "whether any of them is installed here.",
+    "atool.telemetry":
+      "Call counts collected by runtime-analysis.nvim inside a real Neovim " +
+      "session, joined onto this map. Needs `:DocMap serve`: counts change " +
+      "between runs, so they are never baked into the committed page.",
+    "atool.loaded":
+      "A loaded-versus-declared comparison from a saved runtime-analysis " +
+      "snapshot. Needs `:DocMap serve` and a named snapshot — the difference " +
+      "is a property of one live session, never of a live aggregate.",
+    "atool.checklist":
+      "Hand-verified facts, each cited to the file it was read off. The " +
+      "ledger is baked into this page; the changed-since-verified verdict " +
+      "needs git, so it fills in under `:DocMap serve`.",
+    "atool.hooks":
+      "Functions named like a React hook (`^use[A-Z]`, the convention " +
+      "eslint-plugin-react-hooks itself relies on). Only JavaScript, " +
+      "TypeScript and TSX files are checked for this.",
+    "atool.docs":
+      "Every Markdown file in the tree and how often the rest of the " +
+      "documentation points at it — which pages are load-bearing, and which " +
+      "nothing links to.",
+    "atool.endpoints":
+      "HTTP routes registered in the source, Express/Fastify/Koa-shaped. An " +
+      "ecosystem convention rather than a language feature, so a tree " +
+      "without one is empty here and that is a real answer.",
+
     "tab.hierarchy":
       "The dependency graph, drawn from one module outward. Boxes are modules " +
       "and namespaces, arrows are requires and calls; the slider decides how " +
@@ -4024,6 +4128,9 @@ local JS = [[
   function explainClose(){
     if(explainTimer){ clearTimeout(explainTimer); explainTimer = null; }
     if(explainpop) explainpop.classList.remove("on");
+    // Removed with the card, not left behind: an `aria-describedby` pointing
+    // at a hidden element describes nothing and is read as one anyway.
+    if(explainAnchor) explainAnchor.removeAttribute("aria-describedby");
     explainAnchor = null;
   }
 
@@ -4037,6 +4144,13 @@ local JS = [[
       document.body.appendChild(explainpop);
     }
     explainAnchor = el;
+    // **Associated, not merely positioned.** Six of these controls used to
+    // carry a `title`, which a screen reader announces; replacing it with a
+    // styled card would have taken that away from the readers least able to
+    // spare it. `aria-describedby` is what puts it back, and it also gives
+    // the nine tabs an association they never had.
+    explainpop.id = explainpop.id || "explainpop";
+    el.setAttribute("aria-describedby", explainpop.id);
     explainpop.innerHTML = '<div class="fn-desc"></div>';
     // `textContent`, not `innerHTML`: these strings carry backticks as
     // literal characters and nothing else, and a card that renders markup
@@ -9229,12 +9343,12 @@ function M.render(ir, findings, opts)
     '<nav id="hcrumb" class="hcrumb" aria-label="Graph root"></nav>',
     [[<button id="hlr" title="Lay the graph out left-to-right instead of top-down">&#8644; Sideways</button>]],
     '<div class="hview-toggle">',
-    '<button class="hview-btn active" data-view="modules">Modules</button>',
-    '<button class="hview-btn" data-view="deps">Deps</button>',
-    '<button class="hview-btn" data-view="calls">Calls</button>',
-    '<button class="hview-btn" data-view="modulecalls" title="Module-to-module call graph, weighted by call count">Module Calls</button>',
-    '<button class="hview-btn" data-view="types">Types</button>',
-    '<button class="hview-btn" data-view="inheritance">Inheritance</button>',
+    '<button class="hview-btn active" data-view="modules" data-explain="view.modules">Modules</button>',
+    '<button class="hview-btn" data-view="deps" data-explain="view.deps">Deps</button>',
+    '<button class="hview-btn" data-view="calls" data-explain="view.calls">Calls</button>',
+    '<button class="hview-btn" data-view="modulecalls" data-explain="view.modulecalls">Module Calls</button>',
+    '<button class="hview-btn" data-view="types" data-explain="view.types">Types</button>',
+    '<button class="hview-btn" data-view="inheritance" data-explain="view.inheritance">Inheritance</button>',
     "</div>",
     -- Direction and depth belong to the directed views only; `syncGraphControls`
     -- hides them in Modules/Types rather than leaving two control groups that
@@ -9322,22 +9436,22 @@ function M.render(ir, findings, opts)
 
     '<div id="view-analysis" class="view">',
     '<div class="hview-toggle" id="antoggle">',
-    '<button class="anview-btn active" data-atool="test">Test coverage</button>',
-    '<button class="anview-btn" data-atool="doc">Documentation</button>',
-    '<button class="anview-btn" data-atool="annotations" title="Which annotation tags this tree actually uses, counted per function - generated, so unlike a hand-written inventory it cannot go stale">Annotations</button>',
-    '<button class="anview-btn" data-atool="api" title="Every function this tree publishes, with its documentation state and how many other modules here call it - the question asked every time a module is extracted into its own plugin">API surface</button>',
-    '<button class="anview-btn" data-atool="deps">Dependencies</button>',
-    '<button class="anview-btn" data-atool="complexity">Complexity</button>',
-    '<button class="anview-btn" data-atool="duplicates">Duplicates</button>',
-    '<button class="anview-btn" data-atool="plugins">Plugins</button>',
-    '<button class="anview-btn" data-atool="bindings">Bindings</button>',
-    '<button class="anview-btn plugin-gated" data-atool="tools" title="Populated from docs/install.json (lib.nvim.deps manifest) when the scanned repo declares one">Tools</button>',
-    '<button class="anview-btn plugin-gated" data-atool="telemetry" title="Needs runtime-analysis.nvim and :DocMap serve — call counts change between runs, so this is never baked into the committed map">Telemetry</button>',
-    '<button class="anview-btn plugin-gated" data-atool="loaded" title="Needs runtime-analysis.nvim, a saved :RA loaded snapshot, and :DocMap serve — a loaded-vs-declared diff is a property of some live session, so this reads a named snapshot, never a live aggregate">Loaded</button>',
-    '<button class="anview-btn" data-atool="checklist" title="Hand-verified facts, each cited to a file. The ledger is baked into this page; the changed-since-verified verdict needs git, so it fills in under :DocMap serve">Checklist</button>',
-    '<button class="anview-btn" data-atool="hooks">Hooks</button>',
-    '<button class="anview-btn" data-atool="docs">Docs</button>',
-    '<button class="anview-btn" data-atool="endpoints">Endpoints</button>',
+    '<button class="anview-btn active" data-atool="test" data-explain="atool.test">Test coverage</button>',
+    '<button class="anview-btn" data-atool="doc" data-explain="atool.doc">Documentation</button>',
+    '<button class="anview-btn" data-atool="annotations" data-explain="atool.annotations">Annotations</button>',
+    '<button class="anview-btn" data-atool="api" data-explain="atool.api">API surface</button>',
+    '<button class="anview-btn" data-atool="deps" data-explain="atool.deps">Dependencies</button>',
+    '<button class="anview-btn" data-atool="complexity" data-explain="atool.complexity">Complexity</button>',
+    '<button class="anview-btn" data-atool="duplicates" data-explain="atool.duplicates">Duplicates</button>',
+    '<button class="anview-btn" data-atool="plugins" data-explain="atool.plugins">Plugins</button>',
+    '<button class="anview-btn" data-atool="bindings" data-explain="atool.bindings">Bindings</button>',
+    '<button class="anview-btn plugin-gated" data-atool="tools" data-explain="atool.tools">Tools</button>',
+    '<button class="anview-btn plugin-gated" data-atool="telemetry" data-explain="atool.telemetry">Telemetry</button>',
+    '<button class="anview-btn plugin-gated" data-atool="loaded" data-explain="atool.loaded">Loaded</button>',
+    '<button class="anview-btn" data-atool="checklist" data-explain="atool.checklist">Checklist</button>',
+    '<button class="anview-btn" data-atool="hooks" data-explain="atool.hooks">Hooks</button>',
+    '<button class="anview-btn" data-atool="docs" data-explain="atool.docs">Docs</button>',
+    '<button class="anview-btn" data-atool="endpoints" data-explain="atool.endpoints">Endpoints</button>',
     "</div>",
     '<div id="anbody"></div>',
     "</div>",
