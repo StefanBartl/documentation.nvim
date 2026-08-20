@@ -155,6 +155,31 @@ declared, with the missing 33 sitting in one 906-line file.
 If the Plugins or Lazy-loading panels look thinner than your config is, this
 is the first thing to check.
 
+#### Other plugin managers
+
+packer, vim-plug and mini.deps need **no extractor of their own** — this was
+expected to need three, and measuring first said otherwise. All three
+register through a call taking a table or a string, which is exactly what a
+declared wrapper walks:
+
+```lua
+plugins = { wrappers = { use = true } }   -- packer:    use { … } / use "a/b"
+plugins = { wrappers = { Plug = true } }  -- vim-plug:  Plug("a/b") from Lua
+plugins = { wrappers = { add = true } }   -- mini.deps: add({ … }) / add("a/b")
+```
+
+packer's `requires`, mini.deps' `depends` and its `source` are read as the
+`dependencies` and repo they are. The trigger keys (`event`, `ft`, `cmd`,
+`keys`) are spelled the same across managers, so they needed nothing.
+
+**vim-plug only in its Lua call form.** `Plug 'a/b'` in a `.vim` file is
+VimScript, and this reads Lua; a config that keeps its plugin list in
+VimScript is out of reach here, not partially in it.
+
+A string argument has to *look* like a repo (`owner/name`) to count, so
+declaring `add` does not turn every `add("some message")` in the file into a
+plugin.
+
 ### 2. `scripts/hooks/pre-commit`
 
 Copy [`scripts/hooks/pre-commit`](../scripts/hooks/pre-commit) verbatim and

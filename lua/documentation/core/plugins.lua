@@ -217,6 +217,12 @@ local FIELD_KIND = {
   ft = "strings",
   keys = "keys",
   dependencies = "deps",
+  -- packer's and mini.deps' spellings of the same edge. Neither is a
+  -- lazy.nvim key, so reading them costs a lazy.nvim config nothing —
+  -- measured against a packer file, whose `requires` was otherwise the one
+  -- thing the wrapper mechanism already read the *rest* of correctly.
+  requires = "deps",
+  depends = "deps",
   lazy = "bool",
   enabled = "bool",
   priority = "number",
@@ -317,6 +323,7 @@ local function parse_entry(node, src)
     has_config = false,
   }
   local explicit_name
+  local explicit_source
 
   for child in node:iter_children() do
     if child:type() == "field" then
@@ -337,6 +344,12 @@ local function parse_entry(node, src)
         local kind = FIELD_KIND[key]
         if key == "name" then
           explicit_name = string_value(value, src)
+        elseif key == "source" then
+          -- mini.deps names the remote instead of taking it positionally.
+          -- Kept out of `FIELD_KIND` so it never lands on the spec as a
+          -- field of its own: it is a *fallback repo*, and the artifact
+          -- schema has one place for that.
+          explicit_source = string_value(value, src)
         elseif kind == "strings" then
           spec[key] = string_or_array(value, src)
         elseif kind == "keys" then
@@ -356,10 +369,11 @@ local function parse_entry(node, src)
     end
   end
 
-  -- `name`/`dir`/`url` are the recognized fallbacks, in that order, for a
-  -- spec with no positional repo string — `dir`-only (a local checkout) and
-  -- `url`-only (a non-GitHub remote) specs are real and have no shorthand.
-  spec.repo = spec.repo or explicit_name or spec.dir or spec.url
+  -- `name`/`source`/`dir`/`url` are the recognized fallbacks, in that order,
+  -- for a spec with no positional repo string — `dir`-only (a local
+  -- checkout) and `url`-only (a non-GitHub remote) specs are real and have
+  -- no shorthand, and `source` is how mini.deps writes the positional one.
+  spec.repo = spec.repo or explicit_name or explicit_source or spec.dir or spec.url
 
   return spec
 end
@@ -484,6 +498,15 @@ local function walk_wrappers(node, src, out)
           -- second spec array.
           if child:type() == "table_constructor" then
             collect_specs(child, src, out)
+            break
+          end
+          -- A single string argument is a spec too: `use "a/b"`,
+          -- `Plug 'a/b'`, `add("a/b")`. `parse_entry` already reads the bare
+          -- form, and `looks_like_repo` rejects a string that is not one, so
+          -- a declared wrapper called for some other purpose stays silent.
+          local one = parse_entry(child, src)
+          if one then
+            out[#out + 1] = one
             break
           end
         end
