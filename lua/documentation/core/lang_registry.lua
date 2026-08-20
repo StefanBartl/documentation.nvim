@@ -93,6 +93,79 @@ local backends = {}
 ---@type string[]
 local order = {}
 
+---Which backends this scan is allowed to use, or `nil` for all of them.
+---
+---**A filter rather than an unregistration**, and the difference matters:
+---`M.report()` deliberately ignores it. That call is the capability
+---handshake — *what can this build read* — and the answer must not change
+---because one project asked for a subset. A host that saw a backend vanish
+---from the handshake would conclude the binary cannot read that language.
+---
+---**Scan-scoped, with the same reset discipline as
+---`core/snippet.lua`'s `MAX_LINES` and `core/bindings.lua`'s `WRAPPERS`**,
+---for the same reason and against the same failure: `:DocBrowse` bouncing
+---between two repositories in one Neovim session would otherwise carry the
+---first one's language filter into the second, silently producing a map
+---missing every file of a language nobody excluded. `M.scan` sets this from
+---`opts.languages` before the walk and back to `nil` when there is none.
+---
+---Threading it through instead was considered and declined: `for_file` is
+---called from the walk, from `check.lua` and from `config.detect_source`,
+---and a parameter would have to reach all three plus every future caller
+---to be correct — where a scan-scoped field is correct by default and
+---wrong only if somebody forgets the reset, which is one place to look.
+---@type table<string, true>?
+M.ENABLED = nil
+
+---@param name string
+---@return boolean
+local function enabled(name)
+  return M.ENABLED == nil or M.ENABLED[name] == true
+end
+
+---Set the scan-scoped filter from a list of backend names.
+---
+---`nil` or an empty list both mean **all backends**, which is the reading
+---that cannot lose somebody's data: an empty selection almost always means
+---"the caller has nothing to say", and taking it as "read nothing" would
+---produce an empty map that looks like a broken repository. A caller that
+---genuinely wants one language names it.
+---
+---Unknown names are kept rather than rejected. `M.unknown` reports them so
+---a caller can say so; dropping them here would make `{"golang"}` behave
+---like `{}` and read everything, which is the opposite of what was asked.
+---@param names string[]?
+function M.set_enabled(names)
+  if not names or #names == 0 then
+    M.ENABLED = nil
+    return
+  end
+  local set = {}
+  for _, name in ipairs(names) do
+    set[name] = true
+  end
+  M.ENABLED = set
+end
+
+---Names in `names` that no backend answers to.
+---
+---Separate from `set_enabled` so the caller decides what to do about them.
+---A typo in a per-project setting is worth a sentence, not a silent scan
+---that finds nothing and blames the repository.
+---@param names string[]?
+---@return string[] unknown Sorted.
+function M.unknown(names)
+  ensure_loaded()
+  local out = {}
+  for _, name in ipairs(names or {}) do
+    if not backends[name] then
+      out[#out + 1] = name
+    end
+  end
+  table.sort(out)
+  return out
+end
+
 ---@param name string Short identifier, e.g. "lua". Registering the same name
 ---twice replaces the entry without duplicating it in `order`.
 ---@param backend Documentation.LangBackend
@@ -109,7 +182,7 @@ end
 function M.for_file(filename)
   ensure_loaded()
   for _, name in ipairs(order) do
-    if backends[name].is_source(filename) then
+    if enabled(name) and backends[name].is_source(filename) then
       return backends[name]
     end
   end
@@ -197,7 +270,10 @@ function M.glossaries()
   local out = {}
   for _, name in ipairs(order) do
     local backend = backends[name]
-    if backend.glossary and backend.extensions then
+    -- Filtered too: a glossary for a language this scan did not read is
+    -- payload nobody can reach, in an artifact already measured in hundreds
+    -- of kilobytes.
+    if enabled(name) and backend.glossary and backend.extensions then
       for _, ext in ipairs(backend.extensions) do
         out[ext] = backend.glossary
       end
@@ -209,12 +285,23 @@ end
 ---Every registered backend, in registration order. What the walk uses to
 ---answer "does any backend's `module_file` exist in this directory" without
 ---hardcoding which backends exist.
+---
+---Respects `M.ENABLED`, and it has to: this is what decides whether a
+---directory holding `index.ts` is a *module* or a bare namespace. A filter
+---that reached `for_file` and not here would drop a language's files while
+---still letting its `module_file` shape the tree around them — a map of
+---modules with nothing in them, which is worse than either answer.
+---@param unfiltered boolean? Ignore `M.ENABLED`. For callers asking what
+---this *build* has rather than what this *scan* is using — `M.reset`'s own
+---re-registration, and specs over the contract every backend must keep.
 ---@return Documentation.LangBackend[]
-function M.all()
+function M.all(unfiltered)
   ensure_loaded()
   local out = {}
   for _, name in ipairs(order) do
-    out[#out + 1] = backends[name]
+    if unfiltered or enabled(name) then
+      out[#out + 1] = backends[name]
+    end
   end
   return out
 end

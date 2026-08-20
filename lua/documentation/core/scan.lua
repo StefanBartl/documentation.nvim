@@ -349,6 +349,47 @@ function M.scan(opts)
   require("documentation.core.bindings").WRAPPERS = (opts.bindings and opts.bindings.wrappers)
     or require("documentation.core.bindings").DEFAULT_WRAPPERS
 
+  -- Third of the same shape, third time the reset is the point rather than
+  -- the set: `nil`/`{}` restores every backend, so a scan that says nothing
+  -- about languages reads all of them however narrowly the previous scan in
+  -- this process was configured.
+  lang_registry.set_enabled(opts.languages)
+
+  -- `opts.exclude`: repository-relative paths this walk does not descend
+  -- into and does not read.
+  --
+  -- **Not a glob language, deliberately.** `M.VENDOR_DIRS` above already
+  -- covers "this directory name, wherever it appears" for the vendored and
+  -- generated cases, and that is the pattern a wildcard would mostly be
+  -- asked for. What is missing is the *other* shape — "this one path, in
+  -- this one repository" — and a path answers it exactly. A glob dialect
+  -- would be a second thing to specify, test and keep true across two
+  -- hosts, in exchange for a case nobody has yet had.
+  --
+  -- Matched as a path or a path prefix, so `src/generated` excludes the
+  -- directory and everything under it, and `src/gen` does **not** match
+  -- `src/generated` — the separator is required, which is the difference
+  -- between excluding what was named and excluding whatever happens to
+  -- start with the same letters.
+  local exclude = {}
+  for _, entry in ipairs(opts.exclude or {}) do
+    local norm = chomp(slash(entry))
+    if norm ~= "" then
+      exclude[#exclude + 1] = norm
+    end
+  end
+
+  ---@param rel string Repository-relative path, forward-slashed.
+  ---@return boolean
+  local function excluded(rel)
+    for _, entry in ipairs(exclude) do
+      if rel == entry or rel:sub(1, #entry + 1) == entry .. "/" then
+        return true
+      end
+    end
+    return false
+  end
+
   for _, src in ipairs(sources) do
     assert(is_dir(root .. "/" .. src), "docmap: source directory not found: " .. root .. "/" .. src)
   end
@@ -510,10 +551,19 @@ function M.scan(opts)
       -- besides.
       local leaf_backend = e.type ~= "directory" and lang_registry.for_file(e.name) or nil
 
+      -- **An excluded file is not an unclaimed one.** Tested before every
+      -- branch below rather than inside them, because the *count* is the
+      -- half that would go wrong: a file the reader has declared out of
+      -- scope must not come back as "a language this map contains none of",
+      -- which would turn their own instruction into a complaint about the
+      -- repository.
+      local skip = excluded(child_rel)
+
       if e.type == "directory" then
-        if e.name ~= types_dir and not M.VENDOR_DIRS[e.name] then
+        if e.name ~= types_dir and not M.VENDOR_DIRS[e.name] and not skip then
           node.children[#node.children + 1] = walk_dir(child_abs, child_rel, id, depth + 1)
         end
+      elseif skip then -- luacheck: ignore
       elseif e.type ~= "directory" and not leaf_backend then
         -- Counted, not ignored. A file no backend claims is the ordinary
         -- case for a README or a lockfile and the *interesting* case for a

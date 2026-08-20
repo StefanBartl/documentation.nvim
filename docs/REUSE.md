@@ -91,6 +91,46 @@ nvim --headless -l scripts/gen_map.lua --check --lenient  # fail on staleness on
 nvim --headless -l scripts/gen_map.lua --full             # + LuaLS enrichment
 ```
 
+### Narrowing what gets read
+
+Two options say what a repository's map should *not* contain, and both are
+plain `opts` fields as well as flags, so the editor, CI and a host all set
+them the same way.
+
+```bash
+nvim --headless -l scripts/gen_map.lua --exclude=src/generated --exclude=third_party
+nvim --headless -l scripts/gen_map.lua --languages=lua,go
+```
+
+**`exclude` is a path, not a pattern.** Repository-relative, matched as a
+path or a path prefix: `src/generated` excludes that directory and
+everything under it, and does *not* match `src/generated_by_hand`. There is
+no glob dialect on purpose — `VENDOR_DIRS` already covers "this directory
+name wherever it appears" (`node_modules`, `target`, `dist`, `build`, `.venv`
+and a dozen more, always, with no configuration), which is what a wildcard
+would mostly be asked for. The shape that was missing is the other one:
+*this path, in this repository.* A path answers it exactly.
+
+Repeatable rather than comma-separated, because a directory can contain a
+comma and a backend name cannot.
+
+**`languages` is an allow list over the backends**, by their registered names
+— see [`LANGUAGES.md`](LANGUAGES.md) for the twenty-three. Omitting it, or
+passing an empty list, reads all of them; that is the reading that cannot
+lose data, since an empty selection nearly always means the caller had
+nothing to say. It also narrows **source detection**, not only the walk: a
+switched-off backend must not get to name the directory the scan starts in,
+or a repository restricted to Lua would be walked from a JavaScript `src/`
+and come back empty.
+
+An unknown name is honoured rather than dropped, so `--languages=golang`
+reads nothing and says so on stderr. The alternative — ignoring what it
+cannot recognise — makes a typo behave like no filter at all, which is the
+opposite of what was asked for.
+
+**Neither option is a substitute for `source`.** `source` says where to
+start; these two say what to leave out once there.
+
 ### 2. `scripts/hooks/pre-commit`
 
 Copy [`scripts/hooks/pre-commit`](../scripts/hooks/pre-commit) verbatim and

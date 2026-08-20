@@ -48,6 +48,15 @@ Backends are required lazily, on the first lookup, because each one requires
 the registry back to self-register — the circular-require shape that
 deferring avoids.
 
+**A caller can narrow the set.** `opts.languages` (or `--languages=lua,go`)
+is an allow list over the names in the table below; `opts.exclude` (or
+`--exclude=<path>`) drops paths. Both are scan-scoped rather than
+registrations being removed, and `lang_registry.report()` deliberately
+ignores them — the capability handshake answers for the *build*, not for one
+project's preferences, and a host that saw a backend disappear from it would
+conclude the binary cannot read that language. See
+[`REUSE.md § Narrowing what gets read`](REUSE.md#narrowing-what-gets-read).
+
 ---
 
 ## What each backend answers
