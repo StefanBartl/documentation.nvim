@@ -59,6 +59,7 @@ local KNOWN_BACKENDS = {
   "documentation.core.lang.dart",
   "documentation.core.lang.scala",
   "documentation.core.lang.haskell",
+  "documentation.core.lang.elixir",
 }
 
 local loaded = false
