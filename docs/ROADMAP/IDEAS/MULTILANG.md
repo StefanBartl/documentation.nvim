@@ -991,9 +991,34 @@ wave actually taught, beyond the ten:
       **Measured on `haskell/aeson`:** 32 files, all 32 with a module name,
       308 functions (134 exported — the export lists doing visible work),
       144 documented, 308 symbols, 494 imports.
-- [ ] **Elixir** — `.ex`, `.exs`. `@moduledoc`/`@doc` are genuinely
-      first-class documentation — attributes the compiler keeps — and
-      `def`/`defp` is real visibility. Closest fit in this wave.
+- [x] ~~**Elixir**~~ — `core/lang/elixir.lua`, built 2026-08-20, the
+      twenty-first backend, and the closest fit in the wave as predicted.
+      **Documentation the compiler takes responsibility for**: `@doc` is a
+      module attribute, evaluated at compile time and stored in the BEAM
+      chunk. Python's docstrings were the first non-comment documentation
+      this tool met; Elixir's are the first the compiler owns.
+
+      **`@doc false` is a real third state**, and it is neither prose nor
+      absence: *public and deliberately undocumented*, usually a function
+      another module in the same library calls. Reading it as prose would put
+      the word `false` in a summary; reading it as absent would lose the
+      author's statement. Recorded as internal, which is what it means.
+
+      **Everything in Elixir is a `call`** — `defmodule`, `def`, `alias`,
+      `@doc`, all of it — so this backend walks one node type and dispatches
+      on the head identifier, where the other twenty match a dozen node
+      kinds. That is homoiconicity, not a lazy grammar.
+
+      And `@doc` documents the *next* definition, making this the only
+      backend that reads documentation **before** the thing it documents
+      rather than above it.
+
+      Seventh `param_docs = false`: ExDoc describes arguments in prose, and
+      `@spec` names types rather than parameters — Haskell's problem again.
+
+      **Measured on `phoenixframework/phoenix`:** 74 files, 73 with a module
+      name, 1013 functions (326 public — `defp` doing visible work), **223 of
+      223 public functions documented**, 216 symbols, 44 moduledocs.
 - [ ] **Erlang** — `.erl`, `.hrl`. `-module`/`-export` is an export list
       like Haskell's; EDoc for prose.
 - [ ] **OCaml** — `.ml`, `.mli`. The `.mli` interface file *is* the
