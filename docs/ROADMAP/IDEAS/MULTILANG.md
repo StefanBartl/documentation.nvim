@@ -188,21 +188,46 @@ changes the shape every language backend plugs into.
   functions to an `impl` block, Go methods to a receiver type. Touches
   every consumer of `Documentation.FunctionInfo` (`duplicates.lua`'s
   grouping, `churn.lua`'s per-module complexity sum, both Analysis-panel
-  renderers, the Hierarchy tab's Calls view), so it has to land before any
-  language that needs it. **Not blocking Phase 1** (proven correct: modern
-  JS/TS is overwhelmingly function-based, so the seam proved itself on
-  JS/TS first) — needed when Python's classes actually arrive.
+  renderers, the Hierarchy tab's Calls view).
+
+  **This entry said it "has to land before any language that needs it", and
+  the build proved that wrong** — audited 2026-08-20 against `core/lang/`.
+  Python, Rust, Go, Java, C++, Kotlin, Swift, Scala and the rest all
+  shipped without it, by the same route ECMA's class methods took: a
+  **qualified flat name**. `python.lua`'s `record_function` takes an
+  `owner` and stores `Class.method`; the IR still has one flat list per
+  module and `FunctionInfo` still has no owner field.
+
+  So this is **not a prerequisite, it is a fidelity ceiling**, and worth
+  reopening only against a question flat naming cannot answer: "which
+  methods does this class have" (today: a string-prefix match, which is a
+  guess the moment a module-level function is called `Class.helper`),
+  "group duplicates within a type", and per-class rather than per-module
+  complexity. None of those has been asked for yet. **Do not build it as a
+  refactor in advance** — that is exactly what the visibility entry below
+  learned: it closed by being *used*, not by being restructured first.
 - [ ] **`Documentation.Node` allows one file, many modules.** Rust's `mod x
   { … }` and JS's multiple named exports both break the file-is-a-module
   assumption `scan.lua`'s walk is built on. **Not blocking Phase 1 either**:
   a JS/TS module IS its file, the same shape Lua already has — this is
   Rust's problem specifically.
+
+  **Still open, and still on the same terms** (audited 2026-08-20): the Rust
+  backend ships and handles `impl_item`, so an inline `mod x { … }` is
+  read as part of its file rather than as a module of its own. That is a
+  wrong *identity*, not missing data — which is why it has not hurt yet and
+  why it will, the day someone asks a question keyed on module identity in
+  a Rust tree.
 - [x] ~~**Visibility as a first-class `Documentation.FunctionInfo` field.**~~
   Closed — and it closed by being *used* rather than by a refactor. `internal`
   was already the field; what this entry wanted was for it to carry a fact
-  from the language rather than only the `@internal` tag, and five backends
-  now fill it that way: Zig's `pub`, Java's `public`, C's `static`, C++'s
-  positional access specifier, and assembly's `.globl`/`global`/`PUBLIC`.
+  from the language rather than only the `@internal` tag. Five backends did
+  when this was closed; **nineteen backend files do now** (counted from
+  `core/lang/` on 2026-08-20, so `cfamily.lua` is C and C++ and `ecma.lua`
+  is JS, TS and TSX) — Zig's `pub`, Java's `public`, C's `static`, C++'s
+  positional access specifier, assembly's `.globl`/`global`/`PUBLIC`, and
+  every backend written since. The parity pass has visibility complete
+  across all twenty-three.
   Lua and the ECMA family still read the tag, because those languages have
   no keyword at this granularity — which is a spectrum worth knowing about
   rather than a gap, and the README's language table now says so.

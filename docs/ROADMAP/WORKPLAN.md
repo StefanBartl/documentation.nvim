@@ -108,8 +108,16 @@ is which.
       than removes: taking boxes out of a graph re-flows every remaining one
       and can disconnect the picture, so the reader loses the shape they
       were looking at in order to ask a question about part of it.
-- [ ] Doc-coverage split per language, rather than one average that is true
-      of neither half.
+- [x] ~~Doc-coverage split per language, rather than one average that is true
+      of neither half.~~ — built 2026-08-20 as `doccoverage.by_language`,
+      and it found a defect on its first real run: against a mixed Lua/Zig
+      tree the breakdown said `zig 0/2` for a file whose documented function
+      was documented. The measure demanded `@param` lines from a language
+      that has none, so every Zig function had scored undocumented since Zig
+      shipped — hidden by exactly the tree-wide average this item asked to
+      split. Fixed with the `param_docs` contract field; `false` on nine
+      backends, absent means true, so an unknown language keeps the strict
+      rule.
 - **Acceptance:** the mixed fixture's map distinguishes its Lua and its
   TS nodes without the reader inspecting paths.
 
