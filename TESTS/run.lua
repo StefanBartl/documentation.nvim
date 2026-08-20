@@ -102,6 +102,7 @@ local specs = {
   "lang_kotlin_spec.lua",
   "lang_swift_spec.lua",
   "lang_dart_spec.lua",
+  "lang_scala_spec.lua",
   "doccoverage_by_language_spec.lua",
   "lang_js_gaps_spec.lua",
   "polyglot_fixture_spec.lua",
