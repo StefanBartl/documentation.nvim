@@ -297,6 +297,16 @@ Two options that need a word of warning:
                 default, because a call graph that confidently draws a wrong
                 edge is worse than one that draws fewer.
 
+                Not needed for Go, and this is the difference worth knowing:
+                in Go a package is a directory, so a bare `double(n)` in one
+                file may name a function declared in a sibling file with
+                nothing at the call site saying so. Those edges are resolved
+                from the language's own scoping rule, not guessed — they are
+                `confidence = "exact"`, drawn solid, and appear with this
+                option off. When two files of one directory declare the same
+                name the directory is not one package, and the edge is
+                dropped rather than picked.
+
                                                        *documentation-command-name*
 `command_name` and `browse_command_name` exist so two independent `setup()`
 calls — this plugin's and a consuming plugin's own map — do not register the

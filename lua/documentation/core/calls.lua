@@ -173,6 +173,88 @@ local function record_external_call(acc, module, member)
   by_member[key] = (by_member[key] or 0) + 1
 end
 
+---Which languages resolve an unqualified call in *package* scope.
+---
+---Asked of the registry rather than listed here, so a twenty-fourth backend
+---that needs it is one field on that backend and nothing in this file. Cached
+---per call to `build`, because the answer cannot change inside one scan and
+---the lookup would otherwise run per node.
+---@return table<string, boolean>
+local function package_scoped_languages()
+  local out = {}
+  local registry = require("documentation.core.lang_registry")
+  for _, entry in ipairs(registry.report()) do
+    local backend = registry.get(entry.name)
+    if backend and backend.call_scope == "package" then
+      out[entry.name] = true
+    end
+  end
+  return out
+end
+
+---For every node whose language resolves calls in package scope, the names
+---its *siblings* declare — the other nodes under the same parent namespace.
+---
+---**Why this exists at all.** A Go package is a directory, and every `.go`
+---file in it shares one scope: `double(n)` written in `widget.go` may name a
+---function declared in `helper.go` next to it, with nothing at the call site
+---qualifying it. Go declares no `module_file`, so those two files are two IR
+---nodes — which means a file-scoped resolver misses the *majority* of a Go
+---call graph rather than a margin of it. Measured on a three-file fixture
+---before this was written: two of three call sites were exactly that shape.
+---
+---**Siblings, not descendants.** A directory below is a different package in
+---Go and a different scope, so including it would invent edges the language
+---does not allow. The parent namespace is exactly the package.
+---
+---**A name two siblings both declare is dropped, not arbitrated.** Real Go
+---would not compile, so the case means the directory is not one package —
+---`foo` beside `foo_test`, or a build-tagged variant — and there is no
+---honest way to pick. Dropping matches what this module already does with
+---every other ambiguity: fewer edges beats a confident wrong one.
+---
+---Only the *bare* name is indexed. A Go method is stored as `Widget.Go` and
+---is never called that way — `w.Go(...)` names a variable, which nothing
+---here can resolve without a receiver-type model — so indexing the
+---qualified form would add a key no call site can produce.
+---@param ir Documentation.IR
+---@return table<string, table<string, { node: string, fn: string }>> by parent id
+local function package_index(ir)
+  local scoped = package_scoped_languages()
+  if not next(scoped) then
+    return {}
+  end
+
+  local out = {}
+  local ambiguous = {}
+  for _, id in ipairs(ir.order) do
+    local node = ir.nodes[id]
+    if node.language and scoped[node.language] and node.parent then
+      local bucket = out[node.parent]
+      if not bucket then
+        bucket = {}
+        out[node.parent] = bucket
+        ambiguous[node.parent] = {}
+      end
+      for _, fn in ipairs(node.functions) do
+        local b = bare(fn.name)
+        if bucket[b] and bucket[b].node ~= id then
+          ambiguous[node.parent][b] = true
+        else
+          bucket[b] = { node = id, fn = fn.name }
+        end
+      end
+    end
+  end
+
+  for parent, names in pairs(ambiguous) do
+    for name in pairs(names) do
+      out[parent][name] = nil
+    end
+  end
+  return out
+end
+
 ---Resolve every node's `calls_raw` into `kind="call"` edges appended to
 ---`ir.edges`. Mutates `ir` in place; `deps.build` must have run first, since
 ---resolution reads the require aliases it collected.
@@ -192,6 +274,10 @@ function M.build(ir, opts)
   local by_module = require("documentation.core.deps").module_index(ir)
   local by_path = require("documentation.core.deps").path_index(ir)
   ir.edges = ir.edges or {}
+
+  -- Empty for a tree with no package-scoped language in it, which is every
+  -- Lua and JavaScript repository — so this costs one `next()` there.
+  local packages = package_index(ir)
 
   local index = {} ---@type table<string, { by_name: table<string, string>, prefixes: table<string, boolean> }>
   for _, id in ipairs(ir.order) do
@@ -309,8 +395,18 @@ function M.build(ir, opts)
           -- an import is an exact fact where the heuristic is a guess.
           to_fn = index[id].by_name[call.callee]
           local imported = imports[call.callee]
+          -- Package scope sits between "this file" and "an import", and the
+          -- order is the point. This file's own declaration still wins — a
+          -- name declared here shadows nothing but is the nearer answer — and
+          -- package scope is an *exact* fact where the heuristic below is a
+          -- guess, so it must come before it. See `package_index`.
+          local sibling = node.parent
+            and packages[node.parent]
+            and packages[node.parent][call.callee]
           if to_fn then
             to_id, confidence = id, "exact"
+          elseif sibling then
+            to_id, to_fn, confidence = sibling.node, sibling.fn, "exact"
           elseif imported and imported.node then
             local target = imported.node
             to_fn = index[target].by_name[imported.member]
