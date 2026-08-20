@@ -151,6 +151,7 @@ local specs = {
   "generate_all_spec.lua",
   "usrcmds_generate_all_spec.lua",
   "usrcmds_actions_spec.lua",
+  "pick_spec.lua",
   "functions_doc_tag_spacing_spec.lua",
 }
 

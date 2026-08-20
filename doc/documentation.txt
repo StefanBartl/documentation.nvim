@@ -484,6 +484,24 @@ key and then regretted.
                         module cold here may be the hot path for every other
                         user. No telemetry means no column, not a zero.
 
+:DocMap pick            Fuzzy-find any module or function in the map and
+                        jump to its source line. Entries read as `module` and
+                        `module#M.fn` -- the same two shapes |:DocBrowse|'s
+                        own `/` builds.
+
+                        The interaction the browser does not have: its `/`
+                        jumps *within* the browser and leaves you there, which
+                        is right for exploring. This one ends in the file, and
+                        the browser never opens.
+
+                        Uses pickers.nvim when it is installed and resolves an
+                        engine (telescope, fzf-lua or snacks) -- that gives
+                        fuzzy matching over the whole list plus the engine's
+                        own file preview. Otherwise lib.nvim's kit chooser,
+                        which defers to whatever you wired into
+                        |vim.ui.select|. Neither is required, and neither has
+                        to be configured.
+
 :DocMap untested        Functions this machine actually ran that no spec
                         names, into the |quickfix| list, most-run first. The
                         useful cell of coverage x telemetry: "this ran four

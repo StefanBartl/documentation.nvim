@@ -70,6 +70,12 @@ local ACTIONS = {
   untested = function(ctx)
     require("documentation.bindings.usrcmds.untested").run(ctx)
   end,
+  -- Lives in `editor/` rather than beside its siblings here: it opens a
+  -- buffer and moves a cursor, which is editor work, and the thunk is the
+  -- whole binding.
+  pick = function(ctx)
+    require("documentation.editor.pick").run(ctx)
+  end,
   checklist = function(ctx, arg)
     require("documentation.bindings.usrcmds.checklist").run(ctx, arg)
   end,
@@ -127,7 +133,7 @@ M.action_names = action_names
 -- "nobody forgets to update this by hand."
 ---@type string
 M.action_usage_hints = "[check|full|open|graph|why <a> <b>|dot|mermaid|consumers|diff <ref>|impact <ref>"
-  .. "|churn [range]|untested|checklist [all]|plugins|bindings|tools|endpoints|serve [stop]"
+  .. "|churn [range]|untested|pick|checklist [all]|plugins|bindings|tools|endpoints|serve [stop]"
   .. "|helptags|annotate [--write|--sidecar]|all [full]]"
 
 ---Every module name `find_node` would resolve, for completion.
