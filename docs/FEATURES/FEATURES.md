@@ -2938,3 +2938,43 @@ it. The list means "no spec names it", never "this is unexercised".
 - **Tests:** `TESTS/runtime_joins_spec.lua` — including that the ordering
   guarantee and the wording rule both fail when deliberately broken, which
   was checked rather than assumed
+
+## API surface — a tenth Analysis panel (2026-08-20)
+
+`IDEAS.md` §2.2, rated S–M/medium–high in 2026-08-15 and re-rated **S/high**
+on 2026-08-20 for a reason that had nothing to do with the panel: `internal`
+became a contract field that nineteen backend files fill *from the language*,
+and the parity pass has visibility complete across all twenty-three. The
+panel's hard half had been paid for by somebody else's work.
+
+Every non-`internal` function, with its documentation state and how many
+other modules of this tree call it. Computed in the page from fields the
+payload already carries — **no new IR field and no schema bump.**
+
+**Sorted least-reached first.** The rows worth opening it for are the ones
+nothing here calls: each is either a real entry point or an export nobody
+meant to make.
+
+**Two honest limits, in the panel rather than in a doc nobody opens.** "No
+caller here" is not "unused" — a published API is consumed by other
+repositories by definition, so an entry point is indistinguishable from an
+orphan when seen from inside. And `internal` is declared rather than
+inferred: a keyword in Zig, Java and C, a tag in Lua and JS/TS.
+
+**The second limit came out of looking at the real page**, not out of
+designing it. This repository's own map put `norm(p)` — a file-local helper
+in `bindings/usrcmds` — in the list beside `M.render()`, because Lua has no
+keyword at that granularity and nobody had tagged it. The panel now reports
+how many functions carry the tag at all: **two, out of 776 here**, which
+makes the list nearer to an inventory than to a curated surface. Saying that
+is the fix. Inferring exports from an `M.` prefix would have been the
+naming-convention guess the panel exists to avoid.
+
+**It unblocks `IDEAS.md` §1.3** (API-surface breaking-change detection),
+rejected in 2026-08-15 as *"No — public is undefined"*. Public is declared
+now; what was missing was a named surface to diff, which is this.
+
+- **Module:** `core/render/html.lua` (`renderAnalysisApi`)
+- **Tests:** `TESTS/api_surface_spec.lua` — including that a tool name known
+  to one validator list and not the other is caught, verified by removing it
+  from one and watching the spec go red

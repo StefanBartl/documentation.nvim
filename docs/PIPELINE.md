@@ -1631,10 +1631,11 @@ the default), the same "only the axes a view actually uses" rule
 A tool palette, not a diagram — a fifth tab (`atool` state axis, same
 `iview=`-shaped URL rule as the Index tab) whose toolbar switches between
 panels the way Hierarchy's view buttons switch between graphs, applied to
-aggregate numbers instead of boxes. Nine tools today:
+aggregate numbers instead of boxes. Ten tools today:
 
 - **Test coverage** — `fn.tested` (R2, [`coverage.lua`](../lua/documentation/core/coverage.lua))
 - **Documentation** — `fn.documented` (R4, [`doccoverage.lua`](../lua/documentation/core/doccoverage.lua))
+- **API surface** — every non-`internal` function, with its doc state and how many *other* modules of this tree call it. Computed in the page from `fn.internal`, `fn.documented` and the call edges already in the payload — no new field, no schema bump
 - **Dependencies** — `n.requires`/`n.required_by` (R6, fan-in/fan-out)
 - **Complexity** — `fn.complexity` (cyclomatic/McCabe, [`functions.lua`](../lua/documentation/core/functions.lua))
 - **Duplicates** — `ir.duplicates` (structural copy-paste detection, [`duplicates.lua`](../lua/documentation/core/duplicates.lua))
@@ -1685,6 +1686,34 @@ smell (a "God module" candidate), worth seeing but not at the cost of
 burying real fan-in leaders. Verified against this repo's own tree: highest
 fan-in is `lib.nvim.notify` (30), exactly the kind of foundational module
 this ranking exists to surface.
+
+**API surface** answers the question that was previously spread across three
+panels and therefore asked of none of them: *what does this thing actually
+expose?* Index has the names, Documentation has the state, Dependencies has
+the edges. It exists because this ecosystem keeps extracting a module into
+its own plugin — `lib.nvim.docmap` → documentation.nvim,
+`lib.nvim.telemetry` → runtime-analysis.nvim — and that question was answered
+by hand both times.
+
+Sorted **least-reached first**, because the rows worth opening the panel for
+are the ones nothing here calls: each is either a real entry point or an
+export nobody meant to make, and telling those apart is the job.
+
+Two limits it states in its own sub-line rather than leaving to the reader:
+
+* **"No caller here" is not "unused."** A published API is consumed by other
+  repositories by definition, so an entry point looks exactly like an orphan
+  from inside. The column counts call edges from a different module *of this
+  tree*, and dynamic dispatch is invisible to it — the same blind spot the
+  Calls view has.
+* **`internal` is declared, never inferred.** A keyword in Zig, Java and C; an
+  `@internal` tag in Lua and JS/TS. In a tag language an untagged file-local
+  helper reads the same here as an entry point, so the panel also reports how
+  many functions were actually marked. Measured on this repository: **two, out
+  of 776** — which makes the list nearer to an inventory than to a curated
+  surface, and saying so is the difference between a useful panel and a
+  confident one. Inferring exports from an `M.` prefix would be exactly the
+  naming-convention guess the rest of the panel refuses.
 
 **Complexity** ranks *functions*, not modules — the one panel that is a
 per-function list rather than a per-module breakdown, because "longest/most

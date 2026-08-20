@@ -1845,7 +1845,7 @@ local JS = [[
       else if(k === "iview") s.iview = (v === "modules") ? "modules" : "functions";
       else if(k === "atool") s.atool = (v === "doc" || v === "deps" || v === "complexity" ||
         v === "duplicates" || v === "plugins" || v === "tools" || v === "hooks" ||
-        v === "checklist" ||
+        v === "checklist" || v === "api" ||
         v === "docs" || v === "endpoints" || v === "telemetry" || v === "loaded" ||
         v === "bindings") ? v : "test";
       // Snapshot names are whatever runtime-analysis.telemetry's own
@@ -4708,6 +4708,143 @@ local JS = [[
   // function" is a property of one function, and averaging it into a
   // per-module score would bury the one function that actually needs
   // attention under a healthy module's mean.
+  // The published surface: every function this tree exposes, with whether it
+  // is documented and whether anything outside its own module calls it.
+  //
+  // Three places already hold a third of this each -- Index has the names,
+  // Documentation has the state, Deps has the edges -- and none of them
+  // answers "what does this plugin actually expose". The question is asked
+  // every time a module is extracted into its own plugin, which this
+  // ecosystem has now done twice, by hand both times.
+  //
+  // **`internal` is read, never guessed.** It is a contract field the backend
+  // fills from the language itself in nineteen of the backend files -- Zig's
+  // `pub`, Java's `public`, C's `static`, Lua's `@internal` tag -- so the
+  // surface is *declared* rather than inferred from a naming convention.
+  // That is also why this panel was cheap: the hard half was paid for by the
+  // visibility work.
+  //
+  // **"No caller here" is not "unused", and the panel says so.** A plugin's
+  // published API is consumed by *other repositories* by definition; a
+  // function with no in-tree caller outside its own module is exactly what an
+  // exported entry point looks like from inside. So the column counts what it
+  // can see, is named for that, and the sub-line states what it cannot.
+  function renderAnalysisApi(){
+    // Call edges into a `<node>#<fn>` key, keeping only callers from a
+    // *different* module. A module calling itself says nothing about what it
+    // exposes.
+    var external = {};
+    (IR.edges || []).forEach(function(e){
+      if(e.kind !== "call") return;
+      if(!e.to || !e.to_fn) return;
+      if(e.from === e.to) return;
+      var k = fnKey(e.to, e.to_fn);
+      if(!external[k]) external[k] = {};
+      external[k][e.from] = true;
+    });
+
+    var rows = [];
+    var marked = 0;
+    IR.nodes.forEach(function(n){
+      var name = n.module || n.path;
+      (n.functions || []).forEach(function(fn){
+        if(fn.internal){ marked++; return; }
+        var callers = external[fnKey(n.id, fn.name)];
+        var count = 0;
+        if(callers){
+          for(var k in callers){ if(callers.hasOwnProperty(k)) count++; }
+        }
+        rows.push({
+          node: n, fn: fn, name: name,
+          sig: fn.signature || fn.name,
+          documented: !!fn.documented,
+          callers: count,
+          haystack: (fn.signature || fn.name) + " " + name,
+          sortkey: name + "#" + (fn.signature || fn.name)
+        });
+      });
+    });
+
+    if(rows.length === 0){
+      return '<p class="ntext none">This map exposes no functions - everything ' +
+        'it declares is marked internal, or nothing was extracted.</p>';
+    }
+
+    var totalRows = rows.length;
+    var documented = rows.reduce(function(a, r){ return a + (r.documented ? 1 : 0); }, 0);
+    var unreached = rows.reduce(function(a, r){ return a + (r.callers === 0 ? 1 : 0); }, 0);
+
+    var cols = [
+      { label: "Function", key: "sig", get: function(r){ return r.sig; }, initial: "asc" },
+      { label: "Module", key: "name", get: function(r){ return r.name; }, initial: "asc" },
+      { label: "Documented", key: "documented",
+        get: function(r){ return r.documented ? 1 : 0; }, initial: "asc" },
+      { label: "Callers here", key: "callers",
+        get: function(r){ return r.callers; }, initial: "desc" }
+    ];
+
+    rows = anFilter(rows);
+    // Least-reached first: the rows worth opening this panel for are the ones
+    // nothing here calls. Each is either a real entry point or an export
+    // nobody meant to make, and telling those two apart is the whole job.
+    anSort(rows, cols, function(a, b){
+      if(a.callers !== b.callers) return a.callers - b.callers;
+      if(a.documented !== b.documented) return a.documented ? 1 : -1;
+      return a.sortkey < b.sortkey ? -1 : 1;
+    });
+
+    var parts = [];
+    // **Whether this is a surface at all depends on the language.** Zig's
+    // `pub`, Java's `public` and C's `static` are keywords, so `internal`
+    // arrives from the code and the list below is the real published API. Lua
+    // and the ECMA family have no keyword at this granularity, so `internal`
+    // arrives from an `@internal` tag somebody had to write -- and in a tree
+    // where nobody wrote one, an unmarked file-local helper is
+    // indistinguishable from an entry point. Measured on this repository the
+    // day the panel was built: `norm(p)`, a local in `bindings/usrcmds`, sat
+    // in the list beside `M.render()`. Saying so is the fix; guessing from a
+    // `M.` prefix would be exactly the naming-convention inference the rest
+    // of this panel refuses.
+    // Always both halves, rather than a caveat above some threshold: the
+    // count says how much was excluded, and the sentence after it says what
+    // being excluded depended on. A tree with two marked functions out of
+    // 776 -- this repository, measured -- is nearer to the zero case than to
+    // a curated surface, and no cut-off would have said so honestly.
+    var caveat = ' ' + (marked === 0
+      ? '<strong>Nothing here is marked internal.</strong>'
+      : marked + ' function' + (marked === 1 ? " is" : "s are") +
+        ' marked internal and excluded.') +
+      ' Internal is declared, never inferred - a keyword in Zig, Java and C, ' +
+      'an <code>@internal</code> tag in Lua and JS/TS. In a tag language ' +
+      'that means an untagged file-local helper reads the same here as an ' +
+      'entry point, so the list is the surface only as far as the tree ' +
+      'bothered to say.';
+    parts.push('<p class="nsub">' + totalRows + ' published function' +
+      (totalRows === 1 ? "" : "s") + ' - ' + documented + ' documented, ' +
+      unreached + ' with no caller inside this repository.' + caveat +
+      ' <strong>No caller here does not mean unused</strong> - a published API ' +
+      'is consumed by other repositories by definition, and that is what an ' +
+      'entry point looks like from inside. The column counts call edges from ' +
+      'a different module of this tree, so a dynamically dispatched call is ' +
+      'invisible to it, the same blind spot the Calls view has.' +
+      anFilterNote(rows.length, totalRows) + '</p>');
+    if(rows.length === 0){
+      return parts.join("") + '<p class="ntext none">No function matches that filter.</p>';
+    }
+    parts.push('<table class="antable">' + anHead(cols) + '<tbody>');
+    rows.forEach(function(r){
+      parts.push('<tr class="anrow" data-node="' + esc(r.node.id) + '">' +
+        '<td>' + esc(r.sig) + sigTrigger(r.node.id, r.fn.name) +
+          docTrigger(fnKey(r.node.id, r.fn.name)) + '</td>' +
+        '<td>' + esc(r.name) + '</td>' +
+        '<td>' + (r.documented ? "yes" : "no") + '</td>' +
+        '<td>' + (r.callers === 0 ? "none" : r.callers) + '</td>' +
+        '</tr>');
+    });
+    parts.push("</tbody></table>");
+    return parts.join("");
+  }
+
   function renderAnalysisComplexity(){
     var rows = [];
     IR.nodes.forEach(function(n){
@@ -5369,6 +5506,7 @@ local JS = [[
         true
       );
     }
+    if(atool === "api") return renderAnalysisApi();
     if(atool === "deps") return renderAnalysisDeps();
     if(atool === "complexity") return renderAnalysisComplexity();
     if(atool === "duplicates") return renderAnalysisDuplicates();
@@ -5386,6 +5524,7 @@ local JS = [[
       state.atool === "plugins" || state.atool === "tools" || state.atool === "hooks" ||
       state.atool === "docs" || state.atool === "endpoints" || state.atool === "telemetry" ||
       state.atool === "loaded" || state.atool === "checklist" ||
+      state.atool === "api" ||
       state.atool === "bindings")
       ? state.atool : "test";
 
@@ -8866,6 +9005,7 @@ function M.render(ir, findings, opts)
     '<div class="hview-toggle" id="antoggle">',
     '<button class="anview-btn active" data-atool="test">Test coverage</button>',
     '<button class="anview-btn" data-atool="doc">Documentation</button>',
+    '<button class="anview-btn" data-atool="api" title="Every function this tree publishes, with its documentation state and how many other modules here call it - the question asked every time a module is extracted into its own plugin">API surface</button>',
     '<button class="anview-btn" data-atool="deps">Dependencies</button>',
     '<button class="anview-btn" data-atool="complexity">Complexity</button>',
     '<button class="anview-btn" data-atool="duplicates">Duplicates</button>',

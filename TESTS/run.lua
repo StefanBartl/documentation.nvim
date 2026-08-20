@@ -79,6 +79,7 @@ local specs = {
   "coverage_gaps_spec.lua",
   "artifact_contract_spec.lua",
   "payload_contract_spec.lua",
+  "api_surface_spec.lua",
   "consumers_spec.lua",
   "consumer_require_spec.lua",
   "glossary_spec.lua",
