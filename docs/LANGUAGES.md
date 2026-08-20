@@ -199,6 +199,16 @@ trusting a build, and it reports **three** states rather than two:
 | `false` | This backend wants a grammar and could not get one. A complete module tree — hierarchy, summaries, require edges — and **no function-level data**. |
 | `nil` | This backend needs no parser. Full fidelity, not a degradation. |
 
+The same report also carries **`calls`** per backend — whether that backend
+produces call sites at all. Four of the twenty-three do. It is there so a
+host can say *why* a Calls panel is empty: "this project has no calls" and
+"this build has no call extraction for this language" look identical on
+screen and are not the same fact. Unlike `grammar_loaded` it is a plain
+boolean, because there is no third state to keep apart, and
+`backend_contract_spec.lua` fails any backend whose flag disagrees with what
+it actually returned for its own parity fixture. The flag describes what is
+built, not what is possible — it disappears as backends gain the capability.
+
 A host that collapsed `false` and `nil` would report a healthy backend as
 broken, which is why they stay distinct all the way out to the report.
 
