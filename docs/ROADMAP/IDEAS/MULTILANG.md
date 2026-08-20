@@ -1091,6 +1091,53 @@ wave actually taught, beyond the ten:
       requires on every function — the strictest visibility of anything in
       this list.
 
+### Four decisions taken 2026-08-20, after fourteen backends
+
+Asked once the pattern across the languages was visible rather than
+predicted. The standing instruction they were decided under is worth
+repeating, because it shaped all four: **rather more effort, correct and
+separable, than a shortcut that falls over later.**
+
+1. **Coverage per language reports two counts, not one.** Eight of the
+   twenty-three backends declare `param_docs = false`, so a function there
+   is documented once it has a summary; the other fifteen also require every
+   parameter. One percentage per language would have put two different
+   measures in one column. Each row now carries `summarised` — comparable
+   across *all* twenty-three, since every language has the concept — and
+   `documented`, comparable across the fifteen that judge parameters and
+   equal to the first for the eight that do not. `judges_params` says which
+   a row is, so a reader sees the difference rather than a number that
+   quietly means something else per line.
+
+2. **The interface default stays written out per backend.** Seven languages
+   needed the same correction — C#, Go, Rust, PHP, Kotlin, Swift, Scala —
+   and a shared contract field was considered and declined. Each language
+   spells it differently (`interface`, `trait`, `protocol`) and each has a
+   *different* surrounding default, so one shared field would carry the
+   wrong value for at least one of them. Seven explicit rules that each say
+   what their language does beat one rule with an exception list.
+
+3. **The interface-file question is answered per language, not
+   generalised.** OCaml reads a sibling `.mli`; C decides per file with a
+   rule this tool invented; Ada's `.ads`/`.adb` and Delphi's in-file
+   `interface`/`implementation` split would each need their own answer. They
+   look alike and are not: OCaml's is compiler-enforced, C's is a
+   convention, Delphi's is two sections of one file. A shared abstraction
+   would have to be told which of the three it was looking at, which is the
+   per-language rule again wearing a hat.
+
+4. **Wave 4 is cancelled.** Fortran, Ada, COBOL, Delphi, MATLAB and VB.NET
+   are **not** being built. The line-scanner decision that would have
+   covered them stands recorded and unused. The reason is scope rather than
+   difficulty: twenty-three languages is already more than any user has
+   asked to map, and building six more on speculation spends effort that
+   feedback has not asked for. **They become buildable again the moment a
+   user wants one** — the decisions above are written down precisely so that
+   restarting costs a day rather than a rediscovery.
+
+   The same now applies to the rest of wave 2 and to waves 3 and 5: they are
+   *available*, not *scheduled*.
+
 **Wave 3 — the shells, which are a language question people argue about.**
 Included because both rankings list them and because a repository's
 automation is part of what a map should show.

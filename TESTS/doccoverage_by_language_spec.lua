@@ -57,6 +57,24 @@ return function(H)
   eq(by.zig.total, 1)
   eq(by.zig.documented, 1)
 
+  -- **Two counts, because the bar is not the same in every language.** Eight
+  -- of the twenty-three backends have no per-parameter convention, so a
+  -- function there is documented once it has a summary. Reporting one
+  -- percentage per language would put two different measures in one column.
+  --
+  -- `summarised` is comparable across every language; `documented` is
+  -- comparable across the ones that judge parameters, and equals
+  -- `summarised` for the ones that do not.
+  eq(by.lua.judges_params, true, "LuaCATS names parameters")
+  eq(by.zig.judges_params, false, "Zig documents the declaration as a whole")
+  eq(by.lua.summarised, 2, "two of the three Lua functions carry a summary")
+  eq(
+    by.zig.summarised,
+    by.zig.documented,
+    "and for a language with no parameter convention the two counts are equal "
+      .. "by construction — which is why they can be shown side by side"
+  )
+
   -- The total across the rows must equal the headline, or the two numbers on
   -- one screen disagree — which is the failure a breakdown is most likely to
   -- introduce and the least likely to be noticed.
