@@ -31,9 +31,9 @@ Point it at a repository and it produces a **module map**: an interactive
 HTML page, a Markdown overview, a deterministic JSON artifact, and a set of
 drift checks that fail CI when the documentation and the code stop agreeing.
 
-It reads **twelve languages** — Lua, JavaScript, TypeScript, TSX, Python,
-C#, Go, Zig, Java, C, C++ and assembly — through one backend contract, so a
-tree that mixes them comes out as one map rather than several. See
+It reads **thirteen languages** — Lua, JavaScript, TypeScript, TSX, Python,
+C#, Go, Rust, Zig, Java, C, C++ and assembly — through one backend contract,
+so a tree that mixes them comes out as one map rather than several. See
 [Languages](#languages).
 
 ```vim
@@ -166,7 +166,7 @@ a real (if deliberately small) example — including one promoted feature.
 
 ## Languages
 
-Twelve backends behind one contract, so a repository that mixes them
+Thirteen backends behind one contract, so a repository that mixes them
 produces one map rather than several. A backend answers the same five questions —
 which files it claims, where its sources live, what documents a file, what
 documents a declaration, and what makes a declaration public — and the map
@@ -181,6 +181,7 @@ does not care which language answered.
 | **Python** | `.py`, `.pyi` | a docstring — the first *statement*, in reST, Google or NumPy style | not a leading `_`, unless `__all__` says otherwise |
 | **C#** | `.cs` | XML doc comments — `/// <summary>`, `<param name="x">` | `public`; an unmarked class member is private, an unmarked interface member is public |
 | **Go** | `.go` | the plain comment block above it — godoc has no tags at all | **capitalisation**, enforced by the compiler |
+| **Rust** | `.rs` | `///` above the declaration; rustdoc has no tags either | `pub`; `pub(crate)` and `pub(super)` are restricted, not published |
 | **Zig** | `.zig` | `///` above the declaration | `pub` |
 | **Java** | `.java` | Javadoc, with `@param`/`@return`/`@throws`/`@deprecated` parsed | `public` |
 | **C** | `.c`, `.h` | any comment directly above it, Doxygen or not | not `static` |
@@ -234,9 +235,9 @@ directory is a namespace and every file is its own module.
 
 ### Grammars, and the one backend that needs none
 
-Eleven of the twelve parse with a tree-sitter grammar. Without the grammar
+Twelve of the thirteen parse with a tree-sitter grammar. Without the grammar
 they still produce a complete module tree — correctly, and saying so — but
-no function-level data. `scripts/build_engine_release.sh` builds all eleven
+no function-level data. `scripts/build_engine_release.sh` builds all twelve
 into a release; inside Neovim they come from the runtimepath.
 
 **Assembly is the exception, by design rather than by omission.** GAS, NASM
