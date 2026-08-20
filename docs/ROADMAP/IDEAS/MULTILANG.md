@@ -902,8 +902,58 @@ The ten highest-traffic languages on either list that are not already built.
       public, 131 of those documented), 131 symbols, and 53 of 76 imports
       relative — the highest internal-edge ratio of any language here, since
       Dart packages import their own files by path.
-- [ ] **Scala** — `.scala`, `.sc`. Scaladoc, `private[x]` qualified
-      visibility, `package` identity.
+- [x] ~~**Scala**~~ — `core/lang/scala.lua`, built 2026-08-20, the
+      nineteenth backend, and **the last of this wave's ten**. Every one of
+      the three things this entry named held.
+
+      **Qualified visibility is the one only Rust has anything like.**
+      `private[widgets]` is private to a *named scope* rather than
+      absolutely — which is `pub(crate)` read from the other end: Rust says
+      how far out a thing reaches, Scala says how far in it stays. Both
+      collapse into not-published, because from outside a restriction is a
+      restriction.
+
+      **And Scala has no `public` keyword at all**, which makes it the
+      sharpest case for a rule this tool learned from C#: the visibility test
+      is written as *not private and not protected*, never as *has public*.
+      Asking for a keyword the language does not have would report every
+      Scala codebase as unpublished.
+
+      **`@tparam` is read as a parameter.** A Scala generic is declared and
+      documented exactly like a value parameter, and dropping it would leave
+      the standard library's most carefully documented declarations looking
+      bare.
+
+      One shape worth naming: **a class and its companion object are two
+      entities sharing one name**, and both are recorded. Merging them would
+      lose the one Scala construct that reuses a name on purpose.
+
+      **Measured on `scalaz/scalaz`** (core): 291 files, 290 with a module
+      name, 6225 definitions (6138 public — Scala's default, visible in the
+      ratio), 1159 documented, 2203 symbols. Only 34 `@param` tags across the
+      tree, which is scalaz being scalaz: a library whose documentation is
+      prose and type signatures rather than parameter lists.
+
+**Wave 1 is complete**, 2026-08-20 — Python, C#, Go, Rust, PHP, Ruby,
+Kotlin, Swift, Dart, Scala, in that order, ten backends in one day. What the
+wave actually taught, beyond the ten:
+
+* **"What does an absent visibility modifier mean" has four answers.** C#
+  says private, Java package-private, Kotlin and PHP public, Swift
+  module-only. Every backend writes its own rule out; sharing one would have
+  inverted an API somewhere.
+* **The interface construct needed the same fix seven times in a row** — C#,
+  Go, Rust, PHP, Kotlin, Swift, Scala. Seven spellings, one meaning: *this
+  declaration exists in order to be published.* Worth building into whatever
+  the twentieth backend starts from.
+* **`param_docs = false` is now five languages**, and the reasons differ:
+  nothing to document (assembly), the declaration documented as a whole
+  (Zig), documented nowhere (Go), a Markdown heading rather than a form
+  (Rust), a cross-reference rather than a slot (Dart). Ruby is the sixth and
+  a different case again — parsed and shown, not judged.
+* **Every measurement against a real repository changed something**, without
+  exception: Go's test functions, Rust's workspace crates, C#'s conditional
+  blocks, Python's typed splats, PHP's `__DIR__`. Fixtures caught the rest.
 
 **Wave 2 — a grammar exists, the paradigm is further from what is built.**
 
