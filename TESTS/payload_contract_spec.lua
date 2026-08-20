@@ -112,14 +112,20 @@ return function(H)
   -- something nothing writes.
   local orphaned = {}
   for key in pairs(payload) do
-    -- Two payload fields are not IR fields by design, both for the same
+    -- Three payload fields are not IR fields by design, all for the same
     -- reason: they are tool data, the same bytes in every checkout, and so
     -- deliberately kept out of the byte-deterministic artifact that
     -- describes the repository. `glossaries` is read straight off
     -- `lang_registry`; `marker_kinds` is `core/markers.lua`'s keyword table,
-    -- passed so the Notes tab does not keep a second copy of it. See
-    -- `M.render`'s own notes on both.
-    local TOOL_DATA = { glossaries = true, marker_kinds = true }
+    -- passed so the Notes tab does not keep a second copy of it; `tags` is
+    -- `core/tags.lua`'s annotation catalogue, carried for the two panels
+    -- that are gated on it. See `M.render`'s own notes on all three.
+    --
+    -- This list has to argue for itself, which is the point of it being a
+    -- list rather than a rule: "not an IR field" is exactly what a panel
+    -- reading something nothing writes looks like, and the only difference
+    -- is a reason.
+    local TOOL_DATA = { glossaries = true, marker_kinds = true, tags = true }
     if ir[key] == nil and not TOOL_DATA[key] then
       orphaned[#orphaned + 1] = key
     end

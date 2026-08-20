@@ -328,6 +328,11 @@ end
 
 ---Parse a function's assembled doc-comment block (top-to-bottom, `---`
 ---prefix already stripped by the caller) into the tagged fields.
+---
+---Tag dispatch goes through a table built inside this function, whose keys
+---are the function-scope tags `core/tags.lua` catalogues. See `HANDLERS`
+---below for why it is per-call, and `TESTS/tags_spec.lua` for the assertion
+---that keeps the two lists from drifting.
 ---@param raw_lines string[] Full comment lines, `---` prefix intact.
 ---@return { summary: string, params: Documentation.ParamInfo[], returns: Documentation.ReturnInfo[], generic: string[], deprecated: string?, async: boolean, nodiscard: boolean, internal: boolean, see: string[], overload: string[], todo: string[], bug: string[], test: string[], example: string?, since: string? }
 local function parse_doc_block(raw_lines)
@@ -343,6 +348,61 @@ local function parse_doc_block(raw_lines)
   local in_example = false
   local seen_tag = false
 
+  -- Built per block rather than once at module level: every handler writes
+  -- into this block's own accumulators, and a shared table would need each
+  -- of them passed in on every call for no gain. The cost is one small table
+  -- per documented function, which is the same order as the tables it is
+  -- filling.
+  ---@type table<string, fun(rest: string)>
+  local HANDLERS = {
+    param = function(rest)
+      params[#params + 1] = parse_param(rest)
+    end,
+    ["return"] = function(rest)
+      returns[#returns + 1] = parse_return(rest)
+    end,
+    generic = function(rest)
+      for name in rest:gmatch("[%w_]+") do
+        generic[#generic + 1] = name
+      end
+    end,
+    deprecated = function(rest)
+      deprecated = rest
+    end,
+    async = function()
+      async = true
+    end,
+    nodiscard = function()
+      nodiscard = true
+    end,
+    internal = function()
+      internal = true
+    end,
+    see = function(rest)
+      for target in rest:gmatch("[^,]+") do
+        see[#see + 1] = vim.trim(target)
+      end
+    end,
+    overload = function(rest)
+      overload[#overload + 1] = parse_overload(rest)
+    end,
+    todo = function(rest)
+      todo[#todo + 1] = rest
+    end,
+    bug = function(rest)
+      bug[#bug + 1] = rest
+    end,
+    test = function(rest)
+      test[#test + 1] = rest
+    end,
+    since = function(rest)
+      since = rest
+    end,
+    example = function(rest)
+      example = rest ~= "" and rest or nil
+    end,
+  }
+
   for _, raw in ipairs(raw_lines) do
     -- `%s*` between the third dash and `@`: `--- @param` is exactly as valid
     -- LuaCATS as `---@param` (lua-language-server accepts both), and a
@@ -352,38 +412,16 @@ local function parse_doc_block(raw_lines)
     if tag then
       seen_tag = true
       in_example = (tag == "example")
-      if tag == "param" then
-        params[#params + 1] = parse_param(rest)
-      elseif tag == "return" then
-        returns[#returns + 1] = parse_return(rest)
-      elseif tag == "generic" then
-        for name in rest:gmatch("[%w_]+") do
-          generic[#generic + 1] = name
-        end
-      elseif tag == "deprecated" then
-        deprecated = rest
-      elseif tag == "async" then
-        async = true
-      elseif tag == "nodiscard" then
-        nodiscard = true
-      elseif tag == "internal" then
-        internal = true
-      elseif tag == "see" then
-        for target in rest:gmatch("[^,]+") do
-          see[#see + 1] = vim.trim(target)
-        end
-      elseif tag == "overload" then
-        overload[#overload + 1] = parse_overload(rest)
-      elseif tag == "todo" then
-        todo[#todo + 1] = rest
-      elseif tag == "bug" then
-        bug[#bug + 1] = rest
-      elseif tag == "test" then
-        test[#test + 1] = rest
-      elseif tag == "since" then
-        since = rest
-      elseif tag == "example" then
-        example = rest ~= "" and rest or nil
+      -- Dispatch through a table keyed by tag name rather than fourteen
+      -- `elseif`s. The names are the ones `core/tags.lua` catalogues, and
+      -- `TESTS/tags_spec.lua` asserts the two agree in both directions:
+      -- a catalogued tag with no handler is a promise the parser does not
+      -- keep, and a handler for an uncatalogued tag is a feature no reader
+      -- can discover. Behaviour is unchanged, which the byte-identical map
+      -- of this repository is the evidence for.
+      local handler = HANDLERS[tag]
+      if handler then
+        handler(rest)
       end
     elseif in_example then
       local line = strip_comment(raw)

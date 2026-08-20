@@ -8706,6 +8706,19 @@ function M.render(ir, findings, opts)
     -- `documentation.core` must not name `documentation.core.lang.*`, and
     -- this module is under that prefix.
     glossaries = require("documentation.core.lang_registry").glossaries(),
+    -- The annotation catalogue, for the same reason and on the same terms as
+    -- `glossaries` above: tool data, identical in every checkout, so it rides
+    -- on the page rather than inflating a byte-deterministic artifact that is
+    -- supposed to describe the repository.
+    --
+    -- Carried before either consumer exists, deliberately and visibly: the
+    -- lookup layer's third kind (`ReferenceTab.md`) and the annotation
+    -- adoption panel (`IDEAS_IMPLEMENTATION_PLAN.md` §2.1) both need exactly
+    -- this table, and shipping it once here is what makes each of them the
+    -- quick win their own estimate claims. A payload key with no reader is a
+    -- cost of a few hundred bytes; two panels each inlining their own copy is
+    -- the duplication this repository argues against everywhere else.
+    tags = require("documentation.core.tags").TAGS,
     -- The keyword table `core/markers.lua` matched with, so the Notes tab
     -- renders sections in the same order and with the same names the
     -- scanner used. Passed rather than repeated in JavaScript: a second

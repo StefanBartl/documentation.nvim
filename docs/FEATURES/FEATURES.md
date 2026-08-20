@@ -2978,3 +2978,56 @@ now; what was missing was a named surface to diff, which is this.
 - **Tests:** `TESTS/api_surface_spec.lua` — including that a tool name known
   to one validator list and not the other is caught, verified by removing it
   from one and watching the spec go red
+
+## The `TAGS` catalogue — one table, three consumers (2026-08-20)
+
+`ReferenceTab.md` named this refactor as the precondition for its tag panel;
+`IDEAS_IMPLEMENTATION_PLAN.md` §2.1 independently gated the
+annotation-adoption panel — the highest-value panel idea in that backlog — on
+the same one; and the lookup layer's third kind wants it too. Three documents,
+three estimates, one table. Building it once is cheaper than any of the three
+assumed in isolation.
+
+`core/tags.lua` catalogues every tag this pipeline actually reads: name,
+origin, whether it repeats, where it is written, one sentence of our own
+prose, and a verified anchor. **Recognised, not merely valid** — LuaCATS has
+more tags than this, and a catalogue listing tags the map ignores would
+document a promise the parser does not keep.
+
+**`origin` is what decides the link.** Ten of these are LuaCATS and belong to
+lua-language-server; the rest — `@internal` as this plugin reads it, `@todo`,
+`@bug`, `@test`, `@since`, `@example` — are this project's own conventions,
+and sending a reader to luals.github.io for one would be a link that loads,
+looks authoritative and does not contain the answer. Same rule the stdlib
+glossary already applies to `vim.*`.
+
+**The anchors were read out of the published page, not guessed.**
+`https://luals.github.io/wiki/annotations/` was fetched and its twenty-five
+real `id="…"` attributes extracted; every LuaCATS entry uses one of them.
+That is the `dead-readme-link` lesson applied before shipping instead of
+after.
+
+**The parser keeps its parsing.** `functions.lua`'s fourteen-branch
+`if/elseif` became a table of closures — the handlers need that block's own
+accumulators, and moving them into data would have traded one coupling for a
+worse one. What the two halves share is the *name list*, and the spec asserts
+they agree in both directions: a catalogued tag with no handler is a promise
+nobody keeps, a handler for an uncatalogued tag is a feature nobody can find.
+Both directions were verified by breaking them.
+
+**The refactor is behaviour-preserving, and that was measured rather than
+asserted.** Regenerating this repository's map and diffing it leaf by leaf
+against the committed one: every difference is a line number inside
+`functions.lua` itself, shifted by the length of the inserted table — except
+one, and it is the point. `parse_doc_block`'s own cyclomatic complexity went
+**25 → 12**. Nothing else in 1.8 MB of artifact moved.
+
+The catalogue rides on the page as `IR.tags`, on the same terms as
+`glossaries` and `marker_kinds`: tool data, identical in every checkout, kept
+out of the byte-deterministic artifact. `payload_contract_spec.lua` caught the
+new key immediately and required it to be declared — which is exactly what
+that allowlist is for.
+
+- **Modules:** `core/tags.lua`, `core/functions.lua` (`HANDLERS`),
+  `core/render/html.lua` (payload)
+- **Tests:** `TESTS/tags_spec.lua`
