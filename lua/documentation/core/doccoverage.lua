@@ -172,7 +172,27 @@ end
 ---backend claimed the file. A namespace has none and contributes nothing,
 ---which is correct rather than convenient: it holds no functions to count.
 ---@param ir Documentation.IR
----@return { language: string, documented: integer, total: integer }[] # Largest first, ties by name, so the order is deterministic across runs.
+---**Two counts, because the bar is not the same in every language.** Eight
+---of the twenty-three backends declare `param_docs = false`, so a function
+---there is documented once it has a summary; the other fifteen also require
+---every parameter. Reporting one percentage per language would put two
+---different measures in one column and invite a comparison that means
+---nothing.
+---
+---So each row carries both:
+---
+--- * `summarised` — has a non-empty summary. **Comparable across all
+---   twenty-three**, because every language has the concept.
+--- * `documented` — passes that language's own full bar, parameters
+---   included where the language has them. Comparable across the fifteen
+---   that judge parameters, and equal to `summarised` for the eight that do
+---   not.
+---
+---`judges_params` says which of the two the row is, so a caller can render
+---the difference rather than hiding it. Keeping them separate costs a field
+---and answers both questions honestly; collapsing them would answer neither.
+---@param ir Documentation.IR
+---@return { language: string, documented: integer, summarised: integer, total: integer, judges_params: boolean }[] # Largest first, ties by name, so the order is deterministic across runs.
 function M.by_language(ir)
   local acc = {}
   for _, id in ipairs(ir.order) do
@@ -183,10 +203,19 @@ function M.by_language(ir)
         if not fn.internal then
           local slot = acc[lang]
           if not slot then
-            slot = { language = lang, documented = 0, total = 0 }
+            slot = {
+              language = lang,
+              documented = 0,
+              summarised = 0,
+              total = 0,
+              judges_params = M.language_documents_params(lang),
+            }
             acc[lang] = slot
           end
           slot.total = slot.total + 1
+          if (fn.summary or "") ~= "" then
+            slot.summarised = slot.summarised + 1
+          end
           if M.is_documented(fn, lang) then
             slot.documented = slot.documented + 1
           end

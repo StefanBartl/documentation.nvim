@@ -217,14 +217,33 @@ function M.run(opts, argv)
     local per = doccoverage.by_language(ir)
     if #per > 1 then
       for _, row in ipairs(per) do
-        io.stdout:write(
-          ("  %-6s %d/%d (%.0f%%)\n"):format(
-            row.language,
-            row.documented,
-            row.total,
-            100 * row.documented / row.total
+        -- **Two numbers, because the bar is not the same in every language.**
+        -- `summarised` is comparable across all of them; the full count is
+        -- comparable only across the ones with a per-parameter convention,
+        -- and is identical to the first for the ones without. Printing a
+        -- single figure per language would put two different measures in one
+        -- column and invite a comparison that means nothing.
+        if row.judges_params then
+          io.stdout:write(
+            ("  %-8s %d/%d summarised (%.0f%%), %d fully documented (%.0f%%)\n"):format(
+              row.language,
+              row.summarised,
+              row.total,
+              100 * row.summarised / row.total,
+              row.documented,
+              100 * row.documented / row.total
+            )
           )
-        )
+        else
+          io.stdout:write(
+            ("  %-8s %d/%d summarised (%.0f%%) — no per-parameter convention\n"):format(
+              row.language,
+              row.summarised,
+              row.total,
+              100 * row.summarised / row.total
+            )
+          )
+        end
       end
     end
   end
