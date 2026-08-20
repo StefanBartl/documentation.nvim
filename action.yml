@@ -1,0 +1,141 @@
+# A GitHub Action for the `--check` gate (docs/ROADMAP/IDEAS/IDEAS.md §6.2).
+#
+# `docs/REUSE.md` documents the "copy two files and edit five lines" path,
+# which is the right answer for a repository that wants its own layer rules
+# or extra checks. This is the version that requires copying nothing:
+#
+#     - uses: StefanBartl/documentation.nvim@main
+#       with:
+#         source: lua/myplugin
+#
+# **Composite, not Docker, and it installs Neovim rather than downloading the
+# standalone binary.** That is the one design decision here and it is forced
+# by what `--check` means: it regenerates the map in memory and compares it
+# byte for byte against what is committed. The committed map was written by
+# the adopter's own `:DocMap` inside Neovim. The parser-less standalone build
+# produces a *different* map — a complete module tree with no function-level
+# data — so a check running it would report every repository stale, forever.
+# This repository's own CI says the same thing about its `standalone` job:
+# full byte-parity against a Neovim run stays a local gate.
+#
+# A Docker action would pin a Neovim version this repository does not control
+# and cost a pull on every run; a composite one reuses whatever the adopter's
+# runner already caches.
+
+name: "documentation.nvim map check"
+description: >-
+  Verify that a repository's committed module map still matches its code.
+  Runs documentation.nvim's own `--check` gate: regenerates the map in
+  memory and compares it byte for byte against what is committed.
+author: "Stefan Bartl"
+
+branding:
+  icon: "map"
+  color: "green"
+
+inputs:
+  source:
+    description: >-
+      Directory to scan, relative to the repository root (`opts.source`).
+      Several are comma-separated, for a tree with `lua/` beside `src/`.
+      Omit it and the language backends detect it, which is right far more
+      often than it looks.
+    required: false
+  title:
+    description: "Display name for the root node (`opts.title`). Defaults to the repository directory name."
+    required: false
+  out-dir:
+    description: "Where the artifacts live, relative to the root (`opts.out_dir`). Default `docs/map`."
+    required: false
+  repo-url:
+    description: >-
+      Base URL for source links (`opts.repo_url`). It ends up inside the
+      committed artifact, so leaving it unset here while the local run sets
+      it is a guaranteed stale check — that is the one input worth passing
+      even though it looks cosmetic.
+    required: false
+  branch:
+    description: "Branch used in source links (`opts.branch`). Default `main`. Same staleness caveat as `repo-url`."
+    required: false
+  check:
+    description: >-
+      Verify without writing (`--check`). The default, and the only mode
+      that makes sense in CI — an action that rewrote the repository it is
+      checking would produce diffs nobody asked for.
+    required: false
+    default: "true"
+  lenient:
+    description: >-
+      Fail on staleness only, not on error-severity drift findings
+      (`--lenient`). Useful while adopting the checks on an existing tree.
+    required: false
+    default: "false"
+  sarif:
+    description: >-
+      Also write the findings as SARIF to this path, for
+      `github/codeql-action/upload-sarif`. Empty means no SARIF file.
+    required: false
+  neovim-version:
+    description: >-
+      Which Neovim to run. `stable` by default rather than `nightly`: this
+      check compares bytes, and a moving target on the runner is a red build
+      nobody caused.
+    required: false
+    default: "stable"
+  ref:
+    description: >-
+      Which documentation.nvim to run. Defaults to the ref this action was
+      resolved from, so `@v1` runs v1's engine — **a generated map is a
+      snapshot of the engine that wrote it**, so the engine that checks it
+      has to be the engine that would write it.
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    # `path:` under the runner temp dir, not inside the workspace: a checkout
+    # into `$GITHUB_WORKSPACE` would put two extra repositories inside the
+    # tree being scanned, and the walk would map them.
+    - name: Check out documentation.nvim
+      uses: actions/checkout@v4
+      with:
+        repository: StefanBartl/documentation.nvim
+        ref: ${{ inputs.ref || github.action_ref || 'main' }}
+        path: ${{ runner.temp }}/docmap-engine/documentation.nvim
+
+    - name: Check out lib.nvim
+      uses: actions/checkout@v4
+      with:
+        repository: StefanBartl/lib.nvim
+        path: ${{ runner.temp }}/docmap-engine/lib.nvim
+
+    - name: Install Neovim
+      uses: rhysd/action-setup-vim@v1
+      with:
+        neovim: true
+        version: ${{ inputs.neovim-version }}
+
+    - name: Check the map
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        DOCMAP_ACTION_ROOT: ${{ github.workspace }}
+        DOCMAP_ACTION_PLUGIN: ${{ runner.temp }}/docmap-engine/documentation.nvim
+        DOCMAP_ACTION_LIB: ${{ runner.temp }}/docmap-engine/lib.nvim
+        DOCMAP_ACTION_SOURCE: ${{ inputs.source }}
+        DOCMAP_ACTION_TITLE: ${{ inputs.title }}
+        DOCMAP_ACTION_OUT_DIR: ${{ inputs['out-dir'] }}
+        DOCMAP_ACTION_REPO_URL: ${{ inputs['repo-url'] }}
+        DOCMAP_ACTION_BRANCH: ${{ inputs.branch }}
+      run: |
+        set -euo pipefail
+        engine="${{ runner.temp }}/docmap-engine/documentation.nvim"
+
+        # Built as an array so an empty input contributes nothing, rather
+        # than an empty string that `cli.run` would see as an unknown flag.
+        args=()
+        [ "${{ inputs.check }}" = "true" ] && args+=("--check")
+        [ "${{ inputs.lenient }}" = "true" ] && args+=("--lenient")
+        [ -n "${{ inputs.sarif }}" ] && args+=("--sarif=${{ inputs.sarif }}")
+
+        nvim --headless -l "$engine/scripts/action_run.lua" "${args[@]+"${args[@]}"}"

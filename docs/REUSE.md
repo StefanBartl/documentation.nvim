@@ -158,6 +158,49 @@ adopting this should cost your plugin one copied file, not a new dependency.
 
 ### 3. CI
 
+**The short way: a GitHub Action, and nothing to copy.**
+
+```yaml
+map:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - uses: StefanBartl/documentation.nvim@main
+      with:
+        source: lua/myplugin
+        repo-url: https://github.com/me/my-plugin
+```
+
+That is the whole job. The action checks out the engine and `lib.nvim` into
+the runner's temp directory — never into your workspace, where the walk would
+map them — installs Neovim, and runs the same `--check` gate.
+
+**Pass `repo-url` (and `branch`, if it is not `main`) even though they look
+cosmetic.** They end up *inside* the committed artifact, so a local run that
+sets them and a CI run that does not compare two different files, and the
+check fails on a difference nobody made.
+
+**It installs Neovim rather than downloading the standalone binary**, and
+that is the one design decision in it. `--check` compares byte for byte
+against a map your own `:DocMap` wrote inside Neovim; the parser-less
+standalone build produces a different one — a complete module tree with no
+function-level data — so a check running it would call every repository
+stale, forever.
+
+**Where the action stops.** It has no `layers` and no `extra_checks` inputs,
+because both are repository-specific policy — a layer rule is a claim about
+one tree's own architecture, and an extra check is code. A repository that
+wants either has outgrown three lines and should copy `scripts/gen_map.lua`
+as described above. This repository is its own example: its map is generated
+with three layer rules, so its CI runs `gen_map.lua` and not the action.
+
+Pin `@v1` rather than `@main` once you care about reproducibility. The action
+runs whichever engine ref it was resolved from, deliberately: **a generated
+map is a snapshot of the engine that wrote it**, so the engine that checks it
+has to be the engine that would write it.
+
+### The long way, by hand
+
 `--check` *is* the whole check:
 
 ```yaml

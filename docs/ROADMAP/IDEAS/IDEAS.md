@@ -380,12 +380,36 @@ is structure, and it is invisible to every panel today. Same gate as §5.3.
 
 ---
 
-### 6.2 A GitHub Action
+### 6.2 ~~A GitHub Action~~ — built 2026-08-20
 
-Package the existing `--check` gate so another repository can adopt it in
-three lines. [`REUSE.md`](../../REUSE.md) already documents the "copy two files
-and edit five lines" path; an action is the version that does not require
-copying anything.
+> **Shipped**: `action.yml` at the repository root, plus
+> `scripts/action_run.lua` — `gen_map.lua` with the options table replaced by
+> inputs, which is exactly the difference between "copy two files" and
+> "copy nothing".
+>
+> **Two things it could not be, and the reasons are worth keeping.**
+>
+> It cannot run `standalone/docmap.lua`, which already takes a root and the
+> right flags — measured, not assumed: that file requires
+> `standalone/vim_shim.lua` unconditionally, which requires `lfs`, so it does
+> not run under `nvim --headless -l` at all.
+>
+> And it must not download the released standalone binary, which would have
+> been the fastest version. `--check` compares byte for byte against a map
+> written by the adopter's own Neovim; the parser-less build produces a
+> different one, so that action would report every repository stale forever.
+> This repository's own CI already says the same about its `standalone` job.
+>
+> **What it deliberately does not expose:** `layers` and `extra_checks`.
+> Both are repository-specific policy — one is a claim about a tree's own
+> architecture, the other is code — and neither fits an input without
+> inventing a configuration language. A repository that wants them copies
+> `gen_map.lua`, which is what `REUSE.md` already describes. This repository
+> is its own example: three layer rules, so its CI keeps `gen_map.lua`.
+>
+> Verified by round trip against a throwaway repository — generate, check
+> (exit 0, "up to date"), change a source file, check again (exit 1,
+> "stale") — rather than by reading the YAML.
 
 ---
 
