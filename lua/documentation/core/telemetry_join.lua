@@ -243,6 +243,108 @@ function M.by_key(ir, data)
   return out
 end
 
+---Per-module call totals, for a ranking that already has its own rows.
+---
+---**The third axis `churn.lua` says it is missing.** That module ranks by
+---change frequency x complexity and its own header calls the product a
+---scalarization; what neither factor can say is whether anyone runs the
+---module. Complex, churning and hot is a *refactoring* candidate; complex,
+---churning and cold is a *deletion* candidate, and today they render
+---identically while calling for opposite actions.
+---
+---Summed over the module's matched functions only. A module whose functions
+---were never wrapped contributes no entry at all rather than a zero: "no
+---telemetry for this" and "telemetry watched it and saw nothing" are the two
+---answers this join keeps apart everywhere else, and the second is the only
+---one worth acting on.
+---@param ir Documentation.IR
+---@param data RA.Telemetry.Data
+---@return table<string, { calls: integer, calls_recent: integer, functions: integer }> by IR node id
+function M.by_node(ir, data)
+  local out = {}
+  for _, row in ipairs(M.rows(ir, data)) do
+    local acc = out[row.id]
+    if not acc then
+      acc = { calls = 0, calls_recent = 0, functions = 0 }
+      out[row.id] = acc
+    end
+    acc.calls = acc.calls + row.calls
+    acc.calls_recent = acc.calls_recent + row.calls_recent
+    acc.functions = acc.functions + 1
+  end
+  return out
+end
+
+---@class Documentation.TelemetryJoin.Untested
+---@field id string IR node id
+---@field module string? The node's dotted `@module` name, when it has one
+---@field source string? Repo-relative path of the file it lives in
+---@field fn string Function name
+---@field calls integer Every call ever recorded
+---@field calls_recent integer Calls in the last `M.RECENT_DAYS` days
+---@field internal boolean Whether the function is `@internal` — kept rather than filtered, because a hot internal is a real answer to a different question
+
+---Functions telemetry saw running that no spec names — the bottom-left cell.
+---
+---`coverage.lua` derives `tested` by counting bare-name mentions in the test
+---tree and documents its blind spot: a function exercised only *indirectly*
+---never lights up. Crossing that with call counts gives four cells, and this
+---returns the one worth a list: **ran, and no spec mentions it**. A test
+---backlog sorted by evidence rather than alphabetically.
+---
+---The other three cells are deliberately not returned. "Tested and called"
+---is fine, "tested and never called" is a question about the test rather
+---than the code, and "untested and never called" is `dead-function`'s
+---territory and has its own suppression rules — producing it here would put
+---a second, weaker verdict beside an existing one.
+---
+---**`calls > 0`, not `calls_recent > 0`.** Recency answers "is this alive";
+---this answers "did this ever run without a test watching", and a function
+---that ran ten thousand times last month and is quiet this week is exactly
+---as untested as it was.
+---
+---Sorted by total calls, descending, then by key, so two runs over one data
+---set produce one order.
+---@param ir Documentation.IR
+---@param data RA.Telemetry.Data
+---@return Documentation.TelemetryJoin.Untested[]
+function M.untested_hot(ir, data)
+  local by_key = M.by_key(ir, data)
+  local out = {}
+  for _, id in ipairs(ir.order or {}) do
+    local node = ir.nodes[id]
+    for _, fn in ipairs((node and node.functions) or {}) do
+      local row = by_key[id .. "#" .. fn.name]
+      -- `fn.tested` is false both for "no spec names it" and for "coverage
+      -- never ran". The second is not distinguishable here and does not need
+      -- to be: with no coverage data every function is untested and the list
+      -- becomes "everything telemetry saw", which is a true statement about
+      -- a tree nobody measured.
+      if row and row.calls > 0 and not fn.tested then
+        out[#out + 1] = {
+          id = id,
+          module = node.module,
+          source = node.source,
+          fn = fn.name,
+          calls = row.calls,
+          calls_recent = row.calls_recent,
+          internal = fn.internal == true,
+        }
+      end
+    end
+  end
+  table.sort(out, function(a, b)
+    if a.calls ~= b.calls then
+      return a.calls > b.calls
+    end
+    if a.id ~= b.id then
+      return a.id < b.id
+    end
+    return a.fn < b.fn
+  end)
+  return out
+end
+
 ---Two aggregate numbers crossing "documented" (`doccoverage.is_documented`)
 ---against "actually called" (this join) — the two lines `docs/ROADMAP/
 ---telemetry-documentation-bridge.md` (lib.nvim) names as the most

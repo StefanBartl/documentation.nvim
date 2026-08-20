@@ -1,6 +1,13 @@
 ---@module 'documentation.bindings.usrcmds.churn'
 --- `:DocMap churn [<rev-range>]` — churn × complexity, hottest first.
 ---
+--- **Two things here cannot enter the artifact, for the same reason.** Git
+--- history invalidates a committed map on the commit that embeds it; runtime
+--- counts are personal, high-churn data that would do the same and mean
+--- something different on every machine. A live command is where both belong,
+--- which is why the runtime column costs nothing structurally: it is read at
+--- the moment the list is built and written nowhere.
+---
 --- Not an Analysis panel, and it cannot become one: git data would make the
 --- committed artifact invalidate itself on the very commit that embedded it,
 --- since `--check` byte-compares. Same wall the History tab hit. So it lives
@@ -97,7 +104,24 @@ function M.run(ctx, arg)
   end
 
   local churn = require("documentation.core.churn")
-  local result = churn.rank(counts, ctx.handle.ir(), seen_commits)
+  local ir = ctx.handle.ir()
+
+  -- The third axis, when this machine has one. Read here rather than inside
+  -- `churn.rank`, which is pure and headless-testable and stays that way:
+  -- it takes a plain `id -> counts` table and never learns that
+  -- `runtime-analysis.nvim` exists.
+  --
+  -- Every step is allowed to fail into "no data": the plugin may not be
+  -- installed, telemetry may never have been enabled for this namespace, or
+  -- the tree may have no `opts.title` to derive a namespace from. None of
+  -- those is an error and none of them changes the ranking -- they change
+  -- whether a column is there.
+  local join = require("documentation.core.telemetry_join")
+  local namespace = join.namespace(ctx.cfg)
+  local data = namespace and join.load(namespace)
+  local calls = data and join.by_node(ir, data) or nil
+
+  local result = churn.rank(counts, ir, seen_commits, calls)
 
   if #result.entries == 0 then
     ctx.notify.info(

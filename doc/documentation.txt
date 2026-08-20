@@ -471,6 +471,37 @@ key and then regretted.
                         wall the History tab hit. Live-computed here instead,
                         like `:DocMap impact`.
 
+                        When |runtime-analysis.nvim| has recorded anything for
+                        this tree, each row also carries what actually ran:
+                        complex + churning + hot is a refactoring candidate,
+                        complex + churning + cold is a deletion candidate, and
+                        without that number the two render identically while
+                        calling for opposite actions. It does NOT change the
+                        order -- telemetry is this machine's usage, and a
+                        shared ranking must not depend on whose machine
+                        produced it. It never says "unused" either: the
+                        wording is "not called in your sessions", because a
+                        module cold here may be the hot path for every other
+                        user. No telemetry means no column, not a zero.
+
+:DocMap untested        Functions this machine actually ran that no spec
+                        names, into the |quickfix| list, most-run first. The
+                        useful cell of coverage x telemetry: "this ran four
+                        thousand times and no spec mentions it" is a test
+                        backlog sorted by evidence.
+
+                        Repairs `core/coverage.lua`'s stated blind spot in
+                        one direction -- a function exercised only indirectly
+                        still does not light up as tested, but telemetry saw
+                        it run, so it is no longer invisible. Read the rows
+                        as "no spec names it" rather than "untested": a name
+                        in a spec is what makes a failure localise.
+
+                        A report, never a gate. A check built on runtime data
+                        would fail on one developer's machine and pass on
+                        another's. Needs |runtime-analysis.nvim| collecting;
+                        without it the command says so and does nothing.
+
 :DocMap plugins         Every recognized lazy.nvim spec in the tree, into the
                         |quickfix| list, sorted by repo. Instant -- the specs
                         already sit on the live handle's IR, extracted during
