@@ -93,6 +93,15 @@ down in its own tests.
 - **Artifact:** `Documentation.Node.markers`, schema 4
 - **Tests:** `TESTS/markers_spec.lua`
 
+**Where they are counted, and where they are not.** The `FIX` family
+(`FIX`/`FIXME`/`BUG`/`FIXIT`/`ISSUE`) also produces the `recorded-defects`
+Quicks verdict, because that group says a line is wrong *now* rather than
+that work is scheduled. It is a count and never a gate: a marker is the
+author's claim about their own code, not something this tool measured, and
+`:DocMap check` fails on nothing here. The other keywords are listed in the
+Notes tab and nowhere else. See `docs/FEATURES/FEATURES.md` — *Recorded
+defects*.
+
 ## The page takes its theme from `?theme=`
 
 `index.html?theme=dark` renders dark, `?theme=light` light, anything else

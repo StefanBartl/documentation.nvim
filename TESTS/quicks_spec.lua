@@ -238,6 +238,70 @@ return function(H)
     "quicks: zero duplicate groups is a positive verdict"
   )
 
+  -- ---------------------------------------------------------------------
+  -- Recorded defects: the author's claim, counted and never gated
+  -- ---------------------------------------------------------------------
+
+  ---An IR whose one module carries the given marker comments.
+  ---@param markers table[]
+  local function ir_with_markers(markers)
+    local ir = ir_with({ fn("M.f") })
+    ir.nodes["n/mod"].markers = markers
+    return ir
+  end
+
+  local function marker(kind, word, line)
+    return { kind = kind, word = word, text = "something", line = line }
+  end
+
+  -- Only the `FIX` family. `TODO`, `HACK` and `PERF` are work the author
+  -- scheduled; this verdict is about what the author says is wrong *now*.
+  local mixed = quicks.compute(
+    ir_with_markers({
+      marker("TODO", "TODO", 3),
+      marker("HACK", "HACK", 9),
+      marker("PERF", "PERF", 11),
+      marker("FIX", "BUG", 20),
+      marker("FIX", "FIXME", 24),
+    }),
+    {}
+  )
+  local rec = find(mixed, "recorded-defects")
+  ok(rec ~= nil, "quicks: FIX-family markers produce a verdict")
+  eq(rec.value, 2, "quicks: only FIX-family markers are counted")
+  eq(rec.polarity, "bad", "quicks: a marked defect is a negative verdict")
+
+  -- The whole point of the decision: it says so, and it fails nothing.
+  ok(
+    rec.basis:find("author's own claim", 1, true) ~= nil,
+    "quicks: the basis says whose claim the number is"
+  )
+  ok(rec.basis:find("DocMap check", 1, true) ~= nil, "quicks: the basis says it fails no gate")
+
+  -- Three markers in one file are three defects and one thing to open.
+  local repeated = quicks.compute(
+    ir_with_markers({
+      marker("FIX", "BUG", 2),
+      marker("FIX", "BUG", 4),
+      marker("FIX", "ISSUE", 6),
+    }),
+    {}
+  )
+  local rep = find(repeated, "recorded-defects")
+  eq(rep.value, 3, "quicks: every FIX marker counts, including repeats in one file")
+  eq(#rep.evidence, 1, "quicks: evidence names the file once, not once per marker")
+  eq(rep.evidence[1], "n/mod", "quicks: evidence is a node id the page can mark")
+
+  -- A map written before schema 4 has no `markers` at all. That is not the
+  -- same fact as a tree with none, and a confident "no defects here" over an
+  -- older artifact would be the silent-degradation failure this ecosystem
+  -- treats as the expensive one.
+  eq(
+    find(quicks.compute(ir_with({ fn("M.f") }), {}), "recorded-defects"),
+    nil,
+    "quicks: an artifact without markers yields no verdict, not a zero"
+  )
+
   -- `findings` is optional at the boundary; nil must behave as "none", not
   -- crash — `install()`'s rescan path can reach here before a check has run.
   local no_findings = quicks.compute(ir_with(none_tested), nil)

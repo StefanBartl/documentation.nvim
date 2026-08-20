@@ -2836,3 +2836,46 @@ directions, with an allowlist that has to argue for itself. It builds a
 fixture with a module *and* a leaf, because `walk_dir` builds those at two
 sites with different field sets. Verified to fail rather than assumed to
 work.
+
+## Recorded defects — a Quicks verdict, and no gate (2026-08-20)
+
+`core/markers.lua` has read `-- FIXME:` and `// BUG:` out of source text
+since 2026-08-19, and the Notes tab has listed them. Nothing else saw them:
+`check.lua` never looked, and the Quicks line called `todos` counts
+`@todo`/`@bug` **annotations on functions**, so a tree with two hundred
+`BUG:` comments and no annotations got no verdict at all.
+
+The open question was where the rest of them belonged, and it stayed open
+deliberately — the entry in `WORKPLAN.md` said a verdict that counts to-dos
+as defects needs its own argument first. The argument, once written down,
+answers it:
+
+**Every other finding this tool produces is a measurement. A `FIX` marker is
+a claim.** `check.lua` compares documentation against reality and reports the
+divergence; a `BUG:` comment contradicts nothing — it is the author stating a
+fact about their own code, and it is almost certainly true. Putting it in the
+findings list would render a claim and a measurement alike, which is the one
+distinction this plugin refuses to blur. Failing `:DocMap check` on it would
+do something worse: **fail the repository that wrote the defect down, and
+pass the one that kept quiet.**
+
+So it is counted and never gated. `recorded-defects`, weight 55, `tab:
+notes`, and its `basis` says whose sentence it is — *"the author's own claim
+about their code, not a finding of this tool's"*. Two decisions inside it:
+
+* **Only the `FIX` family** (`FIX`/`FIXME`/`BUG`/`FIXIT`/`ISSUE`), the one
+  keyword group whose meaning is "wrong now". `TODO`, `HACK` and `PERF` are
+  scheduled work and stay where they are.
+* **Threshold `bad = 1`**, like `deprecated` and `duplicates` rather than
+  like `todos` (15). A band that stayed silent up to nineteen would be
+  silent for nearly every repository that has any.
+
+The verdict is emitted only when the count is above zero, for the same reason
+the others are: an artifact written before schema 4 carries no `markers` at
+all, and "no defects here" over an older map would be a confident answer to a
+question that was never asked.
+
+- **Module:** `core/quicks.lua` (`probes`, `DEFAULT_THRESHOLDS.recorded_defects`)
+- **Tests:** `TESTS/quicks_spec.lua` — including that the basis says both
+  halves out loud, and that three markers in one file are three defects and
+  one thing to open.

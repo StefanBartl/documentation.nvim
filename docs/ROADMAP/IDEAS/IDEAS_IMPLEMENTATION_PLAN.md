@@ -27,7 +27,7 @@ even if it looks cheap.
 
 | § | Idea | Effort | Benefit | Quick win? |
 |---|---|---|---|---|
-| ~~1.1~~ | ~~Fenced code blocks checked against the API~~ | — | — | **Built**, as `doc-references-missing` — listed as a candidate because nobody came back to say so, the same way 6.3 was. It fires on real prose: it caught `IDEAS.md`'s own illustrative `documentation.core.scan.something`, which had been a standing warning in every CI run of this repository |
+| ~~1.1~~ | ~~Fenced code blocks checked against the API~~ | — | — | **Built**, as `doc-references-missing` — listed as a candidate because nobody came back to say so, the same way 6.3 was. It fires on real prose: it caught `IDEAS.md`'s own illustrative reference to a `scan` function that does not exist, which had been a standing warning in every CI run of this repository — named here without a code span, because writing it as one is what put the warning back into this file |
 | ~~1.2~~ | ~~`@example` blocks that do not parse~~ | — | — | **Built 2026-08-18.** Cheap as rated; the "High" benefit was not: no tree in this ecosystem uses `@example`, so it has never fired on real code |
 | 1.3 | API-surface breaking-change detection | M | Medium–High | No — "public" is undefined |
 | 1.4 | Tests naming a function that no longer exists | S | Medium | Candidate |
