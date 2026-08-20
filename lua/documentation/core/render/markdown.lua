@@ -19,6 +19,54 @@ local function cell(s)
   return (s:gsub("|", "\\|"):gsub("\n", " "))
 end
 
+---Rewrite a summary's relative markdown links so they still resolve from
+---the artifact directory.
+---
+---**Every relative link in a summary was broken, not some of them.** A
+---module header writes `[DEFAULTS.lua](DEFAULTS.lua)`, which is correct
+---where it was written — beside the file it names. `overview.md` copies
+---that sentence into `docs/map/`, where the same text points at
+---`docs/map/DEFAULTS.lua`, which does not exist. Measured across three
+---repositories before this was written: 4 of 4 such links here, 1 of 1 in
+---runtime-analysis.nvim, 0 of 0 in lib.nvim — a 100% failure rate for the
+---shape, not a stray.
+---
+---**`dead-readme-link` is right not to catch it**, which was worth
+---establishing before touching either. `docs.corpus` excludes `out_dir`
+---explicitly, so the check never reads generated output — and it should
+---not: you fix a generator, you do not lint its output. The defect was
+---found by the standalone gate reading the artifact as a plain file.
+---
+---Absolute URLs and bare anchors are left exactly as written: neither has
+---a directory to be relative to.
+---@param text string
+---@param base_dir string Repo-relative directory of the file the text came from.
+---@param out_dir string
+---@param rel fun(out_dir: string, target: string): string
+---@return string
+local function rebase_links(text, base_dir, out_dir, rel)
+  if not text or text == "" or not base_dir then
+    return text
+  end
+  return (
+    text:gsub("(%]%()([^)]+)(%))", function(open, target, close)
+      if target:match("^%a[%w+.-]*://") or target:sub(1, 1) == "#" then
+        return open .. target .. close
+      end
+      -- Split a trailing anchor off before resolving: `../x.md#section` is a
+      -- path plus a fragment, and the fragment must survive untouched.
+      local path, anchor = target:match("^([^#]*)(#.*)$")
+      path = path or target
+      anchor = anchor or ""
+      if path == "" then
+        return open .. target .. close
+      end
+      local resolved = require("documentation.core.docs").resolve_link(base_dir, path)
+      return open .. rel(out_dir, resolved) .. anchor .. close
+    end)
+  )
+end
+
 ---Path from the artifact back to a repo-relative target.
 ---@param out_dir string
 ---@param target string
@@ -94,11 +142,15 @@ function M.render(ir, findings, opts)
       -- "there's documented API surface" without ~250 rows turning into
       -- thousands once every function's signature is spelled out.
       local fn_count = #(n.functions or {})
+      -- The directory the summary was *written* in: a file's own, or the
+      -- namespace directory itself when there is no file. That is the base
+      -- every relative link in it was written against.
+      local base_dir = (n.source and n.source:match("^(.*)/[^/]+$")) or n.path
       put(
         ("| %s%s | %s | %s | %s |"):format(
           indent,
           name,
-          cell(n.summary),
+          cell(rebase_links(n.summary, base_dir, out_dir, rel)),
           fn_count > 0 and tostring(fn_count) or "",
           table.concat(links, " · ")
         )

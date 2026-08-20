@@ -98,6 +98,37 @@ function M.bare_name(name)
   return (name:gsub("^%u[%w_]*%.", ""))
 end
 
+---Resolve a relative markdown link against the directory of the file that
+---wrote it, returning a repo-relative path.
+---
+---**Two callers, one answer, and the second one is why this moved here.**
+---`check.lua`'s `dead-readme-link` has resolved links this way since it
+---shipped; `render/markdown.lua` needs the identical resolution to *rebase*
+---a link that travels out of its own directory. Two copies of a path walk
+---would be exactly the drift this plugin exists to report.
+---
+---Lives in `docs.lua` rather than staying in `check.lua` because it is
+---knowledge about markdown links, which is what this module already owns
+---(`corpus`, `code_spans`) — not knowledge about checking.
+---@param base_dir string Repo-relative directory of the linking file, no trailing slash.
+---@param target string The link target as written.
+---@return string
+function M.resolve_link(base_dir, target)
+  local joined = base_dir .. "/" .. target
+  local parts, stack = {}, {}
+  for seg in joined:gmatch("[^/]+") do
+    parts[#parts + 1] = seg
+  end
+  for _, seg in ipairs(parts) do
+    if seg == ".." then
+      table.remove(stack)
+    elseif seg ~= "." then
+      stack[#stack + 1] = seg
+    end
+  end
+  return table.concat(stack, "/")
+end
+
 ---Build the name -> entity index this module resolves against.
 ---
 ---One index, three callers' worth of questions: "is this a known name"

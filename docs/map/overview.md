@@ -164,6 +164,7 @@ flowchart LR
   nlua_documentation_core_loaded_diff_lua --> nlua_documentation_core_check_lua
   nlua_documentation_core_loaded_diff_lua --> nlua_documentation_core_soft_require_lua
   nlua_documentation_core_quicks_lua --> nlua_documentation_core_doccoverage_lua
+  nlua_documentation_core_render --> nlua_documentation_core_docs_lua
   nlua_documentation_core_render --> nlua_documentation_core_findings_lua
   nlua_documentation_core_render --> nlua_documentation_core_json_lua
   nlua_documentation_core_render --> nlua_documentation_core_lang_registry_lua
@@ -217,7 +218,7 @@ flowchart LR
 |---|---|---|---|
 | `bindings` |  |  |  |
 | &nbsp;&nbsp;`documentation.bindings.usrcmds` | The user commands: `:DocMap` and `:DocBrowse` — registration, argument dispatch and completion. | 6 | [README](../../lua/documentation/bindings/usrcmds/README.md) · [src](../../lua/documentation/bindings/usrcmds/init.lua) |
-| `documentation.config` | Resolving a full `Documentation.Opts` for a repository: the defaults in [`DEFAULTS.lua`](DEFAULTS.lua), what can be derived from `root`, and the merge rule… | 6 | [README](../../lua/documentation/config/README.md) · [src](../../lua/documentation/config/init.lua) |
+| `documentation.config` | Resolving a full `Documentation.Opts` for a repository: the defaults in [`DEFAULTS.lua`](../../lua/documentation/config/DEFAULTS.lua), what can be derived from `root`, and the merge rule… | 6 | [README](../../lua/documentation/config/README.md) · [src](../../lua/documentation/config/init.lua) |
 | `core` |  |  | [README](../../lua/documentation/core/README.md) |
 | &nbsp;&nbsp;`lang` |  |  |  |
 | &nbsp;&nbsp;&nbsp;&nbsp;`glossary` |  |  |  |
