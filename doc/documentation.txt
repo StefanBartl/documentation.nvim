@@ -81,6 +81,22 @@ filesystem, and the scanner never knows what will be drawn.
     - lua-language-server, optional — only for `:DocMap full`
 
                                                         *documentation-health*
+                                              *documentation-health-languages*
+`:checkhealth documentation` also reports, per language actually present in
+your source roots, whether its treesitter grammar is available -- and names
+`:TSInstall <grammar>` when it is not. Scoped to the languages in the tree,
+never all twenty-three: a list of twenty-two absent grammars for a Lua
+repository is a wall nobody reads.
+
+This is the most likely reason a panel is empty in a non-Lua project. Without
+a grammar you get a complete module tree with no functions in it, which reads
+as a bug rather than as a missing parser.
+
+**The drift checks need none of it.** Every check reads the IR this plugin
+built, so they report in any language with nothing installed. A grammar buys
+function-level data; `lua-language-server` buys `@class`/`@alias` detail in
+Lua. Those are the only two external dependencies, and neither is a linter.
+
 `:checkhealth documentation` verifies all of the above and, more usefully,
 prints the configuration a `:DocMap` issued right now would act on: the
 resolved root, the auto-detected source directory, how many `.lua` files are

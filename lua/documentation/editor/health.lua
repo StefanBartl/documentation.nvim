@@ -81,6 +81,37 @@ local function count_lua(dir)
   return n
 end
 
+---Which language backends claim files under `dir`, by backend name.
+---
+---Asked of the registry per filename rather than by an extension table of
+---its own: `is_source` is the backend's answer to "is this mine", and a
+---second list here would be a second thing to keep in step — which is the
+---drift this plugin exists to find.
+---
+---Bounded the same way `count_lua` is: no scanner, no config, so it still
+---answers when a scan is what is broken.
+---@param dir string
+---@return table<string, boolean>
+local function languages_under(dir)
+  local seen = {}
+  local registry = require("documentation.core.lang_registry")
+  local function walk(d)
+    for name, kind in vim.fs.dir(d) do
+      local p = d .. "/" .. name
+      if kind == "directory" then
+        walk(p)
+      else
+        local backend = registry.for_file(name)
+        if backend then
+          seen[backend.name] = true
+        end
+      end
+    end
+  end
+  pcall(walk, dir)
+  return seen
+end
+
 function M.check()
   -- Environment ------------------------------------------------------------
   h_start("documentation.nvim: environment")
@@ -155,6 +186,14 @@ function M.check()
     h_info("lua-language-server not on PATH", {
       "Only :DocMap full needs it; a plain :DocMap never calls it.",
       "Without it the Types and Inheritance views say so instead of rendering blank.",
+      -- Named here and nowhere else on purpose. `:Mason` is how a Neovim
+      -- user installs a language server, so saying it is genuinely helpful
+      -- — and saying it *only* here matters: the same sentence in a
+      -- committed HTML page or in docmap-desktop would be advice about a
+      -- program the reader may not be running. Pointing at mason is a
+      -- sentence; installing a toolchain on somebody's behalf is a
+      -- different kind of program, and not one this plugin is.
+      "In Neovim: :Mason, then install lua-language-server.",
     })
   end
 
@@ -324,6 +363,84 @@ function M.check()
         h_ok(("%s contains %d .lua file%s"):format(src, n, n == 1 and "" or "s"))
       end
     end
+  end
+
+  -- Language support ------------------------------------------------------
+  --
+  -- **The most likely reason a panel is empty in a non-Lua project, and
+  -- until now the one thing this check said nothing about.** The
+  -- environment section above probes the *Lua* parser, which was the whole
+  -- story when there was one backend. There are twenty-three, and a Go or
+  -- Python tree with no grammar installed produces a complete module tree
+  -- with no functions in it — which reads as a scanner bug rather than as a
+  -- missing grammar.
+  --
+  -- Scoped to the languages this tree actually contains, never all
+  -- twenty-three: a report listing twenty-two absent grammars for a Lua
+  -- repository is a wall nobody reads, and the one line that mattered would
+  -- be in it somewhere.
+  --
+  -- **The correction that belongs beside it**, because the instinct this
+  -- section answers is usually "so I need a linter per language": no. Every
+  -- drift check in `core/check.lua` reads the IR this tool built and works
+  -- in every language with nothing installed. A grammar buys *function-level
+  -- data*; `lua-language-server` buys `@class`/`@alias` detail in Lua. Those
+  -- are the only two external dependencies, and neither is a linter.
+  h_start("documentation.nvim: language support")
+
+  local present = {}
+  for _, src in ipairs(sources) do
+    for name in pairs(languages_under(cfg.root .. "/" .. src)) do
+      present[name] = true
+    end
+  end
+
+  if not next(present) then
+    h_info("no source files found to report language support for")
+  else
+    local registry = require("documentation.core.lang_registry")
+    local report = {}
+    for _, entry in ipairs(registry.report()) do
+      report[entry.name] = entry
+    end
+
+    local names = {}
+    for name in pairs(present) do
+      names[#names + 1] = name
+    end
+    table.sort(names)
+
+    local no_grammar = {}
+    for _, name in ipairs(names) do
+      local entry = report[name]
+      if not entry then
+        -- A backend that claims files but is switched off for this scan
+        -- (`opts.languages`) has no report row. Silence would read as
+        -- "supported"; it is the opposite.
+        h_info(("%s — files present, but this backend is not enabled"):format(name))
+      elseif entry.grammar_loaded == nil then
+        h_ok(("%s — no grammar needed"):format(name))
+      elseif entry.grammar_loaded then
+        h_ok(("%s — grammar %q loaded"):format(name, entry.grammar))
+      else
+        no_grammar[#no_grammar + 1] = entry
+        h_warn(("%s — grammar %q not available"):format(name, entry.grammar), {
+          "The module tree, summaries and require edges still work.",
+          "Functions, symbols and call edges in this language do not.",
+          (":TSInstall %s (nvim-treesitter)"):format(entry.grammar),
+        })
+      end
+    end
+
+    if #no_grammar == 0 then
+      h_ok(("every language in this tree has what it needs (%d)"):format(#names))
+    end
+
+    h_info("the drift checks need none of the above", {
+      "Every check in core/check.lua reads the IR this plugin built, so they",
+      "report in any language with nothing installed. A grammar buys",
+      "function-level data; lua-language-server buys @class/@alias detail.",
+    })
   end
 
   -- The one configuration mistake that produces a *plausible wrong answer*
