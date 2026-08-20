@@ -345,6 +345,407 @@ local function check_orphans(ir, findings)
   end
 end
 
+--- A `@class` or `@alias` that is declared, documented, and pointed at by
+--- nothing. `unreferenced-module` one level down, and structurally the same
+--- check: a name the tree carries but no longer uses.
+---
+--- **Only runs when LuaLS enrichment did.** `node.types_detail` is `nil`
+--- when it did not and `{}` when it ran and found nothing, and that
+--- distinction is the whole reason this can stay silent instead of
+--- reporting every type in the tree as an orphan on a plain `:DocMap`.
+---
+--- **What counts as a reference, and why it is a token match.** Every
+--- `.lua` file the map covers — each node's own source and its `@types`
+--- files — is read once and split into dotted-identifier tokens; a type is
+--- referenced if its full name is one of them. Tokens rather than a
+--- substring search, because the first version of this used
+--- `line:find(name)` and `Lib.Fs.Read` was then "referenced" by every
+--- mention of `Lib.Fs.ReadAsync`. Measured on lib.nvim, that one difference
+--- hid four real orphans.
+---
+--- **The corpus is the mapped tree, and that was measured rather than
+--- assumed.** Two candidates were rejected by counting: adding the test
+--- tree changed the result on neither lib.nvim nor runtime-analysis.nvim
+--- (0 types referenced only from a spec), and no type in lib.nvim was
+--- referenced only from a `.lua` file outside the map — 52 such files,
+--- 0 references.
+---
+--- A type's own declaration line is not a use, but the rest of that line
+--- is: `---@class Child : Parent` is the only place `Parent` may ever be
+--- named, and dropping the whole line would have made every base class an
+--- orphan.
+---
+--- `info`, matching `unreferenced-module` for the same reason: a published
+--- type may legitimately be referenced only by a *consumer* annotating
+--- against this library, which is outside anything this tree can see. Real
+--- on the tree it was measured against — 24 in lib.nvim, one in
+--- runtime-analysis.nvim, all four spot-checked by hand and none a false
+--- positive — but not a failure.
+---@param ir Documentation.IR
+---@param findings Documentation.Finding[]
+---@param opts Documentation.Opts
+local function check_orphaned_types(ir, findings, opts)
+  local root = opts.root:gsub("\\", "/"):gsub("/+$", "")
+
+  ---Every declared type, and the node that owns it.
+  local declared = {} ---@type table<string, { node: string, info: Documentation.TypeInfo }>
+  local ran = false
+  for _, id in ipairs(ir.order) do
+    local detail = ir.nodes[id].types_detail
+    if detail then
+      ran = true
+      for _, t in ipairs(detail) do
+        declared[t.name] = { node = id, info = t }
+      end
+    end
+  end
+  if not ran or not next(declared) then
+    return
+  end
+
+  local files, seen_file = {}, {}
+  local function want(rel)
+    if rel and not seen_file[rel] then
+      seen_file[rel] = true
+      files[#files + 1] = rel
+    end
+  end
+  for _, id in ipairs(ir.order) do
+    local node = ir.nodes[id]
+    want(node.source)
+    for _, t in ipairs(node.types or {}) do
+      want(t)
+    end
+  end
+
+  local referenced = {}
+  for _, rel in ipairs(files) do
+    local fd = io.open(root .. "/" .. rel, "rb")
+    if fd then
+      for line in fd:lines() do
+        local self_decl = line:match("^%s*%-%-%-@class%s+([%w_%.]+)")
+          or line:match("^%s*%-%-%-@alias%s+([%w_%.]+)")
+        for tok in line:gmatch("[%a_][%w_%.]*") do
+          if tok ~= self_decl then
+            referenced[tok] = true
+          end
+        end
+      end
+      fd:close()
+    end
+  end
+
+  local names = {}
+  for name in pairs(declared) do
+    names[#names + 1] = name
+  end
+  table.sort(names)
+
+  for _, name in ipairs(names) do
+    if not referenced[name] then
+      local entry = declared[name]
+      add(
+        findings,
+        "info",
+        "orphaned-class-alias",
+        entry.node,
+        ("%s %s is declared in %s and referenced by nothing in the tree"):format(
+          entry.info.kind,
+          name,
+          entry.info.file
+        )
+      )
+    end
+  end
+end
+
+--- Everything one spec file has to say, in a single pattern set so the tree
+--- is walked once instead of three times. Measured over this repo's 75 spec
+--- files: one walk is ~45ms where three were ~126ms, against ~80ms of
+--- parsing that has to happen either way.
+---
+--- `@bind` is used only to *count*: a name bound twice in one file is one
+--- this check refuses to reason about. That is cheaper and more honest than
+--- a scope model, and it is what answers the shadowing local measured in
+--- runtime-analysis.nvim — a `local config = { host = … }` inside a test
+--- body, in a file that also binds `local config = require(…)`.
+---
+--- **The require pattern is deliberately not anchored on `(chunk …)`.** It
+--- was, and profiling caught what reading could not: the anchored version
+--- matched *once* across all 75 spec files, because a spec in this ecosystem
+--- is `return function(H) … end` and every require sits inside that
+--- function. The check was therefore looking at almost nothing while
+--- appearing to work. Following a binding across scopes is safe here only
+--- because `@bind` counts it first.
+local TEST_QUERY = vim.treesitter.query.parse(
+  "lua",
+  [[
+  (variable_declaration (assignment_statement (variable_list (identifier) @bind)))
+  (parameters (identifier) @bind)
+
+  (variable_declaration
+    (assignment_statement
+      (variable_list (identifier) @alias)
+      (expression_list
+        (function_call
+          name: (identifier) @req (#eq? @req "require")
+          arguments: (arguments (string) @module)))))
+
+  (dot_index_expression table: (identifier) @tbl field: (identifier) @field)
+]]
+)
+
+---First node of a capture, across both `iter_matches` shapes.
+---@param match table
+---@param id integer?
+---@return TSNode?
+local function first(match, id)
+  local v = id and match[id]
+  if not v then
+    return nil
+  end
+  return type(v) == "table" and v[1] or v
+end
+
+---One spec file: resolve its require-bound members against the tree.
+---@param findings Documentation.Finding[]
+---@param root string
+---@param path string Absolute path of the spec file.
+---@param idx Documentation.Docs.Index
+---@param surface_of fun(module: string): { enumerable: boolean, members: table<string, boolean> }
+local function check_one_test_file(findings, root, path, idx, surface_of)
+  local fd = io.open(path, "rb")
+  if not fd then
+    return
+  end
+  local src = fd:read("*a")
+  fd:close()
+
+  local ok_parser, parser = pcall(vim.treesitter.get_string_parser, src, "lua")
+  if not ok_parser then
+    return
+  end
+  local ok_parse, trees = pcall(function()
+    return parser:parse()
+  end)
+  if not ok_parse or not trees or not trees[1] then
+    return
+  end
+  local tree_root = trees[1]:root()
+
+  local cap = {}
+  for id, name in ipairs(TEST_QUERY.captures) do
+    cap[name] = id
+  end
+
+  local bound = {}
+  local module_of = {}
+  local members = {}
+
+  for _, match in TEST_QUERY:iter_matches(tree_root, src) do
+    local bind_node = first(match, cap.bind)
+    if bind_node then
+      local name = vim.treesitter.get_node_text(bind_node, src)
+      bound[name] = (bound[name] or 0) + 1
+    end
+
+    local alias_node = first(match, cap.alias)
+    local module_node = first(match, cap.module)
+    if alias_node and module_node then
+      local alias = vim.treesitter.get_node_text(alias_node, src)
+      local module = vim.treesitter.get_node_text(module_node, src)
+      module_of[alias] = (module:gsub("^['\"]", ""):gsub("['\"]$", ""))
+    end
+
+    local tbl_node = first(match, cap.tbl)
+    local field_node = first(match, cap.field)
+    if tbl_node and field_node then
+      members[#members + 1] = {
+        alias = vim.treesitter.get_node_text(tbl_node, src),
+        field = vim.treesitter.get_node_text(field_node, src),
+        row = select(1, tbl_node:range()),
+      }
+    end
+  end
+
+  if not next(module_of) then
+    return
+  end
+
+  -- An `alias` bound by `local alias = require(…)` is itself a binding, so
+  -- the ordinary case counts one. Anything above that is a name this file
+  -- reuses, and the check says nothing about it.
+  local rel = path:gsub("\\", "/"):gsub("^" .. vim.pesc(root .. "/"), "")
+  local reported = {}
+  for _, m in ipairs(members) do
+    local module = module_of[m.alias]
+    if module and bound[m.alias] == 1 then
+      local surface = surface_of(module)
+      local key = module .. "." .. m.field
+      if surface.enumerable and not surface.members[m.field] and not reported[key] then
+        reported[key] = true
+        add(
+          findings,
+          "warn",
+          "test-references-missing",
+          idx.modules[module],
+          ("%s:%d references '%s.%s', but %s has no '%s'"):format(
+            rel,
+            m.row + 1,
+            m.alias,
+            m.field,
+            module,
+            m.field
+          )
+        )
+      end
+    end
+  end
+end
+
+--- A spec that names a function which no longer exists.
+---
+--- `doc-references-missing` for the test tree — the same drift class from
+--- the other side. `coverage.lua` already maps specs to functions in one
+--- direction (`fn.tested`); this is the reverse, and it is where a rename
+--- rots most quietly, because a spec can keep passing while naming
+--- something gone: `eq(mod.removed, nil)` asserts exactly what a deleted
+--- function returns.
+---
+--- **The coarse technique `coverage.lua` uses would be useless here.** It
+--- counts bare identifiers, which errs toward "tested" — the safe direction
+--- when the answer only adds a badge. Reversed, that same coarseness would
+--- report every local variable in a spec as a missing function. So this
+--- resolves a *qualified* shape instead: a `local mod = require("...")`
+--- binding, and a `mod.field` access through it.
+---
+--- **Three classes of false positive, each found by measuring against a
+--- real repository rather than reasoned about, and each answered here:**
+---
+--- 1. **A module-scope re-export.** `M.safe_sha = require("…").safe_sha` is
+---    a real member, but `symbols.lua` deliberately drops require bindings
+---    (`deps` owns them) and `functions.lua` never saw a declaration. Four
+---    findings in this repo, all wrong. Answered by also reading the
+---    module's own module-scope assignments.
+--- 2. **A surface assembled at runtime.** `lib/init.lua` is literally
+---    `return require(require("lib.config").strategy_module())`, and
+---    `fs/path/object.lua` returns a `class.new("Path")` result whose
+---    `new` no static reader can see. Five findings in lib.nvim, all wrong.
+---    Answered by staying silent on any module that does not end in a bare
+---    `return <ident>` for an `<ident>` bound to a table constructor — if
+---    the surface cannot be enumerated, the check has nothing to say about
+---    it.
+--- 3. **A shadowing local.** `local config = { host = … }` inside a test
+---    body, where the file also has `local config = require(…)` at the top.
+---    One finding in runtime-analysis.nvim, wrong. Answered without a scope
+---    model: a name declared more than once in a file is skipped entirely,
+---    which is the same "fewer findings beat a confident wrong one" trade
+---    `calls_heuristic` and `unreferenced-module` already make.
+---
+--- After all three, the measurement is 0 findings across this repo (694
+--- member accesses), lib.nvim (786) and runtime-analysis.nvim (560) — three
+--- trees with no such drift in them, which is the result a healthy tree
+--- should produce.
+---
+--- `warn`, matching `doc-references-missing`: a spec naming something gone
+--- is a real defect, and usually one the spec's own run would not catch.
+---@param ir Documentation.IR
+---@param findings Documentation.Finding[]
+---@param opts Documentation.Opts
+local function check_test_references(ir, findings, opts)
+  local root = opts.root:gsub("\\", "/"):gsub("/+$", "")
+  local tests_dir = root .. "/" .. (opts.tests_dir or "TESTS")
+
+  local ok_files, files = pcall(function()
+    return require("lib.nvim.fs.collect_recursive").files(tests_dir)
+  end)
+  if not ok_files or not files or #files == 0 then
+    return
+  end
+
+  local idx = docs.build_index(ir)
+
+  ---Module-scope members of `module` that no other stage records, plus
+  ---whether its surface can be enumerated statically at all. One read per
+  ---module, cached, and only for modules a spec actually names.
+  ---@type table<string, { enumerable: boolean, members: table<string, boolean> }>
+  local surface = {}
+  local function surface_of(module)
+    if surface[module] then
+      return surface[module]
+    end
+    local id = idx.modules[module]
+    local node = id and ir.nodes[id]
+    local entry = { enumerable = false, members = {} }
+    surface[module] = entry
+    if not (node and node.source) then
+      return entry
+    end
+
+    local lines = {}
+    local fd = io.open(root .. "/" .. node.source, "r")
+    if not fd then
+      return entry
+    end
+    for line in fd:lines() do
+      lines[#lines + 1] = line
+    end
+    fd:close()
+
+    -- The exported table, and whether it is a plain one. A bare
+    -- `return M` only: `return setmetatable(M, {...})` is how this tree
+    -- adds a lazy `__index`, which is exactly a surface no static reader
+    -- can enumerate, so it belongs with case 2 above rather than beside a
+    -- literal table.
+    local exported
+    for i = #lines, 1, -1 do
+      local name = lines[i]:match("^return%s+([%a_][%w_]*)%s*$")
+      if name then
+        exported = name
+        break
+      end
+      if lines[i]:match("%S") and not lines[i]:match("^%s*%-%-") then
+        break
+      end
+    end
+    if not exported then
+      return entry
+    end
+    local literal = false
+    for _, line in ipairs(lines) do
+      if line:match("^local%s+" .. exported .. "%s*=%s*{%s*}%s*$") then
+        literal = true
+        break
+      end
+    end
+    if not literal then
+      return entry
+    end
+
+    entry.enumerable = true
+    for _, line in ipairs(lines) do
+      local name = line:match("^%s*" .. exported .. "%.([%w_]+)%s*=")
+        or line:match("^%s*function%s+" .. exported .. "[%.:]([%w_]+)%s*%(")
+      if name then
+        entry.members[name] = true
+      end
+    end
+    for _, s in ipairs(node.symbols or {}) do
+      entry.members[docs.bare_name(s.name)] = true
+    end
+    for member in pairs(idx.fns_by_module[module] or {}) do
+      entry.members[member] = true
+    end
+    return entry
+  end
+
+  for _, path in ipairs(files) do
+    if path:sub(-4) == ".lua" then
+      check_one_test_file(findings, root, path, idx, surface_of)
+    end
+  end
+end
+
 --- Strongly connected components of the **load-time** require graph.
 ---
 --- Exported because two callers need exactly this: the drift check below, and
@@ -1483,6 +1884,8 @@ function M.run(ir, opts)
   check_doc_references(ir, findings)
   check_tools_spec(ir, findings)
   check_orphans(ir, findings)
+  check_orphaned_types(ir, findings, opts)
+  check_test_references(ir, findings, opts)
   check_binding_conflicts(ir, findings)
   check_require_cycles(ir, findings)
   check_require_not_declared(ir, findings, opts)

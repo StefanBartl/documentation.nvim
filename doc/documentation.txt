@@ -771,6 +771,22 @@ Generic checks, run against any annotated Lua tree:
                                  into a layer it must not.
     missing-readme        info   Module without a README.
     unreferenced-module   info   Required by no other file in the tree.
+    orphaned-class-alias  info   A @class or @alias declared, documented, and
+                                 named by nothing in the tree --
+                                 unreferenced-module one level down. Only
+                                 runs when LuaLS enrichment did (`opts.luals`
+                                 / :DocMap full); silent otherwise, because
+                                 without it every type would look orphaned.
+    test-references-missing
+                          warn   A spec names mod.member through a
+                                 `local mod = require("...")` binding and the
+                                 module has no such member -- the test tree's
+                                 version of doc-references-missing. Stays
+                                 silent about a module whose surface is built
+                                 at runtime (a lazy __index, or a table that
+                                 is a factory's result), because such a
+                                 surface cannot be enumerated by reading.
+                                 Reads `opts.tests_dir`.
     tools-spec-invalid    warn   This repo's own docs/install.json or
                                  docs/INSTALL.md (lib.nvim.deps) has a
                                  malformed entry — missing bin, empty why, or

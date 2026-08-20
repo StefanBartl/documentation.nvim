@@ -121,6 +121,8 @@ local specs = {
   "docmap_browse_spec.lua",
   "pdf_artifact_spec.lua",
   "check_type_vs_class_spec.lua",
+  "check_test_references_spec.lua",
+  "check_orphaned_types_spec.lua",
   "check_overload_credit_spec.lua",
   "annotate_spec.lua",
   "markers_spec.lua",
