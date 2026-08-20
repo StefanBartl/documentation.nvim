@@ -123,6 +123,7 @@ local specs = {
   "check_overload_credit_spec.lua",
   "annotate_spec.lua",
   "markers_spec.lua",
+  "scan_scope_spec.lua",
   "backend_contract_spec.lua",
   "host_lua_determinism_spec.lua",
   "tools_spec.lua",

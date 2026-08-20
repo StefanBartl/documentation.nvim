@@ -59,10 +59,24 @@ local function write_sarif(path, ir, findings, opts)
   io.stdout:write("wrote " .. path .. "\n")
 end
 
+---Every backend name this build knows, sorted — the "Known:" half of the
+---unknown-language warning. Read off `lang_registry.report()` rather than a
+---list here, so a twenty-fourth backend needs no edit in this file and the
+---sentence cannot go stale.
+---@return string[]
+local function known_language_names()
+  local names = {}
+  for _, entry in ipairs(require("documentation.core.lang_registry").report()) do
+    names[#names + 1] = entry.name
+  end
+  table.sort(names)
+  return names
+end
+
 ---Run the CLI over `opts` with `argv` (`_G.arg`-shaped: `--check`, `--lenient`,
----`--full`). Writes to stdout/stderr as a side effect; returns the process
----exit code rather than calling `os.exit`/`vim.cmd("cq ...")`, so the caller
----decides how to actually exit.
+---`--full`, `--exclude=<path>`, `--languages=<a,b>`). Writes to stdout/stderr
+---as a side effect; returns the process exit code rather than calling
+---`os.exit`/`vim.cmd("cq ...")`, so the caller decides how to actually exit.
 ---@param opts Documentation.Opts
 ---@param argv string[]
 ---@return integer exit_code
@@ -73,6 +87,10 @@ function M.run(opts, argv)
   local check_only, strict = false, true
   ---@type string?
   local sarif_path = nil
+  ---@type string[]
+  local cli_exclude = {}
+  ---@type string[]
+  local cli_languages = {}
   for _, a in ipairs(argv) do
     if a == "--check" then
       check_only = true
@@ -84,7 +102,80 @@ function M.run(opts, argv)
       -- A path rather than stdout: the report already owns stdout, and a CI
       -- step wants a file to hand to `upload-sarif` anyway.
       sarif_path = a:sub(#"--sarif=" + 1)
+    elseif a:match("^%-%-exclude=") then
+      -- **Repeatable rather than comma-separated**, unlike `--languages`
+      -- below, and the asymmetry is the point: a backend name cannot
+      -- contain a comma and a path can. Splitting paths on a delimiter is
+      -- how a directory called `a,b` becomes two directories that do not
+      -- exist.
+      cli_exclude[#cli_exclude + 1] = a:sub(#"--exclude=" + 1)
+    elseif a:match("^%-%-languages=") then
+      for name in a:sub(#"--languages=" + 1):gmatch("[^,]+") do
+        local trimmed = name:match("^%s*(.-)%s*$")
+        if trimmed ~= "" then
+          cli_languages[#cli_languages + 1] = trimmed
+        end
+      end
     end
+  end
+
+  -- **Replaced, not appended**, so parsing the same argv twice is the same
+  -- as parsing it once. `standalone/docmap.lua` deliberately reads both
+  -- flags itself *and* leaves them in `argv` — it has to, because
+  -- `config.build` runs first and source detection needs the answer — and
+  -- appending here would give that host every exclude path twice.
+  if #cli_exclude > 0 then
+    opts.exclude = cli_exclude
+  end
+  if #cli_languages > 0 then
+    opts.languages = cli_languages
+  end
+
+  -- **`--languages` has to reach source detection, which already ran.**
+  -- `config.build` derives `opts.source` before this function is ever
+  -- called, so a caller narrowing to Lua on the command line would still be
+  -- walked from the `src/` a now-disabled JavaScript backend named — and
+  -- find nothing it is allowed to read.
+  --
+  -- Re-derived only when the source can be *shown* to have been detected
+  -- rather than chosen: an explicitly passed `--source=` or `opts.source`
+  -- must win over anything worked out here. Compared against an unfiltered
+  -- detection rather than tracked with a flag, because a flag would have to
+  -- be threaded from `config.build` through every caller to say the same
+  -- thing this comparison measures directly.
+  if opts.languages and #opts.languages > 0 then
+    local config = require("documentation.config")
+    local same = true
+    local detected = config.detect_source(root)
+    local current = type(opts.source) == "table" and opts.source or { opts.source }
+    if #detected ~= #current then
+      same = false
+    else
+      for i = 1, #detected do
+        if detected[i] ~= current[i] then
+          same = false
+          break
+        end
+      end
+    end
+    if same then
+      opts.source = config.detect_source(root, opts.languages)
+    end
+  end
+
+  -- **Said once, before any work**, and only a warning: an unknown language
+  -- name is a typo in somebody's configuration, not a reason to refuse to
+  -- map their repository. Silence would be worse than either — `--languages=golang`
+  -- reads nothing and produces an empty map, and without this line the
+  -- repository takes the blame for the spelling.
+  local unknown = require("documentation.core.lang_registry").unknown(opts.languages)
+  if #unknown > 0 then
+    io.stderr:write(
+      ("Unknown language(s): %s. Known: %s\n"):format(
+        table.concat(unknown, ", "),
+        table.concat(known_language_names(), ", ")
+      )
+    )
   end
 
   if check_only then

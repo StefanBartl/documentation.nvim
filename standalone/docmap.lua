@@ -207,10 +207,33 @@ local argv = {}
 -- One flag rather than one per route because exactly one route ever reads
 -- it at a time; see each route's own doc comment in `core/api.lua` for
 -- which it is.
+--
+-- `--exclude=`/`--languages=` are read here *as well as* in `core/cli.run`,
+-- and the duplication is deliberate. `config.build` below derives
+-- `opts.source` from whichever backends are enabled, and it runs before
+-- `cli.run` ever sees an argument -- so a caller narrowing to one language
+-- would otherwise be walked from a directory a disabled backend named.
+-- They stay in `argv` too: `cli.run` is the one place that parses them for
+-- every host, and reading them twice is idempotent where reading them late
+-- is not.
 local source, repo_url, branch, out_dir, api_route, api_snapshot
+local exclude, languages = {}, {}
 for i = 2, #arg do
   local a = arg[i]
   local src = a:match("^%-%-source=(.+)$")
+  local exc = a:match("^%-%-exclude=(.+)$")
+  local langs = a:match("^%-%-languages=(.+)$")
+  if exc then
+    exclude[#exclude + 1] = exc
+  end
+  if langs then
+    for name in langs:gmatch("[^,]+") do
+      local trimmed = name:match("^%s*(.-)%s*$")
+      if trimmed ~= "" then
+        languages[#languages + 1] = trimmed
+      end
+    end
+  end
   local url = a:match("^%-%-repo%-url=(.+)$")
   local br = a:match("^%-%-branch=(.+)$")
   local out = a:match("^%-%-out%-dir=(.+)$")
@@ -235,6 +258,11 @@ end
 
 local opts = require("documentation.config").build(root, {
   source = source, -- nil: config.build auto-detects, same as scripts/gen_map.lua's callers that omit it
+  -- `nil` rather than an empty table for both: `config.build` merges
+  -- overrides shallowly, and `{}` would be a real value that reads as "the
+  -- caller said something" everywhere downstream. It does not.
+  exclude = #exclude > 0 and exclude or nil,
+  languages = #languages > 0 and languages or nil,
   repo_url = repo_url,
   branch = branch,
   -- `--out-dir` exists for the parity gate in `scripts/ci.lua`: comparing this

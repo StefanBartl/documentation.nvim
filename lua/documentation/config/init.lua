@@ -36,6 +36,8 @@ local KNOWN_OPTS_KEYS = {
   root = true,
   root_markers = true,
   source = true,
+  exclude = true,
+  languages = true,
   lua_root = true,
   title = true,
   types_dir = true,
@@ -158,11 +160,22 @@ end
 ---An honest empty map for a tree this tool cannot read beats an assertion
 ---naming a directory the user never had — and `scan.lua`'s `VENDOR_DIRS`
 ---is what keeps that fallback from walking into `node_modules`.
+---**`languages` is asked here too, not only during the walk.** Detection is
+---the walk's *input*: a backend that is switched off must not get to name
+---the directory the scan starts in, or a project restricted to Lua would
+---still be walked from the `src/` a disabled JavaScript backend pointed at,
+---find nothing it is allowed to read, and report an empty map. Set through
+---the registry's scan-scoped filter and restored afterwards, because
+---`build()` runs before `scan()` and the two must not disagree in between.
 ---@param root string Absolute repository root, forward slashes.
+---@param languages string[]? Backend names to consider; `nil`/`{}` means all.
 ---@return string[] sources Relative to `root`, at least one.
-function M.detect_source(root)
+function M.detect_source(root, languages)
+  local registry = require("documentation.core.lang_registry")
+  local restore = registry.ENABLED
+  registry.set_enabled(languages)
   local found = {}
-  for _, backend in ipairs(require("documentation.core.lang_registry").all()) do
+  for _, backend in ipairs(registry.all()) do
     if backend.detect_source then
       local guess = backend.detect_source(root)
       -- Two backends can name the same directory (`js` and `ts` both live in
@@ -202,6 +215,11 @@ function M.detect_source(root)
     end
   end
 
+  -- Restored rather than cleared: this function is called from `build()`,
+  -- which a caller may well have invoked in the middle of something else,
+  -- and a helper that resets somebody's filter as a side effect is the
+  -- shape of bug that only shows up in the second scan.
+  registry.ENABLED = restore
   return #kept > 0 and kept or { "." }
 end
 
@@ -244,9 +262,13 @@ function M.build(root, overrides, notify)
   ---table, and mutating the shared defaults would leak one caller's options
   ---into every later `build()` in the process.
   ---@type Documentation.Opts
+  -- Read out of `overrides` rather than off the merged table, because the
+  -- merge has not happened yet and detection needs the answer *first* —
+  -- see `M.detect_source`'s own header for why a switched-off backend must
+  -- not get to name the directory the walk starts in.
   local opts = vim.tbl_extend("force", {}, DEFAULTS, {
     root = root,
-    source = M.detect_source(root),
+    source = M.detect_source(root, overrides and overrides.languages),
     title = vim.fn.fnamemodify(root, ":t"),
   })
 

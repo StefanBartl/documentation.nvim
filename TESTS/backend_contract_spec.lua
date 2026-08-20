@@ -17,7 +17,14 @@ return function(H)
 
   -- `M.all` forces every backend in `KNOWN_BACKENDS` to register, which the
   -- registry otherwise defers until first use.
-  local all = registry.all()
+  --
+  -- **`all(true)`, unfiltered.** This spec is about what the *build* can
+  -- read, not about what some scan was configured to read, and
+  -- `lang_registry.ENABLED` legitimately outlives the scan that set it (see
+  -- `scan_scope_spec.lua`). Calling `all()` here made this spec pass or fail
+  -- on which spec ran before it, which is exactly the coupling `M.reset`
+  -- exists to prevent elsewhere.
+  local all = registry.all(true)
   ok(#all >= 4, "expected the registered backends, found " .. #all)
 
   ---Fields without which a backend silently does less than it appears to.
