@@ -82,25 +82,33 @@ jobs:
           neovim: true
           version: stable
       - run: echo "RUNTIME_ANALYSIS_DIR=$(pwd)/.deps/runtime-analysis.nvim" >> "$GITHUB_ENV"
-      # Builds real javascript/typescript/tsx grammars from source into
-      # .deps/ts-parsers, so `TESTS/lang_js_spec.lua` runs its real
-      # assertions here instead of its stated skip path — which, before this
-      # step existed, was all this job ever exercised (see
-      # docs/ROADMAP/MULTILANG.md's Phase 1 checklist). Both grammar repos
-      # ship pre-generated `parser.c`, so only `tree-sitter build` (compile),
-      # never `tree-sitter generate`, is needed. `TESTS/run.lua` reads
-      # `DOCUMENTATION_TS_PARSERS_DIR` and appends it to the rtp itself if
-      # set — this step only has to produce the directory and export the
+      # Builds real javascript/typescript/tsx/go grammars from source into
+      # .deps/ts-parsers, so the specs that need a parser run their real
+      # assertions here instead of their stated skip path — which, before
+      # this step existed, was all this job ever exercised (see
+      # docs/ROADMAP/MULTILANG.md's Phase 1 checklist). All three grammar
+      # repos ship pre-generated `parser.c`, so only `tree-sitter build`
+      # (compile), never `tree-sitter generate`, is needed. `TESTS/run.lua`
+      # reads `DOCUMENTATION_TS_PARSERS_DIR` and appends it to the rtp itself
+      # if set — this step only has to produce the directory and export the
       # variable, not touch the test runner's own invocation.
-      - name: Build JS/TS/TSX treesitter parsers
+      #
+      # **Go is here for `go_calls_spec.lua`**, which is the only gate on the
+      # package-scope resolver — the rule that a bare call may name a
+      # function in a *sibling file*, worth nearly half the edges of a real
+      # Go call graph. Without the grammar that spec skips silently, and a
+      # spec that always skips is not a gate.
+      - name: Build JS/TS/TSX/Go treesitter parsers
         run: |
           npm install -g tree-sitter-cli
           mkdir -p .deps/ts-parsers/parser
           git clone --depth 1 https://github.com/tree-sitter/tree-sitter-javascript.git /tmp/tree-sitter-javascript
           git clone --depth 1 https://github.com/tree-sitter/tree-sitter-typescript.git /tmp/tree-sitter-typescript
+          git clone --depth 1 https://github.com/tree-sitter/tree-sitter-go.git /tmp/tree-sitter-go
           tree-sitter build --output .deps/ts-parsers/parser/javascript.so /tmp/tree-sitter-javascript
           tree-sitter build --output .deps/ts-parsers/parser/typescript.so /tmp/tree-sitter-typescript/typescript
           tree-sitter build --output .deps/ts-parsers/parser/tsx.so /tmp/tree-sitter-typescript/tsx
+          tree-sitter build --output .deps/ts-parsers/parser/go.so /tmp/tree-sitter-go
           echo "DOCUMENTATION_TS_PARSERS_DIR=$(pwd)/.deps/ts-parsers" >> "$GITHUB_ENV"
       - run: scripts/ci.sh tests
 
