@@ -60,6 +60,36 @@ even if it looks cheap.
 | 8.2 follow-up | Checklist trend/history data | S–M | Medium | No — needs (b) actually in use first |
 | ~~9~~ | ~~Schema versioning + payload-contract test~~ | — | — | **Built 2026-08-18**, both halves — `ir` against `to_json` and `ir` against `html.lua`'s payload list. The first run of the first half caught `endpoints`, missing from the artifact since `core/endpoints.lua` shipped |
 
+
+## Re-rated 2026-08-20
+
+The table above was written on 2026-08-15, when this plugin had nine
+language backends, no marker comments, no parity matrix and a schema that
+had been bumped once. It has twenty-three backends now, the schema is at 4,
+and two ratings turned out to be **gated on something that has since
+shipped** rather than on the thing they named. The rows are left as written
+— they are the record — and what changed is here.
+
+| § | Was | Now | What changed |
+|---|---|---|---|
+| **1.3** | No — "public" is undefined | **Candidate, behind §2.2** | `internal` is a first-class contract field, filled by the backend from the language itself — 43 sites across `core/lang/`, and the parity pass has visibility complete across all twenty-three. "Public" is no longer undefined; it is *declared*. What is still missing is a **named surface** to diff, which is exactly what §2.2 produces — so the order is §2.2 then §1.3, not §1.3 blocked forever |
+| **2.2** | S–M, medium–high, candidate | **S, high** | Same reason from the other side: the panel's input is a field every backend fills, not a heuristic this panel would have to invent |
+| **4.3** | S, medium, candidate | **S, and cheaper** | The keyword-lookup registry shipped 2026-08-18 inside the rendered snippet. `K` is a fourth trigger over a registry that exists, not a new one |
+| **6.2** | S, medium–high, candidate | **S, and the hard half is gone** | An Action needed a way to run this analysis on a runner. `standalone-latest` publishes the engine and its grammars as a release, and `--sarif=<path>` writes the format GitHub's code-scanning reads. What is left is the `action.yml` around two things that already work |
+| **1.4** | S, medium, candidate | **S, and scope it per backend** | Unchanged in cost, but no longer a Lua-only question: a test naming a function that no longer exists is a shape twenty-three languages have, and the check has to ask the registry which of them it can name reliably rather than assume Lua's `M.foo` |
+| **1.5** | S, medium, candidate | **S, Lua only, and say so** | `@class`/`@alias` are LuaCATS. Twenty-two backends have no such tag, so this check must be declared Lua-only rather than firing nothing on the rest and looking broken |
+
+**One rating is deliberately not revisited:** §7 (scale and performance) still
+reads "not a problem yet", and nothing measured since says otherwise. The
+one number worth writing down is that `docmap-desktop`'s language walk caps
+at 20 000 files — a cap chosen against the shape of the answer, not against
+a benchmark.
+
+**And one item outranks everything in this table**, which is the honest thing
+to say in a document about quick wins: **call edges exist in four backends of
+twenty-three** (`ROADMAP.md`). No row here is worth as much as that gap is
+worth closing, and none of them is a substitute for it.
+
 ---
 
 ## The quick wins, in the order worth doing them

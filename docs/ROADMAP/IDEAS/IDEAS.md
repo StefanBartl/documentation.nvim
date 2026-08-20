@@ -4,8 +4,6 @@
 
   - [Intro](#intro)
   - [1. New drift checks](#1-new-drift-checks)
-    - [1.1 Code blocks in Markdown, checked against the real API](#11-code-blocks-in-markdown-checked-against-the-real-api)
-    - [1.2 `@example` blocks that do not parse](#12-example-blocks-that-do-not-parse)
     - [1.3 API-surface change detection](#13-api-surface-change-detection)
     - [1.4 Tests that name a function which no longer exists](#14-tests-that-name-a-function-which-no-longer-exists)
     - [1.5 Orphaned `@class` / `@alias`](#15-orphaned-class-alias)
@@ -16,14 +14,11 @@
     - [2.2 Public API surface](#22-public-api-surface)
     - [2.3 Ownership / bus factor](#23-ownership-bus-factor)
     - [2.4 Coupling and cohesion](#24-coupling-and-cohesion)
-    - [2.5 Unused requires](#25-unused-requires)
   - [3. The generated page](#3-the-generated-page)
     - [3.1 Compare two artifacts, in the page](#31-compare-two-artifacts-in-the-page)
-    - [3.2 Copy-link for the current view](#32-copy-link-for-the-current-view)
+    - [3.6 Compiler Explorer, two steps further — **noted 2026-08-20, not built**](#36-compiler-explorer-two-steps-further-noted-2026-08-20-not-built)
     - [3.3 Print / PDF stylesheet](#33-print-pdf-stylesheet)
-    - [3.4 Keyboard navigation across the page — done](#34-keyboard-navigation-across-the-page--done-removed-2026-08-15)
   - [4. The editor browser (`:DocBrowse`)](#4-the-editor-browser-docbrowse)
-    - [4.1 Telemetry mode (ECOSYSTEM step 8) — done](#41-telemetry-mode-ecosystem-step-8--done-removed-2026-08-15)
     - [4.2 Picker integration](#42-picker-integration)
     - [4.3 `K` — look up the notation under the cursor](#43-k-look-up-the-notation-under-the-cursor)
     - [4.4 Breadcrumb in the statusline](#44-breadcrumb-in-the-statusline)
@@ -33,19 +28,17 @@
     - [5.3 Component conventions — Vue / Svelte SFCs](#53-component-conventions-vue-svelte-sfcs)
     - [5.4 ORM models and migrations](#54-orm-models-and-migrations)
   - [6. Integrations and output](#6-integrations-and-output)
-    - [6.1 SARIF output for CI](#61-sarif-output-for-ci)
     - [6.2 A GitHub Action](#62-a-github-action)
-    - [6.3 Publishing the map to GitHub Pages](#63-publishing-the-map-to-github-pages)
-    - [6.4 Mermaid export](#64-mermaid-export)
     - [6.5 Workspace symbols from the IR](#65-workspace-symbols-from-the-ir)
-    - [6.6 A generic CLI entry, no per-repo copy](#66-a-generic-cli-entry-no-per-repo-copy)
+    - [6.6 A generic CLI entry, no per-repo copy — **answered, by a different mechanism**](#66-a-generic-cli-entry-no-per-repo-copy-answered-by-a-different-mechanism)
     - [6.7 A REUSE.md recipe for "many repos, one config"](#67-a-reusemd-recipe-for-many-repos-one-config)
+    - [6.8 Name the tool a missing panel needs — **noted 2026-08-20**](#68-name-the-tool-a-missing-panel-needs-noted-2026-08-20)
+    - [6.9 User-supplied checklists, applied to a project by an agent — **noted 2026-08-20**](#69-user-supplied-checklists-applied-to-a-project-by-an-agent-noted-2026-08-20)
   - [7. Scale and performance](#7-scale-and-performance)
   - [8. Product shape](#8-product-shape)
     - [8.1 A polished desktop/web-app version](#81-a-polished-desktopweb-app-version)
-    - [8.2 A checklist/task syntax with a runner and dashboard — done](#82-a-checklisttask-syntax-with-a-runner-and-dashboard--done-shipped-2026-08-11)
+    - [8.2 Trend data on the checklist ledger](#82-trend-data-on-the-checklist-ledger)
     - [8.3 Modern protocols, WASM, and agent integration](#83-modern-protocols-wasm-and-agent-integration)
-  - [9. Artifact and schema](#9-artifact-and-schema)
 
 ---
 
@@ -61,12 +54,18 @@ Three sibling files, three jobs, and keeping them apart is the point:
 | File | Holds |
 |---|---|
 | [`FEATURES.md`](../../FEATURES/FEATURES.md) | What shipped, and the trade-off behind it. The decision record. |
-| [`ROADMAP.md`](../ROADMAP.md) | What is genuinely open, and what was **considered and rejected** (with the condition that reopens it). |
+| [`ROADMAP.md`](../ROADMAP.md) | What is genuinely open. A rejection lives in the document that raised the idea, with the condition that would reopen it. |
 | **this file** | What has not been decided about at all yet. |
 
 Anything here that graduates to "we are actually going to look at this"
 moves to `ROADMAP.md` with a real cost estimate; anything that ships moves
-to `FEATURES.md`. Items already tracked in `ROADMAP.md` — other languages,
+to `FEATURES.md`. **Shipped means removed, not annotated** — a backlog that
+keeps its own finished entries stops being a backlog and becomes a second,
+worse changelog. Audited against `lua/` on 2026-08-20, which removed ten
+such sections; four of them (§3.2, §6.1, §6.3, §6.4) carried no marker at
+all and read as open work. A decision *not* to build something stays here,
+in the document that raised it — that is what `ROADMAP.md`'s own header
+prescribes. Items already tracked in `ROADMAP.md` — other languages,
 running without Neovim, the Reference tab — are **not repeated here**, only
 cross-referenced. (The `@overload`/`undocumented-param` fix and the mdview
 bridge, both once tracked there too, have since shipped — see `FEATURES.md`.)
@@ -86,44 +85,6 @@ reason this document was audited. They are the plugin's core; what follows
 are the gaps in that catalogue, ordered by how much of a real, silent
 problem each one catches. Three entries below are struck through because
 they became checks and nobody came back to say so.
-
----
-
-### 1.1 Code blocks in Markdown, checked against the real API — **done, shipped as `doc-references-missing`**
-
-Shipped exactly as sketched below, including the conservatism the objection
-demanded: qualified calls only, `info` severity. The section stays because
-its reasoning is the reasoning the check runs on.
-
-`doc-references-missing` reads *inline code spans* in prose. It does not
-read **fenced code blocks** — which is where a README's usage examples
-live, and where a rename does the most damage: a `README.md` whose example
-calls a function that no longer exists is worse than prose mentioning it,
-because a reader will copy it.
-
-The extraction is already 80% there (`core/docs.lua` scans every `.md`
-file, `code_spans()` already exists). The new work is parsing a Lua fence
-with treesitter — a parser this plugin already loads — and resolving the
-calls in it against the same index.
-
-**The obvious objection, which has an answer:** an example block is often
-deliberately partial or pseudo-code. So the check has to be conservative in
-exactly the way `docs_heuristic` already is — qualified calls only
-(`documentation.core.scan.<name>`), never bare names — and it should
-report at `info` severity, the same class `dead-function` sits in for the
-same reason.
-
----
-
-### 1.2 `@example` blocks that do not parse — **done, shipped as `example-does-not-parse`**
-
-The prediction held: it was the cheapest real check here and it was built
-first. Same idea, one step easier: `@example` content is already extracted and
-already rendered in the annotation popup. Running it through the Lua parser
-and reporting a syntax error is nearly free, and an `@example` that does not
-parse is unambiguously wrong — no judgement call, no false-positive class.
-
-Cheapest real check in this document. Probably the one to build first.
 
 ---
 
@@ -249,17 +210,6 @@ place only if the number turns out to point somewhere specific.
 
 ---
 
-### 2.5 Unused requires — **done, shipped as `unused-require`**
-
-Built as a check rather than as the Analysis panel this section files it
-under, which is the more useful of the two: a `require` whose result is
-never referenced is a finding, not a ranking. A `require` whose result is
-never referenced. Adjacent to `require-not-declared` (which exists) but the
-opposite direction, and cheap: the IR already has both the require edges
-and the symbol references.
-
----
-
 ## 3. The generated page
 
 ---
@@ -275,15 +225,6 @@ existing textual diff cannot be.
 Needs no new extraction (every commit already carries its artifact), and
 `:DocMap serve` already solves the "fetch another commit's artifact"
 problem for the History tab.
-
----
-
-### 3.2 Copy-link for the current view
-
-The whole page state already lives in the URL fragment — that is what
-`:DocMap graph` and `gO` exploit. There is no button that hands the reader
-that URL. One-line feature, disproportionate usefulness for "look at this
-specific thing" in a PR comment.
 
 ---
 
@@ -348,30 +289,7 @@ and it costs a stylesheet rather than a feature.
 
 ---
 
-### 3.4 Keyboard navigation across the page — **done, removed 2026-08-15**
-
-Shipped as [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) Phase 4,
-Slices 5 and 6: keyboard parity (`tabindex="0" role="button"`, a delegated
-Enter/Space handler) for the Index tab's links and `.feat-name`/
-`.feat-tab-name`, and roving tabindex for the three long lists (Tree,
-History, Analysis) plus their sort headers. Verified against real tab-stop
-counts and DOM state, not asserted — see that document for the detail
-Slices 5/6 record, including a measurement mistake caught and corrected
-along the way.
-
----
-
 ## 4. The editor browser (`:DocBrowse`)
-
----
-
-### 4.1 Telemetry mode (ECOSYSTEM step 8) — **done, removed 2026-08-15**
-
-Shipped: `:DocBrowse telemetry` is the static × runtime join this section
-described — `runtime-analysis.telemetry`'s `load()`/`Data.modules` join
-against `dead-function`'s "no caller found," documented in
-[`../FEATURES/ECOSYSTEM.md`](../../FEATURES/ECOSYSTEM.md) §8 and
-[`../FEATURES/FEATURES.md`](../../FEATURES/FEATURES.md).
 
 ---
 
@@ -462,42 +380,12 @@ is structure, and it is invisible to every panel today. Same gate as §5.3.
 
 ---
 
-### 6.1 SARIF output for CI
-
-The one item in this section with a clear, immediate payoff. SARIF is the
-format GitHub code scanning ingests — emitting the existing findings in it
-would put every drift check inline on the pull request that caused it,
-which is where a `missing-summary` finding actually gets fixed.
-
-The findings already have file, line, severity and message. This is a
-serialiser and a CI step, not analysis.
-
----
-
 ### 6.2 A GitHub Action
 
 Package the existing `--check` gate so another repository can adopt it in
 three lines. [`REUSE.md`](../../REUSE.md) already documents the "copy two files
 and edit five lines" path; an action is the version that does not require
 copying anything.
-
----
-
-### 6.3 Publishing the map to GitHub Pages
-
-The page is already self-contained, offline-capable HTML with no build
-step — which makes it a static site by construction. A workflow that
-publishes it on push is nearly free, and it turns "the map is in the repo"
-into "the map has a URL".
-
----
-
-### 6.4 Mermaid export
-
-`:DocMap dot` produces Graphviz. Mermaid's advantage is different and
-specific: **GitHub renders it inline**, so a Mermaid dependency graph can
-live in a README or a PR comment and be *looked at* rather than downloaded.
-Same edges, third serialiser, and the cheapest of the three.
 
 ---
 
@@ -512,76 +400,18 @@ already have. **Probably not**; noted so the question is not re-asked.
 
 ### 6.6 A generic CLI entry, no per-repo copy — **answered, by a different mechanism**
 
-The need is met and the sketch below was not what met it:
+**The need is met, by a different mechanism than the sketch.**
 `standalone/docmap.lua` takes a root as its first argument and maps an
 arbitrary repository from wherever you happen to be, with no `gen_map.lua`
-copy in it — which is exactly the case this section was written for. It is
-also what `docmap-desktop` runs for every project in its list.
+copy in it — exactly the case this section was written for, and what
+`docmap-desktop` runs for every project in its list.
 
-Kept rather than deleted because the sketch is still the answer to a
+Kept as a short record rather than deleted, because the sketch answers a
 *different* question: a CLI entry inside a Neovim host, for someone who has
-the plugin installed and does not want the standalone build. Nobody has
-asked for that yet.
-
-[REUSE.md](../../REUSE.md)'s CI path is "copy `scripts/gen_map.lua`, edit five
-lines". That is the right shape for a repository that maps *itself* on every
-CI run — the options are fixed, so hardcoding them in a committed file is
-honest. It is the wrong shape for mapping an arbitrary repository once, from
-wherever you happen to be, which is what came up sketching CLI support for a
-config that keeps several dozen personal plugins as sibling checkouts: nobody
-wants a `gen_map.lua` copy sitting in each one just to run `--check` by hand
-occasionally.
-
-`core/cli.lua`'s `M.run(opts, argv)` already does not care where `opts` came
-from — the sketch below only replaces "how the options table gets built",
-same dependency-probing `gen_map.lua` already has, flags instead of a literal
-table:
-
-```lua
--- scripts/cli.lua — sketched, not wired into ci.lua or REUSE.md.
---   nvim --headless -l scripts/cli.lua -- --root /path/to/repo [flags]
-local args = _G.arg or {}
-local flags = {}
-for _, a in ipairs(args) do
-  local key, val = a:match("^%-%-([%w_]+)=(.*)$")
-  if key then
-    flags[key] = val
-  elseif a:match("^%-%-[%w_]+$") then
-    flags[a:sub(3)] = true
-  end
-end
-
-if not flags.root or flags.root == true then
-  io.stderr:write("cli.lua: --root <path> is required.\n")
-  os.exit(1)
-end
-
-local root = tostring(flags.root):gsub("\\", "/"):gsub("/+$", "")
-vim.opt.runtimepath:prepend(root)
--- ... same ensure()-shaped dependency probing gen_map.lua already has ...
-
-local opts = require("documentation.config").build(root, {
-  source = flags.source,   -- nil is fine: auto-detected
-  title = flags.title,
-  repo_url = flags.repo_url,
-  branch = flags.branch,
-  out_dir = flags.out_dir,
-  tests_dir = flags.tests_dir,
-})
-
-local code = require("documentation.core.cli").run(opts, args)
-vim.cmd("cq " .. code)
-```
-
-Open questions before this is worth building for real: whether flag parsing
-belongs in this plugin at all versus staying a "here is the fifteen-line
-pattern, adapt it" REUSE.md recipe (the file already has two of those); and
-whether an *optional* `.docmap.lua` config file in the target repo — read
-when present, flags overriding it — is worth the extra surface over "just
-pass flags every time" for a repo visited more than once. Neither has an
-answer yet, which is the whole reason this is here and not in `scripts/`.
-
----
+the plugin installed and does not want the standalone build. **Nobody has
+asked for that**, and the costing that argued for it — flags instead of a
+literal options table, over `core/cli.lua`'s existing `M.run(opts, argv)` —
+is recoverable from this repository's history if anyone does.
 
 ### 6.7 A REUSE.md recipe for "many repos, one config"
 
@@ -781,27 +611,21 @@ the single-user case, not an oversight to lift.
 
 ---
 
-### 8.2 A checklist/task syntax with a runner and dashboard — **done, shipped 2026-08-11**
+### 8.2 Trend data on the checklist ledger
 
-This shipped as `documentation.nvim`'s checklist ledger — see
-[`docs/CHECKLIST_FORMAT.md`](../../CHECKLIST_FORMAT.md) for the format,
-[`docs/MCP.md`](../../MCP.md) for `docmap_checklist`, and
-[`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md)'s Phase 2 for the build
-history. The original costing document (`CHECKLIST_TASK_RUNNER.md`) is
-absorbed into those three and has been removed, the same way
-`PROTOCOLS_AND_AGENTS.md` was — grounded against a real example (the
-nvim-config repo's own `docs/ROADMAP/RULES/` systematic audit), it
-concluded most of what such an audit contains is a **hand-verified fact
-pinned to a file:line**, not something a scanner can re-derive, and that the
-curated ledger with staleness detection (scope **(b)**) was the part worth
-building, not a re-implementation of the check catalogue with new syntax
-(scope **(a)**, correctly not built). One thread from that document is
-still open and not yet built: trend data on the ledger's own pass rate over
-time, the same named-snapshot shape `runtime-analysis.telemetry`/`loaded`
-already have, applied to a third kind of data — see
-[`IDEAS_IMPLEMENTATION_PLAN.md`](IDEAS_IMPLEMENTATION_PLAN.md).
+The syntax, the runner and the dashboard this section originally asked for
+**shipped 2026-08-11** as the checklist ledger — see `CHECKLIST_FORMAT.md`,
+`MCP.md` and `IMPLEMENTATION_PLAN.md` Phase 2. The costing behind it is worth
+one sentence, because it decided the shape: most of what such an audit holds
+is a **hand-verified fact pinned to a file:line**, not something a scanner
+can re-derive, so the curated ledger with staleness detection was built and a
+second check catalogue with new syntax was correctly not.
 
----
+**What stayed open** is the pass rate over time — the same named-snapshot
+shape `runtime-analysis.telemetry` and `loaded` already have, applied to a
+third kind of data. Rated S–M in `IDEAS_IMPLEMENTATION_PLAN.md`, and gated
+behind the ledger actually being in use rather than behind any technical
+problem.
 
 ### 8.3 Modern protocols, WASM, and agent integration
 
@@ -817,22 +641,6 @@ and answers a question nobody has asked. **WebSocket/WebTransport** is a
 no on current requirements — every existing `serve` endpoint is
 request/response-shaped, and the protocol should follow a push-shaped
 feature rather than lead it.
-
----
-
-## 9. Artifact and schema
-
-- **Version the JSON schema explicitly.** `module_map.json` has grown
-  fields steadily (`duplicates`, `docs`, `endpoints`, `snippet`), and
-  `:DocMap diff` already has to detect and degrade against older artifacts.
-  A declared schema version would make that detection explicit rather than
-  inferred from which keys are present.
-- **A documented payload contract between `to_json` and the page.** Twice
-  now (`duplicates`, then `docs`) a new IR field reached the JSON artifact
-  but not the page's own embedded payload, silently disabling a panel. Both
-  incidents are in `FEATURES.md`. A single builder, or a test asserting the
-  two key sets match, would end that class of bug rather than documenting
-  it a third time.
 
 ---
 
