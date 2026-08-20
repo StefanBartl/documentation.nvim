@@ -1019,8 +1019,30 @@ wave actually taught, beyond the ten:
       **Measured on `phoenixframework/phoenix`:** 74 files, 73 with a module
       name, 1013 functions (326 public — `defp` doing visible work), **223 of
       223 public functions documented**, 216 symbols, 44 moduledocs.
-- [ ] **Erlang** — `.erl`, `.hrl`. `-module`/`-export` is an export list
-      like Haskell's; EDoc for prose.
+- [x] ~~**Erlang**~~ — `core/lang/erlang.lua`, built 2026-08-20, the
+      twenty-second backend. The export list as predicted, **and it carries
+      arity**, which nothing else here does: `-export([add/2]).` publishes
+      `add` at two arguments and says nothing about `add/3`, a different
+      function. So the export set is keyed by `name/arity` and a function's
+      arity is counted from its clause head — the only backend where the
+      *number* of parameters is part of a declaration's identity rather than
+      a detail of it. A set of bare names would have published both.
+
+      **`-compile(export_all).` publishes everything** — the third shape of
+      that after Haskell's missing list and Python's missing `__all__`.
+      Deprecated and still widespread, so ignoring it would report a whole
+      module as private. The fixture caught the node name for it:
+      `compile_options_attribute`, not the `attribute` the first version
+      guessed.
+
+      Haskell's two-node shape again — the EDoc sits above `-spec` when
+      there is one and above the function when there is not, and both are
+      looked at. Eighth `param_docs = false`: `-spec` names types, not
+      parameters.
+
+      **Measured on `ninenines/cowboy`:** 29 files, all 29 with a module
+      name, 1359 functions — **374 public**, the export lists doing very
+      visible work — 226 documented, 8 includes.
 - [ ] **OCaml** — `.ml`, `.mli`. The `.mli` interface file *is* the
       published surface, which is the header/source split C already forced a
       decision on — and here the language means it rather than implies it.
