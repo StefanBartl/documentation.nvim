@@ -223,6 +223,55 @@ function M.detect_source(root, languages)
   return #kept > 0 and kept or { "." }
 end
 
+---One spelling per repository, shared with the rest of the ecosystem.
+---
+---**What this is really doing is agreeing with `lib.nvim.fs.project_key`.**
+---That module is what `runtime-analysis.nvim`'s request history already keys
+---on, and `IDEAS.md` §3.4 names it as the answer the three plugins should
+---share when they say "this project" — *the cheapest decision to make early
+---and the most expensive to retrofit*. `project_key` is git-root resolution
+---plus `lib.nvim.fs.normkey`; this plugin does its own root resolution
+---(`root_markers`, or an explicit `opts.root` from a host), so `normkey` is
+---the half worth sharing, and sharing the function beats copying what it
+---does.
+---
+---**The divergence was measured, not suspected.** With an explicitly passed
+---root — which is every headless run, every CI job and every project
+---`docmap-desktop` hands over — the old inline normalisation forward-slashed
+---and trimmed a trailing slash and stopped there. `e:/repo` and `E:/repo`
+---were therefore two different repositories: two registry entries, two
+---scans, two watchers, and nothing joinable against a sibling plugin keyed
+---the other way.
+---
+---**Invisible to every committed artifact.** `ir.root` is the *repository-
+---relative* source directory, and no absolute path is serialized anywhere in
+---`module_map.json` — checked before changing this, because a normalisation
+---change that reached the artifact would make every consumer's `--check` go
+---stale at once.
+---
+---**Degrades correctly in the standalone build.** `normkey` resolves
+---symlinks through `uv.fs_realpath` and expands `~` through
+---`uv.os_homedir`, and guards both — `standalone/vim_shim.lua` provides
+---neither, so a bundled binary gets slash-unification, drive-letter
+---uppercasing and separator collapsing, and skips the two it cannot do.
+---Its own dependencies are pure Lua. That is the same answer for every
+---spelling a host can hand over, and a weaker one only where a symlink is
+---involved.
+---@param root string|nil
+---@return string
+function M.normalise_root(root)
+  local key = require("lib.nvim.fs.normkey")(tostring(root or ""))
+  -- **`normkey` does not trim a trailing separator, and the old code did.**
+  -- Under Neovim that difference is invisible, because `uv.fs_realpath`
+  -- normalises `E:/repo/` to `E:/repo` on the way through — which is exactly
+  -- why it had to be measured against the standalone's `uv` surface instead
+  -- of reasoned about. There is no `fs_realpath` in `standalone/vim_shim.lua`,
+  -- so a bundled binary handed `E:/repo/` would have kept the slash and
+  -- treated it as a second repository. Trimmed here rather than left to the
+  -- realpath that is only sometimes there.
+  return (key:gsub("/+$", ""))
+end
+
 ---Build a full `Documentation.Opts` for `root`, with `overrides` winning over
 ---every derived default.
 ---
@@ -278,7 +327,7 @@ function M.build(root, overrides, notify)
 
   -- After the merge, not before: an override may have changed `root`, and the
   -- normalisation above would then apply to the wrong value.
-  opts.root = (tostring(opts.root):gsub("\\", "/"):gsub("/+$", ""))
+  opts.root = M.normalise_root(opts.root)
   return opts
 end
 

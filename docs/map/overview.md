@@ -206,7 +206,7 @@ flowchart LR
 |---|---|---|---|
 | `bindings` |  |  |  |
 | &nbsp;&nbsp;`documentation.bindings.usrcmds` | The user commands: `:DocMap` and `:DocBrowse` — registration, argument dispatch and completion. | 6 | [README](../../lua/documentation/bindings/usrcmds/README.md) · [src](../../lua/documentation/bindings/usrcmds/init.lua) |
-| `documentation.config` | Resolving a full `Documentation.Opts` for a repository: the defaults in [`DEFAULTS.lua`](DEFAULTS.lua), what can be derived from `root`, and the merge rule… | 5 | [README](../../lua/documentation/config/README.md) · [src](../../lua/documentation/config/init.lua) |
+| `documentation.config` | Resolving a full `Documentation.Opts` for a repository: the defaults in [`DEFAULTS.lua`](DEFAULTS.lua), what can be derived from `root`, and the merge rule… | 6 | [README](../../lua/documentation/config/README.md) · [src](../../lua/documentation/config/init.lua) |
 | `core` |  |  | [README](../../lua/documentation/core/README.md) |
 | &nbsp;&nbsp;`lang` |  |  |  |
 | &nbsp;&nbsp;&nbsp;&nbsp;`glossary` |  |  |  |
