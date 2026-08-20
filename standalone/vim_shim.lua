@@ -11,7 +11,8 @@
 --- following, nothing more, and is expected to grow only when a new `core/`
 --- call site needs it (checked, not guessed):
 ---
----   vim.trim, vim.split, vim.tbl_map, vim.tbl_extend, vim.tbl_deep_extend,
+---   vim.trim, vim.pesc, vim.split, vim.tbl_map, vim.tbl_extend,
+---   vim.tbl_deep_extend,
 ---   vim.list_extend, vim.deepcopy, vim.json.encode/decode, vim.NIL,
 ---   vim.fs.dir, vim.uv (= vim.loop): fs_stat/fs_scandir/fs_scandir_next/
 ---   hrtime, vim.treesitter (inert stub — see below).
@@ -64,6 +65,26 @@ local vim = {}
 ---@return string
 function vim.trim(s)
   return (s:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+---Escape a string so it matches itself as a Lua pattern.
+---
+---Neovim's own implementation, which is one `gsub` and worth having exactly
+---right: the magic set is `^$()%.[]*+-?`, and the escape character is `%`.
+---Getting this subtly wrong -- forgetting `-`, say -- produces a pattern that
+---still matches most inputs and silently mismatches a path with a hyphen in
+---it, which is the kind of failure that reads as a scanner bug.
+---
+---**Added 2026-08-20, after a release build failed on it.**
+---`core/check.lua`'s test-reference check has called `vim.pesc` since it
+---shipped that morning, which works under Neovim and raised "attempt to call
+---a nil value" here. Local runs missed it because the `standalone` gate
+---skips on a machine with no PUC Lua on `PATH` -- see this file's header on
+---why that makes local green worth less than it looks.
+---@param s string
+---@return string
+function vim.pesc(s)
+  return (s:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%1"))
 end
 
 ---Plain (non-pattern) split — every real call site under `core/` splits on
