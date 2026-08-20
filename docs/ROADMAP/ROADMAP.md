@@ -58,8 +58,25 @@ fehlt eins davon, druckt er *skipped*. Lokal heißt grün also **„vier Gates
 und ein Achselzucken"** — und genau dahinter sind drei echte Defekte bis in
 ein Release gekommen.
 
-Halb behoben: `TESTS/shim_contract_spec.lua` fängt seit 2026-08-20, was
-*statisch* sichtbar ist — jeder `vim.*`-Pfad und jeder Methodenname, den
-`core/` aufruft, gegen das, was der Shim implementiert. Was er nicht sieht,
-ist eine Shim-Funktion, die **existiert und sich anders verhält**. Der Rest
-steht als Quick Win im Plan.
+**Zwei Hälften sind behoben.** `TESTS/shim_contract_spec.lua` fängt seit
+2026-08-20, was *statisch* sichtbar ist — jeder `vim.*`-Pfad und jeder
+Methodenname, den `core/` aufruft, gegen das, was der Shim implementiert. Und
+die Schlusszeile lügt nicht mehr: sie sagte „All 5 gates passed", während
+einer vierzig Zeilen vorher *skipped* gedruckt hatte. Jetzt steht dort
+**„4 gates passed, 1 skipped: standalone"** plus der Satz, der den Rest
+erklärt: *ein übersprungener Gate hat nichts geprüft.*
+
+Der Skip selbst bleibt ein Skip — ein Rechner mit Neovim und sonst nichts ist
+der häufige lokale Fall, und ihn rot zu machen ist genau, wie ein Gate
+abgeschaltet wird. Was sich ändert, ist die Genauigkeit: „kein PUC Lua auf
+PATH" und „ein PUC Lua, das die Rocks nicht laden kann" sind verschiedene
+Probleme mit verschiedenen Lösungen, und die Meldung nennt jetzt den
+Interpreter, den fehlenden Rock und die Installationszeile.
+
+**Auf dem Rechner des Autors war die alte Meldung schlicht falsch:** dort
+liegt `lua5.4` auf dem PATH, und ein zweites `lua` daneben, dem nur `dkjson`
+fehlt. „Kein PUC Lua auf PATH" schickte den Leser also seit jeher in die
+falsche Richtung.
+
+Was weiter offen ist: eine Shim-Funktion, die **existiert und sich anders
+verhält**, sieht kein statischer Contract.

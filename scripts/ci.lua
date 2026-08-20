@@ -42,6 +42,30 @@ local function step(name)
   say("\n" .. paint("1", "== " .. name))
 end
 
+---Gates that ran but decided they could not.
+---
+---**The summary used to say "All 5 gates passed" when one of them had
+---shrugged**, which is the whole defect this list exists for: on a machine
+---without PUC Lua the `standalone` gate prints *skipped* and green still
+---read as five-for-five. Three real defects reached a release behind that
+---sentence, so the count is now honest about what actually ran.
+---@type string[]
+local skipped = {}
+
+---Record a gate that could not run, and say why.
+---
+---Not a failure: a machine with Neovim and nothing else is the common local
+---case, and failing there would make `scripts/ci.sh` unusable for exactly
+---the people it exists to serve — which is how a gate gets switched off.
+---What changes is that the skip is now *counted*, and that the reason is
+---specific enough to act on.
+---@param name string
+---@param why string
+local function skip(name, why)
+  skipped[#skipped + 1] = name
+  say("  " .. paint("33", "skipped: " .. why))
+end
+
 local function fail(msg)
   io.stderr:write(paint("31", msg) .. "\n")
   vim.cmd("cq 1")
@@ -162,15 +186,39 @@ end
 ---usable interpreter takes the stated skip below instead of failing.
 ---@return string?
 local function puc_lua()
+  -- Which interpreters exist at all, kept apart from which of them work.
+  -- "no PUC Lua here" and "a PUC Lua that cannot load the rocks" are
+  -- different problems with different fixes, and one message for both sends
+  -- half its readers looking for the wrong thing. Reported by the caller.
+  local found = {}
   for _, exe in ipairs({ "lua5.4", "lua5.3", "lua" }) do
     if vim.fn.executable(exe) == 1 then
+      found[#found + 1] = exe
       local probe = vim.system({ exe, "-e", "require('lfs') require('dkjson')" }):wait()
       if probe.code == 0 then
         return exe
       end
     end
   end
-  return nil
+  return nil, found
+end
+
+---Which of the two rocks `exe` cannot load, in order.
+---
+---Probed one at a time rather than reusing the combined check above: the
+---point of this is the *name*, and `require('lfs') require('dkjson')`
+---failing tells you only that one of them did.
+---@param exe string
+---@return string[]
+local function missing_rocks(exe)
+  local out = {}
+  for _, rock in ipairs({ "lfs", "dkjson" }) do
+    local probe = vim.system({ exe, "-e", ("require('%s')"):format(rock) }):wait()
+    if probe.code ~= 0 then
+      out[#out + 1] = rock
+    end
+  end
+  return out
 end
 
 --- The standalone build, run under a Lua that is **not** LuaJIT.
@@ -195,17 +243,26 @@ end
 --- the artifact it is checking is not a gate.
 function GATES.standalone()
   step("standalone (non-LuaJIT host)")
-  local lua = puc_lua()
+  local lua, found = puc_lua()
   if not lua then
-    -- A stated skip, not a silent pass. Locally this is the common case and
-    -- failing on it would make `scripts/ci.sh` unusable on a machine that has
-    -- Neovim and nothing else.
-    --
-    -- Worded for both ways `puc_lua` returns nil — none found, or one found
-    -- that cannot `require` the rocks — because a machine in the second case
-    -- does have a `lua` on `$PATH`, and a message saying otherwise sends the
-    -- reader looking for the wrong thing.
-    say("  skipped: no PUC Lua on PATH with lfs + dkjson (this gate is about the *other* Lua)")
+    -- Two different situations, and until now they shared one sentence.
+    if #found == 0 then
+      skip("standalone", "no PUC Lua on PATH — this gate is about the *other* Lua, not Neovim's")
+    else
+      -- Somebody has a PUC Lua. That is a machine one `luarocks install`
+      -- away from running this gate, so the message names the rock instead
+      -- of leaving them to work it out.
+      local exe = found[1]
+      local rocks = missing_rocks(exe)
+      skip(
+        "standalone",
+        ("%s is on PATH but cannot require %s — `luarocks install %s`"):format(
+          exe,
+          table.concat(rocks, " or "),
+          table.concat(rocks, " ")
+        )
+      )
+    end
     return
   end
 
@@ -267,7 +324,23 @@ if stage == "all" then
   -- Counted from ORDER rather than written out, so adding a sixth gate
   -- cannot leave this line quietly claiming four. It already had: the
   -- `standalone` gate made it five without this line noticing.
-  say("\n" .. paint("32", ("All %d gates passed."):format(#ORDER)))
+  --
+  -- **And a gate that skipped is not a gate that passed.** This line used to
+  -- say "All 5 gates passed" while one of them had printed *skipped* forty
+  -- lines earlier — which is how three real defects reached a release with
+  -- every local run green. The number is now what ran.
+  if #skipped == 0 then
+    say("\n" .. paint("32", ("All %d gates passed."):format(#ORDER)))
+  else
+    say(
+      "\n"
+        .. paint("32", ("%d gates passed"):format(#ORDER - #skipped))
+        .. ", "
+        .. paint("33", ("%d skipped: %s"):format(#skipped, table.concat(skipped, ", ")))
+        .. "."
+    )
+    say(paint("33", "  A skipped gate checked nothing. Green here is not green in CI."))
+  end
 elseif GATES[stage] then
   GATES[stage]()
 else
