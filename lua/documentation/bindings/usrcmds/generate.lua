@@ -145,7 +145,11 @@ function M.check(ctx)
     if f.severity ~= "info" then
       items[#items + 1] = {
         filename = ctx.cfg.root .. "/" .. (f.node or ""),
-        text = ("[%s] %s: %s"):format(f.severity, f.check, f.message),
+        text = ("[%s] %s: %s"):format(
+          f.severity,
+          f.check,
+          require("documentation.core.findings").format(f)
+        ),
         type = f.severity == "error" and "E" or "W",
       }
     end

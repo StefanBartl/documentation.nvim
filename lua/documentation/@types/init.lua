@@ -418,11 +418,16 @@
 ---@field impact_changed { id: string, before: integer, after: integer }[] Sorted by how much the blast radius moved.
 
 ---A drift finding.
+---A finding travels as data and becomes a sentence at the edge that shows
+---it — see `core/findings.lua` for why (in one line: a sentence assembled
+---inside the check cannot be reordered for a language that puts its pieces
+---in a different order).
 ---@class Documentation.Finding
 ---@field severity Documentation.Severity
----@field check string Stable check identifier, e.g. "missing-summary".
+---@field check string Stable check identifier, e.g. "missing-summary". Also the message-catalog key, unless `params.variant` is set.
 ---@field node string? Node id the finding attaches to.
----@field message string Human-readable description.
+---@field params table<string, any>? Values for the catalog template. `variant` selects a sub-template rather than being printed — `dead-function` reports three genuinely different facts and each is its own entry. Absent on a finding that carries `message` instead.
+---@field message string? Prose, already rendered. **Only for `opts.extra_checks`**, whose findings come from another repository's own code and have no entry in this catalog; such a finding passes through `findings.format` untouched. Every built-in check carries `params` and leaves this nil.
 
 ---Metadata about a scan. Deliberately carries no timestamp: a generated-at
 ---field would make every regeneration a diff even when nothing changed, which
@@ -579,9 +584,11 @@
 ---@field polarity "good"|"bad"
 ---@field value number The measured number itself.
 ---@field unit "percent"|"count"
----@field detail string The number rendered for display, e.g. "62.5% — 45 of 72".
----@field headline string The sentence. Phrased for the polarity it landed on.
----@field basis string What the number actually measured, including its blind spots. Required, not optional — see the module header for why.
+---@field n integer? The numerator behind a percentage — the 45 in "45 of 72". Absent for a `count`.
+---@field total integer? The denominator behind a percentage. Absent for a `count`.
+---@field detail string The number rendered for display, e.g. "62.5% — 45 of 72". **Page only**: interface text, stripped from `module_map.json` (schema 5), where `value`/`n`/`total` carry the same fact without phrasing it in English.
+---@field headline string The sentence. Phrased for the polarity it landed on. **Page only**, same as `detail`.
+---@field basis string What the number actually measured, including its blind spots. Required, not optional — see the module header for why. **Page only**, same as `detail`.
 ---@field weight integer Ranking weight within a polarity.
 ---@field distance number How far past its own threshold the value sits; the tie-break under `weight`.
 ---@field tab string Page tab holding the rows behind this number.

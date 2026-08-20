@@ -16,6 +16,7 @@
 -- difference hid four genuine orphans out of twenty-eight.
 
 return function(H)
+  local fmsg = require("documentation.core.findings").format
   local eq, ok = H.eq, H.ok
   local scan = require("documentation.core.scan")
   local check = require("documentation.core.check")
@@ -103,7 +104,7 @@ return function(H)
 
   local function reported(name)
     for _, f in ipairs(mine) do
-      if f.message:find(" " .. name .. " ", 1, true) then
+      if fmsg(f):find(" " .. name .. " ", 1, true) then
         return f
       end
     end
@@ -120,7 +121,7 @@ return function(H)
   )
   eq(orphan.node, "lua/t/a", "orphaned-class-alias: attributed to the node that owns the file")
   ok(
-    orphan.message:find("lua/t/a/@types/init.lua", 1, true) ~= nil,
+    fmsg(orphan):find("lua/t/a/@types/init.lua", 1, true) ~= nil,
     "orphaned-class-alias: names the file the type is declared in"
   )
 

@@ -128,7 +128,13 @@ function M.render(ir, findings, opts)
     put("|---|---|---|")
     for _, f in ipairs(findings) do
       if f.severity ~= "info" then
-        put(("| %s | `%s` | %s |"):format(f.severity, f.check, cell(f.message)))
+        put(
+          ("| %s | `%s` | %s |"):format(
+            f.severity,
+            f.check,
+            cell(require("documentation.core.findings").format(f))
+          )
+        )
       end
     end
   end
@@ -139,7 +145,9 @@ function M.render(ir, findings, opts)
     put("|---|---|")
     for _, f in ipairs(findings) do
       if f.severity == "info" then
-        put(("| `%s` | %s |"):format(f.check, cell(f.message)))
+        put(
+          ("| `%s` | %s |"):format(f.check, cell(require("documentation.core.findings").format(f)))
+        )
       end
     end
     put("\n</details>")

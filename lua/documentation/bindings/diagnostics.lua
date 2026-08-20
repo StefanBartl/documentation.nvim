@@ -88,7 +88,7 @@ function M.publish(root, handle)
             lnum = 0,
             col = 0,
             severity = SEVERITY[f.severity] or vim.diagnostic.severity.WARN,
-            message = ("[%s] %s"):format(f.check, f.message),
+            message = ("[%s] %s"):format(f.check, require("documentation.core.findings").format(f)),
             source = "documentation.nvim",
           }
         end

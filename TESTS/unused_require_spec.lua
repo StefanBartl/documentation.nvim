@@ -12,6 +12,7 @@
 -- correctly stayed quiet.
 
 return function(H)
+  local fmsg = require("documentation.core.findings").format
   local eq = H.eq
 
   local root = (vim.fn.tempname():gsub("\\", "/"))
@@ -36,7 +37,7 @@ return function(H)
     local out = {}
     for _, f in ipairs(require("documentation.core.check").run(ir, opts)) do
       if f.check == "unused-require" then
-        out[#out + 1] = f.message
+        out[#out + 1] = fmsg(f)
       end
     end
     table.sort(out)

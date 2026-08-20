@@ -237,9 +237,11 @@ changes the shape every language backend plugs into.
   produces a wrong number rather than a low one. Same shape as
   `module_tag = false`. See `doccoverage.by_language`, which is what made it
   visible.
-- [x] ~~**`module_map.json` schema versioning, revisited.**~~ Closed. Two
-  node fields have shipped since this was written — `language` (schema 3)
-  and `markers` (schema 4) — and the tolerance path was verified rather
+- [x] ~~**`module_map.json` schema versioning, revisited.**~~ Closed. Three
+  changes have shipped since this was written — `language` (schema 3),
+  `markers` (schema 4), and I18N-0 dropping `quicks`' three interface
+  strings in favour of `n`/`total` (schema 5) — and the tolerance path was
+  verified rather
   than assumed both times: `diff.lua`'s check is written `>= 2`, not
   `== 2`, and was run against a real schema-2 artifact out of this
   repository's own history. `scan.M.SCHEMA` is now the single site the

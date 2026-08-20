@@ -1,6 +1,7 @@
 -- TESTS/docmap_spec.lua — documentation.core.functions, documentation.core.check
 
 return function(H)
+  local fmsg = require("documentation.core.findings").format
   local eq, ok = H.eq, H.ok
 
   -- Scoped, because this file sits at Lua's 200-local-per-function
@@ -575,7 +576,7 @@ return function(H)
   for _, f in ipairs(findings) do
     if f.check == "dead-see-target" then
       has_dead_see = true
-      ok(f.message:match("nowhere%.real"), "docmap.check: dead-see-target names the bad target")
+      ok(fmsg(f):match("nowhere%.real"), "docmap.check: dead-see-target names the bad target")
     end
     if f.check == "undocumented-param" then
       has_undoc_param = true
@@ -586,7 +587,7 @@ return function(H)
   ok(
     not (function()
         for _, f in ipairs(findings) do
-          if f.check == "dead-see-target" and f.message:match("b%.bar") then
+          if f.check == "dead-see-target" and fmsg(f):match("b%.bar") then
             return true
           end
         end
@@ -657,9 +658,9 @@ return function(H)
   local resize_mismatch, put_mismatch = {}, {}
   for _, f in ipairs(mismatch_findings) do
     if f.check == "param-name-mismatch" then
-      if f.message:match("^M%.resize") then
+      if fmsg(f):match("^M%.resize") then
         resize_mismatch[#resize_mismatch + 1] = f
-      elseif f.message:match("^M:put") then
+      elseif fmsg(f):match("^M:put") then
         put_mismatch[#put_mismatch + 1] = f
       end
     end
@@ -671,8 +672,8 @@ return function(H)
   )
   ok(
     resize_mismatch[1]
-      and resize_mismatch[1].message:match("'w'")
-      and resize_mismatch[1].message:match("'width'"),
+      and fmsg(resize_mismatch[1]):match("'w'")
+      and fmsg(resize_mismatch[1]):match("'width'"),
     "docmap.check: param-name-mismatch names both the doc's name and the signature's"
   )
   eq(
@@ -711,7 +712,7 @@ return function(H)
 
   local function has_dead_function(list, name)
     for _, f in ipairs(list) do
-      if f.check == "dead-function" and f.message:match("^" .. name:gsub("%.", "%%.")) then
+      if f.check == "dead-function" and fmsg(f):match("^" .. name:gsub("%.", "%%.")) then
         return true
       end
     end
@@ -1138,8 +1139,8 @@ return function(H)
     end
   end
   eq(#rnd, 1, "docmap.check: require-not-declared fires once, for the in-namespace miss")
-  ok(rnd[1].message:match("demo%.nowhere"), "docmap.check: ... naming the module that is missing")
-  ok(rnd[1].message:match("line 3"), "docmap.check: ... and the line, since a file can miss twice")
+  ok(fmsg(rnd[1]):match("demo%.nowhere"), "docmap.check: ... naming the module that is missing")
+  ok(fmsg(rnd[1]):match("line 3"), "docmap.check: ... and the line, since a file can miss twice")
   eq(rnd[1].severity, "warn", "docmap.check: require-not-declared is a warning")
 
   -- The escape hatch that already existed: `tag_files` declares that a prefix
@@ -2192,7 +2193,7 @@ return function(H)
     local out = {}
     for _, f in ipairs(check.run(dir_, dopts)) do
       if f.check == "dead-function" then
-        out[f.message:match("^(%S+)")] = f.message
+        out[fmsg(f):match("^(%S+)")] = fmsg(f)
       end
     end
     return out

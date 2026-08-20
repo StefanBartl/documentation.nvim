@@ -20,6 +20,7 @@
 -- check works; its silence on real repositories proves nothing.
 
 return function(H)
+  local fmsg = require("documentation.core.findings").format
   local eq, ok = H.eq, H.ok
   local scan = require("documentation.core.scan")
   local check = require("documentation.core.check")
@@ -134,15 +135,15 @@ return function(H)
 
   local miss = got.missing[1]
   ok(
-    miss.message:find("other.renamed_away", 1, true) ~= nil,
+    fmsg(miss):find("other.renamed_away", 1, true) ~= nil,
     "tag-require-missing: names the module the other project no longer declares"
   )
   ok(
-    miss.message:find("lua/t/b", 1, true) ~= nil and miss.message:find("lua/t/c", 1, true) ~= nil,
+    fmsg(miss):find("lua/t/b", 1, true) ~= nil and fmsg(miss):find("lua/t/c", 1, true) ~= nil,
     "tag-require-missing: names every file that requires it"
   )
   ok(
-    miss.message:find("predates a rename", 1, true) ~= nil,
+    fmsg(miss):find("predates a rename", 1, true) ~= nil,
     "tag-require-missing: carries the second reading — a stale map is as likely as a broken require"
   )
   eq(
@@ -157,7 +158,7 @@ return function(H)
     "tag-require-missing: the module that IS declared still resolves to a link"
   )
   ok(
-    miss.message:find("plenary", 1, true) == nil,
+    fmsg(miss):find("plenary", 1, true) == nil,
     "tag-require-missing: a require outside every configured prefix is somebody else's business"
   )
 
@@ -177,7 +178,7 @@ return function(H)
       .. "is not a defect in the tree"
   )
   ok(
-    absent.unavailable[1].message:find("were not checked", 1, true) ~= nil,
+    fmsg(absent.unavailable[1]):find("were not checked", 1, true) ~= nil,
     "tag-file-unavailable: says plainly that the requires went unchecked"
   )
 

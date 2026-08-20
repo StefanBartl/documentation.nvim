@@ -11,6 +11,7 @@
 -- (`RUNTIME_ANALYSIS_DIR`, wired the same way in TESTS/run.lua).
 
 return function(H)
+  local fmsg = require("documentation.core.findings").format
   local eq, ok = H.eq, H.ok
   local check = require("documentation.core.check")
   local telemetry_join = require("documentation.core.telemetry_join")
@@ -381,7 +382,7 @@ return function(H)
     local dead = {}
     for _, f in ipairs(findings) do
       if f.check == "dead-function" then
-        dead[#dead + 1] = f.message
+        dead[#dead + 1] = fmsg(f)
       end
     end
     local joined = table.concat(dead, "\n")

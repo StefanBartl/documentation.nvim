@@ -9,6 +9,7 @@
 -- cannot exercise.
 
 return function(H)
+  local fmsg = require("documentation.core.findings").format
   local eq, ok = H.eq, H.ok
   local tools = require("documentation.core.tools")
   local docmap = require("documentation")
@@ -151,7 +152,7 @@ return function(H)
     eq(hit.severity, "warn", "check.tools-spec-invalid: warn, matching doc-references-missing")
     eq(hit.node, nil, "check.tools-spec-invalid: repo-level finding, no owning node")
     ok(
-      hit.message:find("docs/install.json", 1, true) ~= nil,
+      fmsg(hit):find("docs/install.json", 1, true) ~= nil,
       "check.tools-spec-invalid: names the source file"
     )
   end

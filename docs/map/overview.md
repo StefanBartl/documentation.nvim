@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**5 modules** · 6 namespaces · 114 helper files
+**5 modules** · 6 namespaces · 115 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -67,6 +67,7 @@ flowchart LR
   nlua_documentation_core_endpoint_coverage_lua["documentation.core.endpoint_coverage"]
   nlua_documentation_core_endpoints_lua["documentation.core.endpoints"]
   nlua_documentation_core_find_lua["documentation.core.find"]
+  nlua_documentation_core_findings_lua["documentation.core.findings"]
   nlua_documentation_core_functions_lua["documentation.core.functions"]
   nlua_documentation_core_history_lua["documentation.core.history"]
   nlua_documentation_core_json_lua["documentation.core.json"]
@@ -95,6 +96,7 @@ flowchart LR
   nlua_documentation_mcp_protocol_lua["documentation.mcp.protocol"]
   nlua_documentation_mcp_tools_lua["documentation.mcp.tools"]
   nlua_documentation_bindings_autocmds_lua --> nlua_documentation_bindings_usrcmds
+  nlua_documentation_bindings_diagnostics_lua --> nlua_documentation_core_findings_lua
   nlua_documentation_bindings_docs_lua --> nlua_documentation_bindings_autocmds_lua
   nlua_documentation_bindings_docs_lua --> nlua_documentation_editor_browse
   nlua_documentation_bindings_progress_lua --> nlua_documentation_core_soft_require_lua
@@ -107,6 +109,7 @@ flowchart LR
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_deps_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_diff_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_find_lua
+  nlua_documentation_bindings_usrcmds --> nlua_documentation_core_findings_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_history_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_telemetry_self_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_timing_lua
@@ -130,6 +133,7 @@ flowchart LR
   nlua_documentation_core_check_lua --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_coverage_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_doccoverage_lua
+  nlua_documentation_core_cli_lua --> nlua_documentation_core_findings_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_lang_registry_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_render
   nlua_documentation_core_cli_lua --> nlua_documentation_core_telemetry_join_lua
@@ -158,6 +162,7 @@ flowchart LR
   nlua_documentation_core_loaded_diff_lua --> nlua_documentation_core_check_lua
   nlua_documentation_core_loaded_diff_lua --> nlua_documentation_core_soft_require_lua
   nlua_documentation_core_quicks_lua --> nlua_documentation_core_doccoverage_lua
+  nlua_documentation_core_render --> nlua_documentation_core_findings_lua
   nlua_documentation_core_render --> nlua_documentation_core_json_lua
   nlua_documentation_core_render --> nlua_documentation_core_lang_registry_lua
   nlua_documentation_core_render --> nlua_documentation_core_markers_lua
@@ -197,6 +202,7 @@ flowchart LR
   nlua_documentation_editor_serve_lua --> nlua_documentation_core_api_lua
   nlua_documentation_mcp_protocol_lua --> nlua_documentation_mcp_tools_lua
   nlua_documentation_mcp_tools_lua --> nlua_documentation_core_checklist_lua
+  nlua_documentation_mcp_tools_lua --> nlua_documentation_core_findings_lua
   nlua_documentation_mcp_tools_lua --> nlua_documentation_core_json_lua
 ```
 

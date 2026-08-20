@@ -15,6 +15,7 @@
 -- harmless fails here instead of on somebody's repository.
 
 return function(H)
+  local fmsg = require("documentation.core.findings").format
   local eq, ok = H.eq, H.ok
   local scan = require("documentation.core.scan")
   local check = require("documentation.core.check")
@@ -129,7 +130,7 @@ return function(H)
 
   local function in_file(name)
     for _, f in ipairs(mine) do
-      if f.message:find(name, 1, true) then
+      if fmsg(f):find(name, 1, true) then
         return f
       end
     end
@@ -147,7 +148,7 @@ return function(H)
     "test-references-missing: warn, matching doc-references-missing's own class"
   )
   ok(
-    gone.message:find("removed", 1, true) ~= nil and gone.message:find("t.mod", 1, true) ~= nil,
+    fmsg(gone):find("removed", 1, true) ~= nil and fmsg(gone):find("t.mod", 1, true) ~= nil,
     "test-references-missing: names both the missing member and the module"
   )
   eq(gone.node, "lua/t/mod", "test-references-missing: attributed to the module, not the spec")
@@ -157,7 +158,7 @@ return function(H)
   -- Each of the three below is a measured false positive, not a
   -- hypothetical one.
   ok(
-    not (gone.message:find("CONST", 1, true) or gone.message:find("reexport", 1, true)),
+    not (fmsg(gone):find("CONST", 1, true) or fmsg(gone):find("reexport", 1, true)),
     "test-references-missing: a constant and a re-export by assignment are members"
   )
   eq(

@@ -595,6 +595,13 @@ local function judge(p, th)
     polarity = polarity,
     value = p.value,
     unit = p.unit,
+    -- The two numbers `detail` renders. Carried in their own right because
+    -- the artifact keeps the data and drops the sentence: without these,
+    -- stripping `detail` would take "45 of 72" out of `module_map.json`
+    -- along with the English, and that is a fact about the repository
+    -- rather than a phrasing of it.
+    n = p.n,
+    total = p.total,
     detail = detail,
     headline = polarity == "good" and p.headline_good or p.headline_bad,
     basis = p.basis,

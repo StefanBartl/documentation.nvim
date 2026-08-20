@@ -19,13 +19,23 @@ local M = {}
 local uv = vim.uv
 local docs = require("documentation.core.docs")
 
+---Record a finding.
+---
+---`params` rather than a rendered sentence: the text is produced at the
+---edge that shows it, by `core/findings.lua`. See that module's header for
+---why — in one line, a sentence built here cannot be reordered for a
+---language that puts its pieces in a different order.
+---
+---Nothing here validates that the catalog has a key for `check`. That is
+---`findings_spec.lua`'s job, because a scan must not die over a missing
+---string, and an unknown key still renders visibly rather than blank.
 ---@param list Documentation.Finding[]
 ---@param severity Documentation.Severity
 ---@param check string
 ---@param node_id string?
----@param message string
-local function add(list, severity, check, node_id, message)
-  list[#list + 1] = { severity = severity, check = check, node = node_id, message = message }
+---@param params table<string, any> Values for the catalog template. `variant` selects a sub-template.
+local function add(list, severity, check, node_id, params)
+  list[#list + 1] = { severity = severity, check = check, node = node_id, params = params }
 end
 
 ---Derive the module path a file *should* declare from where it lives.
@@ -84,21 +94,9 @@ local function check_summaries(ir, findings)
     local node = ir.nodes[id]
     if node.kind ~= "namespace" then
       if wants_module_tag(node) and not node.module then
-        add(
-          findings,
-          "error",
-          "missing-module-tag",
-          id,
-          ("%s has no ---@module annotation"):format(node.source or id)
-        )
+        add(findings, "error", "missing-module-tag", id, { file = node.source or id })
       elseif node.summary == "" then
-        add(
-          findings,
-          "warn",
-          "missing-summary",
-          id,
-          ("%s has no description line"):format(node.source or id)
-        )
+        add(findings, "warn", "missing-summary", id, { file = node.source or id })
       end
     end
   end
@@ -121,7 +119,7 @@ local function check_module_paths(ir, findings, opts)
           "error",
           "module-path-mismatch",
           id,
-          ("%s declares @module '%s' but lives at '%s'"):format(node.source, node.module, want)
+          { file = node.source, declared = node.module, expected = want }
         )
       end
     end
@@ -136,7 +134,7 @@ local function check_readmes(ir, findings)
   for _, id in ipairs(ir.order) do
     local node = ir.nodes[id]
     if node.kind == "module" and not node.readme then
-      add(findings, "info", "missing-readme", id, ("%s has no README.md"):format(node.path))
+      add(findings, "info", "missing-readme", id, { path = node.path })
     end
   end
 end
@@ -225,13 +223,7 @@ local function check_readme_links(ir, findings, opts)
         seen[target] = true
         local resolved = resolve_relative_link(base_dir, target)
         if not uv.fs_stat(root .. "/" .. resolved) then
-          add(
-            findings,
-            "warn",
-            "dead-readme-link",
-            node_id,
-            ("%s links to '%s' which does not exist"):format(rel_path, target)
-          )
+          add(findings, "warn", "dead-readme-link", node_id, { file = rel_path, target = target })
         end
       end
     end
@@ -277,13 +269,7 @@ local function check_doc_references(ir, findings)
       "warn",
       "doc-references-missing",
       m.node,
-      ("%s:%d references '%s', but %s has no '%s'"):format(
-        m.doc,
-        m.line,
-        m.text,
-        m.module,
-        m.missing
-      )
+      { doc = m.doc, line = m.line, text = m.text, module = m.module, missing = m.missing }
     )
   end
 end
@@ -310,7 +296,7 @@ local function check_tools_spec(ir, findings)
       "warn",
       "tools-spec-invalid",
       nil,
-      ("%s: entry #%d is invalid — %s"):format(ir.tools.source, e.index, e.message)
+      { source = ir.tools.source, index = e.index, reason = e.message }
     )
   end
 end
@@ -372,26 +358,12 @@ local function check_tag_requires(ir, findings)
       "warn",
       "tag-require-missing",
       miss.nodes[1],
-      ("%s is required by %s but %s's own map does not declare it — either that require is broken, or that map predates a rename"):format(
-        miss.module,
-        table.concat(miss.nodes, ", "),
-        miss.prefix
-      )
+      { module = miss.module, who = table.concat(miss.nodes, ", "), prefix = miss.prefix }
     )
   end
 
   for _, gap in ipairs(audit.unavailable) do
-    add(
-      findings,
-      "info",
-      "tag-file-unavailable",
-      nil,
-      ("tag_files['%s'] points at %s, which has no readable module_map.json — requires under '%s' were not checked"):format(
-        gap.prefix,
-        gap.dir,
-        gap.prefix
-      )
-    )
+    add(findings, "info", "tag-file-unavailable", nil, { prefix = gap.prefix, dir = gap.dir })
   end
 end
 
@@ -413,13 +385,7 @@ local function check_orphans(ir, findings)
       -- A module may legitimately be reached only through the aggregator's
       -- string map rather than a literal require, so this stays at `info`.
       if #(node.required_by or {}) == 0 then
-        add(
-          findings,
-          "info",
-          "unreferenced-module",
-          id,
-          ("%s is required by no other file in the tree"):format(node.module)
-        )
+        add(findings, "info", "unreferenced-module", id, { module = node.module })
       end
     end
   end
@@ -529,11 +495,7 @@ local function check_orphaned_types(ir, findings, opts)
         "info",
         "orphaned-class-alias",
         entry.node,
-        ("%s %s is declared in %s and referenced by nothing in the tree"):format(
-          entry.info.kind,
-          name,
-          entry.info.file
-        )
+        { kind = entry.info.kind, name = name, file = entry.info.file }
       )
     end
   end
@@ -669,14 +631,7 @@ local function check_one_test_file(findings, root, path, idx, surface_of)
           "warn",
           "test-references-missing",
           idx.modules[module],
-          ("%s:%d references '%s.%s', but %s has no '%s'"):format(
-            rel,
-            m.row + 1,
-            m.alias,
-            m.field,
-            module,
-            m.field
-          )
+          { file = rel, line = m.row + 1, alias = m.alias, field = m.field, module = module }
         )
       end
     end
@@ -1032,11 +987,7 @@ local function check_binding_conflicts(ir, findings)
         "warn",
         "binding-conflict",
         sites[#sites].node,
-        ("%s is registered %d times; the last one wins: %s"):format(
-          entry.what,
-          #sites,
-          table.concat(where, ", ")
-        )
+        { what = entry.what, count = #sites, where = table.concat(where, ", ") }
       )
     end
   end
@@ -1108,12 +1059,7 @@ local function check_unused_requires(ir, findings, opts)
                 "info",
                 "unused-require",
                 id,
-                ("%s:%d binds require('%s') to '%s' and never uses it"):format(
-                  node.source,
-                  req.line,
-                  req.module,
-                  req.alias
-                )
+                { file = node.source, line = req.line, module = req.module, alias = req.alias }
               )
             end
           end
@@ -1161,19 +1107,13 @@ local function check_examples(ir, findings)
         if not ok_chunk then
           local ok_expr = loader("return (" .. fn.example .. "\n)", "@example")
           if not ok_expr then
-            add(
-              findings,
-              "warn",
-              "example-does-not-parse",
-              id,
-              ("%s's @example is not valid Lua: %s"):format(
-                fn.name,
-                -- The chunk error, not the expression one: the reader wrote
-                -- a statement far more often than a value, so that message
-                -- points at what they meant.
-                tostring(err):gsub('^%[string "@example"%]:', "line ")
-              )
-            )
+            add(findings, "warn", "example-does-not-parse", id, {
+              fn = fn.name,
+              -- The chunk error, not the expression one: the reader wrote
+              -- a statement far more often than a value, so that message
+              -- points at what they meant.
+              error = (tostring(err):gsub('^%[string "@example"%]:', "line ")),
+            })
           end
         end
       end
@@ -1285,10 +1225,7 @@ local function check_consumer_requires(ir, findings, opts)
       "warn",
       "consumer-require-missing",
       nil,
-      ("%s is required by %s but no module here declares it — either they are broken, or their map predates a rename"):format(
-        module,
-        table.concat(who, ", ")
-      )
+      { module = module, who = table.concat(who, ", ") }
     )
   end
 end
@@ -1304,13 +1241,7 @@ local function check_require_cycles(ir, findings)
     -- node, and a cycle with no node attached is unclickable in the HTML
     -- findings table and unjumpable in the quickfix list.
     for _, member in ipairs(component) do
-      add(
-        findings,
-        "warn",
-        "require-cycle",
-        member,
-        ("require cycle across %d modules: %s"):format(#component, joined)
-      )
+      add(findings, "warn", "require-cycle", member, { count = #component, members = joined })
     end
   end
 end
@@ -1392,13 +1323,7 @@ local function check_require_not_declared(ir, findings, opts)
         and not tagged(mod)
       then
         reported[mod] = true
-        add(
-          findings,
-          "warn",
-          "require-not-declared",
-          id,
-          ("requires %q (line %d), which no file in this tree declares"):format(mod, req.line)
-        )
+        add(findings, "warn", "require-not-declared", id, { module = mod, line = req.line })
       end
     end
   end
@@ -1445,19 +1370,17 @@ local function check_layers(ir, findings, opts)
             and not under(from.module, rule.to)
             and under(to.module, rule.to)
           then
-            add(
-              findings,
-              "warn",
-              "layer-violation",
-              edge.from,
-              ("%s requires %s, but %s must not reach into %s%s"):format(
-                from.module,
-                to.module,
-                rule.from,
-                rule.to,
-                rule.why and (" — " .. rule.why) or ""
-              )
-            )
+            add(findings, "warn", "layer-violation", edge.from, {
+              from = from.module,
+              to = to.module,
+              from_layer = rule.from,
+              to_layer = rule.to,
+              -- Carried as a value rather than a second template: the
+              -- rule's `why` is the *caller's* prose, not this
+              -- catalogue's, so it is never translatable and never
+              -- belongs in the catalog.
+              why = rule.why and (" — " .. rule.why) or "",
+            })
           end
         end
       end
@@ -1485,16 +1408,7 @@ local function check_see_targets(ir, findings)
     for _, fn in ipairs(node.functions) do
       for _, target in ipairs(fn.see) do
         if not known[target] then
-          add(
-            findings,
-            "warn",
-            "dead-see-target",
-            id,
-            ("%s: @see target '%s' does not resolve to a known module or function"):format(
-              fn.name,
-              target
-            )
-          )
+          add(findings, "warn", "dead-see-target", id, { fn = fn.name, target = target })
         end
       end
     end
@@ -1625,20 +1539,7 @@ local function check_type_vs_class(ir, findings, opts)
             "warn",
             "type-vs-class",
             id,
-            (
-              "%s: local %q annotated ---@type %s, but %d field(s) are assigned to it after "
-              .. 'its literal — LuaLS reports missing-fields/"fields cannot be injected" for '
-              .. "this shape; use ---@class instead (---@class %s : %s, plus @see the type "
-              .. "definition, if %s should still be checked against it)"
-            ):format(
-              node.module or id,
-              name,
-              declared_type,
-              n,
-              node.module or id,
-              declared_type,
-              declared_type
-            )
+            { module = node.module or id, name = name, type = declared_type, count = n }
           )
         end
       end
@@ -1727,11 +1628,7 @@ local function check_undocumented_params(ir, findings)
               "info",
               "undocumented-param",
               id,
-              ("%s has %d parameter(s) but only %d @param line(s)"):format(
-                fn.name,
-                declared,
-                #fn.params
-              )
+              { fn = fn.name, declared = declared, documented = #fn.params }
             )
           end
         end
@@ -1790,11 +1687,7 @@ local function check_param_name_mismatch(ir, findings)
               "info",
               "param-name-mismatch",
               id,
-              ("%s: @param #%d is documented as '%s' but the signature "):format(
-                fn.name,
-                i,
-                doc_name
-              ) .. ("declares '%s' at that position"):format(sig_name)
+              { fn = fn.name, index = i, documented = doc_name, actual = sig_name }
             )
           end
         end
@@ -1931,17 +1824,20 @@ local function check_dead_functions(ir, findings, opts)
           goto continue
         end
 
-        local why
+        -- Three genuinely different statements, so three catalog entries
+        -- rather than one sentence with a clause spliced in. A translator
+        -- needs to see them apart; a reader of this code does too.
+        local variant
         if file_local then
-          why = "is file-local and nothing in its own file mentions it"
+          variant = "file-local"
         elseif fn.internal then
-          why = "is marked @internal and nothing in the tree calls it"
+          variant = "internal"
         elseif opts.dead_code then
-          why = "has no caller anywhere in the tree"
+          variant = "no-caller"
         end
 
-        if why then
-          add(findings, "info", "dead-function", id, ("%s %s"):format(fn.name, why))
+        if variant then
+          add(findings, "info", "dead-function", id, { variant = variant, fn = fn.name })
         end
       end
       ::continue::
