@@ -771,6 +771,20 @@ Generic checks, run against any annotated Lua tree:
                                  into a layer it must not.
     missing-readme        info   Module without a README.
     unreferenced-module   info   Required by no other file in the tree.
+    tag-require-missing   warn   Needs `opts.tag_files`. A require into
+                                 another project that that project's own
+                                 committed map no longer declares -- the
+                                 mirror of consumer-require-missing. Either
+                                 the require is broken, or the map it was
+                                 checked against predates a rename.
+    tag-file-unavailable  info   A configured tag file whose module_map.json
+                                 could not be read, once per directory. Said
+                                 out loud rather than passed over: without
+                                 it, an unreadable map would look exactly
+                                 like a clean one. Expect this on a fresh
+                                 clone -- a generated map is usually not
+                                 committed, so tag_files is for a working
+                                 copy with sibling checkouts.
     orphaned-class-alias  info   A @class or @alias declared, documented, and
                                  named by nothing in the tree --
                                  unreferenced-module one level down. Only

@@ -451,6 +451,25 @@
 ---the same consumer unchanged (`window.open(link.html, "_blank")` in the
 ---generated page), so nothing downstream needs to know which resolver an
 ---entry came from.
+---What `tagfiles.resolve` could *not* do, so a check can say it out loud.
+---
+---`nil` when `opts.tag_files` is unset — the same "never ran" contract
+---`types_detail` has, and the reason it is not simply an empty table:
+---`ir.tag_links` is set unconditionally, so its presence says nothing about
+---whether anything was configured, and a check must stay silent rather than
+---report a clean bill for a question nobody asked.
+---@class Documentation.TagAudit
+---@field missing Documentation.TagMiss[] Requires whose target project's own map loaded and does not declare them.
+---@field unavailable { prefix: string, dir: string }[] Configured tag files whose `module_map.json` could not be read at all, once per directory. **Expected rather than exceptional in this ecosystem**: every plugin here but `documentation.nvim` gitignores `docs/map/`, because a committed map is stale the moment anything it describes changes and only this repository gates that in CI. So a fresh clone has no artifact to resolve against, and the honest report is "this was not checked", never "this is fine".
+
+---One `requires_external` module that a configured tag file's own artifact
+---does not declare.
+---@class Documentation.TagMiss
+---@field module string The required module, e.g. "lib.nvim.fs.gone".
+---@field prefix string The `tag_files` prefix that claimed it.
+---@field dir string Resolved directory of the map that was read.
+---@field nodes string[] Node ids of the files requiring it, in `ir.order`.
+
 ---@class Documentation.TagLink
 ---@field title string The link's display title — the resolved node's `module`/`name` for a `tag_files` entry, the bare required module string for an `external_repos` one.
 ---@field html string Either shape described above.
@@ -688,6 +707,7 @@
 ---@field tools Documentation.Tools.Result? This repo's declared `lib.nvim.deps` tools — see `core/tools.lua`. Set by `scan_full`; nil when lib.nvim.deps is unavailable or this repo ships no manifest.
 ---@field features Documentation.Features.Result? This repo's own `docs/FEATURES/` — see `core/features.lua`. Set by `scan_full`; nil when this repo ships no such folder.
 ---@field checklist Documentation.Checklist.Result? This repo's own `docs/CHECKLIST/` ledger of hand-verified facts — see `core/checklist.lua`. Set by `scan_full`; nil when this repo ships no checklist. Carries no staleness verdict: that needs git, which cannot enter a byte-compared artifact.
+---@field tag_audit Documentation.TagAudit? What `opts.tag_files` resolution could not do — `nil` when it was never configured. Read by `tag-require-missing`/`tag-file-unavailable` in `check.lua`.
 ---@field tag_links table<string, Documentation.TagLink> `requires_external` modules resolved through `opts.tag_files`. Always a table, empty when `opts.tag_files` is unset or nothing resolved — unlike `types_detail`, resolving is local and cheap, so there is no "did this run" question worth a nil.
 ---@field timing Documentation.Timing? Per-stage durations, set by `scan_full` when `opts.debug` is on. Deliberately **not** serialised into the artifact: a duration differs on every machine and `--check` byte-compares, so embedding one would make the map invalidate itself.
 

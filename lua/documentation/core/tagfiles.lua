@@ -102,23 +102,46 @@ end
 function M.resolve(ir, opts)
   local tag_files = opts.tag_files
   ir.tag_links = {}
+  -- Nil rather than an empty table when unconfigured, and the difference is
+  -- load-bearing: `ir.tag_links` is set unconditionally, so its presence
+  -- says nothing about whether anything was configured. The audit is read
+  -- by a *check*, which must stay silent when there was nothing to check —
+  -- the same nil-means-never-ran contract `types_detail` has.
+  ir.tag_audit = nil
   if not tag_files or not next(tag_files) then
     return
   end
+
+  ---@type Documentation.TagAudit
+  local audit = { missing = {}, unavailable = {} }
+  ir.tag_audit = audit
 
   local find_node = require("documentation.core.find").node
   local root = opts.root:gsub("\\", "/"):gsub("/+$", "")
   local lua_root = opts.lua_root or "lua"
 
+  -- Which files require each external module, so a finding can name them.
+  -- Sorted at the end rather than kept sorted here: `ir.order` is already
+  -- the deterministic walk, and this only has to not depend on hash order.
   local mods = {}
+  local mod_order = {}
   for _, id in ipairs(ir.order) do
     for _, mod in ipairs(ir.nodes[id].requires_external or {}) do
-      mods[mod] = true
+      if not mods[mod] then
+        mods[mod] = {}
+        mod_order[#mod_order + 1] = mod
+      end
+      local who = mods[mod]
+      if who[#who] ~= id then
+        who[#who + 1] = id
+      end
     end
   end
+  table.sort(mod_order)
 
   local ir_cache = {} ---@type table<string, Documentation.IR|false>
-  for mod in pairs(mods) do
+  local reported_dir = {} ---@type table<string, boolean>
+  for _, mod in ipairs(mod_order) do
     local prefix, dir = match_prefix(mod, tag_files)
     if prefix and dir then
       local resolved_dir = abs(root, dir)
@@ -126,9 +149,32 @@ function M.resolve(ir, opts)
         ir_cache[resolved_dir] = load_ir(resolved_dir .. "/module_map.json") or false
       end
       local ext_ir = ir_cache[resolved_dir]
-      if ext_ir then
+      if not ext_ir then
+        -- **The common case in this ecosystem, not an edge one.** Every
+        -- plugin here but this one gitignores `docs/map/` — a committed map
+        -- is stale the moment anything it describes changes, and only this
+        -- repository gates that in CI. So the artifact a tag file points at
+        -- exists on the author's disk and in no clone, and a check reading
+        -- this audit would otherwise report "nothing wrong" for a directory
+        -- it never managed to open. Recorded once per directory, not once
+        -- per module.
+        if not reported_dir[resolved_dir] then
+          reported_dir[resolved_dir] = true
+          audit.unavailable[#audit.unavailable + 1] = { prefix = prefix, dir = resolved_dir }
+        end
+      else
         local node_id = find_node(ext_ir, mod, lua_root)
-        if node_id then
+        if not node_id then
+          -- That project's own artifact says this module is not in it.
+          -- Only ever recorded against a map that *loaded*, so "missing"
+          -- means missing rather than unknown.
+          audit.missing[#audit.missing + 1] = {
+            module = mod,
+            prefix = prefix,
+            dir = resolved_dir,
+            nodes = mods[mod],
+          }
+        else
           local node = ext_ir.nodes[node_id]
           ir.tag_links[mod] = {
             title = node.module or node.name,

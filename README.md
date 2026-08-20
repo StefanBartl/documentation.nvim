@@ -657,9 +657,19 @@ The rendered map is the visible half; the checks are the half that catches
 bugs. `missing-module-tag` and `module-path-mismatch` are errors;
 `missing-summary`, `dead-readme-link`, `dead-see-target`, `type-vs-class`,
 `doc-references-missing`, `test-references-missing`, `require-cycle`,
-`require-not-declared` and `layer-violation` are warnings; `missing-readme`,
-`unreferenced-module`, `orphaned-class-alias`, `undocumented-param`,
-`param-name-mismatch` and `dead-function` are informational. Each one's reasoning — especially `dead-function`'s, which has
+`require-not-declared`, `tag-require-missing` and `layer-violation` are
+warnings; `missing-readme`, `unreferenced-module`, `orphaned-class-alias`,
+`tag-file-unavailable`, `undocumented-param`, `param-name-mismatch` and
+`dead-function` are informational.
+
+The last pair is the cross-repository one and needs `opts.tag_files` set —
+another checkout's `docs/map` directory, per module prefix. With it,
+`tag-require-missing` reports a `require` into that project which its own
+generated map no longer declares, and `tag-file-unavailable` says so when
+that map could not be read rather than reporting a clean bill it did not
+earn. That second one is the common case: every plugin in this ecosystem
+but this one gitignores `docs/map/`, so these checks are for a working copy
+with sibling checkouts, not for CI. Each one's reasoning — especially `dead-function`'s, which has
 to survive the fact that a library is *made of* functions with no internal
 caller — is in [docs/PIPELINE.md § Drift checks](docs/PIPELINE.md#drift-checks).
 
