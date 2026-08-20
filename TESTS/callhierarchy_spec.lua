@@ -200,4 +200,156 @@ return function(H)
 
   handle.uninstall()
   vim.cmd("silent! %bwipeout!")
+
+  -- ------------------------------------------------------------------------
+  -- The runtime half of the hover (`runtime-analysis.nvim`'s IDEAS.md 1.8).
+  --
+  -- `runtime-analysis.nvim` is a soft dependency and is not on this run's
+  -- runtimepath, so the module is stubbed into `package.loaded` -- which is
+  -- exactly what `core/soft_require.probe` looks in. That makes this the real
+  -- path end to end (registry -> attach -> client -> telemetry_join) with only
+  -- the other plugin faked, rather than a unit test of a local function.
+  --
+  -- **The third case is the one this feature exists for.** A function with no
+  -- static callers and no callees used to get no hover at all -- and that is
+  -- precisely static analysis's blind spot, the shape `telemetry_join`'s own
+  -- header names: a callback bound as a value looks dead while telemetry
+  -- proves it is alive.
+  -- ------------------------------------------------------------------------
+  do
+    local ns = "callhierarchy-telemetry-fixture"
+    local root2 = H.tmpfile("_ch_telemetry")
+    dwrite(root2, "lua/demo/c/init.lua", {
+      "---@module 'demo.c'",
+      "--- Two functions: one with a static edge, one with none.",
+      "local M = {}",
+      "---Hot.",
+      "function M.hot()",
+      "  return M.helper()",
+      "end",
+      "---Helper.",
+      "function M.helper()",
+      "  return 1",
+      "end",
+      "---Only ever reached as a callback value.",
+      "function M.callback()",
+      "  return 2",
+      "end",
+      "return M",
+    })
+
+    local today = os.date("%Y-%m-%d")
+    local previous = package.loaded["runtime-analysis.telemetry"]
+    package.loaded["runtime-analysis.telemetry"] = {
+      load = function(namespace)
+        if namespace ~= ns then
+          return nil
+        end
+        return {
+          version = 1,
+          started_at = 0,
+          sessions = 1,
+          functions = {
+            ["c.M.hot"] = { calls = 900 },
+            ["c.M.callback"] = { calls = 12 },
+            ["c.M.helper"] = { calls = 400 },
+          },
+          -- `M.helper` has a large total and nothing today: the cold path.
+          days = { [today] = { ["c.M.hot"] = 9, ["c.M.callback"] = 12 } },
+          reminded = {},
+          modules = {
+            ["c.M.hot"] = "demo.c",
+            ["c.M.callback"] = "demo.c",
+            ["c.M.helper"] = "demo.c",
+          },
+          info = {},
+        }
+      end,
+    }
+
+    local handle2 = docmap.install({
+      root = root2,
+      source = "lua/demo",
+      lua_root = "lua",
+      callhierarchy = true,
+      telemetry_namespace = ns,
+    })
+
+    local c_path = root2 .. "/lua/demo/c/init.lua"
+    vim.cmd.edit(vim.fn.fnameescape(c_path))
+    local c_buf = vim.api.nvim_get_current_buf()
+    local ok_attach = vim.wait(2000, function()
+      for _, c in ipairs(vim.lsp.get_clients({ bufnr = c_buf })) do
+        if c.name == "docmap-callhierarchy" then
+          return true
+        end
+      end
+      return false
+    end, 10)
+    ok(ok_attach, "hover/telemetry: the client attaches to the second root")
+
+    -- **The teardown runs even when an assertion fails**, and that is not
+    -- tidiness. `package.loaded["runtime-analysis.telemetry"]` is process
+    -- global: an `error()` from any assertion below would leave this spec's
+    -- stub installed for every spec that runs after it. That happened once
+    -- during development and turned one failing spec into two, with the
+    -- second one's failure pointing nowhere near the cause.
+    local ok_body, body_err = pcall(function()
+      ---@param line0 integer
+      ---@return string?
+      local function hover_at(line0)
+        local h = first_result(request(c_buf, "textDocument/hover", {
+          textDocument = { uri = vim.uri_from_bufnr(c_buf) },
+          position = { line = line0, character = 4 },
+        }))
+        return h and h.contents and h.contents.value or nil
+      end
+
+      -- `M.hot` (line 4, 0-based): a real static edge *and* recent calls.
+      local hot = hover_at(4)
+      ok(hot ~= nil, "hover/telemetry: a function with calls still hovers")
+      if hot then
+        ok(hot:find("outgoing call", 1, true) ~= nil, "hover/telemetry: the static half survives")
+        ok(
+          hot:find("called %*%*9%*%*") ~= nil,
+          "hover/telemetry: the recent window, not the all-time total: " .. hot
+        )
+      end
+
+      -- `M.helper` (line 8): reachable statically, but nothing recent -- the
+      -- cold-path reading, which the all-time count alone cannot give.
+      local helper = hover_at(8)
+      ok(helper ~= nil, "hover/telemetry: the cold path hovers")
+      if helper then
+        ok(
+          helper:find("not called", 1, true) ~= nil,
+          "hover/telemetry: a cold path says so rather than showing 400: " .. helper
+        )
+        ok(helper:find("400", 1, true) ~= nil, "hover/telemetry: ...with the total beside it")
+      end
+
+      -- `M.callback` (line 12): no static edges either way. This returned
+      -- nothing at all before the runtime half existed.
+      local callback = hover_at(12)
+      ok(
+        callback ~= nil,
+        "hover/telemetry: a function with no static edges but real calls now hovers at all"
+      )
+      if callback then
+        ok(
+          callback:find("called %*%*12%*%*") ~= nil,
+          "hover/telemetry: ...and says how often: " .. callback
+        )
+      end
+    end)
+
+    handle2.uninstall()
+    package.loaded["runtime-analysis.telemetry"] = previous
+    vim.cmd("silent! %bwipeout!")
+
+    -- Re-raised after the teardown, so the failure still fails.
+    if not ok_body then
+      error(body_err, 0)
+    end
+  end
 end

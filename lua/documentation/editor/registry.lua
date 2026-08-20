@@ -180,7 +180,14 @@ function M.ensure_callhierarchy(root)
       -- function is *defined* (inside `install()`, before the handle table
       -- exists yet), it would be nil; by the time an autocmd actually
       -- *fires*, `install()` has long since returned and set it.
-      callhierarchy.attach(args.buf, entry.handle)
+      -- The namespace is resolved here rather than inside the client:
+      -- `entry.opts` is the only place `telemetry_namespace` exists, and a
+      -- handle carries no options at all.
+      callhierarchy.attach(
+        args.buf,
+        entry.handle,
+        require("documentation.core.telemetry_join").namespace(opts)
+      )
     end
   end, {
     group = group,

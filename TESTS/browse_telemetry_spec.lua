@@ -108,6 +108,76 @@ return function(H)
 
     local by_key = telemetry_join.by_key(ir, data)
     ok(by_key["a#callee"] ~= nil, "by_key: resolvable key present")
+
+    -- ------------------------------------------------------------------
+    -- `calls_recent` -- the seven-day window, from `data.days`' own
+    -- calendar buckets.
+    --
+    -- The question the hover badge answers is "is this alive", and `calls`
+    -- alone cannot answer it: a path abandoned three weeks ago still carries
+    -- a large total. So the window is the number that matters, and the two
+    -- cases below are the two readings it makes possible.
+    -- ------------------------------------------------------------------
+    do
+      local ir2 = fake_ir()
+      local today = os.date("%Y-%m-%d")
+      local six_ago = os.date("%Y-%m-%d", os.time() - 6 * 86400)
+      -- Deliberately just outside the window rather than far outside: an
+      -- off-by-one in the loop bound is the failure this catches, and a
+      -- date thirty days back would not.
+      local eight_ago = os.date("%Y-%m-%d", os.time() - 8 * 86400)
+
+      ---@type RA.Telemetry.Data
+      local d = {
+        version = 1,
+        started_at = 0,
+        sessions = 1,
+        functions = {
+          ["mod.callee"] = { calls = 40 },
+          ["mod.truly_unused"] = { calls = 7 },
+        },
+        days = {
+          [today] = { ["mod.callee"] = 3 },
+          [six_ago] = { ["mod.callee"] = 4 },
+          [eight_ago] = { ["mod.callee"] = 500, ["mod.truly_unused"] = 7 },
+        },
+        reminded = {},
+        modules = { ["mod.callee"] = "a", ["mod.truly_unused"] = "a" },
+        info = {},
+      }
+
+      local rows2 = telemetry_join.by_key(ir2, d)
+      eq(
+        rows2["a#callee"].calls_recent,
+        7,
+        "calls_recent: today plus six days back, and nothing from day eight"
+      )
+      eq(rows2["a#callee"].calls, 40, "calls stays the all-time total")
+
+      -- The cold-path reading, which is the whole reason the two numbers are
+      -- separate: recorded calls, none of them recent.
+      eq(rows2["a#truly_unused"].calls, 7)
+      eq(rows2["a#truly_unused"].calls_recent, 0, "a cold path is 0 recent, not 0 total")
+    end
+
+    -- A `days` table that is absent or empty is not an error: telemetry
+    -- written before day buckets existed, or a namespace whose first call
+    -- has not landed yet.
+    do
+      local ir3 = fake_ir()
+      ---@type RA.Telemetry.Data
+      local d = {
+        version = 1,
+        started_at = 0,
+        sessions = 1,
+        functions = { ["mod.callee"] = { calls = 2 } },
+        days = {},
+        reminded = {},
+        modules = { ["mod.callee"] = "a" },
+        info = {},
+      }
+      eq(telemetry_join.by_key(ir3, d)["a#callee"].calls_recent, 0, "no day buckets is 0, not nil")
+    end
     eq(by_key["a#callee"].calls, 5, "by_key: the real call count carried through")
     eq(by_key["a#callee"].has_static_caller, true, "by_key: joined against check.used_keys")
     eq(

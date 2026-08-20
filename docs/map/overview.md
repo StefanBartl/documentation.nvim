@@ -184,12 +184,14 @@ flowchart LR
   nlua_documentation_editor_browse --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_editor_browse --> nlua_documentation_editor_command_lua
   nlua_documentation_editor_browse --> nlua_documentation_editor_registry_lua
+  nlua_documentation_editor_callhierarchy_lua --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_editor_command_lua --> nlua_documentation_bindings_usrcmds
   nlua_documentation_editor_command_lua --> nlua_documentation_core_find_lua
   nlua_documentation_editor_health_lua --> nlua_documentation_core_soft_require_lua
   nlua_documentation_editor_registry_lua --> nlua_documentation_bindings_diagnostics_lua
   nlua_documentation_editor_registry_lua --> nlua_documentation_core_render
   nlua_documentation_editor_registry_lua --> nlua_documentation_core_soft_require_lua
+  nlua_documentation_editor_registry_lua --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_editor_registry_lua --> nlua_documentation_editor_callhierarchy_lua
   nlua_documentation_editor_serve_lua --> nlua_documentation_core_api_lua
   nlua_documentation_mcp_protocol_lua --> nlua_documentation_mcp_tools_lua

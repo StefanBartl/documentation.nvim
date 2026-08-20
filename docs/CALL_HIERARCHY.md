@@ -59,6 +59,42 @@ is injected into whatever LuaLS's own hover returns:
 **3** incoming calls · **1** outgoing call
 ```
 
+### The runtime half, when there is one
+
+With [`runtime-analysis.nvim`](https://github.com/StefanBartl/runtime-analysis.nvim)
+installed and telemetry collected for this project's namespace, the hover
+gains a third clause — how often the function was **actually entered**, in the
+last seven days:
+
+```
+**3** incoming calls · **1** outgoing call · called **412**× in the last 7 days
+```
+
+Three readings, and the middle one is the reason the window exists rather
+than a running total:
+
+| What you see | What it means |
+|---|---|
+| `called **412**× in the last 7 days` | Alive, and how alive. |
+| `**not called** in the last 7 days (9 310 recorded in total)` | A **cold path**. The total alone cannot say this — a function abandoned three weeks ago still carries a large one. |
+| no third clause at all | No telemetry for this namespace, or none for this function. **Never** read as "not called": absence of runtime data is not evidence of death. |
+
+**The case this was built for is the one where the first two counts are
+zero.** A function nothing statically calls — bound as a callback value, or
+reached through dynamic dispatch — used to produce no hover at all, which is
+precisely static analysis's blind spot. It now hovers, and says the one thing
+only runtime data can attest to.
+
+Seven days because the question is "is this alive": a day is noise, and a
+month is long enough that a path abandoned three weeks ago still reads as
+busy. The window is `telemetry_join.RECENT_DAYS`, in one place.
+
+The lookup is cached for two seconds. A hover fires on `K` and on every
+`CursorHold`, and reading the telemetry file per keystroke would be felt —
+while nothing in this process can observe another session appending to it, so
+there is no event to invalidate on and no TTL that would make the number
+live.
+
 ## Using it
 
 Put the cursor **anywhere inside a function's body**, not necessarily on its
@@ -139,7 +175,7 @@ buffer:
 | Request | `docmap-callhierarchy` | `luals` |
 |---|---|---|
 | `textDocument/prepareCallHierarchy` | `M.encode` | *no answer* |
-| `textDocument/hover` | caller/callee counts | its own hover |
+| `textDocument/hover` | caller/callee counts, plus recent call counts when telemetry has them | its own hover |
 
 That table is the design in one line: the two clients answer disjoint
 questions, and Neovim merges them.

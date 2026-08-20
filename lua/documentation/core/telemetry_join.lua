@@ -32,8 +32,51 @@ local M = {}
 ---@field id string IR node id the function belongs to (the resolved module path)
 ---@field fn string Function name, the IR node's own `fn.name`
 ---@field ir_key string `id .. "#" .. fn` — the same key shape `check.used_keys` returns
----@field calls integer
+---@field calls integer Every call ever recorded for this key, across every session since `data.started_at`.
+---@field calls_recent integer Calls in the last `M.RECENT_DAYS` calendar days, from `data.days`. `0` is a real answer and a different one from `calls == 0`: a function with a large `calls` and a `calls_recent` of zero is a cold path, which is the reading `calls` alone cannot give.
 ---@field has_static_caller boolean Whether `check.used_keys(ir)` already considers this function used
+
+---How many calendar days `Row.calls_recent` looks back over.
+---
+---**Seven, because the question it answers is "is this alive", and a week is
+---the shortest window that survives a weekend.** A day is noise — a function
+---nobody happened to reach on Tuesday is not cold. A month is long enough
+---that a path abandoned three weeks ago still reads as busy, which is the
+---one wrong answer this number exists to prevent.
+---
+---Named rather than inlined so the hover, the browse mode and any later
+---reader all say the same number, and so changing it is one edit rather than
+---a search for `7`.
+M.RECENT_DAYS = 7
+
+---Calls recorded for `key` in the last `M.RECENT_DAYS` calendar days.
+---
+---**Calendar days, from `data.days`' own `YYYY-MM-DD` keys, not a rolling
+---timestamp window.** That is what telemetry stores, and reconstructing an
+---hour-accurate window from day buckets would be a precision the data does
+---not have. Today counts as one of the seven, so a fresh install that has
+---only ever run today still reports its calls rather than nothing.
+---@param data RA.Telemetry.Data
+---@param key string The telemetry key, not the IR key — `data.days` is keyed the way telemetry wrapped it.
+---@return integer
+local function recent_calls(data, key)
+  if type(data.days) ~= "table" then
+    return 0
+  end
+  local total = 0
+  local now = os.time()
+  for back = 0, M.RECENT_DAYS - 1 do
+    -- `os.date` on a shifted timestamp rather than arithmetic on the date
+    -- string: this has to be right across a month boundary and a DST
+    -- change, and the C library already is.
+    local day = os.date("%Y-%m-%d", now - back * 86400)
+    local bucket = data.days[day]
+    if type(bucket) == "table" and type(bucket[key]) == "number" then
+      total = total + bucket[key]
+    end
+  end
+  return total
+end
 
 ---Read `namespace`'s telemetry data straight off disk, no live instance
 ---required — the same `telemetry.load()` a `:DocMap check` run in a fresh
@@ -86,6 +129,56 @@ local function module_index(ir)
   return by_module
 end
 
+---The IR function name behind a telemetry key's last segment.
+---
+---**The second half of the key-space bug, fixed 2026-08-20 — the same shape
+---as the first, in the other half of the key.** `module_index`'s header
+---above records how the *module* side was found to be joining two key spaces
+---that never intersect. The *function* side had the identical defect and
+---survived that fix: a telemetry key's last segment is the table field name
+---(`documentation.scan_full`), while `Documentation.FunctionInfo.name` is the
+---name **as written** (`M.scan_full`). Building `node.id .. "#" .. field`
+---produced `lua/documentation#scan_full`, and `used_keys(ir)` — and every
+---consumer that looks a row up by IR key — has `lua/documentation#M.scan_full`.
+---
+---**So the join silently matched nothing but bare-named locals**, which is a
+---small minority of any Lua module: every `function M.foo()` in this
+---ecosystem, meaning nearly every exported function there is, came back as
+---"no telemetry data". `:DocBrowse telemetry` said so per function,
+---`doc_usage_summary` counted both of its numbers far too low, and
+---`dead-function`'s telemetry suppression never applied to an export.
+---
+---Measured rather than reasoned, the same way the first half was: the join
+---was run against this repository's own real IR with the telemetry key
+---`wrap_loaded()` would actually produce, and asked whether the key it
+---emitted was one the IR has. It was not.
+---
+---**Exact first, then the bare tail.** A node could in principle hold both
+---`read` and `M.read`; the exact match is the specific answer and wins. Two
+---functions sharing one tail with no exact match is genuinely ambiguous, and
+---an ambiguous key is dropped rather than guessed — the same treatment a key
+---that resolves to no node at all already gets, and for the same reason:
+---attributing somebody's call counts to the wrong function is worse than
+---attributing them to nothing.
+---@param node Documentation.Node
+---@param field string The telemetry key's last segment — the table field name.
+---@return string? name The IR's own `fn.name`, or `nil` when nothing matches or several do.
+local function resolve_fn_name(node, field)
+  local bare_match, bare_count = nil, 0
+  for _, fn in ipairs(node.functions or {}) do
+    if fn.name == field then
+      return fn.name
+    end
+    if (fn.name:match("([%w_]+)$") or fn.name) == field then
+      bare_match, bare_count = fn.name, bare_count + 1
+    end
+  end
+  if bare_count == 1 then
+    return bare_match
+  end
+  return nil
+end
+
 ---Every function `data.modules` can resolve to a real node still present in
 ---`ir`, joined against `check.used_keys(ir)` for the static half.
 ---
@@ -112,9 +205,10 @@ function M.rows(ir, data)
 
   local rows = {}
   for key, module_id in pairs(data.modules) do
-    local fn_name = key:match("([^.]+)$")
-    local node = fn_name and (ir.nodes[module_id] or by_module[module_id])
-    if node then
+    local field = key:match("([^.]+)$")
+    local node = field and (ir.nodes[module_id] or by_module[module_id])
+    local fn_name = node and resolve_fn_name(node, field)
+    if node and fn_name then
       -- `node.id` (the real, file-path IR key) rather than `module_id`
       -- verbatim: the two coincide for the direct-id convention above but
       -- not for the dotted one, and this is what `used_keys(ir)` is itself
@@ -127,6 +221,7 @@ function M.rows(ir, data)
         fn = fn_name,
         ir_key = ir_key,
         calls = stats and stats.calls or 0,
+        calls_recent = recent_calls(data, key),
         has_static_caller = used[ir_key] == true,
       }
     end
