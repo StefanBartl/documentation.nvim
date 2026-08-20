@@ -118,6 +118,7 @@ local specs = {
   "markdown_links_spec.lua",
   "prose_render_spec.lua",
   "hierarchy_gestures_spec.lua",
+  "explain_spec.lua",
   "snippet_spec.lua",
   "bindings_spec.lua",
   "browse_endpoints_spec.lua",
