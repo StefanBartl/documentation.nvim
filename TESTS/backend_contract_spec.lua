@@ -92,7 +92,13 @@ return function(H)
       local name = backend.name
       local token = (backend.line_comments or {})[1]
       if token then
-        local found = markers.scan_source(token .. " TODO: proof", backend)
+        -- `code_prelude` is what a minimal file of this language has to
+        -- begin with for its code to be code — empty for every backend but
+        -- PHP, whose source outside `<?php` is text rather than code. That
+        -- is the grammar being right, and it means a probe built without the
+        -- tag asks the wrong question rather than finding a bug.
+        local probe = (backend.code_prelude or "") .. token .. " TODO: proof"
+        local found = markers.scan_source(probe, backend)
         eq(#found, 1, name .. ": its own first line-comment token must produce a marker")
       end
     end

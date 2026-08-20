@@ -52,6 +52,7 @@ local KNOWN_BACKENDS = {
   "documentation.core.lang.csharp",
   "documentation.core.lang.go",
   "documentation.core.lang.rust",
+  "documentation.core.lang.php",
 }
 
 local loaded = false

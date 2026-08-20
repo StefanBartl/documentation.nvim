@@ -132,7 +132,7 @@ echo "== dynamic lua_tree_sitter.so (so bundle_manifest.lua's probe run can see 
 echo "== luastatic (a plain Lua script, not a build target)"
 curl -sL -o "$work/luastatic.lua" https://raw.githubusercontent.com/ers35/luastatic/master/luastatic.lua
 
-echo "== 12 grammars via the tree-sitter CLI"
+echo "== 13 grammars via the tree-sitter CLI"
 # The same mechanism .github/workflows/ci.yml's own `tests` job already
 # uses for JS/TS/TSX -- `tree-sitter build` needs no separate libtree-sitter
 # at all, since a grammar's shared library depends only on the C ABI in
@@ -172,6 +172,7 @@ git clone --quiet --depth 1 https://github.com/tree-sitter/tree-sitter-python.gi
 git clone --quiet --depth 1 https://github.com/tree-sitter/tree-sitter-c-sharp.git "$work/tree-sitter-c-sharp"
 git clone --quiet --depth 1 https://github.com/tree-sitter/tree-sitter-go.git "$work/tree-sitter-go"
 git clone --quiet --depth 1 https://github.com/tree-sitter/tree-sitter-rust.git "$work/tree-sitter-rust"
+git clone --quiet --depth 1 https://github.com/tree-sitter/tree-sitter-php.git "$work/tree-sitter-php"
 "$TSC" build --output "$work/grammars/lua.$GSUF" "$work/tree-sitter-lua"
 "$TSC" build --output "$work/grammars/javascript.$GSUF" "$work/tree-sitter-javascript"
 "$TSC" build --output "$work/grammars/typescript.$GSUF" "$work/tree-sitter-typescript/typescript"
@@ -184,6 +185,7 @@ git clone --quiet --depth 1 https://github.com/tree-sitter/tree-sitter-rust.git 
 "$TSC" build --output "$work/grammars/c_sharp.$GSUF" "$work/tree-sitter-c-sharp"
 "$TSC" build --output "$work/grammars/go.$GSUF" "$work/tree-sitter-go"
 "$TSC" build --output "$work/grammars/rust.$GSUF" "$work/tree-sitter-rust"
+"$TSC" build --output "$work/grammars/php.$GSUF" "$work/tree-sitter-php/php"
 
 echo "== packaging the engine (scripts/package.lua)"
 STATIC_LIBS="$work/static-libs"
