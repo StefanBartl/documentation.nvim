@@ -1235,6 +1235,64 @@ local JS = [[
   function esc(s){ return (s||"").replace(/[&<>"]/g, function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
 
+  // Prose from a doc-comment, with its inline code rendered.
+  //
+  // **The doc-comments have always been markdown; this page was the one
+  // output that showed it as text.** A summary reading "Registers the single
+  // `:Debug` user command" arrived in the Hierarchy boxes with the backticks
+  // visible. Measured on this repository: **432 summaries carry backticks**
+  // — the rule rather than an edge. `overview.md` renders them correctly and
+  // always has, because markdown does it natively, so the page was behind
+  // its own sibling output.
+  //
+  // **Escaping first is not a detail, it is the whole safety argument.** A
+  // summary is author-controlled text that ends up as innerHTML. `esc` runs
+  // over the entire string before a single tag is introduced, and the only
+  // tags this can then produce are the `<code>` pair it writes itself —
+  // there is no path from source text to markup, because by the time the
+  // backtick scan runs, every `<` in the input is already `&lt;`.
+  //
+  // Double backticks first, so ``a ` b`` — markdown's way of putting a
+  // backtick inside code — is not read as two separate single-backtick
+  // spans. **Non-greedy and character-agnostic**, because the first attempt
+  // was neither and got the one case it exists for wrong: `[^`]+` forbids
+  // the very character the double-backtick form is for, so this tree's own
+  // "``\`[text](url)\``` in \`FEATURES_FORMAT.md\`" came out as `<code>`
+  // wrapped around the spaces between the ticks. Found by reading the
+  // rendered DOM, not the regex.
+  //
+  // **One pass, not two**, and that is the second thing rendering caught.
+  // Run separately, the single-backtick pass reads the double-backtick
+  // pass's own output and turns the ticks it deliberately preserved into a
+  // nested `<code><code>…</code></code>`. One alternation consumes each
+  // position exactly once, so the scanner never re-reads what it wrote.
+  //
+  // One leading and one trailing space are dropped when both are there,
+  // which is what CommonMark does and what makes ``\`x\`` render as the
+  // backticked text rather than as a space-padded one.
+  //
+  // Unpaired backticks are left exactly as written: half a code span is a
+  // typo in the source, and silently swallowing the character would hide it.
+  // Eleven of this tree's 432 have an odd count, every one of them a summary
+  // the scanner truncated mid-span — visible now, which is the point.
+  //
+  // Fenced blocks are deliberately not handled here. A summary is one line;
+  // the multi-line case is `@example`, which is a different surface with a
+  // different shape, and doing both in one regex is how you get a renderer
+  // nobody can reason about.
+  function prose(s){
+    var out = esc(s);
+    out = out.replace(/``([\s\S]+?)``|`([^`\n]+)`/g, function(_, dbl, single){
+      if(dbl === undefined){ return "<code>" + single + "</code>"; }
+      var code = dbl;
+      if(code.length > 2 && code[0] === " " && code[code.length - 1] === " "){
+        code = code.slice(1, -1);
+      }
+      return "<code>" + code + "</code>";
+    });
+    return out;
+  }
+
   // The affordance that opens the annotation popup, for any list that shows
   // a function. `tabindex` because a keyboard reader must be able to reach
   // it; `aria-label` rather than `title` because a native tooltip would open
@@ -1410,7 +1468,7 @@ local JS = [[
     h.push('<div class="fn-sig">'+esc(fn.signature)
       +(badges.length?'<span class="fn-badges">'+badges.join("")+'</span>':'')+'</div>');
     if(fn.deprecated){ h.push('<div class="fn-dep">⚠ Deprecated: '+esc(fn.deprecated)+'</div>'); }
-    if(fn.summary){ h.push('<div class="fn-desc">'+esc(fn.summary)+'</div>'); }
+    if(fn.summary){ h.push('<div class="fn-desc">'+prose(fn.summary)+'</div>'); }
     if(fn.params && fn.params.length){
       h.push('<ul class="fn-plist">');
       fn.params.forEach(function(p){
@@ -2077,7 +2135,7 @@ local JS = [[
       r.dataset.id = n.id;
       r.innerHTML = '<span class="tw"></span>' +
         '<span class="nm">' + esc(fn.signature) + '</span>' +
-        '<span class="sm">' + esc(fn.summary || "") + '</span>';
+        '<span class="sm">' + prose(fn.summary || "") + '</span>';
       r.addEventListener("click", function(){
         navigate({ tab: "tree", id: n.id });
       });
@@ -2106,7 +2164,7 @@ local JS = [[
       '<span class="tw">' + (hasKids ? "▾" : "") + '</span>' +
       '<span class="nm">' + esc(n.name) + '</span>' +
       badges(n) +
-      '<span class="sm">' + esc(n.summary || "") + '</span>';
+      '<span class="sm">' + prose(n.summary || "") + '</span>';
 
     var box = document.createElement("div");
     box.appendChild(row);
@@ -2187,7 +2245,7 @@ local JS = [[
     if(links.length) h.push('<div class="links">'+links.join("")+'</div>');
 
     if(n.summary || n.body){
-      h.push('<div class="prose">'+esc([n.summary, n.body].filter(Boolean).join("\n\n"))+'</div>');
+      h.push('<div class="prose">'+prose([n.summary, n.body].filter(Boolean).join("\n\n"))+'</div>');
     } else {
       h.push('<p class="empty">No description — this module has an @module tag but no prose.</p>');
     }
@@ -2295,7 +2353,7 @@ local JS = [[
       n.symbols.forEach(function(sy){
         h.push('<li><span class="bd sk-'+sy.kind+'">'+sy.kind+'</span> <code>'+esc(sy.name)+'</code>'
           + (sy.detail ? ' <span class="sdet">'+esc(sy.detail)+'</span>' : '')
-          + (sy.summary ? '<div class="fn-desc">'+esc(sy.summary)+'</div>' : '')
+          + (sy.summary ? '<div class="fn-desc">'+prose(sy.summary)+'</div>' : '')
           + '</li>');
       });
       h.push('</ul>');
@@ -2305,7 +2363,7 @@ local JS = [[
     if(kids.length){
       h.push('<div class="sec">Contains ('+kids.length+')</div><ul class="lst">');
       kids.forEach(function(k){
-        h.push('<li>'+esc(k.name)+(k.summary?' — <span style="font-family:inherit">'+esc(k.summary)+'</span>':'')+'</li>');
+        h.push('<li>'+esc(k.name)+(k.summary?' — <span style="font-family:inherit">'+prose(k.summary)+'</span>':'')+'</li>');
       });
       h.push('</ul>');
     }
@@ -3288,7 +3346,7 @@ local JS = [[
       cls: "hnode k-" + n.kind,
       title: n.summary || n.name,
       html: '<div class="hnm">' + esc(label) + '</div>' +
-            (n.summary ? '<div class="hsm">' + esc(n.summary) + '</div>' : ''),
+            (n.summary ? '<div class="hsm">' + prose(n.summary) + '</div>' : ''),
       nodeId: n.id, recenter: n.id
     };
   }
@@ -3773,7 +3831,7 @@ local JS = [[
           (nodeId ? ' data-node="' + esc(nodeId) + '" tabindex="0" role="button"' : '') +
           '>' + esc(e.name) + '</div>');
         if(e.summary){
-          parts.push('<div class="feat-summary">' + esc(e.summary) + '</div>');
+          parts.push('<div class="feat-summary">' + prose(e.summary) + '</div>');
         }
         if(e.meta.length){
           parts.push('<div class="feat-meta">');
@@ -4254,7 +4312,7 @@ local JS = [[
       (nodeId ? ' data-node="' + esc(nodeId) + '" tabindex="0" role="button"' : '') +
       '>' + esc(e.name) + '</h2>');
     if(e.summary){
-      parts.push('<p class="feat-tab-summary">' + esc(e.summary) + '</p>');
+      parts.push('<p class="feat-tab-summary">' + prose(e.summary) + '</p>');
     }
     if(e.meta.length){
       parts.push('<div class="feat-meta">');
@@ -4859,7 +4917,7 @@ local JS = [[
     rows.forEach(function(r){
       var barPct = Math.round(100 * r.n / maxN);
       parts.push('<tr class="anrow">' +
-        '<td><code>' + esc(r.tag) + '</code><div class="ntext">' + esc(r.summary) + '</div></td>' +
+        '<td><code>' + esc(r.tag) + '</code><div class="ntext">' + prose(r.summary) + '</div></td>' +
         '<td>' + esc(r.origin) + '</td>' +
         '<td>' + r.n + (r.n ? ' <span class="ntext">(' + r.pct + '%)</span>' : '') + '</td>' +
         '<td>' + (r.files || "none") + '</td>' +
@@ -8037,7 +8095,7 @@ local JS = [[
       var tag = tagEntry(el.dataset.kw);
       if(!tag) return;
       var th = '<div class="kw-word">@' + esc(tag.name) + '</div>' +
-        '<div class="kw-sum">' + esc(tag.summary) + '</div>' +
+        '<div class="kw-sum">' + prose(tag.summary) + '</div>' +
         '<div class="kw-origin">' + (tag.origin === "luals"
           ? "LuaCATS annotation" : "this project's own convention") + '</div>';
       // Only where the origin publishes one. A LuaLS link for `@todo` would
@@ -8065,7 +8123,7 @@ local JS = [[
     if(!entry) return;
 
     var h = '<div class="kw-word">' + esc(el.dataset.kw) + '</div>' +
-      '<div class="kw-sum">' + esc(entry.summary) + '</div>';
+      '<div class="kw-sum">' + prose(entry.summary) + '</div>';
     if(entry.note) h += '<div class="kw-note">' + esc(entry.note) + '</div>';
     // Where the name comes from, when it is not the language itself. The
     // distinction is the whole reason `vim.*` entries can sit in a Lua
@@ -8502,7 +8560,7 @@ local JS = [[
       h.push(fnAnnotationHTML(e.fn) + snippetHTML(e.fn, e.node));
     } else {
       h.push('<div class="fn-sig">' + esc(e.node.module || e.node.name) + '</div>');
-      if(e.node.summary) h.push('<div class="fn-desc">' + esc(e.node.summary) + '</div>');
+      if(e.node.summary) h.push('<div class="fn-desc">' + prose(e.node.summary) + '</div>');
     }
     h.push("</div>");
     return h.join("");
