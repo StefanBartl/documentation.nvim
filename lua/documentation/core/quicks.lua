@@ -76,6 +76,12 @@ M.DEFAULT_THRESHOLDS = {
   drift_warnings = { good = 0, bad = 10 },
   deprecated = { good = 0, bad = 1 },
   todos = { good = 0, bad = 15 },
+  -- Any at all, like `deprecated` and `duplicates` above, and unlike
+  -- `todos` (15): a `TODO:` is work someone scheduled and a tree accumulates
+  -- them harmlessly, while the `FIX` family says a line is wrong right now.
+  -- One of those is worth a sentence; a band that stayed silent up to
+  -- nineteen would be silent for almost every repository that has any.
+  recorded_defects = { good = 0, bad = 1 },
 }
 
 ---A function is "simple" at or below this cyclomatic complexity. McCabe's own
@@ -442,6 +448,67 @@ local function probes(ir, findings)
         .. "depends on a deprecation window this map knows nothing about.",
       tab = "index",
       evidence = bounded(deprecated),
+    }
+  end
+
+  -- `FIX`-family markers: `-- FIXME:`, `// BUG:`, `# ISSUE:`.
+  --
+  -- **Counted, never gated.** This was the open question the entry in
+  -- `WORKPLAN.md` refused to answer without an argument, and the argument is
+  -- the line between a measurement and a claim. Every finding `check.lua`
+  -- produces is something this tool *found* by comparing documentation to
+  -- reality; a `BUG:` marker contradicts nothing, it is the author stating a
+  -- fact about their own code, and it is almost certainly true. Failing
+  -- `:DocMap check` on one would mix the two kinds in one list and, worse,
+  -- fail the repository that wrote the defect down while passing the one
+  -- that kept quiet about it. So: a sentence on the dashboard, with `basis`
+  -- saying whose sentence it is, and no severity anywhere.
+  --
+  -- **Only the `FIX` family**, not every marker. `TODO`, `HACK` and `PERF`
+  -- are work the author scheduled; `FIX`/`FIXME`/`BUG`/`FIXIT`/`ISSUE` is
+  -- the one keyword group whose `sub` in `core/markers.lua` says the code is
+  -- wrong *now*. The rest stay in the Notes tab, where they already are.
+  --
+  -- **Separate from `todos` above**, which counts `@todo`/`@bug` annotations
+  -- on functions. Two different measurements over two different things --
+  -- annotations at a doc block, markers at a line -- and adding them would
+  -- produce one number that answers neither question.
+  -- The count is of markers; the evidence is of files. Three `BUG:` in one
+  -- module is three defects and one thing to open, and a mark list that
+  -- named it three times would spend the `MAX_EVIDENCE` budget saying the
+  -- same word.
+  local recorded, recorded_files = 0, {}
+  for _, id in ipairs(ir.order or {}) do
+    local node = ir.nodes[id]
+    local named = false
+    -- `markers` is absent throughout an artifact written before schema 4,
+    -- which is not the same fact as "this tree has none" -- an older map
+    -- contributes nothing here rather than a confident zero.
+    for _, m in ipairs((node and node.markers) or {}) do
+      if m.kind == "FIX" then
+        recorded = recorded + 1
+        if not named then
+          recorded_files[#recorded_files + 1] = id
+          named = true
+        end
+      end
+    end
+  end
+  if recorded > 0 then
+    out[#out + 1] = {
+      id = "recorded-defects",
+      weight = 55,
+      value = recorded,
+      unit = "count",
+      good_when = "low",
+      headline_good = "No line is marked as currently broken",
+      headline_bad = "There are defects marked in the source and still there",
+      basis = "Counts `FIX`/`FIXME`/`BUG`/`FIXIT`/`ISSUE` comment markers. "
+        .. "This is the author's own claim about their code, not a finding of "
+        .. "this tool's -- nothing here was verified, and nothing fails "
+        .. "`:DocMap check` because of it.",
+      tab = "notes",
+      evidence = bounded(recorded_files),
     }
   end
 

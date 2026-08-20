@@ -200,11 +200,20 @@ change detection), §2.1/§2.2 (the panels gated on the `TAGS` refactor), §5.x
       naming the consequence, since the default (skip rather than guess) is
       right and silent. Checked by emptying the Lua backend's tokens: two
       specs go red.
-- [ ] **Markers in `check.lua` and Quicks**, if wanted: a `FIX`/`BUG`
-      marker is a defect the author recorded, which is exactly the shape
-      Quicks reports on. Deliberately not done with the tab — one surface
-      at a time, and a verdict that counts to-dos as defects needs its own
-      argument first.
+- [x] ~~**Markers in `check.lua` and Quicks**~~ — decided and built
+      2026-08-20: **Quicks yes, `check.lua` no.** The argument the entry was
+      waiting for is the line between a measurement and a claim. Every
+      `check.lua` finding is something this tool found by comparing
+      documentation to reality; a `FIX` marker contradicts nothing — it is
+      the author stating a fact about their own code. Gating on one would
+      render a claim like a measurement, and would fail the repository that
+      wrote its defect down while passing the one that kept quiet.
+
+      `recorded-defects`, weight 55, `tab: notes`, `bad = 1`, `FIX` family
+      only (`TODO`/`HACK`/`PERF` are scheduled work and stay in the tab).
+      Its `basis` says whose claim the number is and that nothing fails
+      because of it — asserted in `TESTS/quicks_spec.lua`, because that
+      sentence *is* the feature. See `docs/FEATURES/FEATURES.md`.
 - [ ] **Per-entry reference anchors**, once someone has opened them. The
       renderer already supports them; they are unfilled on purpose.
 - [x] ~~**`.jsx`**, **class methods**, **`module.exports = {…}`**~~ — all
