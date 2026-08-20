@@ -354,6 +354,72 @@ function M.parse_header(path)
   }
 end
 
+---This backend returns call sites — the fifth of the twenty-three to do so,
+---and the first outside Lua and the ECMA family. See
+---`Documentation.LangBackend.emits_calls`.
+M.emits_calls = true
+
+---**A Go package is a directory, and that is the whole reason this field
+---exists.** Every `.go` file in one directory shares a single scope, so an
+---unqualified `double(n)` may name a function declared in a *sibling file*
+---with nothing at the call site to say so. Go declares no `module_file`, so
+---those siblings are separate IR nodes — and a file-scoped resolver would
+---therefore miss the majority of a Go call graph, not an edge case at its
+---margin. Measured before being built: in a three-file fixture, two of the
+---three call sites were exactly this shape.
+M.call_scope = "package"
+
+---Every call site, attributed to the function whose span contains it.
+---
+---The same query and the same two-input shape `core/calls.lua`'s own
+---`M.extract` uses for Lua and `core/lang/ecma.lua` uses for JavaScript —
+---verified against a real Go parse rather than assumed by analogy: a bare
+---call's `function` field is an `identifier` (`double(n)`) and a qualified
+---one is a `selector_expression` whose text reconstructs as `other.Bump`.
+---Both are meaningful text for the language-agnostic resolver, so no Go
+---branch is needed there.
+---
+---**`other.Bump` does not resolve yet, and that is deliberate rather than
+---missed.** A Go import path is absolute against the module graph
+---(`github.com/acme/other`), so placing it inside this tree would need
+---`go.mod`'s module line — a build file, not a source one — or a
+---suffix-match on the path, which is a guess. `parse_header`'s own comment
+---already takes that position for the require edge; the call edge takes it
+---for the same reason. The callee text is emitted regardless, so the day the
+---module line is read, nothing here changes.
+---@param root userdata
+---@param src string
+---@param ranges { name: string, srow: integer, erow: integer }[] 0-based rows.
+---@return Documentation.RawCall[]
+local function extract_calls(root, src, ranges)
+  local out = {}
+  local ok, query =
+    pcall(vim.treesitter.query.parse, "go", "(call_expression function: (_) @callee) @call")
+  if not ok then
+    return out
+  end
+  for id, node in query:iter_captures(root, src) do
+    if query.captures[id] == "callee" then
+      local srow = node:range()
+      local callee = vim.treesitter.get_node_text(node, src)
+      -- A multi-line callee carries a newline that matches no resolver
+      -- pattern — skipped here so `calls.lua` never has to special-case one,
+      -- exactly as the Lua and ECMA extractors already do.
+      if not callee:find("\n") then
+        local from_fn
+        for _, r in ipairs(ranges) do
+          if srow >= r.srow and srow <= r.erow then
+            from_fn = r.name
+            break
+          end
+        end
+        out[#out + 1] = { callee = callee, from_fn = from_fn, line = srow + 1 }
+      end
+    end
+  end
+  return out
+end
+
 ---@param path string
 ---@return Documentation.FunctionInfo[], Documentation.RawCall[], Documentation.RawRequire[], Documentation.SymbolInfo[], table[], Documentation.EndpointSpec[], integer, Documentation.BindingSpec[]
 function M.scan_file(path)
@@ -571,7 +637,17 @@ function M.scan_file(path)
     end
   end
 
-  return fns, {}, requires, symbols, {}, {}, lines, {}
+  -- Ranges from the functions just produced rather than a second walk: they
+  -- already carry the span, 1-based, and `extract_calls` wants 0-based —
+  -- which is one subtraction, against re-deriving what is in hand.
+  local ranges = {}
+  for _, fn in ipairs(fns) do
+    if fn.line and fn.line_end then
+      ranges[#ranges + 1] = { name = fn.name, srow = fn.line - 1, erow = fn.line_end - 1 }
+    end
+  end
+
+  return fns, extract_calls(root, src, ranges), requires, symbols, {}, {}, lines, {}
 end
 
 require("documentation.core.lang_registry").register(M.name, M)

@@ -96,6 +96,7 @@ local specs = {
   "lang_python_spec.lua",
   "lang_csharp_spec.lua",
   "lang_go_spec.lua",
+  "go_calls_spec.lua",
   "lang_rust_spec.lua",
   "lang_php_spec.lua",
   "lang_ruby_spec.lua",

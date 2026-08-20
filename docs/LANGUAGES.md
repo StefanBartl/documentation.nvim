@@ -200,7 +200,7 @@ trusting a build, and it reports **three** states rather than two:
 | `nil` | This backend needs no parser. Full fidelity, not a degradation. |
 
 The same report also carries **`calls`** per backend — whether that backend
-produces call sites at all. Four of the twenty-three do. It is there so a
+produces call sites at all. Five of the twenty-three do. It is there so a
 host can say *why* a Calls panel is empty: "this project has no calls" and
 "this build has no call extraction for this language" look identical on
 screen and are not the same fact. Unlike `grammar_loaded` it is a plain
@@ -247,7 +247,7 @@ DOCMAP_TS_DIR=C:/tools/docmap-grammars nvim --headless -u NONE -l scripts/parity
 | `asm` | ✓ | — | ✓ | — | — | ✓ | ✓ | — | ✓ | ✓ | — |
 | `python` | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — |
 | `csharp` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — |
-| `go` | ✓ | — | ✓ | — | — | ✓ | ✓ | — | ✓ | ✓ | — |
+| `go` | ✓ | — | ✓ | — | — | ✓ | ✓ | ✓ | ✓ | ✓ | — |
 | `rust` | ✓ | ✓ | ✓ | — | — | ✓ | ✓ | — | ✓ | ✓ | — |
 | `php` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — |
 | `ruby` | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — |
@@ -319,13 +319,36 @@ These are the failure the parity pass was looking for, and it found them.
 They are simply not built, they had no sentence anywhere before this pass, and
 saying so is the point:
 
-- **Call edges: four backends of twenty-three.** `lua`, `js`, `ts` and `tsx`
-  return call sites; the other nineteen return `{}` from `scan_file`'s second
-  slot. So the Hierarchy tab's Calls and Module Calls views, `:DocMap why`,
-  the call-hierarchy LSP integration and `dead-function`'s call-edge tier all
-  work in Lua and the ECMA family and are empty everywhere else. This is the
-  largest single gap in the tool, it is invisible from any one language, and
-  it took a table across all of them to see.
+- **Call edges: five backends of twenty-three**, and `go` is the fifth as of
+  2026-08-20. The other eighteen return `{}` from `scan_file`'s second slot,
+  so the Hierarchy tab's Calls and Module Calls views, `:DocMap why`, the
+  call-hierarchy LSP integration and `dead-function`'s call-edge tier are
+  still empty there. This remains the largest single gap in the tool; it was
+  invisible from any one language and took a table across all of them to see.
+
+  **What Go cost that Lua and the ECMA family did not**, and why the fifth
+  backend is the pattern for the other eighteen rather than a copy of the
+  first four: the call *extractor* was the easy half — the same query shape,
+  the same two inputs. The resolver was not. **A Go package is a directory**,
+  so an unqualified `double(n)` in `widget.go` may name a function declared in
+  `helper.go` beside it, with nothing at the call site saying so — and since
+  Go declares no `module_file`, those are two IR nodes. A file-scoped resolver
+  therefore misses the *majority* of a Go call graph, not a margin of it:
+  measured against `aws/smithy-go`, 883 call edges, **397 of them across files
+  of one package**. That is what `LangBackend.call_scope = "package"` is, and
+  it is a language guarantee rather than a heuristic, so those edges are
+  `exact`. A name two files of one directory declare is dropped rather than
+  guessed — real Go would not compile, so the case means the directory is not
+  one scope (`widgets` beside `widgets_test`), and a confident wrong edge is
+  exactly what `calls_heuristic` stays opt-in to avoid.
+
+  **A qualified `other.Bump` still does not resolve**, and that is a stated
+  limit rather than an oversight: a Go import path is absolute against the
+  module graph, so placing it inside this tree needs `go.mod`'s module line —
+  a build file, not a source one — or a suffix match, which is a guess.
+  `parse_header` already takes that position for the require edge. The callee
+  text is emitted regardless, so the day the module line is read, nothing in
+  the backend changes.
 - ~~**Symbols: the four oldest non-Lua backends.**~~ **Closed 2026-08-20.**
   `zig`, `java`, `c` and `cpp` returned no module-scope symbols; every
   backend written from Python onward did. Nothing had decided it — the

@@ -20,15 +20,25 @@ the work survives a cold start in a new session.
   [`LANGUAGES.md`](../LANGUAGES.md); what each cost is
   [`IDEAS/MULTILANG.md`](IDEAS/MULTILANG.md). Sixteen further languages are
   *available* rather than scheduled — see that file's decision 4.
-- **Call edges outside Lua and the ECMA family.** Found by the parity pass
-  2026-08-20 and the largest single gap in the tool: `lua`, `js`, `ts` and
-  `tsx` return call sites, and **the other nineteen backends return `{}`**.
-  So the Hierarchy tab's Calls and Module Calls views, `:DocMap why`, the
-  call-hierarchy LSP integration and `dead-function`'s call-edge tier are all
-  empty in nineteen languages. **Nothing in any of those languages makes this
-  impossible** — it is unbuilt, not blocked, and it had no sentence anywhere
-  before the audit. Invisible from any one language; it took a table across
-  all of them. See [`LANGUAGES.md § Parity`](../LANGUAGES.md#parity).
+- **Call edges outside Lua, Go and the ECMA family.** Found by the parity
+  pass 2026-08-20 and still the largest single gap in the tool. **`go` closed
+  it for one language on 2026-08-20**, deliberately as the pattern for the
+  rest; **eighteen backends still return `{}`**, so the Hierarchy tab's Calls
+  and Module Calls views, `:DocMap why`, the call-hierarchy LSP integration
+  and `dead-function`'s call-edge tier are empty there. **Nothing in any of
+  those languages makes this impossible** — it is unbuilt, not blocked, and
+  it had no sentence anywhere before the audit.
+
+  **What the first one taught, and it is not the extractor.** Go's query was
+  a day's work; its *resolver* was the finding. A Go package is a directory,
+  so an unqualified call may name a function in a sibling file, and Go has no
+  `module_file` — so a file-scoped resolver misses nearly half a real Go call
+  graph (`aws/smithy-go`: 883 edges, 397 across files of one package). The
+  general lesson for the remaining eighteen: **ask what a language's *scope*
+  is before writing its query**, because Lua and the ECMA family happen to
+  make file and scope the same thing and taught nothing about it. Carried by
+  `LangBackend.call_scope`, so the next language that needs it is one field.
+  See [`LANGUAGES.md § Parity`](../LANGUAGES.md#parity).
 - **Running without Neovim.** Already works for "map a Lua project from the
   terminal"; costed separately is dropping the Neovim dependency entirely.
   See [`IDEAS/PORTABILITY.md`](IDEAS/PORTABILITY.md).

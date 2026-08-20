@@ -121,6 +121,7 @@ flowchart LR
   nlua_documentation_core_api_lua --> nlua_documentation_core_soft_require_lua
   nlua_documentation_core_api_lua --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_core_calls_lua --> nlua_documentation_core_deps_lua
+  nlua_documentation_core_calls_lua --> nlua_documentation_core_lang_registry_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_consumers_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_deps_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_doccoverage_lua
