@@ -51,12 +51,25 @@ the work survives a cold start in a new session.
   see — a shim function that exists but behaves differently, for one. The
   two cheaper options (fail rather than skip when the rocks are present;
   repeat the skip in the summary) remain open and are still worth taking.
-- **A generated relative link can be wrong in the copy.**
-  `docs/map/overview.md` links to `DEFAULTS.lua`, which is right relative to
-  `lua/documentation/config/` where the module header was written and wrong
-  relative to `docs/map/` where the rendered copy lives. Found by the
-  standalone gate on 2026-08-20; the Neovim-side check does not report it,
-  which is itself worth understanding before fixing either.
+- [x] ~~**A generated relative link can be wrong in the copy.**~~ Fixed
+  2026-08-20. `render/markdown.lua` now rebases a summary's relative links
+  into the artifact directory, and the measurement is why it was a generator
+  fix rather than an edit to one header: **every** relative link in a summary
+  was broken, not some — 4 of 4 here, 1 of 1 in `runtime-analysis.nvim`, 0 of
+  0 in `lib.nvim`.
+
+  The part worth keeping is the answer to "why does the Neovim-side check not
+  report it": `docs.corpus` excludes `out_dir` explicitly, so
+  `dead-readme-link` never reads generated output — correct, and it stays
+  that way. You fix a generator; you do not lint what it wrote. It also
+  explains the asymmetry: the standalone gate found this because it read the
+  artifact as a plain file, an angle a check over the source tree does not
+  have.
+
+  `resolve_relative_link` moved to `docs.resolve_link` in the same change,
+  since the check resolves a link to ask whether it is dead and the renderer
+  resolves it to rewrite it — two copies of that walk being exactly the drift
+  this plugin reports elsewhere.
 
 - **Multi-language support.** Twenty-three backends built. What each reads is
   [`LANGUAGES.md`](../LANGUAGES.md); what each cost is
