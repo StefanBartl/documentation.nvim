@@ -517,7 +517,7 @@ tell the user and point at mason.nvim". **The instinct is right and the
 premise needs one correction, which is the useful part of writing this
 down.**
 
-**The map's findings are its own and need no linter.** All twenty checks in
+**The map's findings are its own and need no linter.** All twenty-four checks in
 `core/check.lua` read the IR — `missing-summary`, `undocumented-param`,
 `require-cycle`, `layer-violation`, `dead-see-target` and the rest — and
 they work for every language backend with nothing installed. That is the

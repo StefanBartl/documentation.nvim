@@ -246,6 +246,21 @@ Python's `__init__.py` and Rust's `mod.rs` are the four
 directory-owns-a-module conventions. Everywhere else a directory is a
 namespace and every file is its own module.
 
+**Call edges are five backends of twenty-three**, not all of them: `lua`,
+`js`, `ts`, `tsx` and — since 2026-08-20 — `go`. Everywhere else the Calls
+and Module Calls views, `:DocMap why`, the call-hierarchy integration and
+`dead-function`'s call tier are empty. Nothing in those languages makes it
+impossible; it is unbuilt, and `--capabilities` reports which backends
+produce call sites so a host can say *why* a panel is empty rather than
+implying the project has no calls.
+
+Go was done first as the pattern, and it moved the hard part somewhere
+unexpected: the query was easy, the **scope** was not. A Go package is a
+directory, so a bare `double(n)` may name a function in a sibling *file* —
+397 of 883 call edges in `aws/smithy-go`. Lua and the ECMA family happen to
+make file and scope the same thing, which is why four backends of call
+extraction had taught nothing about it.
+
 ### Grammars, and the one backend that needs none
 
 Twenty-two of the twenty-three parse with a tree-sitter grammar. Without the grammar
@@ -561,8 +576,26 @@ Every gate CI runs, in one command:
 scripts/ci.sh
 ```
 
-To use it in your own plugin, copy two files and edit five lines:
-[docs/REUSE.md](docs/REUSE.md).
+### In someone else's repository
+
+On GitHub, adopting the check copies nothing — `action.yml` lives at this
+repository's root:
+
+```yaml
+- uses: StefanBartl/documentation.nvim@main
+  with:
+    source: lua/myplugin
+```
+
+`source` is optional; without it the source root is detected the same way
+`:DocMap` detects it.
+
+The Action deliberately exposes neither `layers` nor `extra_checks`. Both are
+repository-specific policy — one is a claim about a tree's own architecture,
+the other is code — and neither fits an input without inventing a
+configuration language. A repository that wants them copies two files and
+edits five lines instead: [docs/REUSE.md](docs/REUSE.md). This repository is
+its own example, with three layer rules, so its CI keeps `gen_map.lua`.
 
 ## Live handle instead of files
 
