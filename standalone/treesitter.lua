@@ -36,9 +36,9 @@
 ---
 --- `lua-tree-sitter` is a faithful binding of the C API; Neovim's
 --- `vim.treesitter` is a Lua-shaped layer over the same thing. The gaps are
---- shape, not capability, and there are exactly four — each verified against
---- a real parser rather than read off documentation, because three of the
---- four are off-by-one or shape questions that guessing gets wrong:
+--- shape, not capability, and there are exactly six — each verified against
+--- a real parser rather than read off documentation, because most of them are
+--- off-by-one or shape questions that guessing gets wrong:
 ---
 ---   * **capture ids.** `capture:index()` is 0-based and assigned in order of
 ---     first appearance in the query source; Neovim's `query.captures` is a
@@ -54,6 +54,15 @@
 ---   * **`node:field(name)`** does not exist. `child_by_field_name` returns
 ---     only the first; Neovim returns every child under that field, so this
 ---     walks `field_name_for_child(i)` (0-based) to collect all of them.
+---   * **`node:start()`/`node:end_()`** do not exist. The binding splits them
+---     into `start_point()`/`start_byte()`, and the byte offset is the half
+---     that matters: `core/markers.lua` slices a comment out of the source by
+---     byte, and taking whole lines instead would put the code back in.
+---
+--- The last two were added **after a release build failed on them**, which is
+--- the honest note to leave: the `standalone` gate skips on any machine
+--- without PUC Lua on `PATH`, so this whole file is one where local green
+--- means less than it looks.
 ---
 --- The two additions are installed **on the binding's own node metatable**
 --- rather than by wrapping each node in a Lua table. Wrapping would allocate
@@ -199,6 +208,35 @@ function M.build()
         function index:range()
           local sp, ep = self:start_point(), self:end_point()
           return sp:row(), sp:column(), ep:row(), ep:column()
+        end
+      end
+      if not index.start then
+        ---Neovim's `TSNode:start()`: start row, start column, start **byte**,
+        ---all 0-based. The binding has `start_point()` and `start_byte()` and
+        ---no method that returns all three, so this is a composition rather
+        ---than a rename.
+        ---
+        ---**Added 2026-08-20, after a release build failed on it.**
+        ---`core/markers.lua` has called `node:start()` since marker comments
+        ---shipped, which works under Neovim and raised "attempt to call a nil
+        ---value" here — so the standalone engine crashed while scanning
+        ---markers, and every local run missed it because the `standalone`
+        ---gate skips on a machine with no PUC Lua on `PATH`. The method list
+        ---above was read off the real binding before writing this, not
+        ---assumed: `start_byte`/`end_byte`/`start_point`/`end_point` exist,
+        ---`start`/`end_` do not.
+        function index:start()
+          local sp = self:start_point()
+          return sp:row(), sp:column(), self:start_byte()
+        end
+      end
+      if not index.end_ then
+        ---Neovim's `TSNode:end_()`, the same shape at the other end. Named
+        ---with the trailing underscore because `end` is a Lua keyword, which
+        ---is why Neovim spells it that way too.
+        function index:end_()
+          local ep = self:end_point()
+          return ep:row(), ep:column(), self:end_byte()
         end
       end
       if not index.field then
