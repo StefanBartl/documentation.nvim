@@ -89,4 +89,56 @@ return function(H)
   for name, entry in pairs(glossaries.ts.stdlib or {}) do
     eq(entry.origin, nil, "glossary: ECMA stdlib entry " .. name .. " needs no origin")
   end
+
+  -- ---------------------------------------------------------------------
+  -- Per-entry anchors into the Lua 5.1 manual, filled 2026-08-20.
+  --
+  -- The anchors themselves were checked against the published manual —
+  -- fetched, its `<a name>` set extracted, every entry matched against it;
+  -- see `glossary/lua.lua`'s header for the method. That check cannot live
+  -- here, because a spec that reaches the network is a spec that fails on a
+  -- train.
+  --
+  -- What *can* live here is the shape, and it is worth gating: the failure
+  -- mode this guards is a later edit adding `anchor = "2.4.4"` without the
+  -- `#`, or hanging one off a `vim.*` entry the renderer will never link.
+  -- ---------------------------------------------------------------------
+  local anchored, keywords_anchored = 0, 0
+  for _, bucket in ipairs({ "keywords", "stdlib" }) do
+    for name, entry in pairs(lua[bucket] or {}) do
+      if entry.anchor then
+        anchored = anchored + 1
+        if bucket == "keywords" then
+          keywords_anchored = keywords_anchored + 1
+        end
+        ok(
+          entry.anchor:sub(1, 1) == "#",
+          "glossary: " .. name .. "'s anchor is a fragment, appended to reference.url"
+        )
+        ok(
+          entry.anchor:match("^#%S+$") ~= nil,
+          "glossary: " .. name .. "'s anchor has no whitespace in it"
+        )
+        eq(
+          entry.origin,
+          nil,
+          "glossary: "
+            .. name
+            .. " carries an anchor into the Lua manual, so it must be Lua — "
+            .. "the renderer withholds the link from anything with an origin, which would make "
+            .. "the anchor dead weight"
+        )
+      end
+    end
+  end
+  ok(anchored >= 50, "glossary: the Lua anchors are filled in (" .. anchored .. ")")
+  ok(keywords_anchored >= 20, "glossary: including the keywords, not only the library")
+
+  -- `goto` is the one keyword deliberately without one: it does not exist in
+  -- 5.1, which its own note says, and a link would have contradicted it.
+  eq(
+    (lua.keywords["goto"] or {}).anchor,
+    nil,
+    "glossary: goto gets no manual anchor — it is not in 5.1, and its note says so"
+  )
 end

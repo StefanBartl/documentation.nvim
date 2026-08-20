@@ -10,8 +10,14 @@
 --- which is information, not an error. Maintaining three tables to withhold
 --- that would cost more and say less.
 ---
---- Reference is MDN, one base URL and no per-entry anchors — see
---- `glossary/lua.lua`'s header for the rule and why the anchors this rule
+--- Reference is MDN, one base URL and **still no per-entry anchors**, unlike
+--- Lua's, which were filled on 2026-08-20. The difference is not effort but
+--- shape: Lua's manual is one page with `#fragment` anchors that can be
+--- fetched and compared against a set in one step, while MDN is one *page
+--- per keyword* — an entry would have to append a path (`/Statements/if...
+--- else`), and verifying several dozen of those means several dozen
+--- requests against a site that reorganises. Worth doing, not worth guessing.
+--- See `glossary/lua.lua`'s header for the rule and how its anchors
 --- permits are deliberately left unfilled until someone checks them.
 
 local M = {}
