@@ -31,10 +31,10 @@ Point it at a repository and it produces a **module map**: an interactive
 HTML page, a Markdown overview, a deterministic JSON artifact, and a set of
 drift checks that fail CI when the documentation and the code stop agreeing.
 
-It reads **seventeen languages** — Lua, JavaScript, TypeScript, TSX,
-Python, Ruby, PHP, C#, Go, Rust, Kotlin, Swift, Zig, Java, C, C++ and
-assembly — through one backend contract, so a tree that mixes them comes out
-as one map rather than several. See
+It reads **eighteen languages** — Lua, JavaScript, TypeScript, TSX, Python,
+Ruby, PHP, C#, Go, Rust, Kotlin, Swift, Dart, Zig, Java, C, C++ and assembly
+— through one backend contract, so a tree that mixes them comes out as one
+map rather than several. See
 [Languages](#languages).
 
 ```vim
@@ -167,7 +167,7 @@ a real (if deliberately small) example — including one promoted feature.
 
 ## Languages
 
-Seventeen backends behind one contract, so a repository that mixes them
+Eighteen backends behind one contract, so a repository that mixes them
 produces one map rather than several. A backend answers the same five questions —
 which files it claims, where its sources live, what documents a file, what
 documents a declaration, and what makes a declaration public — and the map
@@ -187,6 +187,7 @@ does not care which language answered.
 | **Ruby** | `.rb` | the comment block above it — RDoc prose, with YARD tags read where present | `private`/`protected`, which are **positional statements** rather than modifiers |
 | **Kotlin** | `.kt`, `.kts` | KDoc `/** @param x … */`, plus `@property` | not `private`/`protected`/`internal` — an unmarked declaration is **public** |
 | **Swift** | `.swift` | `///` Markdown, where a parameter is a **bullet**: `- Parameter x:` | `open`/`public`; an unmarked declaration is `internal`, meaning module-only |
+| **Dart** | `.dart` | `///` Markdown prose; dartdoc has no per-parameter form | **a leading `_`**, which the compiler enforces rather than merely suggests |
 | **Zig** | `.zig` | `///` above the declaration | `pub` |
 | **Java** | `.java` | Javadoc, with `@param`/`@return`/`@throws`/`@deprecated` parsed | `public` |
 | **C** | `.c`, `.h` | any comment directly above it, Doxygen or not | not `static` |
@@ -240,9 +241,9 @@ directory is a namespace and every file is its own module.
 
 ### Grammars, and the one backend that needs none
 
-Sixteen of the seventeen parse with a tree-sitter grammar. Without the grammar
+Seventeen of the eighteen parse with a tree-sitter grammar. Without the grammar
 they still produce a complete module tree — correctly, and saying so — but
-no function-level data. `scripts/build_engine_release.sh` builds all sixteen
+no function-level data. `scripts/build_engine_release.sh` builds all seventeen
 into a release; inside Neovim they come from the runtimepath.
 
 **Assembly is the exception, by design rather than by omission.** GAS, NASM
