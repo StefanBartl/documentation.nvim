@@ -22,13 +22,35 @@ the work survives a cold start in a new session.
   reports five green gates. On 2026-08-20 a release build failed twice in a
   row on `core/` calling Neovim APIs the shim does not implement
   (`node:start()`, `vim.pesc`), both introduced that day, both invisible
-  locally. The fix for each was small; the gap is that **local green means
-  "four gates and a shrug"** and does not say so loudly. Options, none taken
-  yet: fail rather than skip when the interpreter is absent but the *rocks*
-  are present; print the skip as a warning the summary repeats; or ship a
-  contract spec that asserts every `vim.*` and node method `core/` calls
-  exists in the shim, which is the only version that catches the next one
-  before CI does.
+  locally.
+
+  **The third option shipped 2026-08-20 as `TESTS/shim_contract_spec.lua`**,
+  and it was the right one for the stated reason: it runs on every machine,
+  needing neither PUC Lua nor the `lua_tree_sitter` rock. It reads every
+  `vim.*` path and every method name `core/` calls out of a *real parse* —
+  grep reported 44 and 43 against the parser's 27 and 30, because this tree's
+  doc-comments discuss `vim.*` constantly — then asks `vim_shim.lua` itself
+  what it provides, by loading it with `lfs`/`dkjson` faked and `_G.vim`
+  unset for the duration. (That last part is not optional: the shim opens
+  `if _G.vim then return _G.vim end`, so a first attempt got Neovim's own
+  table back and answered "yes" to everything, including names the shim
+  demonstrably lacks.)
+
+  **The gate is the unclassified name**, which is exactly the shape both
+  defects had. Three `vim.*` paths are listed as legitimately absent, all
+  `core/luals.lua`, all unreachable from the standalone binary because
+  `--full` is Neovim-only — and the list is checked in both directions, so an
+  entry the shim has since implemented fails too. Node methods are
+  classified rather than loaded, and that limit is stated in the spec:
+  enumerating them needs the rock. Mutation-checked against both historical
+  shapes — a new `vim.*` call and a new `node:method()` call each fail it by
+  name and by file.
+
+  **What it does not fix:** the gate still skips silently, so local green
+  still means "four gates and a shrug" for everything the contract cannot
+  see — a shim function that exists but behaves differently, for one. The
+  two cheaper options (fail rather than skip when the rocks are present;
+  repeat the skip in the summary) remain open and are still worth taking.
 - **A generated relative link can be wrong in the copy.**
   `docs/map/overview.md` links to `DEFAULTS.lua`, which is right relative to
   `lua/documentation/config/` where the module header was written and wrong
