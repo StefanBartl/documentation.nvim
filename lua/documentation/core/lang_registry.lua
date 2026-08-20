@@ -55,6 +55,7 @@ local KNOWN_BACKENDS = {
   "documentation.core.lang.php",
   "documentation.core.lang.ruby",
   "documentation.core.lang.kotlin",
+  "documentation.core.lang.swift",
 }
 
 local loaded = false
