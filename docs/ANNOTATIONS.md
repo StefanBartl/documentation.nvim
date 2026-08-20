@@ -3,8 +3,11 @@
 A survey of which [LuaCATS](https://luals.github.io/wiki/annotations/) annotations this tree actually
 uses, which real ones it doesn't, and which tags exist outside the spec entirely — written to inform
 what `docmap` recognizes and what future source-code annotation is worth adding. Tag counts are exact,
-from `grep -rhoE '^\s*---@[A-Za-z_]+' --include="*.lua" lua/ | sort | uniq -c` against this repo at the
-time of writing; re-run it yourself if this drifts.
+from `grep -rhoE '^\s*---@[A-Za-z_]+' --include="*.lua" lua/ | sort | uniq -c | sort -rn` against this
+repo, last run 2026-08-20; re-run it yourself if this drifts. It counts a tag
+only in *annotation position* — a line beginning `---@` — so a tag named in
+prose about tags (this file's own subject matter) does not inflate its own
+count.
 
 This is a reference and a recommendation, not a mandate — nothing here means "go retrofit all ~250
 files." Adopt a tag when the concrete case for it comes up, not in bulk.
@@ -16,29 +19,47 @@ files." Adopt a tag when the concrete case for it comes up, not in bulk.
 
 ## a) Standard tags already used heavily
 
-**Counts below are stale** — last regenerated before the `config`/`bindings`
-split and the `@raises` tag's introduction shrank and reshaped this tree; the
-`grep` command in the intro is exact and cheap, re-run it before trusting a
-number here. Recorded so the drift is visible rather than silently wrong,
-which is the more urgent finding than any one count.
+**Recounted 2026-08-20**, over 125 files in `lua/`, with the exact command in
+the intro. The previous table had been marked stale rather than fixed, which
+made the drift visible and left it there — this is the fix.
 
 | Tag | Count | What it's for here |
 |---|---|---|
-| `@field` | 1725 | Class/alias member declarations in `@types/` files |
-| `@param` | 1459 | Function parameters |
-| `@return` | 994 | Function return values |
-| `@module` | 390 | This repo's own "module path" convention — required on every file, checked by `docmap`'s `missing-module-tag` |
-| `@class` | 311 | Structured types in `@types/` files |
-| `@type` | 223 | Standalone variable typing |
-| `@meta` | 114 | Marks `@types/init.lua` files as pure-definition, non-executable |
-| `@nodiscard` | 112 | Marks a return value that must not be silently dropped |
-| `@generic` | 60 | Type-agnostic function signatures |
-| `@alias` | 57 | Named unions / enum-shaped string literals |
-| `@diagnostic` | 5 | Suppressing a specific LuaLS diagnostic on one line |
-| `@cast` | 4 | Narrowing a variable's type mid-function |
-| `@raises` | not counted at last pass | Not in the table when it was built — added since. Author-facing only, not evaluated by `documentation.nvim` — see [`ANNOTATION_TAGS.md` § `@raises`](ANNOTATION_TAGS.md#raises--an-author-facing-convention-not-evaluated-here). |
+| `@param` | 1311 | Function parameters |
+| `@return` | 773 | Function return values |
+| `@field` | 545 | Class/alias member declarations in `@types/` files |
+| `@type` | 156 | Standalone variable typing |
+| `@module` | 125 | This repo's own "module path" convention — required on every file, checked by `docmap`'s `missing-module-tag`. **One per file, and there are 125 files**, which is the whole point of the check. |
+| `@class` | 87 | Structured types in `@types/` files |
+| `@alias` | 10 | Named unions / enum-shaped string literals |
+| `@raises` | 8 | Author-facing only, not evaluated by `documentation.nvim` — see [`ANNOTATION_TAGS.md` § `@raises`](ANNOTATION_TAGS.md#raises--an-author-facing-convention-not-evaluated-here). It was not in the table at all last time. |
+| `@meta` | 6 | Marks `@types/init.lua` files as pure-definition, non-executable |
+| `@generic` | 3 | Type-agnostic function signatures |
+| `@internal` | 2 | Part of the implementation, not the published surface. Sharpens every "is this used" question — `undocumented-param` skips it and the coverage number excludes it. |
+| `@cast` | 1 | Narrowing a variable's type mid-function |
+
+**Two things the recount says that no single number does.**
+
+`@param` overtook `@field`, and the ratios did not merely shrink — they
+inverted. The old table was `@field` 1725 over `@param` 1459; it is now
+`@param` 1311 over `@field` 545. The `config`/`bindings` split moved a great
+deal of type surface out of `@types/` files and into ordinary annotated
+functions, and this is where that shows as a number.
+
+**`@nodiscard` went from 112 to zero**, which is the more interesting one:
+the tag was in the "used heavily" row and is now used nowhere in this tree at
+all. `@diagnostic` likewise — its one remaining occurrence is a *mention* in
+prose, not an annotation. Both are counted where they belong below, among the
+tags this tree does not use.
 
 ## b) Standard tags, unused in this repo (0 hits), with real value for `docmap`
+
+**`@nodiscard` and `@diagnostic` now belong here**, which they did not at the
+last pass — the first had 112 uses and the second 5, and both are at zero in
+annotation position today. `@nodiscard` is the one worth a sentence: nothing
+in this tree marks a return value as "must not be silently dropped" any more,
+and whether that is a decision or an erosion is not something a count can
+say. Recorded so somebody can decide which it was.
 
 - **`@overload`** — no hits in this repo's own source (only in `TESTS/`
   fixtures, which this count deliberately excludes). Fully recognized as of
