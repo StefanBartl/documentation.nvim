@@ -315,6 +315,86 @@ local function check_tools_spec(ir, findings)
   end
 end
 
+--- A `require` reaching into another project, checked against that
+--- project's own artifact.
+---
+--- **The mirror of `consumer-require-missing`, from the other side.** That
+--- check asks "does a project under `opts.consumers` require something this
+--- library no longer declares"; this one asks the same question of *this*
+--- tree's own dependencies, using `opts.tag_files` — and between them the
+--- two directions of one cross-repository edge are both covered. Neither
+--- needs any new extraction: both artifacts already exist.
+---
+--- **Only `tag_files`, never `external_repos`.** Both resolvers fill
+--- `ir.tag_links`, and only one of them is authoritative: a tag file is
+--- another checkout's *generated map*, which can say a module is not in it,
+--- while `external_repos` is a declared GitHub repo whose URL is often an
+--- unverified guess about the path shape. Reading a miss out of the second
+--- would be reporting a broken dependency on the strength of a guessed
+--- link. This reads `ir.tag_audit`, which `tagfiles.lua` fills and
+--- `external_repos.lua` never touches.
+---
+--- **`tag-file-unavailable` is not an error path — it is the normal one
+--- here,** and it exists so this check cannot report a clean bill it did
+--- not earn. Every plugin in this ecosystem but `documentation.nvim` itself
+--- gitignores `docs/map/`, with a reason worth respecting: a committed map
+--- is stale the moment anything it describes changes, nothing but this
+--- repository's CI gates that, and across these plugins it came to ~40 MB
+--- of artifacts nobody asked for. So the map a tag file points at exists on
+--- the author's disk and in no clone — which makes this a local check by
+--- nature, and makes silence about it the one unacceptable outcome.
+---
+--- **Both severities match their mirrors.** A miss is `warn`, like
+--- `consumer-require-missing`, and its message carries the same second
+--- reading, because the same two explanations always fit: either the
+--- require is broken now, or the map it was checked against predates a
+--- rename the dependency has already followed. An unreadable tag file is
+--- `info`, like `luals-unavailable` — a thing that did not run is not a
+--- defect in the tree.
+---
+--- Measured across this ecosystem before being written: 18 external
+--- requires under `lib` from `documentation.nvim` and 23 from
+--- `runtime-analysis.nvim`, all 41 resolving against `lib.nvim`'s own map.
+--- Zero findings, which is what a healthy ecosystem should produce — so
+--- the proof this works is the positive control in its spec, not its
+--- silence.
+---@param ir Documentation.IR
+---@param findings Documentation.Finding[]
+local function check_tag_requires(ir, findings)
+  local audit = ir.tag_audit
+  if not audit then
+    return
+  end
+
+  for _, miss in ipairs(audit.missing) do
+    add(
+      findings,
+      "warn",
+      "tag-require-missing",
+      miss.nodes[1],
+      ("%s is required by %s but %s's own map does not declare it — either that require is broken, or that map predates a rename"):format(
+        miss.module,
+        table.concat(miss.nodes, ", "),
+        miss.prefix
+      )
+    )
+  end
+
+  for _, gap in ipairs(audit.unavailable) do
+    add(
+      findings,
+      "info",
+      "tag-file-unavailable",
+      nil,
+      ("tag_files['%s'] points at %s, which has no readable module_map.json — requires under '%s' were not checked"):format(
+        gap.prefix,
+        gap.dir,
+        gap.prefix
+      )
+    )
+  end
+end
+
 --- A module that exists on disk but is required by nothing above it was
 --- either written and never wired up, or orphaned by a refactor.
 ---
@@ -1884,6 +1964,7 @@ function M.run(ir, opts)
   check_doc_references(ir, findings)
   check_tools_spec(ir, findings)
   check_orphans(ir, findings)
+  check_tag_requires(ir, findings)
   check_orphaned_types(ir, findings, opts)
   check_test_references(ir, findings, opts)
   check_binding_conflicts(ir, findings)

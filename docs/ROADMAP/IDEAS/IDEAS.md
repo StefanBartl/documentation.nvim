@@ -136,13 +136,46 @@ convention is ever adopted, which is an argument for adopting it.
 
 ---
 
-### 1.7 Cross-repository checks over `tag_files`
+### 1.7 ~~Cross-repository checks over `tag_files`~~ — built 2026-08-20, **over requires, not `@see`**
 
-`tag_files` already links maps across projects. Today that is navigation
-only. The same links could be *checked*: this repo's `@see
-otherplugin.module.fn` pointing at something that repo's artifact says no
-longer exists. Real value in a multi-repo ecosystem (exactly the one this
-plugin lives in), and no new extraction — both artifacts already exist.
+`tag_files` linked maps across projects for navigation only. It now also
+*checks* them: `tag-require-missing` (warn) and `tag-file-unavailable`
+(info). No new extraction, exactly as costed — both artifacts already
+exist.
+
+**But not the check this entry proposed, and the reason is a measurement.**
+The sketch was `@see otherplugin.module.fn` pointing at something that
+repo's artifact says is gone. Counted across the ecosystem first:
+**`documentation.nvim` has 0 `@see` targets, `runtime-analysis.nvim` has 0,
+and `lib.nvim` has 4 — all four resolving in-tree.** A cross-repository
+`@see` check would have had nothing to check on any repository here, and no
+way to tell whether it worked.
+
+The *requires* are where the cross-repo edges actually are: 18 under `lib`
+from `documentation.nvim`, 23 from `runtime-analysis.nvim`, 41 in total —
+all resolving against `lib.nvim`'s own map today. Same idea, same
+machinery, applied where the data is.
+
+**Two things the building taught, both worth keeping:**
+
+- **Only a tag file is authoritative.** `external_repos.lua` fills the same
+  `ir.tag_links` table from a declared GitHub repo, and its URL is often an
+  unverified guess about the path shape. A miss read out of *that* would be
+  calling a dependency broken on the strength of a guess, so the check
+  reads `ir.tag_audit`, which only `tagfiles.lua` writes.
+- **The artifact this depends on usually is not committed.** Every plugin
+  here but this one gitignores `docs/map/`, for a good reason of its own
+  (stale on the first change, ~40 MB nobody asked for). That makes this a
+  *working-copy* check rather than a CI one — and it is why
+  `tag-file-unavailable` exists: without it, an unreadable map is
+  indistinguishable from a clean one, which is the one outcome a drift
+  check must never produce.
+
+**Still open, and cheap if `@see` ever gets adopted:** resolving a
+cross-repository `@see` through the same audit, so it resolves instead of
+being reported `dead-see-target`. Not built because nothing would exercise
+it — recorded here with the counts so the next person re-measures rather
+than re-argues.
 
 ---
 
