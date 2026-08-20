@@ -3031,3 +3031,39 @@ that allowlist is for.
 - **Modules:** `core/tags.lua`, `core/functions.lua` (`HANDLERS`),
   `core/render/html.lua` (payload)
 - **Tests:** `TESTS/tags_spec.lua`
+
+## Annotation adoption — an eleventh Analysis panel (2026-08-20)
+
+`IDEAS.md` §2.1, rated the highest-value panel idea in that backlog and gated
+on the `TAGS` refactor. The gate was the whole cost: with the catalogue in
+place, this panel is a count over it, and it shipped the day after.
+
+The argument for it is `docs/ANNOTATIONS.md` itself — this analysis done by
+hand, for one repository, once. A plugin whose purpose is detecting drift
+shipping a hand-maintained inventory of its own tag usage is drift,
+structurally. The last recount of that document found `@nodiscard` had gone
+**from 112 occurrences to zero** with nothing noticing.
+
+**Per function, not per occurrence.** Eleven hundred `@param` lines is a fact
+about typing effort; "95.6% of functions document a parameter" is a fact
+about the tree. Both are worth having, so `ANNOTATIONS.md` keeps its
+occurrence table and now says which measure it is — including that its counts
+contain prose *about* a tag, which is the mechanism behind the 112.
+
+**The tag → field mapping lives in the catalogue.** `param` fills `params`,
+`return` fills `returns`, and no rule derives that from the name. A panel
+keeping its own copy would report zero adoption for a tag the tree uses
+everywhere — and zero is exactly the answer this panel exists to produce, so
+the failure would hide inside the feature. `TESTS/adoption_spec.lua` asserts
+every declared field against a fixture function carrying every tag, and was
+checked to go red when `@return` claims `return` instead of `returns`.
+
+**First real run, on this repository: ten of fourteen function-scope tags are
+used nowhere here.** `@param` 745 functions (95.6%), `@return` 668, `@generic`
+3, `@internal` 2, everything else zero — including `@see` and `@deprecated`,
+which appear in the source only inside prose describing them. Verified by
+hand against `grep` before believing the panel.
+
+- **Modules:** `core/render/html.lua` (`renderAnalysisAnnotations`),
+  `core/tags.lua` (`field`)
+- **Tests:** `TESTS/adoption_spec.lua`

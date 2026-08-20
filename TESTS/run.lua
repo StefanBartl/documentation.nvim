@@ -81,6 +81,7 @@ local specs = {
   "payload_contract_spec.lua",
   "api_surface_spec.lua",
   "tags_spec.lua",
+  "adoption_spec.lua",
   "consumers_spec.lua",
   "consumer_require_spec.lua",
   "glossary_spec.lua",

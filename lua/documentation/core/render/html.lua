@@ -1845,7 +1845,7 @@ local JS = [[
       else if(k === "iview") s.iview = (v === "modules") ? "modules" : "functions";
       else if(k === "atool") s.atool = (v === "doc" || v === "deps" || v === "complexity" ||
         v === "duplicates" || v === "plugins" || v === "tools" || v === "hooks" ||
-        v === "checklist" || v === "api" ||
+        v === "checklist" || v === "api" || v === "annotations" ||
         v === "docs" || v === "endpoints" || v === "telemetry" || v === "loaded" ||
         v === "bindings") ? v : "test";
       // Snapshot names are whatever runtime-analysis.telemetry's own
@@ -4729,6 +4729,133 @@ local JS = [[
   // function with no in-tree caller outside its own module is exactly what an
   // exported entry point looks like from inside. So the column counts what it
   // can see, is named for that, and the sub-line states what it cannot.
+  // Which annotation tags this tree actually uses, generated.
+  //
+  // `docs/ANNOTATIONS.md` is this analysis done by hand, for one repository,
+  // once — which `IDEAS.md` §2.1 calls what it is: a plugin whose entire
+  // purpose is detecting drift shipping a hand-maintained inventory of its
+  // own tag usage is drift, structurally. The last time that document was
+  // recounted, `@nodiscard` had gone from 112 occurrences to zero and nothing
+  // had noticed.
+  //
+  // **Adoption per function, not occurrences.** The hand-written table counts
+  // how many times a tag appears in the source; this counts how many
+  // functions carry it at least once. They answer different questions and the
+  // panel says which one it answers: eleven hundred `@param` lines is a fact
+  // about typing effort, "84% of functions document a parameter" is a fact
+  // about the tree.
+  //
+  // **The tag -> field mapping comes from the catalogue**, not from here.
+  // `param` lands in `params` and `return` in `returns`, which is not
+  // derivable from the name, so the alternative is this panel keeping its own
+  // copy of a table `core/tags.lua` already has — and a copy that drifts
+  // reports zero adoption for a tag the tree uses everywhere, which looks
+  // exactly like a true answer.
+  function renderAnalysisAnnotations(){
+    var catalogue = IR.tags || [];
+    if(!catalogue.length){
+      return '<p class="ntext none">This map was generated before the annotation ' +
+        'catalogue existed, so there is nothing to report adoption against.</p>';
+    }
+
+    // Only function-scope tags: a module tag lives on the file and a class
+    // tag on a type, and folding three denominators into one column would
+    // produce a percentage of nothing in particular.
+    var fnTags = catalogue.filter(function(t){ return t.scope === "function" && t.field; });
+
+    var total = 0;
+    var counts = {};
+    fnTags.forEach(function(t){ counts[t.name] = { n: 0, nodes: {} }; });
+
+    IR.nodes.forEach(function(n){
+      (n.functions || []).forEach(function(fn){
+        total++;
+        fnTags.forEach(function(t){
+          var v = fn[t.field];
+          // Three shapes behind one question: a list with something in it, a
+          // string with something in it, a flag that is set. `false` and `[]`
+          // and `""` all mean the same thing here and none of them counts.
+          var has = Array.isArray(v) ? v.length > 0 : (typeof v === "string" ? v.length > 0 : !!v);
+          if(has){
+            counts[t.name].n++;
+            counts[t.name].nodes[n.id] = true;
+          }
+        });
+      });
+    });
+
+    if(total === 0){
+      return '<p class="ntext none">This map contains no functions to report adoption over.</p>';
+    }
+
+    var rows = fnTags.map(function(t){
+      var c = counts[t.name];
+      var files = 0;
+      for(var k in c.nodes){ if(c.nodes.hasOwnProperty(k)) files++; }
+      return {
+        tag: "@" + t.name,
+        name: t.name,
+        origin: t.origin === "luals" ? "LuaCATS" : "docmap",
+        summary: t.summary,
+        url: t.url || null,
+        n: c.n,
+        files: files,
+        pct: Math.round(1000 * c.n / total) / 10,
+        haystack: "@" + t.name + " " + t.summary,
+        sortkey: t.name
+      };
+    });
+
+    var cols = [
+      { label: "Tag", key: "name", get: function(r){ return r.name; }, initial: "asc" },
+      { label: "From", key: "origin", get: function(r){ return r.origin; }, initial: "asc" },
+      { label: "Functions", key: "n", get: function(r){ return r.n; }, initial: "desc" },
+      { label: "Files", key: "files", get: function(r){ return r.files; }, initial: "desc" },
+      { label: "", key: null }
+    ];
+
+    var totalRows = rows.length;
+    var unused = rows.reduce(function(a, r){ return a + (r.n === 0 ? 1 : 0); }, 0);
+    rows = anFilter(rows);
+    // Most-used first, and an unused tag sinks to the bottom where it reads
+    // as what it is: a convention this tree does not follow. That is the row
+    // the hand-written table got wrong for months.
+    anSort(rows, cols, function(a, b){
+      if(a.n !== b.n) return b.n - a.n;
+      return a.sortkey < b.sortkey ? -1 : 1;
+    });
+
+    var parts = [];
+    parts.push('<p class="nsub">' + totalRows + ' function-scope tag' +
+      (totalRows === 1 ? "" : "s") + ' this pipeline reads, against ' + total +
+      ' function' + (total === 1 ? "" : "s") + ' in this map' +
+      (unused ? ' - ' + unused + ' of them used nowhere here' : '') +
+      '. Counted per <em>function that carries the tag at least once</em>, not ' +
+      'per occurrence: eleven hundred <code>@param</code> lines is a fact about ' +
+      'typing effort, "most functions document a parameter" is a fact about the ' +
+      'tree. Module-scope and type-scope tags are left out rather than folded ' +
+      'in, because their denominator is files and types rather than functions.' +
+      anFilterNote(rows.length, totalRows) + '</p>');
+    if(rows.length === 0){
+      return parts.join("") + '<p class="ntext none">No tag matches that filter.</p>';
+    }
+
+    var maxN = rows.reduce(function(m, r){ return Math.max(m, r.n); }, 1);
+    parts.push('<table class="antable">' + anHead(cols) + '<tbody>');
+    rows.forEach(function(r){
+      var barPct = Math.round(100 * r.n / maxN);
+      parts.push('<tr class="anrow">' +
+        '<td><code>' + esc(r.tag) + '</code><div class="ntext">' + esc(r.summary) + '</div></td>' +
+        '<td>' + esc(r.origin) + '</td>' +
+        '<td>' + r.n + (r.n ? ' <span class="ntext">(' + r.pct + '%)</span>' : '') + '</td>' +
+        '<td>' + (r.files || "none") + '</td>' +
+        '<td><div class="anbar"><div class="anfill" style="width:' + barPct + '%"></div></div></td>' +
+        '</tr>');
+    });
+    parts.push("</tbody></table>");
+    return parts.join("");
+  }
+
   function renderAnalysisApi(){
     // Call edges into a `<node>#<fn>` key, keeping only callers from a
     // *different* module. A module calling itself says nothing about what it
@@ -5506,6 +5633,7 @@ local JS = [[
         true
       );
     }
+    if(atool === "annotations") return renderAnalysisAnnotations();
     if(atool === "api") return renderAnalysisApi();
     if(atool === "deps") return renderAnalysisDeps();
     if(atool === "complexity") return renderAnalysisComplexity();
@@ -5524,7 +5652,7 @@ local JS = [[
       state.atool === "plugins" || state.atool === "tools" || state.atool === "hooks" ||
       state.atool === "docs" || state.atool === "endpoints" || state.atool === "telemetry" ||
       state.atool === "loaded" || state.atool === "checklist" ||
-      state.atool === "api" ||
+      state.atool === "api" || state.atool === "annotations" ||
       state.atool === "bindings")
       ? state.atool : "test";
 
@@ -9018,6 +9146,7 @@ function M.render(ir, findings, opts)
     '<div class="hview-toggle" id="antoggle">',
     '<button class="anview-btn active" data-atool="test">Test coverage</button>',
     '<button class="anview-btn" data-atool="doc">Documentation</button>',
+    '<button class="anview-btn" data-atool="annotations" title="Which annotation tags this tree actually uses, counted per function - generated, so unlike a hand-written inventory it cannot go stale">Annotations</button>',
     '<button class="anview-btn" data-atool="api" title="Every function this tree publishes, with its documentation state and how many other modules here call it - the question asked every time a module is extracted into its own plugin">API surface</button>',
     '<button class="anview-btn" data-atool="deps">Dependencies</button>',
     '<button class="anview-btn" data-atool="complexity">Complexity</button>',

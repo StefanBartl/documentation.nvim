@@ -26,6 +26,17 @@
 --- not keep, and a handler for an uncatalogued tag is a feature no reader can
 --- discover.
 ---
+--- ## `field` is what makes an adoption count possible without a second table
+---
+--- A consumer asking "how many functions in this tree carry `@todo`" needs to
+--- know that `@todo` lands in `FunctionInfo.todo` and `@param` in `.params`.
+--- That mapping is not derivable from the tag name — `param` fills `params`,
+--- `return` fills `returns` — so it is either here or hardcoded in every
+--- consumer. It is here, and `TESTS/tags_spec.lua` asserts every declared
+--- field actually appears on a parsed function, against a fixture that uses
+--- every tag. A field name that drifts is otherwise a panel silently
+--- reporting zero adoption for a tag the tree uses everywhere.
+---
 --- ## `origin` is the field that decides the link
 ---
 --- Half of these are LuaCATS/EmmyLua, understood by lua-language-server and
@@ -60,6 +71,7 @@ local M = {}
 ---@field summary string One sentence, this project's own words, offline. The link is an enhancement — if every URL broke tomorrow this still answers the question.
 ---@field anchor string? Fragment on the origin's reference page, verified to exist. Absent for `docmap` tags, deliberately.
 ---@field scope "function"|"module"|"type" Where the tag is written, which is also which parser reads it.
+---@field field string? For a function-scope tag, the `Documentation.FunctionInfo` key it lands in — the join that lets a consumer ask "how many functions carry this" without a second table mapping tag names to fields. Absent for module- and type-scope tags, whose data does not live on a function.
 
 ---The base URL each origin's anchors hang off.
 ---
@@ -107,6 +119,7 @@ M.TAGS = {
     origin = "luals",
     repeats = true,
     scope = "function",
+    field = "params",
     anchor = "param",
     summary = "One parameter, its type and its description — the only tag with a structural check behind it, since a name that does not match the signature is a documented lie.",
   },
@@ -115,6 +128,7 @@ M.TAGS = {
     origin = "luals",
     repeats = true,
     scope = "function",
+    field = "returns",
     anchor = "return",
     summary = "What the function hands back. Rendered, never checked: Lua's returns are positional and unnamed, so there is nothing to compare a claim against.",
   },
@@ -123,6 +137,7 @@ M.TAGS = {
     origin = "luals",
     repeats = true,
     scope = "function",
+    field = "generic",
     anchor = "generic",
     summary = "Type parameters, collected and shown in the rendered signature.",
   },
@@ -131,6 +146,7 @@ M.TAGS = {
     origin = "luals",
     repeats = true,
     scope = "function",
+    field = "overload",
     anchor = "overload",
     summary = "An alternative call shape. Parsed structurally, so a parameter documented only on an overload still counts as documented.",
   },
@@ -139,6 +155,7 @@ M.TAGS = {
     origin = "luals",
     repeats = false,
     scope = "function",
+    field = "deprecated",
     anchor = "deprecated",
     summary = "This still works and should not be used. The text after it is the migration hint, which is the half that makes the badge actionable.",
   },
@@ -147,6 +164,7 @@ M.TAGS = {
     origin = "luals",
     repeats = false,
     scope = "function",
+    field = "async",
     anchor = "async",
     summary = "The function yields; a badge, not a check.",
   },
@@ -155,6 +173,7 @@ M.TAGS = {
     origin = "luals",
     repeats = false,
     scope = "function",
+    field = "nodiscard",
     anchor = "nodiscard",
     summary = "The return value is the point — discarding it is a bug at the call site.",
   },
@@ -163,6 +182,7 @@ M.TAGS = {
     origin = "luals",
     repeats = true,
     scope = "function",
+    field = "see",
     anchor = "see",
     summary = "A cross-reference, comma-separated, and one of the signals that keeps a function from reading as dead code.",
   },
@@ -171,6 +191,7 @@ M.TAGS = {
     origin = "docmap",
     repeats = false,
     scope = "function",
+    field = "internal",
     summary = 'Implementation, not published surface. Sharpens every question of the form "is this used": the parameter check skips it, the diff counts it as a helper, and the API surface panel leaves it out.',
   },
   {
@@ -178,6 +199,7 @@ M.TAGS = {
     origin = "docmap",
     repeats = true,
     scope = "function",
+    field = "todo",
     summary = "Work the author left for later, attached to the function it concerns. Listed in the Notes tab; one entry per occurrence, because a function with two open todos has two.",
   },
   {
@@ -185,6 +207,7 @@ M.TAGS = {
     origin = "docmap",
     repeats = true,
     scope = "function",
+    field = "bug",
     summary = "A defect the author recorded against this function. Counted on the dashboard and gated nowhere — it is the author's claim, not a finding of this tool's.",
   },
   {
@@ -192,6 +215,7 @@ M.TAGS = {
     origin = "docmap",
     repeats = true,
     scope = "function",
+    field = "test",
     summary = "Which spec covers this, written by hand. The measured answer comes from the test tree instead; this is the note beside it.",
   },
   {
@@ -199,6 +223,7 @@ M.TAGS = {
     origin = "docmap",
     repeats = false,
     scope = "function",
+    field = "since",
     summary = "When this appeared, in the project's own versioning — history, not runtime behaviour.",
   },
   {
@@ -206,6 +231,7 @@ M.TAGS = {
     origin = "docmap",
     repeats = false,
     scope = "function",
+    field = "example",
     summary = "The only multi-line tag: every following comment line belongs to it, and the block is parsed so an example that does not compile is a finding.",
   },
   {
