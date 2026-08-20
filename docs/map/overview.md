@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**5 modules** · 6 namespaces · 117 helper files
+**5 modules** · 6 namespaces · 118 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -92,6 +92,7 @@ flowchart LR
   nlua_documentation_editor_callhierarchy_lua["documentation.editor.callhierarchy"]
   nlua_documentation_editor_command_lua["documentation.editor.command"]
   nlua_documentation_editor_health_lua["documentation.editor.health"]
+  nlua_documentation_editor_pick_lua["documentation.editor.pick"]
   nlua_documentation_editor_registry_lua["documentation.editor.registry"]
   nlua_documentation_editor_serve_lua["documentation.editor.serve"]
   nlua_documentation_mcp_protocol_lua["documentation.mcp.protocol"]
@@ -116,6 +117,7 @@ flowchart LR
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_telemetry_self_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_timing_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_editor_browse
+  nlua_documentation_bindings_usrcmds --> nlua_documentation_editor_pick_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_editor_registry_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_editor_serve_lua
   nlua_documentation_core_annotate_lua --> nlua_documentation_core_check_lua
@@ -199,6 +201,7 @@ flowchart LR
   nlua_documentation_editor_command_lua --> nlua_documentation_core_find_lua
   nlua_documentation_editor_health_lua --> nlua_documentation_core_lang_registry_lua
   nlua_documentation_editor_health_lua --> nlua_documentation_core_soft_require_lua
+  nlua_documentation_editor_pick_lua --> nlua_documentation_core_soft_require_lua
   nlua_documentation_editor_registry_lua --> nlua_documentation_bindings_diagnostics_lua
   nlua_documentation_editor_registry_lua --> nlua_documentation_core_render
   nlua_documentation_editor_registry_lua --> nlua_documentation_core_soft_require_lua

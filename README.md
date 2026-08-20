@@ -495,6 +495,7 @@ Full reference: [docs/COMMANDS.md](docs/COMMANDS.md).
 :DocMap graph deps               " …opened on the dependency graph
 :DocMap graph calls my.module    " …on one module's call graph
 :DocMap why my.a my.b            " shortest require path between two -> quickfix
+:DocMap pick                     " fuzzy-find any module or function -> jump to its line
 :DocMap dot deps                 " the require graph as Graphviz DOT, in a buffer
 :DocMap diff HEAD~5              " what changed about the tree's shape
 :DocMap impact                   " …and where the changed lines radiate to

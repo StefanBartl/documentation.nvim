@@ -197,6 +197,40 @@ function M.check()
     })
   end
 
+  -- Optional, and the *absence* case is the interesting one: without it
+  -- `:DocMap pick` still works through lib.nvim's kit chooser, so this is
+  -- an upgrade rather than a requirement. Reported at `info` for that
+  -- reason — a missing tool that costs nothing is not a warning.
+  local pickers = soft_require.probe("pickers.engines")
+  if pickers then
+    local engines = {}
+    for _, name in ipairs({ "telescope", "fzf", "snacks" }) do
+      local mod = soft_require.probe("pickers.engines." .. name)
+      local ok_probe, yes = pcall(function()
+        return mod and mod.available and mod.available()
+      end)
+      if ok_probe and yes then
+        engines[#engines + 1] = name
+      end
+    end
+    if #engines > 0 then
+      h_ok(
+        ("pickers.nvim — :DocMap pick uses it (%s available)"):format(table.concat(engines, ", "))
+      )
+    else
+      h_info("pickers.nvim installed, but none of its engines is", {
+        "It needs telescope.nvim, fzf-lua or snacks.nvim to resolve one.",
+        ":DocMap pick falls back to lib.nvim's chooser, so nothing is broken.",
+      })
+    end
+  else
+    h_info("pickers.nvim not installed", {
+      ":DocMap pick uses lib.nvim's chooser instead, which defers to whatever",
+      "you wired into vim.ui.select. Nothing else needs it.",
+      "https://github.com/StefanBartl/pickers.nvim",
+    })
+  end
+
   local pdfport = soft_require.probe("pdfport")
   if pdfport and type(pdfport.can_create) == "function" and pdfport.can_create("markdown") then
     h_ok("pdfport.nvim — overview.pdf (opts.pdf = true) can be written")

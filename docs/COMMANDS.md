@@ -257,6 +257,38 @@ Three things it deliberately does not do:
   "measured it and saw nothing" are different facts, and only the second one
   licenses deleting anything.
 
+### `:DocMap pick`
+
+Fuzzy-find any module or function in the map and land on its source line.
+
+```vim
+:DocMap pick
+```
+
+**The interaction `:DocBrowse` does not have.** The browser's `/` is a fuzzy
+jump *inside* the browser — it moves the cursor to a row and leaves you
+there, which is right when you are exploring. This is the other one: *I know
+the name, get me there.* It ends in the file, and the browser never opens.
+
+Entries read as `module` and `module#M.fn`, the same two shapes the
+browser's own jump builds, so a name typed in one place is the name typed in
+the other. On this repository that is 913 entries.
+
+**Which picker.** [`pickers.nvim`](https://github.com/StefanBartl/pickers.nvim)
+first, if it is installed and it resolves an engine — telescope, fzf-lua or
+snacks. That buys fuzzy matching over several hundred entries *and* the
+engine's own native file previewer, because an entry carrying a `file` gets
+one for free. Otherwise `lib.nvim`'s `kit.select` with `respect_override`,
+which defers to whatever you wired into `vim.ui.select`
+(telescope-ui-select, fzf-lua, dressing) and falls back to the kit's own
+chooser when you wired nothing.
+
+Neither is a hard dependency, and neither has to be configured. A reader
+with `pickers.nvim` but no engine installed gets the kit and **no error**:
+`engines.load()` would have told them to install telescope, which is right
+for `:Pickers` and wrong here, so this asks whether an engine exists before
+asking for one.
+
 ### `:DocMap untested`
 
 Functions **this machine actually ran** that no spec names → quickfix list,
