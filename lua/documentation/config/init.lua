@@ -72,6 +72,7 @@ local KNOWN_OPTS_KEYS = {
   telemetry_namespace = true,
   telemetry = true,
   godbolt = true,
+  plugins = true,
   bindings = true,
   snippet_max_lines = true,
   generate_all = true,

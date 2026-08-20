@@ -329,6 +329,43 @@ organised by the plan they came from and none of these did.
 
 ---
 
+## Part 4c — config analysis, shipped 2026-08-21
+
+Part 4 named three remaining config-shaped items. Two are settled, and
+**the measurement changed both of them** — recorded here because the
+correction is the useful part, not the feature.
+
+- [x] **Lazy-load inventory** — its own analysis tool: which plugin loads on
+      which event / ft / cmd / keys, and what sits at startup. Measured
+      against a real config first, and the entry that came back was
+      mislabelled: 7 of 52 specs were `lazy = true` with no trigger of any
+      kind. Read as written, that says "loads later"; what it means is
+      "never loads". Three load states, then, not two.
+- [ ] **Orphaned spec files — decided 2026-08-21: not built.** A `no`
+      is a result. The single real candidate in the one config available was
+      a **false positive** — the file registers through a helper — and the
+      remaining candidates declare nothing only because their contents are
+      deliberately commented out. "Names no plugin" therefore does not
+      separate a dead file from a parked one, and a panel that reports
+      parked files as rot is worse than no panel. Reopen only with a corpus
+      that can show the criterion holding.
+- [x] **`opts.plugins.wrappers`** — not on the list, and the largest of the
+      three. Chasing that false positive: `core/plugins.lua` read only a
+      file's own `return { … }`, so a config registering through
+      `plugins.add({ … })` contributed **nothing**, silently. Measured:
+      **52 specs, against 85 once the one wrapper was declared** — the
+      missing 33 in a single 906-line file, 63 % of that config invisible,
+      with every panel over `n.plugins` quietly answering about the half
+      that happened to use a table literal. Declared, never detected, as
+      `bindings.wrappers` already was. The module header's claim that
+      "every sampled file uses the direct form" was true when written and
+      is corrected in place rather than deleted.
+
+Still open from Part 4: **other plugin managers** (packer, vim-plug,
+mini.deps) — separate extractors, not a bent lazy.nvim. **M.**
+
+---
+
 ## Part 5 — document hygiene
 
 > **Escalated 2026-08-19 from hygiene to a rebuild.** The items below are
