@@ -96,6 +96,7 @@ local specs = {
   "lang_python_spec.lua",
   "lang_csharp_spec.lua",
   "lang_go_spec.lua",
+  "lang_rust_spec.lua",
   "doccoverage_by_language_spec.lua",
   "lang_js_gaps_spec.lua",
   "polyglot_fixture_spec.lua",

@@ -673,11 +673,57 @@ The ten highest-traffic languages on either list that are not already built.
       the function branch and an interface would have shown its name and
       nothing it promises. The lesson C# taught one backend earlier by
       getting the same construct backwards.
-- [ ] **Rust** — `.rs`. `///` and `//!` map onto the same split Zig
-      established, `pub` is visibility, and `mod`/`use` are the module
-      system. The one wrinkle worth naming now: a file can declare several
-      modules inline, which is the "one file, many modules" IR case Phase 0
-      still has open.
+- [x] ~~**Rust**~~ — `core/lang/rust.lua`, built 2026-08-20, the thirteenth
+      backend, and the one that meets Phase 0's last open item head-on.
+
+      **`mod x { … }` is answered by qualifying the name, not by changing the
+      IR** — the same move C++ made for `Thing::go` and Python for
+      `Thing.go`. A function in an inline module is `x::helper`, an inherent
+      method `Widget::new`, a trait method `Doer::go`. Nothing is missing
+      from the map and nothing is mis-attributed. The Phase 0 item asking for
+      `Documentation.Node` to hold several modules per file **stays open**,
+      and the difference is worth being precise about: an inline module is
+      not a node, so it has no summary, no coverage and no edges of its own.
+      What is closed is the practical half.
+
+      **Fourth `param_docs = false` language, and the only one this document
+      predicted years in advance.** Part 1 costed rustdoc as "prose Markdown,
+      no tag vocabulary" and concluded `param-name-mismatch` would have
+      nothing to compare against. It does not. `# Arguments` is a Markdown
+      heading some projects write and most do not.
+
+      **The module path is derived from the file path**, which is what makes
+      Rust the first of these thirty with a real internal dependency graph:
+      `src/foo/bar.rs` is `foo::bar`, so `use crate::foo::bar::Thing`
+      resolves to a node instead of landing in `requires_external`.
+
+      **The measurement changed that design once, and prevented a wrong
+      edge.** `clap-rs/clap` is a Cargo *workspace* with three members, and
+      every member has its own `crate::` root — so a first version naming
+      modules `crate::builder` gave one name to two different files, and a
+      module index keyed on it would resolve one member's import to the
+      other member's file. The crate name comes from the directory holding
+      `src/` now, which is Cargo's own layout rule.
+
+      **Two `use` shapes, one fixed and one deliberately left.** `use
+      crate::a::{B, C}` kept its braces and matched nothing — fixed. `use
+      crate::util::eq_ignore_case` imports a *function* from `crate::util`
+      while `use crate::output::textwrap` imports the *module*, and both are
+      `snake_case`: nothing in the path says which. The path is kept whole
+      and the edge does not resolve, which under-claims rather than pointing
+      at the wrong module.
+
+      **Measured on `clap-rs/clap`:** 76 files, all 76 with a module path,
+      1547 functions (515 public, 489 of those documented — 95%), 205
+      symbols, and **295 of 317 crate-internal `use` edges resolving to a
+      node**.
+
+      One more thing, and it is the third time: **a trait member carries no
+      visibility modifier of its own** — writing `pub` there is a compile
+      error — so reading the absent modifier as private reported every method
+      of every public trait as internal. C#'s interface and Go's interface
+      were the first two. Three languages, three spellings, one meaning:
+      *this declaration exists in order to be published.*
 - [ ] **PHP** — `.php`. PHPDoc, `public`/`private`/`protected`, `namespace`,
       and `require`/`include`/`use` as three different edges to tell apart.
 - [ ] **Ruby** — `.rb`. No visibility keyword at declaration site: `private`

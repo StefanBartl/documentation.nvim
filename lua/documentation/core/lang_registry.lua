@@ -51,6 +51,7 @@ local KNOWN_BACKENDS = {
   "documentation.core.lang.python",
   "documentation.core.lang.csharp",
   "documentation.core.lang.go",
+  "documentation.core.lang.rust",
 }
 
 local loaded = false
