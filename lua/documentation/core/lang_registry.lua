@@ -56,6 +56,7 @@ local KNOWN_BACKENDS = {
   "documentation.core.lang.ruby",
   "documentation.core.lang.kotlin",
   "documentation.core.lang.swift",
+  "documentation.core.lang.dart",
 }
 
 local loaded = false

@@ -870,10 +870,38 @@ The ten highest-traffic languages on either list that are not already built.
       **Measured on `Alamofire/Alamofire`:** 43 files, 472 functions (342
       public, 187 of those documented), **399 bullet parameters**, 447
       symbols, 54 imports, 34 file summaries.
-- [ ] **Dart** — `.dart`. `///` doc comments, and visibility is a **leading
-      underscore that the compiler enforces**, which makes Dart the one
-      language where the underscore convention is a fact rather than a
-      guess.
+- [x] ~~**Dart**~~ — `core/lang/dart.lua`, built 2026-08-20, the eighteenth
+      backend. The underscore prediction held exactly: Lua, the ECMA family
+      and Python all use `_name` as a convention nothing enforces, and Dart's
+      compiler makes it genuinely unreachable outside the library — so Dart's
+      visibility sits beside Go's capitalisation rather than beside Python's
+      habit.
+
+      **Fifth `param_docs = false`.** dartdoc refers to a parameter as `[x]`
+      inside Markdown prose — a cross-reference, not a slot. Nothing to parse
+      and nothing to match, which puts Dart with Zig, Go, Rust and assembly
+      rather than with Ruby.
+
+      Two shapes worth recording. **The grammar names doc comments outright**
+      — `documentation_comment` is its own node type, distinct from
+      `comment`, making Dart the only one of the eighteen that needs no
+      pattern to tell documentation from a note. And **the top level is
+      flat**: a top-level function is a `function_signature` with a *sibling*
+      `function_body`, and a constant is `const_builtin`, `type_identifier`
+      and `static_final_declaration_list` in a row ending at a bare `;`,
+      with nothing wrapping any of it. The walk carries state instead of
+      descending, which looks like an oversight and is the grammar's shape.
+
+      **The fixture caught one real gap.** An *abstract* method has no body,
+      so it parses as a `declaration` wrapping a `function_signature` rather
+      than as a `method_signature` — and reading that node as a field dropped
+      every member of every abstract class, which is the one construct whose
+      whole content is its members. The same node also wraps a constructor.
+
+      **Measured on `dart-lang/collection`:** 29 files, 444 functions (398
+      public, 131 of those documented), 131 symbols, and 53 of 76 imports
+      relative — the highest internal-edge ratio of any language here, since
+      Dart packages import their own files by path.
 - [ ] **Scala** — `.scala`, `.sc`. Scaladoc, `private[x]` qualified
       visibility, `package` identity.
 
