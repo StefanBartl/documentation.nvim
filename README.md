@@ -679,6 +679,7 @@ grouped by the question you arrived with. The table below is the short list.
 | [docs/REUSE.md](docs/REUSE.md) | Generating a map for your own plugin. |
 | [docs/CHECKLIST_FORMAT.md](docs/CHECKLIST_FORMAT.md) | The hand-verified ledger: a syntax for facts a scanner cannot decide, watched for staleness by their citation rather than re-derived. |
 | [docs/CALL_HIERARCHY.md](docs/CALL_HIERARCHY.md) | Incoming/outgoing calls in Neovim, alongside LuaLS (which has none): setup, keymaps, and how to tell an unattached client from a function with no callers. |
+| [docs/HOSTING.md](docs/HOSTING.md) | Embedding the map in your own program: the `--capabilities` handshake, the `--api=<route>` answers, `?theme=`, and the page's two-way message channel. |
 | [docs/MCP.md](docs/MCP.md) | The MCP server: exposing the module tree, require graph, call graph and drift findings to a coding agent as tools. |
 | [docs/ROADMAP/IDEAS/PORTABILITY.md](docs/ROADMAP/IDEAS/PORTABILITY.md) | Mapping a Lua project that is not a Neovim plugin — and what a Neovim-free port would actually cost. |
 | [docs/ROADMAP/IDEAS/MULTILANG.md](docs/ROADMAP/IDEAS/MULTILANG.md) | Every language backend: what each one cost, the contract answers it had to give, and the measurements against real repositories — every one of which changed something. The per-language reference table is [docs/LANGUAGES.md](docs/LANGUAGES.md). |

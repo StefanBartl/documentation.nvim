@@ -30,6 +30,7 @@ arrived with.
 | [`FRAMEWORK_CONVENTIONS.md`](FRAMEWORK_CONVENTIONS.md) | The layer *above* language support — recognizing an ecosystem's structural convention (lazy.nvim specs today; Next.js-style file routing and React hooks costed as the web case). |
 | [`FEATURES_FORMAT.md`](FEATURES_FORMAT.md) | The `docs/FEATURES/` shape the Features tab reads, and what happens when you leave a piece out. |
 | [`CHECKLIST_FORMAT.md`](CHECKLIST_FORMAT.md) | The hand-verified ledger: a syntax for facts a scanner cannot decide, watched for staleness by their citation rather than re-derived. |
+| [`HOSTING.md`](HOSTING.md) | **Embedding the map in your own program**: the `--capabilities` handshake, the `--api=<route>` answers, `?theme=`, and the two-way message channel between the page and its frame — including why the page answers questions and takes no instructions. |
 | [`MCP.md`](MCP.md) | The MCP server: exposing the module tree, require graph, call graph and drift findings to a coding agent as tools. |
 | [`SECURITY.md`](SECURITY.md) | What this plugin does that could hurt you, what it refuses to do, and what it deliberately does not defend against. |
 
