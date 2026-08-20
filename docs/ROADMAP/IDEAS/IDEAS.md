@@ -622,6 +622,66 @@ built for real, rather than every caller re-solving it.
 
 ---
 
+### 6.8 Name the tool a missing panel needs — **noted 2026-08-20**
+
+Asked as "to show warnings and errors you need a linter, like LuaLS —
+so for other languages the matching LSP has to be installed, and we should
+tell the user and point at mason.nvim". **The instinct is right and the
+premise needs one correction, which is the useful part of writing this
+down.**
+
+**The map's findings are its own and need no linter.** All twenty checks in
+`core/check.lua` read the IR — `missing-summary`, `undocumented-param`,
+`require-cycle`, `layer-violation`, `dead-see-target` and the rest — and
+they work for every language backend with nothing installed. That is the
+whole point of a drift check: it compares the documentation against the code
+this tool already parsed. A Zig or Go or PHP project gets its findings with
+no language server anywhere.
+
+So the honest scope of the gap is narrower than "warnings and errors", and
+sharper:
+
+* **`--full` and the Types panel are `lua-language-server`-only.** That is
+  the one place an external tool is required, and it is required for
+  *`@class`/`@alias` detail*, not for diagnostics. Every other language
+  would need its own equivalent, and most have none that answers the same
+  question.
+* **Compile errors are not ours and never will be.** A reader who expects
+  the map to show them wants a language server, and should have one — but
+  they want it *beside* this tool rather than inside it. `opts.diagnostics`
+  already publishes documentation.nvim's findings through `vim.diagnostic`,
+  which is exactly how the two sit together: same list, different producers.
+
+**What is worth building is the sentence, not the integration.** When a
+panel is empty *because a tool is missing*, it should say which tool, and —
+in Neovim — how to get it. That obligation already exists in this ecosystem
+and was written down for a different feature: `docmap-desktop`'s work plan
+decided `--full` stays in the menu unconditionally **and therefore** the
+failure has to arrive where the reader is looking rather than in a log. This
+is the same rule applied to a panel rather than to a command.
+
+Three shapes it should take, in increasing cost:
+
+1. **The empty panel says the name.** "Types needs `lua-language-server`;
+   nothing here can produce it" — which the panel note already does in
+   `docmap-desktop` and does not do in the editor or in a plain browser.
+2. **`:checkhealth documentation` lists optional tools by what they buy.**
+   It reports the failures that break a scan today; a second section for
+   "installed, and what it enables / absent, and what is therefore missing"
+   costs almost nothing and is the natural home for this.
+3. **A mason.nvim hint, in Neovim only.** `:Mason` is where a Neovim user
+   installs a language server, so naming it is genuinely helpful — and
+   naming it *only there* matters: the same sentence in a committed HTML
+   page or in `docmap-desktop` would be advice for a program the reader may
+   not be running.
+
+**What this must not become:** a plugin that installs toolchains. Pointing
+at mason is a sentence; running an installer on somebody's behalf is a
+different kind of program, and the same line `IDEAS.md` §3.6 draws about a
+local Compiler Explorer applies here.
+
+---
+
 ## 7. Scale and performance
 
 Not currently a problem, which is the honest reason none of this is
