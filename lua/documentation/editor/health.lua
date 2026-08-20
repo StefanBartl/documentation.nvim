@@ -246,6 +246,28 @@ function M.check()
     })
   end
 
+  -- **Reported as an addition, never as a requirement**, and the wording
+  -- carries the measurement: inline `code` in `:DocBrowse`'s detail pane is
+  -- highlighted with or without this — 2 132 spans in this tree — while
+  -- fenced blocks are four bodies out of a hundred and twenty-three. An
+  -- "optional dependency missing" line that did not say so would send a
+  -- reader to install something for a case they may not have.
+  local cma = require("documentation.core.soft_require").probe("color_my_ascii")
+  if cma and type(cma.fences) == "table" and type(cma.fences.list_blocks) == "function" then
+    h_ok("color_my_ascii.nvim — fenced code blocks in :DocBrowse's detail pane are highlighted")
+  elseif cma then
+    h_info("color_my_ascii.nvim installed, but without the fences API", {
+      "Inline `code` in :DocBrowse is unaffected — it needs no plugin.",
+      "Only ``` blocks would use it, and this build exposes no fences.list_blocks.",
+    })
+  else
+    h_info("color_my_ascii.nvim not installed", {
+      "Inline `code` in :DocBrowse's detail pane is highlighted anyway.",
+      "Only ``` fenced blocks in a module header would use it — rare, by count.",
+      "https://github.com/StefanBartl/color_my_ascii.nvim",
+    })
+  end
+
   -- No external dependency to probe, unlike pdfport above — call hierarchy
   -- is built entirely on Neovim's own LSP client (`vim.lsp.start()` with a
   -- function `cmd`, no external process) and `handle.callers`/`callees`,

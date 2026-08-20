@@ -722,6 +722,71 @@ return function(H)
     ok(status_buf ~= nil, "browse: the status slot is mounted")
     ok(vim.api.nvim_buf_line_count(list_buf) > 0, "browse: the list has content")
 
+    -- ------------------------------------------------------------------
+    -- Inline code in the detail pane is highlighted, not left as literal
+    -- backticks (QW8 — the editor half of what `prose()` does for the
+    -- generated page).
+    --
+    -- Asserted against the pane the reader actually looks at, not against
+    -- `highlight.spans` alone: the thing that can silently break is the
+    -- *wiring*, and there are two render paths — a full render and the
+    -- cursor-move one — which is exactly the shape that drifts. The `j`
+    -- assertion below is that second path.
+    --
+    -- Counted rather than pinned to a number: this runs against the
+    -- repository's own map, whose prose changes. What must hold is "there
+    -- is code in this pane and it is marked", not how much.
+    -- ------------------------------------------------------------------
+    do
+      local hl_ns = vim.api.nvim_create_namespace("documentation.browse.detail")
+
+      ---@return integer spans, integer marks
+      local function detail_marks()
+        local lines = vim.api.nvim_buf_get_lines(detail_buf, 0, -1, false)
+        local spans = 0
+        for _, line in ipairs(lines) do
+          spans = spans + #require("documentation.editor.browse.highlight").spans(line)
+        end
+        local marks = vim.api.nvim_buf_get_extmarks(detail_buf, hl_ns, 0, -1, {})
+        return spans, #marks
+      end
+
+      -- Find a row whose detail pane actually contains inline code. The root
+      -- node's own summary might not, and an assertion that depended on that
+      -- would be a test of this repository's prose rather than of the
+      -- feature.
+      local found_row, found_spans = nil, 0
+      for row = 1, math.min(vim.api.nvim_buf_line_count(list_buf), 40) do
+        pcall(vim.api.nvim_win_set_cursor, list_win, { row, 0 })
+        -- The cursor-move path is what a reader triggers with `j`, and it is
+        -- the render this feature has to reach as well as the full one.
+        vim.api.nvim_exec_autocmds("CursorMoved", { buffer = list_buf })
+        local spans = detail_marks()
+        if spans > 0 then
+          found_row, found_spans = row, spans
+          break
+        end
+      end
+
+      ok(found_row ~= nil, "browse: some row's detail pane contains inline `code` to highlight")
+      if found_row then
+        local spans, marks = detail_marks()
+        eq(spans, found_spans, "browse: the pane still shows the row that was found")
+        eq(
+          marks,
+          spans * 3,
+          "browse: three extmarks per span — the two ticks dimmed, the text between them raw"
+        )
+
+        -- The namespace is cleared per render, so moving away and back must
+        -- not accumulate marks. Without the clear this grows on every `j`.
+        pcall(vim.api.nvim_win_set_cursor, list_win, { found_row, 0 })
+        vim.api.nvim_exec_autocmds("CursorMoved", { buffer = list_buf })
+        local _, again = detail_marks()
+        eq(again, marks, "browse: re-rendering the same row does not double its marks")
+      end
+    end
+
     vim.api.nvim_set_current_win(list_win)
     local before = vim.api.nvim_buf_get_lines(status_buf, 0, 1, false)[1]
 
