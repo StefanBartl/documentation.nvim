@@ -60,6 +60,7 @@ local KNOWN_BACKENDS = {
   "documentation.core.lang.scala",
   "documentation.core.lang.haskell",
   "documentation.core.lang.elixir",
+  "documentation.core.lang.erlang",
 }
 
 local loaded = false
