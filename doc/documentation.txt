@@ -695,6 +695,15 @@ A verdict is emitted only when its value passes one of two cut points. Between
 them it says nothing, which is where most measures on a healthy tree land — so
 an empty Quicks tab is a good reading, not a broken one.
 
+`recorded-defects` counts `FIX`/`FIXME`/`BUG` comment markers, and it is the
+one verdict that deliberately gates nothing: no severity, no finding, and
+`:DocMap check` never fails on it. **Every other thing this tool reports is a
+measurement; a `BUG:` comment is a claim** -- the author stating a fact about
+their own code, contradicting nothing. Rendering a claim like a measurement
+blurs the one distinction this plugin refuses to blur, and failing on it
+would punish the repository that wrote the defect down while passing the one
+that kept quiet. Its `basis` line says whose sentence it is.
+
 Two things are deliberately absent. **Purity** ("N% of your functions are
 pure") is not derivable: nothing in the IR records side effects, and the cheap
 approximations are exactly the confident guess the paragraph above rules out.
@@ -858,7 +867,22 @@ scan_full({opts})       `scan` + optional LuaLS merge + `check`, in one call —
 LuaLS — which has no call-hierarchy support at all — answering only
 `textDocument/prepareCallHierarchy`, `callHierarchy/incomingCalls`,
 `callHierarchy/outgoingCalls`, and injecting a caller/callee count into
-hover. `vim.lsp.buf.incoming_calls()` and |vim.lsp.buf.outgoing_calls()|
+hover. `K` on a function reads, for example:
+
+    **3** incoming calls · **1** outgoing call · called **412**x in the
+    last 7 days
+
+The third clause needs `runtime-analysis.nvim` and appears only when it has
+recorded this function. Three states, and the middle one is why the count is
+windowed rather than a running total: recent calls mean the path is alive;
+recorded calls with none recent mean a cold path, which an all-time number
+cannot show; no third clause at all means no telemetry, never "not called".
+
+The case it exists for is the one where both static counts are zero -- a
+function bound as a callback value or reached by dynamic dispatch produced
+no hover at all before, which is precisely static analysis's blind spot.
+
+`vim.lsp.buf.incoming_calls()` and |vim.lsp.buf.outgoing_calls()|
 then work in Lua buffers under `source/`; Neovim has no default keymap for
 either, so bind them yourself. `:checkhealth documentation` reports whether
 the client is actually running — an unattached client and a function with
