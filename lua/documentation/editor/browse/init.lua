@@ -199,6 +199,25 @@ end
 
 -- ── Rendering ───────────────────────────────────────────────────────────────
 
+---Put the detail pane's lines on screen, then highlight the code in them.
+---
+---One function rather than two call sites, because there *were* two and they
+---are the shape that drifts: a full render and the cursor-move render both
+---set the same pane, and a highlight added to one of them would leave the
+---other showing literal backticks depending on how the reader got there.
+---@param st table
+---@param lines string[]
+local function show_detail(st, lines)
+  st.slots.detail:set_lines(lines)
+  -- After `set_lines`, never before: extmarks are positions in a buffer, and
+  -- placing them against contents that are about to be replaced marks
+  -- nothing. Guarded because a highlighting failure must not take down the
+  -- pane whose job is to show the text.
+  pcall(function()
+    require("documentation.editor.browse.highlight").apply(st.slots.detail.bufnr, lines)
+  end)
+end
+
 ---@param st table
 local function render(st)
   -- History's data comes from git, not the IR, so it is fetched here rather
@@ -249,7 +268,7 @@ local function render(st)
     pcall(vim.api.nvim_win_set_cursor, st.slots.list.winid, { st.cursor, 0 })
   end
 
-  st.slots.detail:set_lines(view.detail(st.ir, st, st.entries[st.cursor]))
+  show_detail(st, view.detail(st.ir, st, st.entries[st.cursor]))
   st.slots.status:set_lines({ view.status(st.ir, st) })
 end
 
@@ -276,7 +295,7 @@ end
 ---every cursor move would reset the cursor and fight the movement.
 ---@param st table
 local function render_detail(st)
-  st.slots.detail:set_lines(view.detail(st.ir, st, selected(st)))
+  show_detail(st, view.detail(st.ir, st, selected(st)))
   st.slots.status:set_lines({ view.status(st.ir, st) })
 end
 

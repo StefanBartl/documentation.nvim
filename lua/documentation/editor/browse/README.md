@@ -426,12 +426,44 @@ Three [`ui.kit.layout`](https://github.com/StefanBartl/lib.nvim/blob/main/lua/li
 Each slot gets a filetype (`documentation-browse-list` / `-detail` / `-status`)
 so a user's own config can highlight them.
 
+### Code in the detail pane
+
+A doc comment writes `` `lang_registry` `` and the pane used to show the
+backticks. It now highlights the span instead — the editor half of what the
+generated page does with a `<code>` element.
+
+Two marks, not one: the ticks are drawn as `@punctuation.special` and the text
+between them as `@markup.raw`, so the punctuation does not read as part of the
+code. Both are Treesitter-era group *names*, so whatever your colourscheme
+already decided for inline code applies here without this plugin choosing a
+colour.
+
+**The backticks stay visible rather than being concealed.** `conceallevel`
+would shift every column after the span, and this pane aligns several by hand
+(`kind    module`, the symbol table); text that moves under the cursor is a
+worse trade than two dim characters.
+
+**Fenced ```` ``` ```` blocks are the rare extra**, and the only part that
+uses an optional plugin. Counted in this tree before it was built: **2 132**
+inline spans are reachable in this pane against **four** node bodies out of a
+hundred and twenty-three carrying a fence, and **zero** `@example` blocks. So
+inline code is the feature and needs nothing installed;
+[`color_my_ascii.nvim`](https://github.com/StefanBartl/color_my_ascii.nvim)
+is probed through `core/soft_require` for the fenced case and its absence
+changes nothing else.
+
+It fits *this* surface and not the generated page for one concrete reason: its
+fence API is buffer-based (`fences.list_blocks(bufnr, …)`), and this pane
+genuinely is a Neovim buffer — where the page is a standalone artifact opened
+in a browser, written by an engine that runs without Neovim at all.
+
 ## Structure
 
 | File | Holds |
 | --- | --- |
 | `source.lua` | Where the IR comes from: artifact vs. live handle, rehydration, the staleness check |
 | `view.lua` | Pure: state → list entries, detail lines, status line. No window touched, so the mode logic is testable headlessly |
+| `highlight.lua` | Inline `code` spans → extmarks, and the fenced-block hand-off. Called after `set_lines`, cleared by namespace on every render |
 | `init.lua` | Layout, state, navigation, keymaps, actions |
 
 `view.lua` being pure is what lets
