@@ -122,6 +122,77 @@ button:hover{border-color:var(--accent);color:var(--accent)}
 main.view.active{display:grid}
 main{grid-template-columns:minmax(300px,1.1fr) minmax(0,1.4fr);gap:0;align-items:start}
 @media (max-width:860px){main{grid-template-columns:1fr}}
+/* =====================================================================
+   Print.
+
+   The page is one artifact and printing it is a media query, not a
+   feature — but only if the query actually says something, and four
+   things here would otherwise print badly rather than merely plainly.
+
+   1. **The panes are clipped, not long.** `#tree`, `#detail` and the two
+      history panes carry `max-height:calc(100vh - Npx)` with
+      `overflow:auto`, which on paper means the first screenful prints and
+      the rest silently does not exist. Unclipping them is the single
+      change that makes this work at all.
+   2. **Dark mode follows you to the printer.** `prefers-color-scheme` is
+      a property of the reader, not of the sheet, and browsers do not
+      override it — so a reader in dark mode gets a black page. The tokens
+      are forced back to the light set here rather than fought
+      per-element.
+   3. **Chrome that cannot be used on paper.** Tabs, the search box, the
+      graph's control row and every button are affordances; on a sheet they
+      are ink. The tab *bar* goes, the current view stays — `.view` already
+      hides the others, so a printout is whatever tab you were on, which is
+      also the least surprising thing it could be.
+   4. **Rows split across the fold.** A tree row or a finding cut in half
+      by a page break is unreadable in exactly the way a table is not.
+
+   Deliberately not done: expanding collapsed tree branches. What prints is
+   what is on screen — a printout that silently contains more than the page
+   did is a different document, not a better one.
+   ===================================================================== */
+@media print{
+  /* Light tokens, unconditionally: see note 2 above. */
+  :root{
+    --bg:#fff; --panel:#fff; --ink:#111; --muted:#555; --line:#bbb;
+    --accent:#245; --accent-soft:#f0f0f0;
+    --error:#900; --warn:#750; --info:#444;
+    --mod:#245; --ns:#666; --file:#363; --dep:#743; --call:#534;
+    --fn:#750; --ext:#255;
+  }
+  @page{margin:14mm}
+  body{background:#fff;color:#111;font-size:10.5pt}
+
+  /* Chrome. `.topbar` and `header` stay: they carry the project name and
+     the counts, which is what tells a reader a week later what this sheet
+     even is. */
+  .tabs, .toolbar, .subtabs, .hctl, #markbar, #hiddenbar,
+  #ctx, .sigpop, .explainpop, #hzoomlabel{display:none !important}
+  button, input, select{display:none !important}
+
+  /* Note 1: unclip every scrolling pane. */
+  #tree, #detail, #hist-list, #hist-detail, #hgraph-wrap{
+    max-height:none !important; overflow:visible !important;
+    border-right:0 !important;
+  }
+
+  /* One column. Two panes side by side fit a screen, not a sheet — the
+     tree ends up a narrow gutter and the detail wraps to nothing. */
+  main.view.active{display:block !important}
+
+  /* Note 4. */
+  .row, .card, .qk, tr, .hnode, li{break-inside:avoid; page-break-inside:avoid}
+  h1, h2, h3{break-after:avoid; page-break-after:avoid}
+
+  /* A link's colour means nothing on paper and its target is not worth a
+     parenthesis after every one — this page's links are internal
+     navigation, so the URL would be noise rather than information. */
+  a{color:inherit; text-decoration:none}
+
+  /* Hover-only dimming must not survive into a static sheet. */
+  #hgraph.focusing .hnode{opacity:1 !important}
+}
+
 #tree{padding:12px 8px 60px 16px;border-right:1px solid var(--line);
   max-height:calc(100vh - 132px);overflow:auto}
 @media (max-width:860px){#tree{max-height:none;border-right:0;border-bottom:1px solid var(--line)}}
