@@ -24,6 +24,8 @@
 ---@field complexity integer Summed cyclomatic complexity of its documented functions.
 ---@field score integer `commits * complexity`.
 ---@field hottest string? Signature of its single most complex function — where to actually start reading.
+---@field calls integer? Calls recorded for this module's functions on **this machine**, or `nil` when no telemetry was passed to `rank`. `nil` and `0` are different answers: nobody measured, versus measured and saw nothing.
+---@field calls_recent integer? Of those, the ones in the last `telemetry_join.RECENT_DAYS` days. `nil` under the same rule.
 
 ---@class Documentation.Churn.Result
 ---@field entries Documentation.Churn.Entry[] Highest score first; ties by commits, then node id.

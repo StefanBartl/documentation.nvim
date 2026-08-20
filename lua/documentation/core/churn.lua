@@ -32,6 +32,25 @@
 --- immediately. Normalising the axes first would fix the ordering and cost
 --- exactly that, since a normalised score means nothing on its own.
 ---
+--- ## The runtime axis does not move anything
+---
+--- `rank` takes an optional `calls` table and each entry carries what it
+--- found, but **the score and the order are exactly what they were**. That is
+--- deliberate twice over.
+---
+--- Telemetry is *this machine's* usage. Folding it into the score would make
+--- a ranking that reads as a property of the code into one that is partly a
+--- property of whoever last ran it — two developers would get two different
+--- orders for one repository and neither would be wrong, which is the worst
+--- shape a shared ranking can have. `runtime-analysis.nvim`'s own
+--- `IDEAS.md` §1.5 already refuses the stronger version of this for checks:
+--- runtime evidence never upgrades a severity.
+---
+--- What it does instead is **separate two rows that render identically and
+--- call for opposite actions**: complex, churning and hot is a refactoring
+--- candidate; complex, churning and cold is a deletion candidate. That
+--- distinction is worth a column and is not worth a re-sort.
+---
 --- ## Why this is a command and not an Analysis panel
 ---
 --- It needs `git log`, and git data cannot enter the committed artifact.
@@ -91,7 +110,7 @@ end
 ---@param ir Documentation.IR
 ---@param total_commits integer? Distinct commits in the range, for the report.
 ---@return Documentation.Churn.Result
-function M.rank(counts, ir, total_commits)
+function M.rank(counts, ir, total_commits, calls)
   local by_source = {}
   for _, id in ipairs(ir.order or {}) do
     local node = ir.nodes[id]
@@ -119,6 +138,10 @@ function M.rank(counts, ir, total_commits)
     -- at the bottom: a ranking of refactoring risk that ends in a run of
     -- zeroes reads as if the tail were low-risk, when it is really unmeasured.
     if complexity > 0 then
+      -- The third axis, when a host had one to pass. Absent stays absent:
+      -- `nil` here means nobody measured, which the renderer must not turn
+      -- into a zero -- see `Documentation.Churn.Entry.calls`.
+      local runtime = calls and calls[id]
       entries[#entries + 1] = {
         node = id,
         module = node.module,
@@ -127,6 +150,8 @@ function M.rank(counts, ir, total_commits)
         complexity = complexity,
         score = commits * complexity,
         hottest = hottest,
+        calls = runtime and runtime.calls,
+        calls_recent = runtime and runtime.calls_recent,
       }
     end
   end
@@ -144,6 +169,32 @@ function M.rank(counts, ir, total_commits)
   return { entries = entries, commits = total_commits or 0, unmatched = unmatched }
 end
 
+---How an entry's runtime column reads, or "" when nobody measured it.
+---
+---**"in your sessions", never "unused".** Telemetry only ever sees this
+---machine. A module that is cold here may be the hot path for every other
+---user of the plugin, and a quickfix line saying "unused" would be a
+---confident wrong answer in exactly the place someone is deciding whether to
+---delete something. `runtime-analysis.nvim`'s `IDEAS.md` §1.1 states this
+---limit as a requirement on the render, and this is the render.
+---
+---Three outputs, because there are three states and the middle one is the
+---point: no data at all, ran but not lately, and ran lately.
+---@param e Documentation.Churn.Entry
+---@return string
+local function runtime_note(e)
+  if not e.calls then
+    return ""
+  end
+  if e.calls == 0 then
+    return "  · not called in your sessions"
+  end
+  if (e.calls_recent or 0) == 0 then
+    return ("  · %d calls, none in the last week (yours)"):format(e.calls)
+  end
+  return ("  · %d calls, %d this week (yours)"):format(e.calls, e.calls_recent)
+end
+
 ---Quickfix rows for a ranking, in order.
 ---@param result Documentation.Churn.Result
 ---@param root string Absolute repository root.
@@ -154,11 +205,12 @@ function M.quickfix_items(result, root)
     items[i] = {
       filename = root .. "/" .. (e.source or ""),
       lnum = 1,
-      text = ("%s · %d commits × complexity %d = %d%s"):format(
+      text = ("%s · %d commits × complexity %d = %d%s%s"):format(
         e.module or e.node,
         e.commits,
         e.complexity,
         e.score,
+        runtime_note(e),
         e.hottest and ("  · hottest: " .. e.hottest) or ""
       ),
     }

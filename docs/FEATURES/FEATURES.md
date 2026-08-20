@@ -2879,3 +2879,62 @@ question that was never asked.
 - **Tests:** `TESTS/quicks_spec.lua` — including that the basis says both
   halves out loud, and that three markers in one file are three defects and
   one thing to open.
+
+## The two runtime joins — churn × calls, coverage × calls (2026-08-20)
+
+`runtime-analysis.nvim`'s `docs/IDEAS.md` ranks its own crossings by value per
+unit of work, and these are numbers 3 and 4 on that list. Both were rated
+cheap for the same reason and the rating held: **neither side needed new
+collection.** `churn.lua` already ranks; `coverage.lua` already derives
+`tested`; `telemetry_join.lua` already maps a telemetry key back to a real
+module path, and already keeps a seven-day window beside the total.
+
+**§1.1 — the third axis.** `churn.rank` takes an optional `calls` table and
+each entry carries what it found. Complex, churning and hot is a refactoring
+candidate; complex, churning and cold is a deletion candidate, and until now
+those two rows rendered identically. Measured on this repository:
+`editor.browse.view` (complexity 383) is the top row and carries *47 calls,
+none in the last week*; `core.check` sits one row below it with *37 722
+calls, 4 839 this week*.
+
+**§1.2 — the cell worth a list.** `telemetry_join.untested_hot` returns
+functions telemetry watched running that no spec names, most-run first, as
+`:DocMap untested`. Fifteen of them here, led by
+`check.declared_param_names` at 33 843 calls.
+
+Three decisions, and the first is the one that matters:
+
+* **The ranking does not move.** Telemetry is *this machine's* usage. Folding
+  it into the score would turn a ranking that reads as a property of the code
+  into one that is partly a property of whoever last ran it — two developers,
+  two orders, neither wrong. The column separates the rows; the sort stays
+  put. `IDEAS.md` §1.5 already refuses the stronger version of this for
+  checks, and the same argument applies one step weaker here.
+* **`nil` is not `0`.** A module telemetry never matched is absent from the
+  join rather than present with a zero. "Nobody measured this" and "measured
+  it and saw nothing" are different facts and only the second one licenses
+  deleting something. Visible in the real output above: `core.lang.python`
+  has no column at all, `core.lang.ecma` reads *not called in your sessions*.
+* **The wording carries the honest limit.** Never "unused" — *"not called in
+  your sessions"*, and a module that ran but not lately reads differently
+  again. §1.1 states that as a requirement on the render, and the render is
+  `quickfix_items`.
+
+**Both are commands, and both had to be.** Runtime counts cannot enter the
+committed artifact — `--check` byte-compares, so a map carrying them
+invalidates itself on the commit that embeds it, the same wall churn and the
+History tab hit — and a *check* built on them would fail on one machine and
+pass on another.
+
+**One reading the real run corrected.** `:DocMap untested`'s top entries are
+internal helpers reached through public entry points that specs do call. That
+is not a false positive and the docs say so rather than filtering it away: a
+name in a spec is what makes a failure localise to the function that caused
+it. The list means "no spec names it", never "this is unexercised".
+
+- **Modules:** `core/telemetry_join.lua` (`by_node`, `untested_hot`),
+  `core/churn.lua` (`rank`'s fourth argument, `runtime_note`),
+  `bindings/usrcmds/untested.lua`
+- **Tests:** `TESTS/runtime_joins_spec.lua` — including that the ordering
+  guarantee and the wording rule both fail when deliberately broken, which
+  was checked rather than assumed

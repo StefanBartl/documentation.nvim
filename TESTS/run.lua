@@ -116,6 +116,7 @@ local specs = {
   "bindings_spec.lua",
   "browse_endpoints_spec.lua",
   "browse_telemetry_spec.lua",
+  "runtime_joins_spec.lua",
   "telemetry_self_spec.lua",
   "browse_loaded_spec.lua",
   "docmap_browse_spec.lua",

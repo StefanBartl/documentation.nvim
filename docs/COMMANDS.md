@@ -233,6 +233,66 @@ takes a single pathspec and is therefore no use for a whole-tree ranking. The
 commit column is what makes that visible rather than silent, and it corrects
 itself as history accumulates.
 
+**A third column, when this machine has telemetry.** `runtime-analysis.nvim`
+knows what actually ran; churn cannot. Complex, churning and hot is a
+*refactoring* candidate; complex, churning and cold is a *deletion*
+candidate — and without the third number those two rows render identically
+while calling for opposite actions. Measured on this repository:
+`editor.browse.view` (complexity 383) carries *47 calls, none in the last
+week*, while `core.check` (complexity 360, one row below it) carries *37 722
+calls, 4 839 this week*.
+
+Three things it deliberately does not do:
+
+* **It does not change the order.** Telemetry is *this machine's* usage.
+  Folding it into the score would make a ranking that reads as a property of
+  the code into one that is partly a property of whoever last ran it — two
+  developers would get two different orders for one repository and neither
+  would be wrong. The column separates the rows; the sort stays put.
+* **It never says "unused".** A module cold here may be the hot path for
+  every other user of the plugin. The wording is *"not called in your
+  sessions"*, and a module that ran but not lately reads differently again.
+* **No telemetry means no column**, not a zero. A module telemetry never
+  matched is absent from the join entirely: "nobody measured this" and
+  "measured it and saw nothing" are different facts, and only the second one
+  licenses deleting anything.
+
+### `:DocMap untested`
+
+Functions **this machine actually ran** that no spec names → quickfix list,
+most-run first. The one useful cell of coverage × telemetry: *"this ran four
+thousand times and no spec mentions it"* is a test backlog sorted by
+evidence rather than alphabetically.
+
+```vim
+:DocMap untested
+```
+
+It **repairs `core/coverage.lua`'s stated blind spot in one direction**. That
+module derives `tested` from bare-name mentions under `tests_dir` and says
+outright that a function exercised only *indirectly* never lights up. It
+still does not — but a function telemetry watched running is no longer
+invisible, so the two blind spots no longer overlap.
+
+**Read the list as "no spec names it", not as "untested".** On this
+repository the top entries are internal helpers reached through a public
+entry point that specs do call — `check.declared_param_names`, 33 843 calls.
+That is a true and useful reading rather than a false positive: a name in a
+spec is what makes a failure localise to the function that caused it. It is
+not a claim that the code is unexercised.
+
+The other three cells are not produced. "Tested and called" is fine; "tested
+and never called" is a question about the test; "untested and never called"
+is `dead-function`'s territory and has its own suppression rules, and a
+second verdict beside an existing one would eventually disagree with it.
+
+**A report, never a gate.** Runtime counts cannot enter the committed
+artifact — same byte-comparison wall as `churn` — and a *check* built on them
+would fail on one developer's machine and pass on another's, which
+`runtime-analysis.nvim`'s own `IDEAS.md` §1.5 refuses on its own terms: a
+warning that appears on one machine and not another is worse than no
+warning.
+
 The score is `commits × complexity`, and that is a scalarization with the
 weakness every scalarization has — a large enough value on one axis outranks a
 moderate value on both. Both columns are on every row, so when the order looks

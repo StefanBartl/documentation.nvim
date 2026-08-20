@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**5 modules** · 6 namespaces · 115 helper files
+**5 modules** · 6 namespaces · 116 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -111,6 +111,7 @@ flowchart LR
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_find_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_findings_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_history_lua
+  nlua_documentation_bindings_usrcmds --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_telemetry_self_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_timing_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_editor_browse
@@ -225,19 +226,20 @@ flowchart LR
 
 ## Drift
 
-0 errors · 0 warnings · 31 info
+0 errors · 0 warnings · 32 info
 
 No errors or warnings.
 
 
 <details>
-<summary>31 informational findings</summary>
+<summary>32 informational findings</summary>
 
 
 | Check | Message |
 |---|---|
 | `missing-readme` | lua/documentation/mcp has no README.md |
 | `undocumented-param` | check_require_cycles has 2 parameter(s) but only 0 @param line(s) |
+| `undocumented-param` | M.rank has 4 parameter(s) but only 3 @param line(s) |
 | `undocumented-param` | complexity has 3 parameter(s) but only 2 @param line(s) |
 | `undocumented-param` | build_fn has 6 parameter(s) but only 5 @param line(s) |
 | `unreferenced-module` | documentation.bindings.docs is required by no other file in the tree |
