@@ -16,6 +16,26 @@ the work survives a cold start in a new session.
 
 ## Genuinely open
 
+- **The `standalone` gate skips silently on most machines, and two bugs got
+  in behind it.** `scripts/ci.lua` looks for PUC Lua on `PATH` with `lfs` and
+  `dkjson`; where it does not find one it prints *skipped* and the run still
+  reports five green gates. On 2026-08-20 a release build failed twice in a
+  row on `core/` calling Neovim APIs the shim does not implement
+  (`node:start()`, `vim.pesc`), both introduced that day, both invisible
+  locally. The fix for each was small; the gap is that **local green means
+  "four gates and a shrug"** and does not say so loudly. Options, none taken
+  yet: fail rather than skip when the interpreter is absent but the *rocks*
+  are present; print the skip as a warning the summary repeats; or ship a
+  contract spec that asserts every `vim.*` and node method `core/` calls
+  exists in the shim, which is the only version that catches the next one
+  before CI does.
+- **A generated relative link can be wrong in the copy.**
+  `docs/map/overview.md` links to `DEFAULTS.lua`, which is right relative to
+  `lua/documentation/config/` where the module header was written and wrong
+  relative to `docs/map/` where the rendered copy lives. Found by the
+  standalone gate on 2026-08-20; the Neovim-side check does not report it,
+  which is itself worth understanding before fixing either.
+
 - **Multi-language support.** Twenty-three backends built. What each reads is
   [`LANGUAGES.md`](../LANGUAGES.md); what each cost is
   [`IDEAS/MULTILANG.md`](IDEAS/MULTILANG.md). **Fifteen** further languages are *available* rather than scheduled —
