@@ -165,4 +165,58 @@ return function(H)
   eq(java.is_source("Thing.java"), true)
   eq(java.is_source("README.md"), false)
   eq(#java.block_comments, 1, "Javadoc is a block comment, and markers.lua needs to know it")
+
+  -- ---------------------------------------------------------------------
+  -- Module-scope symbols, added 2026-08-20. Java was one of four backends
+  -- the parity audit found reporting none at all, which no single language
+  -- makes visible.
+  --
+  -- **A Java field is the module-scope binding**, because Java has no
+  -- module scope: everything lives in a type. A second fixture rather than
+  -- fields added to `Greeter.java`, so the line count and function
+  -- assertions above keep meaning what they were written to mean.
+  -- ---------------------------------------------------------------------
+  do
+    local f2 = H.tmpfile(".java"):gsub("[^/\\]+%.java$", "Config.java")
+    local fh = assert(io.open(f2, "w"))
+    fh:write(table.concat({
+      "package com.example.app;",
+      "",
+      "public class Config {",
+      "    /** How many at once. */",
+      "    public static final int MAX = 10;",
+      "",
+      "    private String name;",
+      "",
+      "    public int count = 0;",
+      "",
+      "    public static class Inner {",
+      "        static final int MAX = 3;",
+      "    }",
+      "}",
+      "",
+    }, "\n"))
+    fh:close()
+
+    local _, _, _, symbols = java.scan_file(f2)
+    local fields = {}
+    for _, s2 in ipairs(symbols) do
+      fields[s2.name] = s2
+    end
+
+    -- Qualified with the owning type, for the reason the methods above are:
+    -- `Config.MAX` and `Config.Inner.MAX` are two fields that share a
+    -- spelling, and one name for both would lose the distinction.
+    ok(fields["Config.MAX"] ~= nil, "a field is qualified by the type that holds it")
+    ok(fields["Inner.MAX"] ~= nil, "including one in an inner class, qualified by its nearest type")
+    eq(fields["Config.MAX"].summary, "How many at once.", "the Javadoc is parsed, not shown raw")
+
+    -- `static final` is the constant, and it is the language's own
+    -- distinction rather than a guess: a non-final field can be reassigned,
+    -- and a `final` instance field is per-object state. Neither is what
+    -- "constant" means in the other twenty-two backends.
+    eq(fields["Config.MAX"].kind, "constant")
+    eq(fields["Config.name"].kind, "binding", "private, but not a constant")
+    eq(fields["Config.count"].kind, "binding", "public and mutable is still a binding")
+  end
 end

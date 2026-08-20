@@ -230,10 +230,10 @@ DOCMAP_TS_DIR=C:/tools/docmap-grammars nvim --headless -u NONE -l scripts/parity
 | `js` | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `ts` | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `tsx` | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `zig` | ✓ | — | ✓ | — | — | ✓ | ✓ | — | — | ✓ | — |
-| `java` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — |
-| `c` | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — |
-| `cpp` | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — |
+| `zig` | ✓ | — | ✓ | — | — | ✓ | ✓ | — | ✓ | ✓ | — |
+| `java` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — |
+| `c` | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — |
+| `cpp` | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — |
 | `asm` | ✓ | — | ✓ | — | — | ✓ | ✓ | — | ✓ | ✓ | — |
 | `python` | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — |
 | `csharp` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — |
@@ -316,14 +316,20 @@ saying so is the point:
   work in Lua and the ECMA family and are empty everywhere else. This is the
   largest single gap in the tool, it is invisible from any one language, and
   it took a table across all of them to see.
-- **Symbols: the four oldest non-Lua backends.** `zig`, `java`, `c` and `cpp`
-  return no module-scope symbols. Every backend written from Python onward
-  does. Nothing decided this — the capability arrived after those four and
-  never went back.
+- ~~**Symbols: the four oldest non-Lua backends.**~~ **Closed 2026-08-20.**
+  `zig`, `java`, `c` and `cpp` returned no module-scope symbols; every
+  backend written from Python onward did. Nothing had decided it — the
+  capability arrived after those four and never went back — which is why it
+  took a table across all of them to see. Each one needed the language's own
+  answer to "what *is* a module-scope binding here", and no two were the
+  same: a top-level `const`/`var` in Zig (minus the `@import` bindings, which
+  are dependencies and already edges), a **field** in Java and C++ because
+  neither has module scope at all and everything lives in a type, and in C a
+  `#define` beside the file-scope declarations, because `#define` is the one
+  idiom every C project uses for a threshold.
 
-Both are now tracked in
-[`ROADMAP/ROADMAP.md`](ROADMAP/ROADMAP.md). Neither is dressed up as a
-language limit, because it is not one.
+The first is tracked in [`ROADMAP/ROADMAP.md`](ROADMAP/ROADMAP.md), and is
+not dressed up as a language limit, because it is not one.
 
 ### What the audit fixed on the way
 

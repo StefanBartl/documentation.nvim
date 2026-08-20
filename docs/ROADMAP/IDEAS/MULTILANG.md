@@ -1211,9 +1211,18 @@ automation is part of what a map should show.
       nothing rather than borrowing another language's keywords). And
       **twenty-three are neither** — call edges in nineteen backends and
       module-scope symbols in four — which is exactly the failure this entry
-      was looking for: a blank with no sentence beside it. They are now in
-      `ROADMAP.md`, described as unbuilt rather than as impossible, because
-      nothing in any of those languages makes them impossible.
+      was looking for: a blank with no sentence beside it. Neither was
+      dressed up as a language limit, because neither is one.
+
+      **The symbols half was closed the same day**, once the table made it
+      visible. Each of the four needed the language's own answer to "what is
+      a module-scope binding here", and no two were alike: a top-level
+      `const`/`var` in Zig, minus the `@import` bindings, which are
+      dependencies and already carried as edges; a **field** in Java and
+      C++, because neither has module scope at all and everything lives in a
+      type; and in C a `#define` beside the file-scope declarations, because
+      `#define` is what every C project actually uses for a threshold. Call
+      edges stay open in `ROADMAP.md`.
 
       **Four defects found on the way**, all the same shape — a capability
       reporting nothing rather than reporting a problem. Markers were
