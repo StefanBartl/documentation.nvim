@@ -695,6 +695,7 @@ li:hover>.marki,tr:hover .marki{opacity:.8}
 .hnode.k-external.linked .hnm{color:var(--accent)}
 .hlegend .sw.dep.external{border-top-style:dashed}
 #hext.active button{background:var(--accent-soft);color:var(--accent);font-weight:600}
+#hgest.active button{background:var(--accent-soft);color:var(--accent);font-weight:600}
 .hedge-call{stroke:var(--call);opacity:.8}
 .hedge-call.weak{stroke-dasharray:3 4;opacity:.5}
 /* An invisible, much wider companion path per edge. A 1.5px line is a 1.5px
@@ -3806,10 +3807,12 @@ local JS = [[
     "tab.hierarchy":
       "The dependency graph, drawn from one module outward. Boxes are modules " +
       "and namespaces, arrows are requires and calls; the slider decides how " +
-      "far from the centre it reaches. A single click opens that module in " +
-      "the Tree and leaves this view; double-click a box to root the graph " +
-      "here instead, and the path above the graph shows where you are with " +
-      "every level a way back. The one view that exports as an SVG.",
+      "far from the centre it reaches. A single click roots the graph at that " +
+      "box and stays here; double-click opens it in the Tree and leaves the " +
+      "view. The path above the graph shows where you are, every level a way " +
+      "back. Reader of an older map: those two gestures used to be the other " +
+      "way round — the *Classic clicks* pill puts them back, and remembers. " +
+      "The one view that exports as an SVG.",
     "tab.index":
       "Flat lists of everything the map found, for when you know the name and " +
       "not the place. Three ways of listing the same repository — as a tree, " +
@@ -6623,9 +6626,30 @@ local JS = [[
     return null;
   }
 
-  hgraph.addEventListener("click", function(ev){
-    var box = boxOf(ev.target);
-    if(!box || !box._spec) return;
+  // =====================================================================
+  // Which click does what.
+  //
+  // **The default swapped on 2026-08-20**, deliberately. Before, a single
+  // click left the Hierarchy for the Tree view and a double click recentred
+  // — which meant the cheapest, most reflexive gesture did the one thing
+  // that abandons the view you are working in, and the deliberate gesture
+  // did the thing the view exists for. `WORKPLAN.md` §9.2 named it "the most
+  // surprising thing in the view" and left the swap as an open decision
+  // precisely because existing muscle memory is a real cost.
+  //
+  // So the swap ships with a way back rather than as a fait accompli. It now
+  // follows the convention every file manager and tree widget uses: a single
+  // click selects and stays, a double click commits and opens.
+  //
+  // The preference is stored **unscoped**, unlike marks and hidden boxes,
+  // which key on `location.pathname`. Those are facts about one project's
+  // map; this is a fact about the person's hands, and it would be absurd to
+  // relearn the gesture per repository.
+  var GESTURE_LS_KEY = "docmap:classic-clicks";
+  var classicClicks = false;
+  try { classicClicks = localStorage.getItem(GESTURE_LS_KEY) === "1"; } catch(e){ void 0; }
+
+  function leaveForTree(box){
     // A tag_files-resolved external box has no node in *this* map — nothing
     // to navigate to here — but does have another project's own generated
     // page to open, in a new tab so the current map's state is not lost.
@@ -6635,17 +6659,42 @@ local JS = [[
     // somewhere arbitrary.
     if(!box._spec.nodeId) return;
     navigate({ tab: "tree", id: box._spec.nodeId });
+  }
+
+  function recentreOn(box){
+    if(!box._spec.recenter) return;
+    // In the Calls view a re-center lands on the function itself, which is
+    // the whole point of the view; elsewhere there is no finer object than
+    // the node.
+    if(box._spec.fnKey) navigate({ center: box._spec.recenter, fn: box._spec.fnKey });
+    else navigate({ center: box._spec.recenter, fn: null });
+  }
+
+  hgraph.addEventListener("click", function(ev){
+    var box = boxOf(ev.target);
+    if(!box || !box._spec) return;
+    if(classicClicks){ leaveForTree(box); return; }
+    // An external box has nothing in this map to recentre on, so it keeps
+    // its old meaning under either setting rather than becoming inert.
+    if(box._spec.externalHtml || !box._spec.recenter){ leaveForTree(box); return; }
+    recentreOn(box);
   });
 
   hgraph.addEventListener("dblclick", function(ev){
     var box = boxOf(ev.target);
-    if(!box || !box._spec || !box._spec.recenter) return;
+    if(!box || !box._spec) return;
     ev.stopPropagation();
-    // In the Calls view a double-click re-centers on the function itself,
-    // which is the whole point of the view; elsewhere there is no finer
-    // object than the node.
-    if(box._spec.fnKey) navigate({ center: box._spec.recenter, fn: box._spec.fnKey });
-    else navigate({ center: box._spec.recenter, fn: null });
+    if(classicClicks){ recentreOn(box); return; }
+    leaveForTree(box);
+  });
+
+  document.getElementById("hgest").addEventListener("click", function(){
+    classicClicks = !classicClicks;
+    try {
+      if(classicClicks) localStorage.setItem(GESTURE_LS_KEY, "1");
+      else localStorage.removeItem(GESTURE_LS_KEY);
+    } catch(e){ void 0; }
+    this.classList.toggle("active", classicClicks);
   });
 
   // Hover focus: dim everything that is not a direct neighbour of the box
@@ -6698,6 +6747,12 @@ local JS = [[
     var hext = document.getElementById("hext");
     hext.style.display = (s.view === "deps" || s.view === "modulecalls") ? "" : "none";
     hext.classList.toggle("active", !!s.ext);
+
+    // Not part of `state`: a gesture preference is the reader's, not the
+    // map's, so it never rides in the URL hash and never goes through
+    // `navigate`. Reflected here only so the pill agrees with what the
+    // handlers will actually do.
+    document.getElementById("hgest").classList.toggle("active", classicClicks);
 
     // Modules only — Deps/Calls/Module Calls/Types/Inheritance have no
     // directory root to peel layers off of.
@@ -8671,6 +8726,16 @@ function M.render(ir, findings, opts)
     "</div>",
     '<div class="hview-toggle" id="hext">',
     '<button class="hext-btn" title="Also draw requires/calls that resolve outside this map">+ external</button>',
+    "</div>",
+    -- Which gesture recentres and which one leaves the view. A toggle rather
+    -- than a fixed choice because the two answers have genuinely different
+    -- costs: the default is the one that surprises a first-time reader least
+    -- (a single click stays where you are), and the pill is for the reader
+    -- who already has the opposite muscle memory from every earlier map.
+    -- Styled as a pill like `#hext` rather than as a bare checkbox, because a
+    -- lone checkbox among nine pills reads as a different kind of control.
+    '<div class="hview-toggle" id="hgest">',
+    '<button class="hgest-btn" title="Classic gestures: single click leaves for the Tree view, double click recentres. Off by default — a single click recentres and stays here.">⇵ Classic clicks</button>',
     "</div>",
     '<button id="hzoomreset" title="Reset zoom to 100% (or press 0)">⌕ 100%</button>',
     '<span class="hzoom" id="hzoomlabel">100%</span>',
