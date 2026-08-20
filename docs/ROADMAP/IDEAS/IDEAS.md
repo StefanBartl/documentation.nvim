@@ -206,7 +206,7 @@ report rather than a crib sheet, and it cannot go stale.
 
 ---
 
-### 2.2 Public API surface
+### 2.2 Public API surface — **built 2026-08-20** as the Analysis tab's tenth panel
 
 Every published function, in one list, with its documentation state and
 whether anything outside its own module calls it. Today that information is
@@ -218,6 +218,19 @@ Directly useful for the thing this ecosystem keeps doing: extracting a
 module into its own plugin. `lib.nvim.docmap` → documentation.nvim and
 `lib.nvim.telemetry` → runtime-analysis.nvim were both preceded by exactly
 this question, answered by hand both times.
+
+**Shipped, and cheaper than its rating** — S/high rather than S–M/medium–high,
+because `internal` had become a contract field nineteen backend files fill
+from the language itself in the meantime. No new IR field and no schema bump:
+the page computes it from `fn.internal`, `fn.documented` and the call edges
+already in the payload.
+
+**One thing the entry did not anticipate**, found by looking at this
+repository's own map rather than at the design: in a language whose
+visibility is a *tag* rather than a keyword, an untagged file-local helper is
+indistinguishable from an entry point. Two functions out of 776 here carry
+`@internal`, so the panel reports that count and says the list is a surface
+only as far as the tree bothered to say. See `FEATURES.md`.
 
 ---
 
