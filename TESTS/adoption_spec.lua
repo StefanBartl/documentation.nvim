@@ -159,5 +159,47 @@ return function(H)
     "adoption: the panel says what it counts"
   )
 
+  -- ---------------------------------------------------------------------
+  -- The third trigger surface: the badges are the tags
+  -- ---------------------------------------------------------------------
+
+  -- **On the emitting code, not on the emitted markup**, and the difference
+  -- caught this assertion out once: the badges are built by the page's own
+  -- JavaScript when a function is opened, so a rendered artifact contains
+  -- the `tagBadge(...)` calls and never a `data-kw="deprecated"` string. The
+  -- card itself was exercised in a browser instead; what a headless run can
+  -- honestly check is that every badge goes through the one helper.
+  for _, name in ipairs({ "deprecated", "async", "nodiscard", "internal", "since" }) do
+    ok(
+      html:find('tagBadge("' .. name .. '"', 1, true),
+      "adoption: the " .. name .. " badge is built as a lookup trigger"
+    )
+  end
+  -- `data-kw` rather than a tag-specific attribute on purpose: the dwell
+  -- timer, the grace period on the way out, the keyboard path and the
+  -- flip-when-it-would-overflow placement all already live behind it.
+  ok(
+    html:find('data-kwkind="tag" tabindex=', 1, true),
+    "adoption: through one helper, keyboard-reachable"
+  )
+  ok(
+    html:find('el.dataset.kwkind === "tag"', 1, true),
+    "adoption: and the card knows the third kind"
+  )
+
+  -- The link rule, resolved in Lua so the page cannot re-derive it wrongly.
+  local page_tags = tags.for_page()
+  local by_name = {}
+  for _, t in ipairs(page_tags) do
+    by_name[t.name] = t
+  end
+  eq(
+    by_name.deprecated.url,
+    "https://luals.github.io/wiki/annotations/#deprecated",
+    "adoption: a LuaCATS tag carries its resolved reference"
+  )
+  eq(by_name.todo.url, nil, "adoption: one of ours carries none, rather than a plausible one")
+  eq(tags.TAGS[1].url, nil, "adoption: and the catalogue itself is left unmodified")
+
   vim.fn.delete(root, "rf")
 end

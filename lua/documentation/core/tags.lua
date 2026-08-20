@@ -71,6 +71,7 @@ local M = {}
 ---@field summary string One sentence, this project's own words, offline. The link is an enhancement — if every URL broke tomorrow this still answers the question.
 ---@field anchor string? Fragment on the origin's reference page, verified to exist. Absent for `docmap` tags, deliberately.
 ---@field scope "function"|"module"|"type" Where the tag is written, which is also which parser reads it.
+---@field url string? Only on the copies `M.for_page` produces: the resolved reference URL, or absent when this tag's origin publishes none.
 ---@field field string? For a function-scope tag, the `Documentation.FunctionInfo` key it lands in — the join that lets a consumer ask "how many functions carry this" without a second table mapping tag names to fields. Absent for module- and type-scope tags, whose data does not live on a function.
 
 ---The base URL each origin's anchors hang off.
@@ -321,6 +322,26 @@ function M.url(name)
     return nil
   end
   return base .. "#" .. entry.anchor
+end
+
+---The catalogue as the page needs it: every entry with its link already
+---resolved.
+---
+---Resolved here rather than in JavaScript because `M.url`'s rule — an
+---`origin` with no published reference gets no link, ever — is the one part
+---of this module that is a decision rather than data. A second
+---implementation of it in the page would be a second place for that decision
+---to be got wrong, and it would be got wrong in the direction of linking
+---somewhere plausible.
+---@return Documentation.Tags.Entry[]
+function M.for_page()
+  local out = {}
+  for i, t in ipairs(M.TAGS) do
+    local copy = vim.deepcopy(t)
+    copy.url = M.url(t.name)
+    out[i] = copy
+  end
+  return out
 end
 
 return M

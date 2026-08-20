@@ -1374,11 +1374,25 @@ local JS = [[
   function fnAnnotationHTML(fn){
     var h = [];
     var badges = [];
-    if(fn.deprecated !== undefined) badges.push('<span class="bd dep">deprecated</span>');
-    if(fn.async) badges.push('<span class="bd">async</span>');
-    if(fn.nodiscard) badges.push('<span class="bd">nodiscard</span>');
-    if(fn.internal) badges.push('<span class="bd sk-binding">internal</span>');
-    if(fn.since) badges.push('<span class="bd">since '+esc(fn.since)+'</span>');
+    // The badges *are* the tags, so they are the third trigger surface of
+    // the lookup layer (`ReferenceTab.md` § One layer, four trigger
+    // surfaces). A reader who does not know what `nodiscard` promises is
+    // looking straight at the word; sending them to a tab to find out is the
+    // proximity failure that document warns about.
+    //
+    // `data-kw` rather than a second popup: the dwell timer, the grace
+    // period on the way out, the keyboard path and the flip-when-it-would-
+    // overflow positioning all already exist behind that attribute. A
+    // tag-specific implementation would be a fourth copy of them.
+    function tagBadge(name, label, cls){
+      return '<span class="bd' + (cls ? " " + cls : "") + '" data-kw="' + name +
+        '" data-kwkind="tag" tabindex="0">' + esc(label) + '</span>';
+    }
+    if(fn.deprecated !== undefined) badges.push(tagBadge("deprecated", "deprecated", "dep"));
+    if(fn.async) badges.push(tagBadge("async", "async"));
+    if(fn.nodiscard) badges.push(tagBadge("nodiscard", "nodiscard"));
+    if(fn.internal) badges.push(tagBadge("internal", "internal", "sk-binding"));
+    if(fn.since) badges.push(tagBadge("since", "since " + fn.since));
     // Visible from the list, not only once the function is opened — the
     // whole point of parsing @overload structurally instead of leaving
     // it as opaque text is to answer "does this have call variants" at a
@@ -7990,7 +8004,56 @@ local JS = [[
     kwAnchor = null;
   }
 
+  // Positioned exactly like the annotation popup, including the flip: a card
+  // pinned below the viewport edge would cover the line the reader is
+  // pointing at. Extracted when the tag card became a second caller -- two
+  // copies of a flip rule is two chances to flip one of them the wrong way.
+  function kwPlace(el){
+    var a = el.getBoundingClientRect();
+    var r = kwpop.getBoundingClientRect();
+    kwpop.style.left = Math.max(8, Math.min(a.left, window.innerWidth - r.width - 8)) + "px";
+    kwpop.style.top = ((a.bottom + r.height + 8 <= window.innerHeight)
+      ? a.bottom + 6
+      : Math.max(8, a.top - r.height - 6)) + "px";
+  }
+
+  // The tag catalogue as a lookup table, built once. Keyed by name without
+  // the `@`, which is how the badges and the parser both spell it.
+  var tagByName = null;
+  function tagEntry(name){
+    if(tagByName === null){
+      tagByName = {};
+      (IR.tags || []).forEach(function(t){ tagByName[t.name] = t; });
+    }
+    return Object.prototype.hasOwnProperty.call(tagByName, name) ? tagByName[name] : null;
+  }
+
   function kwOpen(el){
+    // The third kind. Unlike keywords and stdlib names it has no snippet
+    // behind it and therefore no per-language glossary: an annotation means
+    // the same thing wherever it is written, which is exactly why the
+    // catalogue is one table and the glossaries are one per language.
+    if(el.dataset.kwkind === "tag"){
+      var tag = tagEntry(el.dataset.kw);
+      if(!tag) return;
+      var th = '<div class="kw-word">@' + esc(tag.name) + '</div>' +
+        '<div class="kw-sum">' + esc(tag.summary) + '</div>' +
+        '<div class="kw-origin">' + (tag.origin === "luals"
+          ? "LuaCATS annotation" : "this project's own convention") + '</div>';
+      // Only where the origin publishes one. A LuaLS link for `@todo` would
+      // load, look authoritative and not contain the answer -- the same rule
+      // that withholds the Lua-manual link from `vim.*` below.
+      if(tag.url){
+        th += '<div class="kw-ref"><a href="' + esc(tag.url) +
+          '" target="_blank" rel="noreferrer noopener">LuaLS reference &#8599;</a></div>';
+      }
+      kwAnchor = el;
+      kwpop.innerHTML = th;
+      kwpop.classList.add("on");
+      kwPlace(el);
+      return;
+    }
+
     var snip = el.closest && el.closest(".fn-snip");
     var gl = glossaryForPath(snip && snip.dataset.path);
     var table = el.dataset.kwkind === "std" ? (gl && gl.stdlib) : (gl && gl.keywords);
@@ -8024,16 +8087,7 @@ local JS = [[
     kwAnchor = el;
     kwpop.innerHTML = h;
     kwpop.classList.add("on");
-
-    // Positioned exactly like the annotation popup, including the flip: a
-    // card pinned below the viewport edge would cover the line the reader
-    // is pointing at.
-    var a = el.getBoundingClientRect();
-    var r = kwpop.getBoundingClientRect();
-    kwpop.style.left = Math.max(8, Math.min(a.left, window.innerWidth - r.width - 8)) + "px";
-    kwpop.style.top = ((a.bottom + r.height + 8 <= window.innerHeight)
-      ? a.bottom + 6
-      : Math.max(8, a.top - r.height - 6)) + "px";
+    kwPlace(el);
   }
 
   document.addEventListener("mouseover", function(ev){
@@ -8846,7 +8900,7 @@ function M.render(ir, findings, opts)
     -- quick win their own estimate claims. A payload key with no reader is a
     -- cost of a few hundred bytes; two panels each inlining their own copy is
     -- the duplication this repository argues against everywhere else.
-    tags = require("documentation.core.tags").TAGS,
+    tags = require("documentation.core.tags").for_page(),
     -- The keyword table `core/markers.lua` matched with, so the Notes tab
     -- renders sections in the same order and with the same names the
     -- scanner used. Passed rather than repeated in JavaScript: a second
