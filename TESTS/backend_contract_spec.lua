@@ -156,4 +156,82 @@ return function(H)
       )
     end
   end
+
+  -- ---------------------------------------------------------------------
+  -- `emits_calls` must agree with what the backend actually returns.
+  --
+  -- The field exists so a host can say *why* a Calls panel is empty, and a
+  -- flag that says a backend produces call edges when it does not would
+  -- make that sentence a lie in the one place a reader went looking for the
+  -- truth. So it is measured, not trusted -- the same discipline the
+  -- comment-token check above follows, and the same one `scripts/parity.lua`
+  -- applies to the whole capability matrix.
+  --
+  -- Run over each backend's own parity fixture, and skipped per backend
+  -- when its grammar is absent, which is the normal local state.
+  -- ---------------------------------------------------------------------
+  do
+    local root = (vim.fn.getcwd():gsub("\\", "/"))
+    local dir = root .. "/TESTS/fixtures/parity"
+    local checked = 0
+
+    for _, backend in ipairs(all) do
+      local matches = vim.fn.glob(dir .. "/**/" .. backend.name .. ".*", false, true)
+      if #matches == 0 then
+        for _, path in ipairs(vim.fn.glob(dir .. "/**/*", false, true)) do
+          local stem = path:match("([^/\\]+)%.[^.]+$")
+          if stem and stem:lower() == backend.name:lower() then
+            matches[#matches + 1] = path
+          end
+        end
+      end
+
+      -- The `.mli` sibling is a fixture for the same backend and not a
+      -- second one; either file answers this question.
+      local fixture = matches[1]
+      -- `DOCMAP_<LANG>_PARSER` honoured exactly as every language spec
+      -- honours it, and for the same reason: without it, only the four
+      -- grammars Neovim ships are reachable -- which is lua, js, ts and tsx,
+      -- the four backends that declare `emits_calls`. The check would then
+      -- only ever confirm the *true* direction and never catch a backend
+      -- claiming a capability it does not have, which is the direction that
+      -- would put a wrong sentence in front of a reader.
+      local ready = true
+      if backend.grammar then
+        local explicit = os.getenv("DOCMAP_" .. backend.name:upper() .. "_PARSER")
+        local ok_add, added
+        if explicit and explicit ~= "" then
+          ok_add, added = pcall(vim.treesitter.language.add, backend.grammar, { path = explicit })
+        else
+          ok_add, added = pcall(vim.treesitter.language.add, backend.grammar)
+        end
+        ready = ok_add and added == true
+      end
+
+      if fixture and ready then
+        checked = checked + 1
+        local _, calls = backend.scan_file(fixture)
+        local produced = calls ~= nil and #calls > 0
+        if backend.emits_calls == true then
+          ok(
+            produced,
+            backend.name .. ": declares emits_calls and returned none for its own fixture"
+          )
+        else
+          eq(
+            produced,
+            false,
+            backend.name
+              .. ": returned call sites without declaring emits_calls, so a host "
+              .. "would tell a reader the panel is empty because the language is "
+              .. "unsupported"
+          )
+        end
+      end
+    end
+
+    -- Without this the loop above passes triumphantly on a machine with no
+    -- grammars at all, which is most machines.
+    ok(checked >= 1, "at least one backend should have been measurable, checked " .. checked)
+  end
 end

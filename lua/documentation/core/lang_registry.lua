@@ -217,7 +217,12 @@ end
 ---cached "missing" would survive the user pointing at the grammars
 ---directory, which is precisely the moment the answer is supposed to
 ---change.
----@return { name: string, grammar: string?, grammar_loaded: boolean? }[]
+---`calls` is what makes an empty panel explainable: nineteen of the
+---twenty-three backends produce no call sites, so the Calls views render
+---empty for a Go or Rust project and look exactly like a project with no
+---calls in it. A host that can read this field can say which it is. See
+---`Documentation.LangBackend.emits_calls`.
+---@return { name: string, grammar: string?, grammar_loaded: boolean?, calls: boolean }[]
 function M.report()
   ensure_loaded()
   local out = {}
@@ -242,7 +247,18 @@ function M.report()
       -- a yes.
       has_grammar = ok and added == true
     end
-    out[#out + 1] = { name = name, grammar = backend.grammar, grammar_loaded = has_grammar }
+    out[#out + 1] = {
+      name = name,
+      grammar = backend.grammar,
+      grammar_loaded = has_grammar,
+      -- Normalised to a real boolean rather than passed through as
+      -- `true`/`nil`: this crosses a JSON boundary to a host, and `nil`
+      -- would simply be an absent key there — which reads as "this engine
+      -- is too old to say", a third state that does not exist here. The
+      -- grammar answer above is genuinely three-valued and stays that way;
+      -- this one is not.
+      calls = backend.emits_calls == true,
+    }
   end
   return out
 end
