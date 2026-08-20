@@ -183,7 +183,15 @@ git clone --quiet --depth 1 https://github.com/WhatsApp/tree-sitter-erlang.git "
 git clone --quiet --depth 1 https://github.com/tree-sitter/tree-sitter-ocaml.git "$work/tree-sitter-ocaml"
 git clone --quiet --depth 1 https://github.com/alex-pinkus/tree-sitter-swift.git "$work/tree-sitter-swift"
 # Swift ships no generated parser, unlike every other grammar here.
-(cd "$work/tree-sitter-swift" && npm install --silent && npx tree-sitter generate)
+#
+# `"$TSC" generate`, not `npx tree-sitter generate`: `npx` resolves the CLI
+# by its own rules, and *where npm puts a binary* is the one thing in this
+# script that has already been a moving target three times under MSYS2 --
+# which is why `$TSC` is pinned to a path this script chose. Using `npx`
+# here reintroduced exactly that dependency for one grammar, and the
+# Windows job died between the install and the first build with nothing on
+# stderr, which is what a resolution failure looks like from outside.
+(cd "$work/tree-sitter-swift" && npm install --silent && "$TSC" generate)
 "$TSC" build --output "$work/grammars/lua.$GSUF" "$work/tree-sitter-lua"
 "$TSC" build --output "$work/grammars/javascript.$GSUF" "$work/tree-sitter-javascript"
 "$TSC" build --output "$work/grammars/typescript.$GSUF" "$work/tree-sitter-typescript/typescript"
