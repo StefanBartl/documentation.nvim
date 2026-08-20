@@ -78,6 +78,13 @@ M.syntax = {
   block_comment = { "--[[", "]]" },
   strings = { { '"', '"' }, { "'", "'" }, { "[[", "]]" } },
   escape = "\\",
+  -- `s:gsub(...)` is `string.gsub(s, ...)`, and it is how Lua is actually
+  -- written: measured over this repository's own rendered snippets,
+  -- **1004 colon calls against 6 dotted ones** for the same eleven
+  -- functions. Keyed by receiver so the knowledge stays in the language
+  -- file — the page's tokenizer only follows what a glossary declares, and
+  -- a language whose methods are not one namespace declares nothing here.
+  method_namespace = "string",
 }
 
 ---@type table<string, Documentation.Glossary.Entry>

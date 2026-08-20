@@ -392,9 +392,34 @@ specifically because of the proximity argument that has since expired.
 5. **Check catalogue as the fourth kind** — land it with `MULTILANG.md` 3.6
    and `I18N.md` I18N-0, which are already required to touch the same data in
    one pass.
-6. **The Reference tab itself**, if the panels still earn a tab once the
-   in-place lookups exist. Genuinely open: the hover may be most of the value,
-   and a tab nobody navigates to was this document's own warning.
+6. ~~**The Reference tab itself**~~ — **decided 2026-08-21: no tab.** The
+   question was left genuinely open here, and it was answered by counting
+   rather than by arguing.
+
+   Over this repository's own 791 rendered snippets, **64 of the Lua
+   glossary's 76 entries are reachable by hovering something already on
+   screen**, and 18,807 decorations are emitted. The twelve that are not
+   reachable are not reachable *here* — `setmetatable`, `xpcall`,
+   `vim.notify` — and would be in the next repository. A tab would therefore
+   not be where the answers are; it would be an index of answers the reader
+   already meets at the point of the question. That is exactly the "tab
+   nobody navigates to" this document warned about at the top, and the
+   warning holds.
+
+   **The counting did find something, and it was not the tab.** The stdlib
+   glossary keys its entries by dotted name, so `s:gsub(…)` matched nothing
+   — and the colon form is how Lua is actually written: **1004 colon calls
+   against 6 dotted ones** across the same snippets, for the same eleven
+   functions. The single most common shape of stdlib call in the language
+   was invisible to a feature whose whole job is explaining stdlib calls.
+   Fixed by a declared `syntax.method_namespace`, which added **934
+   decorations** and made the whole `string` library reachable for the first
+   time. The tab would have shown those entries in a list; the hover now
+   shows them where they are used.
+
+   Reopen only if a *reference-shaped* need appears that the point-of-use
+   card cannot serve — browsing what exists before knowing its name is the
+   plausible one, and no evidence of it exists today.
 
 The curated link-list fallback stays what it always was: the version to ship
 if none of the above happens.

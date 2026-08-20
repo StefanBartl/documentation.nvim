@@ -1632,7 +1632,26 @@ local JS = [[
         // run would explain the namespace while the reader pointed at the
         // function.
         var parts = run.split(".");
-        var matched = null, kind = null;
+        var matched = null, kind = null, label = null;
+
+        // `s:gsub(...)` is `string.gsub`, and in real Lua it is the common
+        // spelling by two orders of magnitude. The receiver's type is
+        // unknowable here, so this is deliberately narrow: a *declared*
+        // namespace, a single word, and only names that namespace actually
+        // has. An object of one's own with a `:format` method gets the
+        // string card, which is the price -- and the same direction of error
+        // the rest of this tokenizer accepts: an entry that exists, on text
+        // that may not be it, never an invented one.
+        //
+        // `::label::` is not a method call, hence the second look back.
+        if(sx.method_namespace && parts.length === 1 && i > 0 &&
+           src.charAt(i - 1) === ":" && src.charAt(i - 2) !== ":"){
+          var viaColon = sx.method_namespace + "." + run;
+          if(Object.prototype.hasOwnProperty.call(gl.stdlib || {}, viaColon)){
+            matched = viaColon; kind = "std"; label = run;
+          }
+        }
+
         for(var take = parts.length; take >= 1 && !matched; take--){
           var candidate = parts.slice(0, take).join(".");
           if(has(gl.stdlib, candidate)){ matched = candidate; kind = "std"; }
@@ -1645,12 +1664,15 @@ local JS = [[
 
         if(matched){
           flush();
+          // The decorated text is not always the key: a colon call shows
+          // `gsub` and answers about `string.gsub`.
+          if(label === null) label = matched;
           // The undecorated tail (`.parse` when only `vim.treesitter`
           // matched) is emitted plain rather than swallowed into the span:
           // the card would otherwise claim to describe text it does not.
           out += '<span class="kw" data-kw="' + esc(matched) + '" data-kwkind="' + kind +
-            '" tabindex="0">' + esc(matched) + '</span>';
-          plain += run.slice(matched.length);
+            '" tabindex="0">' + esc(label) + '</span>';
+          plain += run.slice(label.length);
         } else {
           plain += run;
         }
