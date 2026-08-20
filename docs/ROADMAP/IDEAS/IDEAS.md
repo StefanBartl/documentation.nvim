@@ -682,6 +682,61 @@ local Compiler Explorer applies here.
 
 ---
 
+### 6.9 User-supplied checklists, applied to a project by an agent — **noted 2026-08-20**
+
+**The ledger exists; what is missing is where the entries come from.**
+`docs/CHECKLIST_FORMAT.md` already defines a hand-verified checklist with
+`@ref`/`@verified` citations, and the page already renders it. Every entry
+in it is written by hand, for one repository.
+
+The request is the other direction: **let a reader deposit checklists that
+apply to a *language* — or to every project — and then run one against a
+tree.**
+
+Three parts, and they are worth keeping separate because only the first is
+cheap:
+
+1. **Storage and scope.** A checklist is a file with a scope: *this
+   language*, *this project*, or *always*. Language scope is the interesting
+   one and it is newly possible — twenty-three backends in, the map knows
+   which languages a tree contains, so "apply the Python checklist" needs no
+   configuration to decide whether it applies.
+
+2. **Analysis first, application second, and never in one step.** Running a
+   checklist should produce a *report*: which items this tree satisfies,
+   which it does not, and the evidence for each. Only then does a reader
+   choose — this one, those three, or all of them. A checklist that edits on
+   sight is a linter with a `--fix` nobody asked for, and this ecosystem's
+   whole position is that a finding names its evidence before anything acts
+   on it.
+
+3. **The agent does the applying**, which is where this meets the AI theme
+   rather than being a checklist feature that mentions one. `docs/MCP.md`
+   already exposes the module tree, the require graph, the call graph and
+   the drift findings as tools — an agent that can read those and a
+   checklist has everything it needs to propose a change per item. The tool
+   this would add is not "apply the checklist"; it is **"here is item 4, here
+   is what the map says about it, here is the file"**, and the agent writes
+   the diff.
+
+**Two things to decide before building any of it**, both about trust:
+
+* **Who owns the checklist's claims?** A hand-written entry says "I verified
+  this"; a generated report says "the tool measured this". They must not
+  render alike, or a reader cannot tell an assertion from an observation —
+  which is the distinction the existing `@verified` citation exists to keep.
+* **An agent's edit is a proposal, not a result.** The report is the
+  artifact; the diff is a suggestion attached to it. Anything that writes to
+  a repository on a checklist's say-so needs the same "you press Submit"
+  posture the feedback dialog already takes.
+
+Worth pairing with `runtime-analysis.nvim`'s API-traffic idea and the future
+test harness: a checklist item like *"every endpoint has a documented error
+case"* is checkable only when all three exist, and that combination is the
+argument for building this on the map rather than as a standalone linter.
+
+---
+
 ## 7. Scale and performance
 
 Not currently a problem, which is the honest reason none of this is

@@ -31,9 +31,9 @@ Point it at a repository and it produces a **module map**: an interactive
 HTML page, a Markdown overview, a deterministic JSON artifact, and a set of
 drift checks that fail CI when the documentation and the code stop agreeing.
 
-It reads **twenty-two languages** — Lua, JavaScript, TypeScript, TSX,
+It reads **twenty-three languages** — Lua, JavaScript, TypeScript, TSX,
 Python, Ruby, PHP, C#, Go, Rust, Kotlin, Swift, Dart, Scala, Haskell,
-Elixir, Erlang, Zig, Java, C, C++ and assembly — through one backend
+Elixir, Erlang, OCaml, Zig, Java, C, C++ and assembly — through one backend
 contract, so a tree that mixes them
 comes out as one map rather than several. See
 [Languages](#languages).
@@ -168,7 +168,7 @@ a real (if deliberately small) example — including one promoted feature.
 
 ## Languages
 
-Twenty-two backends behind one contract, so a repository that mixes them
+Twenty-three backends behind one contract, so a repository that mixes them
 produces one map rather than several. A backend answers the same five questions —
 which files it claims, where its sources live, what documents a file, what
 documents a declaration, and what makes a declaration public — and the map
@@ -193,6 +193,7 @@ does not care which language answered.
 | **Haskell** | `.hs`, `.lhs` | Haddock `-- |` above the type signature | **the module's export list**, stated once in the header rather than per declaration |
 | **Elixir** | `.ex`, `.exs` | `@doc` — a module attribute the compiler stores, not a comment | `def` vs `defp`; `@doc false` is public-but-undocumented |
 | **Erlang** | `.erl`, `.hrl` | EDoc `%% @doc` above the spec or the function | `-export([f/2])` — an export list that names an **arity**, not just a name |
+| **OCaml** | `.ml`, `.mli` | ocamldoc `(** @param x … *)`, usually *below* the declaration | the sibling **`.mli` file** — an export list that lives in another file |
 | **Zig** | `.zig` | `///` above the declaration | `pub` |
 | **Java** | `.java` | Javadoc, with `@param`/`@return`/`@throws`/`@deprecated` parsed | `public` |
 | **C** | `.c`, `.h` | any comment directly above it, Doxygen or not | not `static` |
@@ -246,10 +247,11 @@ directory is a namespace and every file is its own module.
 
 ### Grammars, and the one backend that needs none
 
-Twenty-one of the twenty-two parse with a tree-sitter grammar. Without the grammar
+Twenty-two of the twenty-three parse with a tree-sitter grammar. Without the grammar
 they still produce a complete module tree — correctly, and saying so — but
-no function-level data. `scripts/build_engine_release.sh` builds all twenty-one
-into a release; inside Neovim they come from the runtimepath.
+no function-level data. `scripts/build_engine_release.sh` builds all twenty-three grammar files
+— OCaml needs two, since `.ml` and `.mli` are different languages to the
+parser — into a release; inside Neovim they come from the runtimepath.
 
 **Assembly is the exception, by design rather than by omission.** GAS, NASM
 and the ARM/MASM families are a fork rather than dialects, and a grammar is

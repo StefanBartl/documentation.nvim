@@ -61,6 +61,7 @@ local KNOWN_BACKENDS = {
   "documentation.core.lang.haskell",
   "documentation.core.lang.elixir",
   "documentation.core.lang.erlang",
+  "documentation.core.lang.ocaml",
 }
 
 local loaded = false
