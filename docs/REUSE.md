@@ -131,6 +131,30 @@ opposite of what was asked for.
 **Neither option is a substitute for `source`.** `source` says where to
 start; these two say what to leave out once there.
 
+### Pointing it at a Neovim *config*
+
+Two options exist only for this case, and both are **declared rather than
+detected** — a helper that takes its argument in the expected order is
+declarable, one that reorders or builds it is not, and guessing which is
+which is how a scanner starts inventing things.
+
+```lua
+opts = {
+  plugins  = { wrappers = { ["plugins.add"] = true } },
+  bindings = { wrappers = { map = "keymap", ["usercmd.create"] = "usercmd" } },
+}
+```
+
+**`plugins.wrappers` is worth checking even if you think you do not need
+it.** `core/plugins.lua` reads a file's own top-level `return { … }`, which
+is what most spec files are. A config that registers through its own helper
+contributes **nothing** — and that is a silent zero, not an error. Measured
+against one real config: 52 specs found, 85 once its single wrapper was
+declared, with the missing 33 sitting in one 906-line file.
+
+If the Plugins or Lazy-loading panels look thinner than your config is, this
+is the first thing to check.
+
 ### 2. `scripts/hooks/pre-commit`
 
 Copy [`scripts/hooks/pre-commit`](../scripts/hooks/pre-commit) verbatim and

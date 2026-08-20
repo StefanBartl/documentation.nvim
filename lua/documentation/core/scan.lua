@@ -349,6 +349,12 @@ function M.scan(opts)
   require("documentation.core.bindings").WRAPPERS = (opts.bindings and opts.bindings.wrappers)
     or require("documentation.core.bindings").DEFAULT_WRAPPERS
 
+  -- Fourth of the same shape. A config that registers its plugin specs
+  -- through its own helper is invisible without this — measured at over
+  -- half of one real config, in a single 906-line file.
+  require("documentation.core.plugins").WRAPPERS = (opts.plugins and opts.plugins.wrappers)
+    or require("documentation.core.plugins").DEFAULT_WRAPPERS
+
   -- Third of the same shape, third time the reset is the point rather than
   -- the set: `nil`/`{}` restores every backend, so a scan that says nothing
   -- about languages reads all of them however narrowly the previous scan in

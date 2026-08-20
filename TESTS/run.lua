@@ -120,6 +120,7 @@ local specs = {
   "hierarchy_gestures_spec.lua",
   "explain_spec.lua",
   "analysis_tools_spec.lua",
+  "plugin_wrappers_spec.lua",
   "snippet_spec.lua",
   "bindings_spec.lua",
   "browse_endpoints_spec.lua",

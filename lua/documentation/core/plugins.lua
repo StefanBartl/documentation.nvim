@@ -27,10 +27,22 @@
 --- **Not followed:** `local M = {...}; return M`. The indirection would need
 --- tracing an identifier back to its assignment, which is exactly the kind
 --- of guess this plugin's scanner declines to make elsewhere (see
---- `deps.lua`'s comment on `require(expr .. var)`). Verified against a real
---- Neovim config that every sampled `lua/plugins/*.lua` file uses the direct
---- form; a file using the indirect one simply contributes no plugins,
---- exactly as it contributes no functions to `functions.lua` today.
+--- `deps.lua`'s comment on `require(expr .. var)`).
+---
+--- **This paragraph used to end "verified against a real Neovim config that
+--- every sampled `lua/plugins/*.lua` file uses the direct form", and that
+--- stopped being true.** Measured again 2026-08-21 against the same kind of
+--- config: its *largest* spec file was 906 lines registering through
+--- `plugins.add({ … })` and exporting the result, and this module found
+--- **zero** specs in it — 52 found in the tree against 85 once the one
+--- wrapper was declared. Sixty-three per cent of that config was invisible,
+--- silently, and every panel built on `n.plugins` was answering about the
+--- half that happened to use a table literal.
+---
+--- `M.WRAPPERS` is the fix, and it is declared rather than detected — see
+--- its own comment. A verified claim about somebody else's code has a shelf
+--- life; this one is left in place rather than deleted, because the useful
+--- part is that it was true when written.
 ---
 --- ## Two shapes that look identical and are not, found by running this
 --- against a real config rather than only synthetic fixtures
@@ -352,7 +364,139 @@ local function parse_entry(node, src)
   return spec
 end
 
----Extract every recognized spec from this file's own top-level `return`.
+---Every spec inside one `table_constructor`, appended to `out`.
+---
+---Split out of `M.extract` when wrappers arrived: the ambiguity below is
+---about the *table*, not about how the table was reached, so a wrapped call
+---and a bare `return` must resolve it identically or the two paths would
+---disagree about what a single-spec file contains.
+---@param outer userdata The table constructor.
+---@param src string
+---@param out Documentation.PluginSpec[]
+local function collect_specs(outer, src, out)
+  -- lazy.nvim's own shape is genuinely ambiguous without this check:
+  -- `{ {...}, {...} }` (many plugins) and `{ "repo", event = "…" }` (one
+  -- plugin, a config split one file per plugin) parse to the same node
+  -- type. The real distinguishing signal is whether the table has any
+  -- NAMED field — an array never does, a single spec's own
+  -- trigger/metadata keys always do. Verified against both real shapes:
+  -- treating a single-spec table's `event = "VeryLazy"` as a positional
+  -- array element produced a spec whose repo was the string "VeryLazy".
+  local one_spec = false
+  for child in outer:iter_children() do
+    if child:type() == "field" and child:field("name")[1] then
+      one_spec = true
+      break
+    end
+  end
+
+  if one_spec then
+    local entry = parse_entry(outer, src)
+    if entry and entry.repo then
+      out[#out + 1] = entry
+    end
+    return
+  end
+
+  for child in outer:iter_children() do
+    if child:type() == "field" then
+      local value = child:field("value")[1]
+      if value then
+        local entry = parse_entry(value, src)
+        if entry and entry.repo then
+          out[#out + 1] = entry
+        end
+      end
+    end
+  end
+end
+
+---Call shapes that register a spec array, `callee text -> true`.
+---
+---**Declared, never detected — the same choice `core/bindings.lua` made for
+---keymap wrappers, and for the same reason.** A helper that takes the spec
+---array as its first argument is declarable; one that reorders, filters or
+---builds the array from something else is not, and guessing which is which
+---is how a scanner starts inventing plugins.
+---
+---**This exists because the claim in this module's own header stopped being
+---true.** It said every sampled `lua/plugins/*.lua` uses the direct `return
+---{ … }` form. Measured again against a real config: its **largest** spec
+---file is 906 lines registering through `plugins.add({ … })` and exporting
+---the result, and the scan found **zero** specs in it — against 52 found in
+---the rest of the tree. More than half the config was invisible, silently,
+---and the Plugins and Lazy-loading panels were both answering about the
+---half that happened to use a table literal.
+---
+---Resolved once per scan into this field, then read by `M.extract` —
+---the same shape and the same reset discipline `snippet.MAX_LINES`,
+---`bindings.WRAPPERS` and `lang_registry.ENABLED` already use, so a scan
+---that declares none gets the real (empty) default back rather than the
+---previous repository's list.
+---@type table<string, true>
+M.WRAPPERS = {}
+
+---@type table<string, true>
+M.DEFAULT_WRAPPERS = {}
+
+---The callee text of a call node, or `nil` when it is not a plain name.
+---
+---`plugins.add` and `add` both resolve; `t[k](…)` does not, deliberately —
+---a computed callee is not a name a reader could have declared.
+---@param call userdata
+---@param src string
+---@return string?
+local function callee_name(call, src)
+  local fn = call:field("name")[1] or call:child(0)
+  if not fn then
+    return nil
+  end
+  local kind = fn:type()
+  if kind ~= "identifier" and kind ~= "dot_index_expression" then
+    return nil
+  end
+  local text = vim.treesitter.get_node_text(fn, src)
+  if not text or text:find("\n") then
+    return nil
+  end
+  return text
+end
+
+---Walk for declared wrapper calls, at any depth.
+---
+---**Any depth, unlike the `return` shape, which is a direct child of the
+---chunk.** A wrapper call is ordinary code: the real file that motivated
+---this puts it after two `require`s and a comment banner, and a config could
+---as easily put it inside an `if`. There is no position rule to lean on, so
+---there is none pretended.
+---@param node userdata
+---@param src string
+---@param out Documentation.PluginSpec[]
+local function walk_wrappers(node, src, out)
+  if node:type() == "function_call" then
+    local name = callee_name(node, src)
+    if name and M.WRAPPERS[name] then
+      local args = node:field("arguments")[1]
+      if args then
+        for child in args:iter_children() do
+          -- The first table argument, and only it. A wrapper taking
+          -- `(specs, opts)` must not have its options table read as a
+          -- second spec array.
+          if child:type() == "table_constructor" then
+            collect_specs(child, src, out)
+            break
+          end
+        end
+      end
+    end
+  end
+  for child in node:iter_children() do
+    walk_wrappers(child, src, out)
+  end
+end
+
+---Every recognized spec in this file: the top-level `return`, plus any call
+---to a declared wrapper (`M.WRAPPERS`).
 ---@param root TSNode Root of the parsed Lua tree for this source.
 ---@param src string
 ---@return Documentation.PluginSpec[]
@@ -374,45 +518,17 @@ function M.extract(root, src)
         end
       end
       if outer then
-        -- lazy.nvim's own return shape is genuinely ambiguous without this
-        -- check: `return { {...}, {...} }` (many plugins) and
-        -- `return { "repo", event = "…" }` (one plugin, config split one
-        -- file per plugin — the shape this config's own `plugins/nvchad.lua`
-        -- uses) parse to the same node type, `table_constructor`. The real
-        -- distinguishing signal is whether the table has any NAMED field —
-        -- an array never does, a single spec's own trigger/metadata keys
-        -- always do. Verified against both real shapes: treating a
-        -- single-spec table's `event = "VeryLazy"` as a positional array
-        -- element produced a spec whose repo was the string "VeryLazy".
-        local one_spec = false
-        for child in outer:iter_children() do
-          if child:type() == "field" and child:field("name")[1] then
-            one_spec = true
-            break
-          end
-        end
-
-        if one_spec then
-          local entry = parse_entry(outer, src)
-          if entry and entry.repo then
-            out[#out + 1] = entry
-          end
-        else
-          for child in outer:iter_children() do
-            if child:type() == "field" then
-              local value = child:field("value")[1]
-              if value then
-                local entry = parse_entry(value, src)
-                if entry and entry.repo then
-                  out[#out + 1] = entry
-                end
-              end
-            end
-          end
-        end
+        collect_specs(outer, src, out)
       end
     end
   end
+
+  -- After the `return` shape, so a file that uses both reports the literal
+  -- first — which is the order it reads in.
+  if next(M.WRAPPERS) then
+    walk_wrappers(root, src, out)
+  end
+
   return out
 end
 
