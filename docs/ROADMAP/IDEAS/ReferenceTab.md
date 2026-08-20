@@ -375,10 +375,20 @@ specifically because of the proximity argument that has since expired.
    Neovim's API sits in Lua's glossary marked `origin = "Neovim"`, which is
    also what withholds the Lua-manual link from it: a reader pointing at
    `vim.split` must not be sent to lua.org.
-4. **`TAGS` table refactor** — still the shared precondition it always was,
-   still paying twice (this document's tag panel, `IDEAS_IMPLEMENTATION_PLAN.md`
-   §2.1's adoption panel), and now a third time as the lookup layer's third
-   kind.
+4. ~~**`TAGS` table refactor**~~ — **built 2026-08-20** as
+   `core/tags.lua`, and it paid all three times as predicted: this document's
+   tag panel, `IDEAS_IMPLEMENTATION_PLAN.md` §2.1's adoption panel, and the
+   lookup layer's third kind. The catalogue already rides on the page as
+   `IR.tags`, so both remaining consumers are now what their own estimates
+   claimed they would be once the precondition landed.
+
+   Two things the entry did not anticipate. **The catalogue needs an
+   `origin` field**: half these tags are this project's own conventions, and
+   a LuaLS link for `@todo` would load, look authoritative and answer
+   nothing — the same rule the stdlib glossary already applies to `vim.*`.
+   And **the parsing stays in `functions.lua`**: the handlers close over one
+   doc block's accumulators, so what the two halves share is the name list,
+   asserted in both directions rather than merged.
 5. **Check catalogue as the fourth kind** — land it with `MULTILANG.md` 3.6
    and `I18N.md` I18N-0, which are already required to touch the same data in
    one pass.
