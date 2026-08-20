@@ -18,8 +18,10 @@ the work survives a cold start in a new session.
 
 - **Multi-language support.** Twenty-three backends built. What each reads is
   [`LANGUAGES.md`](../LANGUAGES.md); what each cost is
-  [`IDEAS/MULTILANG.md`](IDEAS/MULTILANG.md). Sixteen further languages are
-  *available* rather than scheduled — see that file's decision 4.
+  [`IDEAS/MULTILANG.md`](IDEAS/MULTILANG.md). **Fifteen** further languages are *available* rather than scheduled —
+  named, costed and ordered in that file's own table, which also records
+  why the number was written as sixteen until now (Scratch was ruled out
+  and the count was not updated).
 - **Call edges outside Lua, Go and the ECMA family.** Found by the parity
   pass 2026-08-20 and still the largest single gap in the tool. **`go` closed
   it for one language on 2026-08-20**, deliberately as the pattern for the

@@ -1177,6 +1177,44 @@ separable, than a shortcut that falls over later.**
    The same now applies to the rest of wave 2 and to waves 3 and 5: they are
    *available*, not *scheduled*.
 
+### The fifteen that are available, in one list
+
+Written out because "the sixteen remaining languages" was being quoted as a
+number nobody could resolve into names without reading three wave sections —
+and **the number was wrong**. It is fifteen. Sixteen was right until decision
+1 ruled out Scratch, which is not a text language and has nothing this
+contract can read; the count was never updated afterwards. Exactly the drift
+this tool exists to find, in its own backlog.
+
+Ordered by what each would cost, not by preference. "Same shape as" names an
+existing backend whose hard decision it reuses — that is what makes an entry
+cheap, and it is the only column here worth choosing by.
+
+| Language | Extensions | Doc convention | Visibility | Same shape as | Cost |
+|---|---|---|---|---|---|
+| **Bash** | `.sh`, `.bash`, `.zsh` | comment block above the function | none — no module system either | Zig (path identity); `source`/`.` is the require edge | S |
+| **PowerShell** | `.ps1`, `.psm1`, `.psd1` | comment-based help (`.SYNOPSIS`, `.PARAMETER`) — a real convention with `Get-Help` behind it | `Export-ModuleMember` and the `.psd1` manifest | Haskell/Erlang (an export list) | S–M |
+| **R** | `.R`, `.r` | Roxygen2 — `#'` with `@param`/`@return` | `@export` in the Roxygen block, or `NAMESPACE` | closest thing to LuaCATS outside Lua | S |
+| **Julia** | `.jl` | docstring above the definition | `module` / `export` | Elixir (`@doc` as a construct) | S–M |
+| **Perl** | `.pl`, `.pm` | POD — **not a comment**, a separate document format interleaved with code | `@EXPORT` / `@EXPORT_OK` | Python is the only precedent for "docs are not comments" | M |
+| **Groovy** | `.groovy`, `.gradle` | Groovydoc | JVM visibility; unmarked is public | Java/Kotlin, almost directly | S |
+| **F#** | `.fs`, `.fsi` | XML doc comments | the sibling `.fsi` signature file | OCaml — the `.mli` shape, already solved once | S–M |
+| **Solidity** | `.sol` | NatSpec — `/// @notice`, `@dev`, `@param` | `public`/`external` vs `internal`/`private` | C#/Java, tag-shaped | S–M |
+| **SQL** | `.sql` | per decision 3 (see above) | no visibility concept at all | nothing — its own shape | M |
+| **VB.NET** | `.vb` | XML doc comments | `Public`/`Private`, `Module`/`Class` | C#, nearly the same backend | S |
+| **Fortran** | `.f90`, `.f95`, `.f03`, `.f`, `.for` | comment block above | `public`/`private` statements | — **fixed-form source** in `.f`/`.for`: column position is syntax | M |
+| **Delphi / Object Pascal** | `.pas`, `.dpr` | comment above | `unit`/`interface`/`implementation` — a published surface declared in **one** file | neither C nor OCaml has this shape | M |
+| **Ada** | `.ads`, `.adb` | comment above | spec and body in **separate files** | OCaml/C again — the third language to force that decision, and worth watching for a pattern the IR should carry | M |
+| **COBOL** | `.cob`, `.cbl` | comment above | divisions and sections are the structure; `COPY` is the require edge | — fixed-form columns again | M |
+| **MATLAB** | `.m` | leading comment block | one function per file by convention, so the **file name is the function name** | — and `.m` is also Objective-C's extension, a conflict to resolve when an Objective-C backend exists, not before | M |
+
+**None of them has a maintained tree-sitter grammar problem except the last
+five**, which is the real split in this table: the top ten are ordinary
+backends, the bottom five are the line-scanner decision. Anyone picking from
+here should pick from the top ten first — not because the others are hard,
+but because a line scanner is a second kind of backend and the first one
+built pays for the pattern.
+
 **Wave 3 — the shells, which are a language question people argue about.**
 Included because both rankings list them and because a repository's
 automation is part of what a map should show.

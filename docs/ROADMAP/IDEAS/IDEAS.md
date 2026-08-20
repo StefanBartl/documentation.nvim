@@ -243,6 +243,100 @@ place only if the number turns out to point somewhere specific.
 
 ---
 
+### 2.5 More maps — the brainstorm docmap-desktop §9.3 asked for
+
+`WORKPLAN.md` §9.3 over in `docmap-desktop` says "like Hierarchy but with
+another focus" and calls itself vague on purpose. This is the requested
+brainstorm: candidate views, each stated as **the question it answers**,
+because a view without one is decoration.
+
+**Six views exist today** — Modules, Deps, Calls, Module Calls, Types,
+Inheritance — and they share one shape: *boxes are entities, arrows are
+edges, the graph is drawn from a centre outward*. That shape is why they all
+felt like variations rather than different maps. The interesting candidates
+below are the ones that break it.
+
+#### The division that decides the order
+
+**A new encoding on an existing graph is an order of magnitude cheaper than
+a new graph**, and two of the strongest ideas here are encodings. The
+Hierarchy already lays out, reconciles, zooms, exports to SVG, dims by
+language and focuses on hover. A view that reuses that and only changes what
+the boxes *say* costs a colour scale; a view with its own layout costs a
+layout.
+
+#### Encodings — cheapest, and two of them are worth doing
+
+- **Health tint on the Modules view.** Same boxes, tinted by documented or
+  tested share. Answers **"where is this repository weakest, and is the
+  weakness concentrated or spread?"** — which no panel answers, because a
+  percentage is a number and this question is about *shape*. The data is
+  already in every node's `stats`. **Rated best value per effort of
+  anything in this section.**
+- **Marker density.** The Notes tab lists `FIXME`/`BUG`/`TODO` as rows.
+  Tinted onto the tree instead, it answers **"is the recorded debt piled in
+  one corner or smeared everywhere?"** — a very different remediation
+  decision, and unanswerable from a list.
+- **Language tint.** Partly exists as the legend's dimming. Becoming a real
+  encoding matters only for genuinely polyglot trees, so it is worth having
+  and not worth prioritising.
+
+#### New shapes — the ones that are actually different maps
+
+- **The layer map.** Modules grouped into the bands `opts.layers` declares,
+  with violating edges drawn red. Answers **"does this tree have the shape I
+  claim it has?"** This is the strongest *new* view in the list, for a
+  reason specific to this tool: it turns `layer-violation` from a finding
+  you read into a picture you point at, and an architecture claim is
+  exactly the kind of thing people argue about in front of a diagram.
+  Needs no new extraction — the rules and the edges both exist.
+- **The coupling quadrant.** Modules placed by fan-in against fan-out,
+  which sorts them into four corners with real names: hubs (many callers,
+  few dependencies), leaves, pass-throughs, and tangles. Answers **"what
+  would be expensive to change?"** Not a graph at all — a scatter plot —
+  which is why it says something the six existing views cannot. §2.4
+  already argues the metric; this is its picture.
+- **Distance from the entry point.** The require graph re-laid out as
+  concentric rings from `init.lua`. Answers **"how deep is this, and what is
+  reachable at all?"** — an unreachable ring is `unreferenced-module` made
+  visible. Cheap: same data, different layout.
+- **The duplicate-shape graph.** Functions joined by a shared parse-tree
+  hash. The Duplicates panel lists groups; the graph shows *clusters*, and
+  the cluster is the thing that distinguishes one missing abstraction from
+  twenty coincidences. Small, self-contained, and answers a question the
+  list form genuinely obscures.
+- **The published-surface map.** Only exported functions, grouped by
+  module, sized by caller count. This is **M4**'s panel drawn instead of
+  tabulated — worth noting so the two are not built twice.
+
+#### Two that cannot live in the committed page, and why
+
+**Churn** ("where is this codebase actually moving") and **ownership /
+bus factor** would both be excellent maps and neither can be an artifact
+view. `FEATURES.md` already states the constraint for `:DocMap churn`: a
+committed artifact carrying git history invalidates itself the moment
+anyone commits. So both are **live** views — the desktop app or the editor,
+reading git at the moment you look — and never part of the page. Worth
+writing down before somebody builds one into `html.lua` and discovers this
+at the end.
+
+#### One to refuse
+
+**A treemap of the whole repository by file size.** It is the most
+photogenic thing on this list and answers nothing anybody asked: file size
+is not a problem, and the view would spend the graph area on a fact already
+in the file list. Recorded so the idea stops recurring.
+
+#### If exactly one gets built
+
+**The health tint**, because it is an encoding rather than a layout and
+therefore lands in a fraction of the time, and because "is the weakness
+concentrated or spread" is the question a reader opens a map with. **The
+layer map** is the one to build if the goal is a view nothing else in the
+tool can substitute for.
+
+---
+
 ## 3. The generated page
 
 ---
