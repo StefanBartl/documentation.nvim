@@ -23,6 +23,19 @@ files." Adopt a tag when the concrete case for it comes up, not in bulk.
 the intro. The previous table had been marked stale rather than fixed, which
 made the drift visible and left it there — this is the fix.
 
+> **This table is counted by hand and by text search, and the Analysis tab
+> now answers a sharper version of the same question automatically.** Open
+> **Analysis → Annotations** in any generated map: it reports, per tag, how
+> many *functions* carry it, out of how many functions there are.
+>
+> The two measures are different on purpose and both are worth having. The
+> table below counts **occurrences of the text**, which includes prose *about*
+> a tag — that is how `@nodiscard` could read as 112 while no function in this
+> tree carried one. The panel counts **functions**, which is the adoption
+> question, and it cannot go stale because nobody writes it.
+>
+> Where they disagree, the panel is the one describing the code.
+
 | Tag | Count | What it's for here |
 |---|---|---|
 | `@param` | 1311 | Function parameters |

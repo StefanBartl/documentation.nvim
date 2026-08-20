@@ -34,7 +34,7 @@ even if it looks cheap.
 | 1.5 | Orphaned `@class`/`@alias` | S | Medium | Candidate |
 | 1.6 | `@since` / version-tag drift | S | Low (unused convention) | No |
 | 1.7 | Cross-repo checks over `tag_files` | S–M | Medium | **Precondition met** — 33 `.nvim` repositories, ~30 with a committed map, one shared `lib.nvim`. See `ROADMAP/WORKPLAN.md` Part 4 |
-| 2.1 | Annotation adoption panel (generated) | M | High | No — needs `TAGS` table refactor first |
+| ~~2.1~~ | ~~Annotation adoption panel (generated)~~ | — | — | **Built 2026-08-20**, the day after the `TAGS` refactor it was gated on. The gate was the whole cost: the panel itself is a count over the catalogue |
 | 2.2 | Public API surface panel | S–M | Medium–High | Candidate |
 | 2.3 | Ownership / bus factor command | S | Low (single-author repo) | No |
 | 2.4 | Coupling and cohesion metric | M | Speculative | No |

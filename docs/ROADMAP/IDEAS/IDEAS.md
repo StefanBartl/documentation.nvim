@@ -189,7 +189,7 @@ itself).
 
 ---
 
-### 2.1 Annotation adoption — generated, not hand-written
+### 2.1 Annotation adoption — **built 2026-08-20** as the Analysis tab's eleventh panel
 
 [`docs/ANNOTATIONS.md`](../../ANNOTATIONS.md) is this analysis done **by
 hand**, for one repository, once. A plugin whose entire purpose is
@@ -203,6 +203,23 @@ reports which tags *this tree* uses and how often, which is an adoption
 report rather than a crib sheet, and it cannot go stale.
 
 **Rank this highest of the panel ideas** for exactly that reason.
+
+**Shipped, the day after its precondition did.** The `TAGS` refactor landed
+as `core/tags.lua`; this panel is a count over it. Two things the entry did
+not settle and building it did:
+
+- **Per function, not per occurrence.** The document it replaces counts text
+  occurrences, which includes prose *about* a tag — the mechanism by which
+  `@nodiscard` read as 112 while no function carried one. The panel says
+  which measure it reports, and `ANNOTATIONS.md` now says the same in the
+  other direction rather than being deleted: both numbers are worth having.
+- **The tag → field mapping belongs in the catalogue.** `param` fills
+  `params`; a panel keeping its own copy of that would report zero adoption
+  for a tag the tree uses everywhere, and zero is exactly the answer this
+  panel exists to produce, so the bug would hide inside the feature.
+
+First real run, on this repository: ten of fourteen function-scope tags are
+used nowhere here.
 
 ---
 

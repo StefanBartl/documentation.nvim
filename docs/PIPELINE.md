@@ -1631,10 +1631,11 @@ the default), the same "only the axes a view actually uses" rule
 A tool palette, not a diagram — a fifth tab (`atool` state axis, same
 `iview=`-shaped URL rule as the Index tab) whose toolbar switches between
 panels the way Hierarchy's view buttons switch between graphs, applied to
-aggregate numbers instead of boxes. Ten tools today:
+aggregate numbers instead of boxes. Eleven tools today:
 
 - **Test coverage** — `fn.tested` (R2, [`coverage.lua`](../lua/documentation/core/coverage.lua))
 - **Documentation** — `fn.documented` (R4, [`doccoverage.lua`](../lua/documentation/core/doccoverage.lua))
+- **Annotations** — which tags this tree uses, counted per function against `core/tags.lua`'s catalogue. Generated, so unlike `docs/ANNOTATIONS.md` it cannot go stale
 - **API surface** — every non-`internal` function, with its doc state and how many *other* modules of this tree call it. Computed in the page from `fn.internal`, `fn.documented` and the call edges already in the payload — no new field, no schema bump
 - **Dependencies** — `n.requires`/`n.required_by` (R6, fan-in/fan-out)
 - **Complexity** — `fn.complexity` (cyclomatic/McCabe, [`functions.lua`](../lua/documentation/core/functions.lua))
@@ -1686,6 +1687,30 @@ smell (a "God module" candidate), worth seeing but not at the cost of
 burying real fan-in leaders. Verified against this repo's own tree: highest
 fan-in is `lib.nvim.notify` (30), exactly the kind of foundational module
 this ranking exists to surface.
+
+**Annotations** is `docs/ANNOTATIONS.md` done by the tool instead of by a
+person. A plugin whose purpose is detecting drift shipping a hand-maintained
+inventory of its own tag usage is drift, structurally — and the last recount
+of that document found `@nodiscard` had gone from 112 occurrences to zero
+with nothing noticing.
+
+It counts **functions that carry a tag**, not occurrences of the tag: eleven
+hundred `@param` lines is a fact about typing effort, "95.6% of functions
+document a parameter" is a fact about the tree. Module-scope and type-scope
+tags are left out rather than folded in, because their denominator is files
+and types rather than functions.
+
+The tag → IR-field mapping lives in the catalogue (`param` fills `params`,
+`return` fills `returns`, and that is not derivable from the name), because
+the alternative is this panel keeping a second copy of it — and a copy that
+drifts reports zero adoption for a tag the tree uses everywhere, which looks
+exactly like a true answer. `TESTS/adoption_spec.lua` asserts every declared
+field against a function that carries every tag.
+
+Measured on this repository the day it shipped: **ten of fourteen
+function-scope tags are used nowhere here.** `@param` 745, `@return` 668,
+`@generic` 3, `@internal` 2, and the rest zero — including `@see` and
+`@deprecated`, which appear in the source only in prose *about* them.
 
 **API surface** answers the question that was previously spread across three
 panels and therefore asked of none of them: *what does this thing actually
