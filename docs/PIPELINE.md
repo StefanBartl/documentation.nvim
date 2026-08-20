@@ -4,15 +4,24 @@ How `documentation.nvim` works, stage by stage, and why each stage decided
 what it did. The user-facing tour is [README.md](../README.md); this is the
 document to read before changing anything.
 
-Generates a **module map** from an annotated Lua tree: scan → LuaLS enrichment
-(opt-in) → check → render. Doxygen-shaped, but scoped to the part that is
-actually useful for a Lua utility library — hierarchy, module purpose, links,
-type relationships, and drift detection.
+Generates a **module map** from an annotated source tree: scan → LuaLS
+enrichment (opt-in) → check → render. Doxygen-shaped, but scoped to the part
+that is actually useful for reading somebody's library — hierarchy, module
+purpose, links, type relationships, and drift detection.
+
+**Twenty-three languages, one pipeline.** Every stage below that touches a
+source file reaches it through `core/lang_registry.lua`, never through a
+Lua-specific call — see [§ One walk, twenty-three
+backends](#one-walk-twenty-three-backends) for the seam, and
+[`LANGUAGES.md`](LANGUAGES.md) for the backend contract and the per-language
+table. Lua remains the running example throughout this document because it is
+the reference registration and the tree every measurement was taken against;
+where a stage is genuinely Lua-only, it says so.
 
 The generated map for this repo lives in [`docs/map/`](map/):
-[`index.html`](map/index.html) (interactive — Tree, Hierarchy,
-Notes, Index, History and Analysis tabs) and [`overview.md`](map/overview.md) (renders
-on GitHub).
+[`index.html`](map/index.html) (interactive — Hierarchy, Index, Analysis,
+Compare, Features, Quicks, Notes, History and Findings tabs) and
+[`overview.md`](map/overview.md) (renders on GitHub).
 
 > **On the numbers quoted throughout.** This grew inside `lib.nvim` as
 > `lib.nvim.docmap`, and every measurement below — "226/226 `@module`
@@ -702,6 +711,7 @@ else — module prefix, directory layout, types directory name — is an option.
 
 | Stage | Module | Produces |
 |---|---|---|
+| Dispatch | [`lang_registry.lua`](../lua/documentation/core/lang_registry.lua) | The backend that claims a filename, the capability handshake (`report()`), and the per-extension glossaries — see [`LANGUAGES.md`](LANGUAGES.md) |
 | Scan | [`scan.lua`](../lua/documentation/core/scan.lua) | `Documentation.IR` — hierarchy, summaries, links |
 | Scan | [`functions.lua`](../lua/documentation/core/functions.lua) | `node.functions` — per-function docs via `vim.treesitter`, unconditional (no LuaLS needed) |
 | Scan | [`symbols.lua`](../lua/documentation/core/symbols.lua) | `node.symbols` — module-scope tables, constants and bindings |
@@ -743,15 +753,48 @@ the enrichment wiring exists exactly once. The IR itself is the contract
 between scan/LuaLS and render/check: renderers never touch the filesystem,
 and the scanner never knows what will be drawn.
 
+### One walk, twenty-three backends
+
+The walk itself knows nothing about any language. It used to: `scan.lua`
+hardcoded `"%.lua$"`, `"init.lua"`, its own `parse_header` and
+`functions.lua`'s `scan_file` — every one of those a fact about *Lua*, not
+about how a docmap walk works. [`lang_registry.lua`](../lua/documentation/core/lang_registry.lua)
+is the seam that replaced them. Per filename the walk asks two questions:
+
+- **Who scans this?** `lang_registry.for_file(name)` returns the backend
+  whose `is_source` claims it, or `nil` — in which case the file is not part
+  of the map at all. Registration order breaks a tie, so the answer is
+  deterministic and `--check` stays reproducible.
+- **Does this directory own a module?** The backend's `module_file` —
+  `init.lua`, `index.ts`, `__init__.py`, `mod.rs`. Absent for most
+  languages, where a directory is a namespace and every file is its own
+  module.
+
+`node.language` records which backend read each node, and is `nil` for a
+grouping namespace with no module file of any language — guessing one from
+the children would make a directory holding both look like whichever child
+came first. That field is why `module_map.json`'s schema went to 3.
+
+Two rules keep the seam from eroding, and the map's own checks enforce the
+first: **`documentation.core` may not reach into `documentation.core.lang.*`**,
+and **`KNOWN_BACKENDS` in the registry is the only place a backend module is
+named.** Adding a language is one line there plus the backend file.
+
 ### What the scanner does *not* do
 
-It does not parse Lua. It reads each file's leading comment block — everything
-before the first non-comment line — and stops. That is reliable here because
-`---@module` coverage in this tree is 226/226, and it costs ~200 lines instead
-of a Lua front end.
+It does not parse the language. It reads each file's leading comment block —
+everything before the first non-comment line — and stops. That is reliable
+here because `---@module` coverage in this tree is 226/226, and it costs ~200
+lines instead of a Lua front end. Each backend's `parse_header` does the
+equivalent for its own language, returning the same `Documentation.Header`
+shape: a `---@module` path for Lua, a JSDoc `@module` tag for the ECMA
+family, and for most of the twenty-three no module path at all, because the
+file's path already *is* its identity.
 
 The consequence: the scanner alone knows *that* a module exists and what it
-says about itself, not what its functions are — that's [`functions.lua`](../lua/documentation/core/functions.lua)'s job.
+says about itself, not what its functions are — that's the backend's
+`scan_file`, which for Lua is [`functions.lua`](../lua/documentation/core/functions.lua)
+unchanged.
 
 ## Function-level scanning (`node.functions`)
 
@@ -1961,7 +2004,21 @@ authors to follow, not a limit this renderer enforces.
 ## Drift checks
 
 The rendered map is the visible half; the checks are the half that catches
-bugs. Generic checks (any annotated Lua tree):
+bugs.
+
+**Two of them are gated on what the language can express**, and the gate is
+the backend's own answer rather than a list kept here. `missing-module-tag`
+is silent wherever `module_tag = false` — twenty-two of the twenty-three
+backends, because the file's path already is its module identity and nothing
+tag-shaped can be "missing". `undocumented-param` and `param-name-mismatch`
+are silent wherever `param_docs = false` — nine backends, from an assembly
+label that has no parameter list to Go, which has parameters and documents
+them nowhere. In both cases the reasoning is the same: **a check that reports
+the absence of something the language cannot have produces a wrong number,
+not a low one.** See [`LANGUAGES.md`](LANGUAGES.md) for which backend answers
+which.
+
+Generic checks (any annotated tree):
 
 | Check | Severity | Catches |
 |---|---|---|

@@ -1,0 +1,83 @@
+# `docs/`
+
+The index this folder went without for too long. Thirty-odd files, and until
+now the only way to find the right one was the table at the bottom of the
+[README](../README.md) — which lists eighteen of them.
+
+Start with the [README](../README.md) if you have not: it is the tour. This
+page is the map of the documentation itself, grouped by the question you
+arrived with.
+
+---
+
+## Using it
+
+| Document | Answers |
+|---|---|
+| [`COMMANDS.md`](COMMANDS.md) | `:DocMap` and `:DocBrowse`, subcommand by subcommand — all twenty-one actions, what each writes, and why the read-only browser is a separate command rather than `:DocMap browse`. |
+| [`WORKFLOW.md`](WORKFLOW.md) | Day to day: which panel answers which question, how to read the Telemetry join's badges correctly, Trail vs filter vs fuzzy jump. The one document about *combining* features rather than describing them. |
+| [`BINDINGS.md`](BINDINGS.md) | Every key, user command and autocommand this plugin installs. **Generated** from the tables that drive the plugin — do not edit by hand. |
+| [`CALL_HIERARCHY.md`](CALL_HIERARCHY.md) | Incoming/outgoing calls in Neovim's native LSP UI, alongside LuaLS (which has none): setup, keymaps, and how to tell an unattached client from a function with no callers. |
+| [`EXAMPLES/`](EXAMPLES/README.md) | Runnable snippets for the parts of the API easier to read as code than as prose. |
+
+## Pointing it at your own code
+
+| Document | Answers |
+|---|---|
+| [`REUSE.md`](REUSE.md) | Generating a map for your own repository — editor, CI and pre-commit hook, cross-project links, and what the tree has to look like. |
+| [`LANGUAGES.md`](LANGUAGES.md) | **Twenty-three backends**: what each one reads, the `Documentation.LangBackend` contract field by field, how grammars are resolved, what a missing one costs, and how to add the twenty-fourth. |
+| [`ANNOTATION_TAGS.md`](ANNOTATION_TAGS.md) | Annotating your own plugin: what each LuaCATS tag buys you here, the minimum viable set, and which custom tags would be worth adding. |
+| [`FRAMEWORK_CONVENTIONS.md`](FRAMEWORK_CONVENTIONS.md) | The layer *above* language support — recognizing an ecosystem's structural convention (lazy.nvim specs today; Next.js-style file routing and React hooks costed as the web case). |
+| [`FEATURES_FORMAT.md`](FEATURES_FORMAT.md) | The `docs/FEATURES/` shape the Features tab reads, and what happens when you leave a piece out. |
+| [`CHECKLIST_FORMAT.md`](CHECKLIST_FORMAT.md) | The hand-verified ledger: a syntax for facts a scanner cannot decide, watched for staleness by their citation rather than re-derived. |
+| [`MCP.md`](MCP.md) | The MCP server: exposing the module tree, require graph, call graph and drift findings to a coding agent as tools. |
+| [`SECURITY.md`](SECURITY.md) | What this plugin does that could hurt you, what it refuses to do, and what it deliberately does not defend against. |
+
+## How it works
+
+| Document | Answers |
+|---|---|
+| [`PIPELINE.md`](PIPELINE.md) | **The document to read before changing anything.** Every stage, every design decision, and the measurement behind each one. |
+| [`DEVELOPMENT.md`](DEVELOPMENT.md) | Running the specs, the linters and the map locally. |
+| [`ANNOTATIONS.md`](ANNOTATIONS.md) | The inventory — which LuaCATS tags this tree actually uses, counted. |
+
+## What shipped, what is open, what was turned down
+
+| Document | Answers |
+|---|---|
+| [`FEATURES/FEATURES.md`](FEATURES/FEATURES.md) | The decision record: what shipped, which commit, and why it was built that way. |
+| [`FEATURES/`](FEATURES/README.md) | This plugin's own `docs/FEATURES/` catalog — the user-facing half, and the Features tab's first real test. Deliberately a representative sample, not full coverage. |
+| [`ROADMAP/ROADMAP.md`](ROADMAP/ROADMAP.md) | What is still open. Only items with no decision yet; a decision to *not* build something lives inline where it was made. |
+| [`ROADMAP/WORKPLAN.md`](ROADMAP/WORKPLAN.md) | **The resume point.** Written so the work continues from a cold start with nothing lost. |
+| [`ROADMAP/IDEAS/`](ROADMAP/IDEAS/IDEAS.md) | The backlog, and the costed analyses — see below. |
+| [`CHECKLIST/architecture.md`](CHECKLIST/architecture.md) | This tree's own hand-verified facts, each cited and dated. |
+
+### The costed analyses (`ROADMAP/IDEAS/`)
+
+Each of these costs one idea honestly and stops there, which is the point of
+the folder — an estimate written before anything is built is worth more than
+one reconstructed afterwards.
+
+| Document | Subject |
+|---|---|
+| [`MULTILANG.md`](ROADMAP/IDEAS/MULTILANG.md) | Every language backend: what each cost, the contract answers it had to give, and the measurements against real repositories that changed several designs. The reference table is [`LANGUAGES.md`](LANGUAGES.md); this is the record. |
+| [`PORTABILITY.md`](ROADMAP/IDEAS/PORTABILITY.md) | Mapping a project that is not a Neovim plugin — and what a Neovim-free port would actually cost. |
+| [`I18N.md`](ROADMAP/IDEAS/I18N.md) | The other language axis: translating what this tool *says*, not what it reads. |
+| [`DESKTOP_WEBAPP.md`](ROADMAP/IDEAS/DESKTOP_WEBAPP.md) | A desktop/web version — costed, then partly built. |
+| [`ReferenceTab.md`](ROADMAP/IDEAS/ReferenceTab.md) | A Lua syntax and LuaCATS crib sheet as its own tab, and why one link per language beats several hundred that rot independently. |
+| [`IDEAS.md`](ROADMAP/IDEAS/IDEAS.md) | The idea backlog itself. |
+| [`IMPLEMENTATION_PLAN.md`](ROADMAP/IDEAS/IMPLEMENTATION_PLAN.md) | The V1 extension plan across the analyses above. |
+| [`IDEAS_IMPLEMENTATION_PLAN.md`](ROADMAP/IDEAS/IDEAS_IMPLEMENTATION_PLAN.md) | `IDEAS.md`'s backlog scored by effort, benefit and quick wins. Different scope from the file above it, deliberately. |
+
+## Generated, not written
+
+| Path | What |
+|---|---|
+| [`map/`](map/overview.md) | This repository's own map — [`index.html`](map/index.html), [`overview.md`](map/overview.md), `module_map.json`. Regenerate with `:DocMap` or `scripts/gen_map.lua`; a docs change makes it stale. |
+| [`BINDINGS.md`](BINDINGS.md) | Listed above, repeated here because editing it by hand is the mistake it is easiest to make. |
+
+## Historical
+
+| Document | What |
+|---|---|
+| [`FEATURES/O2_NAMING_RESEARCH.md`](FEATURES/O2_NAMING_RESEARCH.md) | Prep for the extraction out of `lib.nvim`. Not an open item — kept so a similar naming exercise is not repeated from scratch. |
