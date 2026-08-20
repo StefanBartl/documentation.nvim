@@ -296,13 +296,22 @@ end
 ---Two lines of slack, for the attribute or macro that sits between a
 ---comment and a declaration often enough to matter (`__attribute__`,
 ---`EXPORT`, `static inline` split across lines).
+---
+---**A block is consumed when it is taken.** Same fix and same reason as
+---`java.lua`'s: three lines of slack reach past a one-line declaration to
+---the next one, so an undocumented `int b;` under a documented `int a;`
+---inherited the comment above `a`. A doc block documents one declaration.
+---Consuming it says so without this function needing to know what a
+---declaration is.
 ---@param blocks table<integer, string>
 ---@param row integer
 ---@return string?
 local function doc_above(blocks, row)
   for r = row - 1, math.max(row - 3, 0), -1 do
     if blocks[r] then
-      return blocks[r]
+      local block = blocks[r]
+      blocks[r] = nil
+      return block
     end
   end
   return nil
@@ -480,7 +489,7 @@ function M.backend(name, grammar, extensions, roots)
 
     local header_file = is_header(path)
     local blocks = doc_blocks(root, src)
-    local fns, requires = {}, {}
+    local fns, requires, symbols = {}, {}, {}
 
     ---@param node userdata the declaration or definition
     ---@param decl userdata the `function_declarator` inside it
@@ -512,6 +521,51 @@ function M.backend(name, grammar, extensions, roots)
         todo = parsed.todo,
         bug = {},
         test = {},
+      }
+    end
+
+    ---The identifier a non-function declaration binds.
+    ---
+    ---Dug for rather than read off a fixed child index, because C spells one
+    ---idea five ways: `int x`, `int x = 1`, `int *x`, `int x[4]` and
+    ---`int (*fn)(void)` are `identifier`, `init_declarator`,
+    ---`pointer_declarator`, `array_declarator` and a nest of the last two.
+    ---Descending to the first `identifier`/`field_identifier` is right for
+    ---all of them and needs no table of shapes to keep current.
+    ---
+    ---Stops at a `parameter_list`, which is what keeps
+    ---`int (*compare)(int a, int b)` from being read as the parameter `a`.
+    ---@param node userdata
+    ---@return userdata?
+    local function declared_var_name(node)
+      for child in node:iter_children() do
+        local kind = child:type()
+        if kind == "identifier" or kind == "field_identifier" then
+          return child
+        end
+        if kind ~= "parameter_list" and kind ~= "argument_list" then
+          local found = declared_var_name(child)
+          if found then
+            return found
+          end
+        end
+      end
+      return nil
+    end
+
+    ---Record one module-scope binding.
+    ---@param node userdata
+    ---@param name_node userdata
+    ---@param kind Documentation.SymbolKind
+    local function record_symbol(node, name_node, kind)
+      local doc = doc_above(blocks, node:start())
+      local parsed = doc and parse_doc(doc) or nil
+      symbols[#symbols + 1] = {
+        name = text_of(name_node, src),
+        kind = kind,
+        detail = (text_of(node, src):gsub("%s+", " "):gsub(";%s*$", "")):sub(1, 60),
+        summary = parsed and parsed.summary or "",
+        line = node:start() + 1,
       }
     end
 
@@ -554,18 +608,85 @@ function M.backend(name, grammar, extensions, roots)
         -- reporting; walking into it would find a function-pointer local
         -- and call it a function.
         return
+      elseif kind == "preproc_def" then
+        -- **`#define` is C's constant**, and leaving it out would mean the
+        -- one idiom every C project uses for a threshold is the one thing
+        -- the Index tab cannot show. A function-like macro (`preproc_function_def`)
+        -- is deliberately not here: it takes parameters and behaves like a
+        -- function, and calling it a constant would be the wrong word in
+        -- the one column that has to mean the same thing in all
+        -- twenty-three languages.
+        local name_node = child_of(node, "identifier")
+        if name_node then
+          record_symbol(node, name_node, "constant")
+        end
+        return
+      elseif kind == "type_definition" or kind == "enum_specifier" then
+        -- A named type, reported the way `go.lua` reports its own
+        -- `type_declaration`: `kind = "table"`, because what a reader wants
+        -- from this row is "a shape lives here", not its storage class.
+        --
+        -- **The name is looked for at this node's own level first**, and
+        -- that is the whole subtlety: `typedef struct { int x; } Point;`
+        -- carries the struct's *members* below it, so a general descent
+        -- finds `x` and calls the type `x`. Measured, not guessed — the
+        -- first version did exactly that. `typedef int *IntPtr;` still
+        -- needs the descent, because the name sits inside a
+        -- `pointer_declarator`, so the fallback stays and only its starting
+        -- point moved.
+        local name_node = child_of(node, "type_identifier")
+        if not name_node then
+          for child in node:iter_children() do
+            local ck = child:type()
+            if ck ~= "struct_specifier" and ck ~= "union_specifier" and ck ~= "enum_specifier" then
+              name_node = declared_var_name(child) or child_of(child, "type_identifier")
+              if name_node then
+                break
+              end
+            end
+          end
+        end
+        if name_node then
+          record_symbol(node, name_node, "table")
+        end
+        return
       elseif kind == "declaration" or kind == "field_declaration" then
         -- The prototype case, and the whole declaration-vs-definition
         -- decision: a header's prototypes are its published surface, a
         -- source file's are duplicates of the bodies below them.
-        if header_file then
-          local decl = nil
-          for child in node:iter_children() do
-            decl = decl or function_declarator(child)
-          end
-          if decl then
+        local decl = nil
+        for child in node:iter_children() do
+          decl = decl or function_declarator(child)
+        end
+        if decl then
+          if header_file then
             record(node, decl, is_static(node, src) or access == "private" or access == "protected")
           end
+          -- A prototype is a function either way, and a function is never
+          -- also a symbol -- the same line `core/symbols.lua` draws when it
+          -- refuses to report `M.foo = function(...)` twice.
+          return
+        end
+
+        -- **Everything left is a binding**, which is what was missing: C and
+        -- C++ were two of the four backends that reported no module-scope
+        -- symbols at all, found by the parity audit rather than by anyone
+        -- noticing a gap in one language.
+        --
+        -- `const` is the constant here, and unlike Java's `static final`
+        -- there is nothing else to weigh: a `const int` cannot be
+        -- reassigned and that is the whole distinction the column carries.
+        -- A `field_declaration` reaches this only inside a class or struct
+        -- body, which is C++'s nearest thing to module scope, exactly as
+        -- Java's fields are.
+        local name_node = declared_var_name(node)
+        if name_node then
+          local whole = text_of(node, src)
+          record_symbol(
+            node,
+            name_node,
+            whole:match("%f[%w]const%f[%W]") and "constant" or "binding"
+          )
         end
         return
       elseif kind == "class_specifier" or kind == "struct_specifier" then
@@ -587,7 +708,7 @@ function M.backend(name, grammar, extensions, roots)
     end
     walk(root)
 
-    return fns, {}, requires, {}, {}, {}, lines, {}
+    return fns, {}, requires, symbols, {}, {}, lines, {}
   end
 
   backend = {

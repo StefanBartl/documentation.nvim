@@ -239,7 +239,7 @@ function M.scan_file(path)
   end
 
   local doc = comments(root, src)
-  local fns, requires = {}, {}
+  local fns, requires, symbols = {}, {}, {}
 
   local function text(node)
     local _, _, sbyte = node:start()
@@ -283,6 +283,38 @@ function M.scan_file(path)
           test = {},
         }
       end
+    elseif
+      kind == "variable_declaration"
+      and node:parent()
+      and node:parent():type() == "source_file"
+    then
+      -- **Module scope only**, anchored on the parent being the file rather
+      -- than by walking ancestors: a `const seen = ...` inside a function
+      -- body is an implementation detail, the same line `core/symbols.lua`
+      -- draws for Lua by anchoring its query on `(chunk ...)`.
+      local name_node = named_child(node, "identifier")
+      local whole = text(node)
+      -- `const other = @import("other.zig");` is a *dependency*, and the
+      -- branch above already emits it as a require edge. Reporting it here
+      -- as well would be the same fact in two places, which is the shape
+      -- `core/symbols.lua` names as the reason it skips Lua's own
+      -- `local fs = require(...)`.
+      local is_import = whole:match("@import%s*%(") ~= nil
+      if name_node and not is_import then
+        local keyword = named_child(node, "const") and "constant" or "binding"
+        local prose = doc_above(doc, node:start())
+        symbols[#symbols + 1] = {
+          name = text(name_node),
+          kind = keyword,
+          -- The declaration itself, whitespace-collapsed and bounded --
+          -- the same 60-character detail every other backend's constants
+          -- carry, so one column of the Index tab reads alike across
+          -- languages.
+          detail = (whole:gsub("%s+", " ")):gsub(";%s*$", ""):sub(1, 60),
+          summary = require("documentation.core.scan").split_summary(prose),
+          line = node:start() + 1,
+        }
+      end
     elseif kind == "builtin_function" then
       local raw = text(node)
       local target = raw:match('^@import%("([^"]+)"%)')
@@ -297,7 +329,7 @@ function M.scan_file(path)
   end
   walk(root)
 
-  return fns, {}, requires, {}, {}, {}, lines, {}
+  return fns, {}, requires, symbols, {}, {}, lines, {}
 end
 
 require("documentation.core.lang_registry").register(M.name, M)

@@ -29,10 +29,6 @@ the work survives a cold start in a new session.
   impossible** — it is unbuilt, not blocked, and it had no sentence anywhere
   before the audit. Invisible from any one language; it took a table across
   all of them. See [`LANGUAGES.md § Parity`](../LANGUAGES.md#parity).
-- **Module-scope symbols in the four oldest non-Lua backends.** `zig`, `java`,
-  `c` and `cpp` return none; every backend written from Python onward does.
-  Nothing decided this — the capability arrived after those four and never
-  went back. Small next to the entry above, and the same kind of finding.
 - **Running without Neovim.** Already works for "map a Lua project from the
   terminal"; costed separately is dropping the Neovim dependency entirely.
   See [`IDEAS/PORTABILITY.md`](IDEAS/PORTABILITY.md).

@@ -277,4 +277,57 @@ return function(H)
     eq(dfns[1].summary, "Do the thing, at last.")
     eq(drequires[1].module, "thing.hpp")
   end
+
+  -- ---------------------------------------------------------------------
+  -- Module-scope symbols, added 2026-08-20. C and C++ were two of the four
+  -- backends the parity audit found reporting none at all.
+  --
+  -- `#define` is here because it is *the* C idiom for a threshold: leaving
+  -- it out would mean the one thing every C project uses for a constant is
+  -- the one thing the Index tab cannot show.
+  -- ---------------------------------------------------------------------
+  do
+    local f = H.tmpfile(".c")
+    local fh = assert(io.open(f, "w"))
+    fh:write(table.concat({
+      "#define MAX_ITEMS 64",
+      "",
+      "/** How many are cached. */",
+      "static const int CACHE = 10;",
+      "",
+      "static int counter;",
+      "",
+      "typedef struct { int x; } Point;",
+      "",
+      "/** Adds. */",
+      "int add(int a, int b) { return a + b; }",
+      "",
+    }, "\n"))
+    fh:close()
+
+    local fns, _, _, symbols = c.scan_file(f)
+    local by = {}
+    for _, s2 in ipairs(symbols) do
+      by[s2.name] = s2
+    end
+
+    eq(by.MAX_ITEMS ~= nil, true, "a #define is the C constant")
+    eq(by.MAX_ITEMS.kind, "constant")
+    eq(by.CACHE.kind, "constant", "`const` is what makes it one, not `static`")
+    eq(by.CACHE.summary, "How many are cached.")
+    eq(by.counter.kind, "binding", "no const, so a binding")
+    eq(by.Point ~= nil, true, "a typedef is a named shape")
+    eq(by.Point.kind, "table", "the same word go.lua uses for its own types")
+
+    -- **A function is never also a symbol.** The same line
+    -- `core/symbols.lua` draws when it refuses to report
+    -- `M.foo = function(...)` in both places.
+    eq(by.add, nil, "a function is reported once, as a function")
+    ok(#fns >= 1, "and it is reported")
+
+    -- The defect the field work exposed: three lines of slack reached past
+    -- one declaration to the next, so `counter` inherited `CACHE`'s comment.
+    -- A doc block documents one declaration.
+    eq(by.counter.summary, "", "a doc block belongs to one declaration, not to the next one too")
+  end
 end

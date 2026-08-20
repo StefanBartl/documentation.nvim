@@ -272,13 +272,28 @@ end
 ---that demanding adjacency would lose most real documentation. Small on
 ---purpose — annotations belong to the declaration node itself, so the slack
 ---covers formatting rather than distance.
+---
+---**A block is consumed when it is taken**, and that is not a refinement:
+---without it, three lines of slack reach *past* one declaration to the
+---next. Found on fields, where it is immediate — a one-line field two rows
+---below a documented one inherited its Javadoc — and latent on methods only
+---because a method body puts more than three rows between them. A Javadoc
+---block documents exactly one declaration, so taking it twice is always
+---wrong, and consuming says that in one line rather than by teaching this
+---function what a declaration looks like.
+---
+---Safe because the walk is depth-first in source order, so blocks are asked
+---for in the order they appear. `parse_header` builds its own table and is
+---unaffected.
 ---@param blocks table<integer, string>
 ---@param row integer
 ---@return string?
 local function doc_above(blocks, row)
   for r = row - 1, math.max(row - 3, 0), -1 do
     if blocks[r] then
-      return blocks[r]
+      local block = blocks[r]
+      blocks[r] = nil
+      return block
     end
   end
   return nil
@@ -399,7 +414,7 @@ function M.scan_file(path)
   end
 
   local blocks = javadoc(root, src)
-  local fns, requires = {}, {}
+  local fns, requires, symbols = {}, {}, {}
 
   ---The type a method belongs to, so two `get()` methods in one file are
   ---two names rather than one repeated. Java allows several types per file
@@ -474,6 +489,44 @@ function M.scan_file(path)
       if name_node then
         record(node, name_node, true)
       end
+    elseif kind == "field_declaration" then
+      -- **A Java field is the module-scope binding**, because Java has no
+      -- module scope: everything lives in a type, and a type's fields are
+      -- what `core/symbols.lua` reports for Lua's `local M = {}` and its
+      -- constants. Qualified with the owning type for the same reason the
+      -- methods above are — two `MAX` fields in two inner classes are two
+      -- symbols, not one repeated.
+      --
+      -- `static final` is the constant, everything else a binding. That is
+      -- the language's own distinction rather than a guess at intent: a
+      -- non-final field can be reassigned and a `final` instance field is
+      -- per-object state, neither of which is what "constant" means in the
+      -- other twenty-two backends.
+      local declarator = child_of(node, "variable_declarator")
+      local name_node = declarator and child_of(declarator, "identifier")
+      if name_node then
+        local mods = child_of(node, "modifiers")
+        local mod_text = mods and text_of(mods, src) or ""
+        local qualified = owner(node)
+        local bare = text_of(name_node, src)
+        local whole = (text_of(node, src):gsub("%s+", " "):gsub(";%s*$", ""))
+        symbols[#symbols + 1] = {
+          name = qualified and (qualified .. "." .. bare) or bare,
+          kind = (mod_text:match("%f[%w]static%f[%W]") and mod_text:match("%f[%w]final%f[%W]"))
+              and "constant"
+            or "binding",
+          detail = whole:sub(1, 60),
+          -- The Javadoc's first sentence, run through the same parser the
+          -- methods use rather than taken raw: a field's block carries the
+          -- `*` gutter and tags exactly as a method's does, and showing it
+          -- unparsed would put a row of asterisks in the Index tab.
+          summary = (function()
+            local doc = doc_above(blocks, node:start())
+            return doc and parse_doc(doc).summary or ""
+          end)(),
+          line = node:start() + 1,
+        }
+      end
     elseif kind == "import_declaration" then
       local raw = text_of(node, src)
       -- A static import names a member; the edge is between files, so it is
@@ -493,7 +546,7 @@ function M.scan_file(path)
   end
   walk(root)
 
-  return fns, {}, requires, {}, {}, {}, lines, {}
+  return fns, {}, requires, symbols, {}, {}, lines, {}
 end
 
 require("documentation.core.lang_registry").register(M.name, M)

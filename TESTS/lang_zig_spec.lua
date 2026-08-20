@@ -70,7 +70,7 @@ return function(H)
   eq(header.module, nil, "Zig has no module tag: the path is the identity")
   ok(header.body:find("Second line", 1, true) ~= nil, "the rest of the block survives")
 
-  local fns, _, requires, _, _, _, lines = zig.scan_file(fixture)
+  local fns, _, requires, symbols, _, _, lines = zig.scan_file(fixture)
 
   eq(lines, 22)
   eq(#fns, 3, "both top-level functions and the one inside the struct")
@@ -125,4 +125,34 @@ return function(H)
   eq(zig.is_source("build.zig"), true)
   eq(zig.is_source("README.md"), false)
   eq(#zig.block_comments, 0, "Zig has no block comment, deliberately")
+
+  -- ---------------------------------------------------------------------
+  -- Module-scope symbols, added 2026-08-20 because the parity audit found
+  -- Zig among four backends that reported none at all -- invisible from
+  -- inside any one language, obvious in a table across all of them.
+  -- ---------------------------------------------------------------------
+  do
+    local sym = {}
+    for _, s2 in ipairs(symbols) do
+      sym[s2.name] = s2
+    end
+
+    ok(sym.Thing ~= nil, "a top-level `pub const` is a symbol")
+    eq(sym.Thing.kind, "constant", "`const` is the constant, `var` the binding")
+
+    -- The two `@import` bindings are dependencies, and the require edges
+    -- above already carry them. Reporting them here as well would be one
+    -- fact in two places -- the same line `core/symbols.lua` draws for
+    -- Lua's own `local fs = require(...)`.
+    eq(sym.std, nil, "an @import binding is a dependency, not a symbol")
+    eq(sym.helper, nil, "both of them")
+
+    -- Module scope only: `_ = x` inside `private` and `_ = self` inside
+    -- `go` are statements, not declarations, but a `const` inside a
+    -- function body would be the real test of the anchor -- so it is worth
+    -- stating that nothing from inside a body appears.
+    for _, s2 in ipairs(symbols) do
+      ok(s2.name == "Thing", "only the module-scope declaration is reported, found " .. s2.name)
+    end
+  end
 end
