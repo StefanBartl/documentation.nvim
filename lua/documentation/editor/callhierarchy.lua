@@ -171,13 +171,85 @@ local function confidence_suffix(edge)
   return edge.confidence == "heuristic" and " (heuristic match)" or ""
 end
 
+---How long a loaded telemetry snapshot is reused before being read again.
+---
+---**A cache is not optional here, and a TTL is the right kind.** A hover
+---fires on `K` and on every `CursorHold` in a tree this client is attached
+---to; `telemetry_join.load` reads and decodes a JSON file, so without this
+---the cost would land on a keystroke. `on_change` cannot help -- telemetry is
+---written by a *different* Neovim session running the instrumented code, so
+---nothing in this process ever observes it changing.
+---
+---Two seconds, because that is the shortest window that collapses one
+---reader's burst of hovers into a single read -- and because the number this
+---shows is a snapshot of a file another process appends to all day: no TTL
+---makes it live, and a longer one only makes it wrong for longer.
+local TELEMETRY_TTL_MS = 2000
+
+---Telemetry rows for `namespace`, joined against `ir`, cached for
+---`TELEMETRY_TTL_MS`.
+---
+---`nil` throughout is a first-class answer and never an error:
+---`runtime-analysis.nvim` not installed, telemetry never enabled for this
+---namespace, or no namespace to ask about. Every one of those means "no
+---opinion", which is the reading `telemetry_join`'s own header insists on --
+---absence of runtime data is not evidence of death.
+local telemetry_rows
+do
+  local cached_at, cached_ns, cached = 0, nil, nil
+  ---@param namespace string?
+  ---@param ir Documentation.IR
+  ---@return table<string, Documentation.TelemetryJoin.Row>?
+  telemetry_rows = function(namespace, ir)
+    if not namespace or namespace == "" then
+      return nil
+    end
+    local now = (vim.uv or vim.loop).now()
+    -- The namespace is part of the key, not only the clock: one Neovim
+    -- session can have handles for two repositories attached at once, and a
+    -- cache keyed on time alone would answer the second with the first
+    -- one's numbers for two seconds.
+    if cached_ns == namespace and (now - cached_at) < TELEMETRY_TTL_MS then
+      return cached
+    end
+    local join = require("documentation.core.telemetry_join")
+    local data = join.load(namespace)
+    -- A negative result is cached too. A tree with no telemetry at all is
+    -- the common case, and it is the one where re-reading a file that is not
+    -- there on every hover would be pure waste.
+    cached_at, cached_ns, cached = now, namespace, data and join.by_key(ir, data) or nil
+    return cached
+  end
+end
+
+---The runtime half of the hover, as a Markdown fragment.
+---
+---**Three states, and the middle one is why this is worth rendering at all.**
+---Real recent calls say the function is alive. Recorded calls but none
+---recently is a *cold path* -- a reading `calls` alone cannot give, and the
+---reason `Row.calls_recent` exists. A row with no calls ever adds nothing the
+---static counts did not already say, so it renders nothing.
+---@param row Documentation.TelemetryJoin.Row?
+---@return string? fragment
+local function runtime_fragment(row)
+  if not row or row.calls == 0 then
+    return nil
+  end
+  local days = require("documentation.core.telemetry_join").RECENT_DAYS
+  if row.calls_recent > 0 then
+    return ("called **%d**× in the last %d days"):format(row.calls_recent, days)
+  end
+  return ("**not called** in the last %d days (%d recorded in total)"):format(days, row.calls)
+end
+
 ---Build the in-process client. `dispatchers` is accepted for signature
 ---compatibility with `vim.lsp.rpc.Client`; nothing here pushes an
 ---unsolicited notification (no diagnostics, no progress), so it is never
 ---called.
 ---@param handle Documentation.Handle
+---@param namespace string? Telemetry namespace this root joins against, resolved by the caller from `opts` -- the handle carries no options, and `ir.meta.title` would silently ignore an explicit `opts.telemetry_namespace`.
 ---@return vim.lsp.rpc.Client
-local function make_client(handle)
+local function make_client(handle, namespace)
   local root = handle.root
   local closing = false
 
@@ -222,18 +294,31 @@ local function make_client(handle)
       local fn_key = node.id .. "#" .. fn.name
       local n_in = #handle.callers(fn_key)
       local n_out = #handle.callees(fn_key)
-      if n_in == 0 and n_out == 0 then
+      local rows = telemetry_rows(namespace, ir)
+      local runtime = runtime_fragment(rows and rows[fn_key])
+
+      -- **The silent case was the interesting one.** This used to return
+      -- nothing whenever both static counts were zero -- which is exactly the
+      -- shape `telemetry_join`'s own header describes as static analysis's
+      -- blind spot: a callback bound as a value, or dynamic dispatch, looks
+      -- dead here while telemetry proves it is alive. A hover that says
+      -- nothing about the one function whose aliveness only runtime data can
+      -- attest to is the wrong silence.
+      if n_in == 0 and n_out == 0 and not runtime then
         return vim.NIL
+      end
+
+      local parts = {
+        ("**%d** incoming call%s"):format(n_in, n_in == 1 and "" or "s"),
+        ("**%d** outgoing call%s"):format(n_out, n_out == 1 and "" or "s"),
+      }
+      if runtime then
+        parts[#parts + 1] = runtime
       end
       return {
         contents = {
           kind = "markdown",
-          value = ("**%d** incoming call%s · **%d** outgoing call%s"):format(
-            n_in,
-            n_in == 1 and "" or "s",
-            n_out,
-            n_out == 1 and "" or "s"
-          ),
+          value = table.concat(parts, " · "),
         },
       }
     elseif method == "callHierarchy/incomingCalls" or method == "callHierarchy/outgoingCalls" then
@@ -299,7 +384,8 @@ local attached_bufs = {}
 ---session, for instance).
 ---@param bufnr integer
 ---@param handle Documentation.Handle
-function M.attach(bufnr, handle)
+---@param namespace string? Telemetry namespace for this root; `nil` simply means the hover carries no runtime half.
+function M.attach(bufnr, handle, namespace)
   if attached_bufs[bufnr] or not handle then
     return
   end
@@ -311,13 +397,30 @@ function M.attach(bufnr, handle)
   vim.lsp.start({
     name = CLIENT_NAME,
     cmd = function()
-      return make_client(handle)
+      return make_client(handle, namespace)
     end,
     root_dir = handle.root,
   }, {
     bufnr = bufnr,
+    -- **The root has to be part of this, and leaving it out was a real
+    -- bug.** `reuse_client` *replaces* the default predicate, which already
+    -- compares `root_dir`; matching on the name alone meant the second
+    -- repository opened in a session attached to the *first* one's client.
+    -- Every request then resolved the buffer's path against the wrong root,
+    -- `to_repo_relative` returned nil, and the whole feature answered
+    -- nothing — no call hierarchy, no hover, no error, for as long as both
+    -- were open.
+    --
+    -- Found by a spec that installs a second handle rather than by reading
+    -- this line: with one root in play it behaves identically either way,
+    -- which is why it survived.
+    --
+    -- `client.root_dir` is the modern field and `client.config.root_dir` the
+    -- older one; both are read because this plugin supports Neovim 0.10 and
+    -- the field moved after it.
     reuse_client = function(client)
-      return client.name == CLIENT_NAME
+      local client_root = client.root_dir or (client.config and client.config.root_dir)
+      return client.name == CLIENT_NAME and client_root == handle.root
     end,
   })
 
