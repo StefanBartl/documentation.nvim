@@ -18,6 +18,7 @@ a second host would have to hold to.
 - [`?theme=`, the one URL parameter](#theme-the-one-url-parameter)
 - [The page talks to its host](#the-page-talks-to-its-host)
 - [The host asks the page](#the-host-asks-the-page)
+- [The artifact is the extension point](#the-artifact-is-the-extension-point)
 - [What a host must not assume](#what-a-host-must-not-assume)
 
 ---
@@ -227,6 +228,67 @@ answering correctly.
 
 ---
 
+## The artifact is the extension point
+
+**There is no plugin API, and that is the answer rather than a gap.**
+`module_map.json` is byte-deterministic, versioned and documented — anything
+that reads a repository's map is already an extension, today, with no code in
+this project and nothing to register. What was missing was saying so, and
+saying what a schema bump is allowed to do to you. This section is both.
+
+### What you can rely on
+
+- **`meta.schema` is present and increases.** It has been in every artifact
+  since schema 1. Compare it; never assume it.
+- **A node's `id` is its repo-relative path**, forward-slashed, and it is the
+  key everything else joins on — edges, findings, the page's own selection
+  links. This is the one identifier worth building on.
+- **Key order is fixed and output is deterministic** for unchanged input.
+  There is no timestamp anywhere in the IR, deliberately, which is what makes
+  `--check`'s byte comparison a usable staleness test — and what lets you
+  diff two artifacts yourself.
+- **An absent optional field means "this did not run", not "zero".**
+  `types_detail` is the sharpest case: `nil` means LuaLS enrichment never
+  ran, `{}` means it ran and found nothing. Collapsing those two produces a
+  confidently wrong report.
+
+### What a schema bump may do to you
+
+**Add a field.** Always allowed, and the common case. A reader that ignores
+unknown keys is unaffected — write one.
+
+**Remove a field.** Allowed, and it has happened: schema 5 moved `quicks`'
+`headline`, `basis` and `detail` onto the page, because they are the tool
+describing a tree in English rather than facts about the tree. When a field
+is removed for that reason, **the fact it carried stays** — the same bump
+added `n` and `total` beside `value`, so "45 of 72" survives without the
+English phrasing it used to arrive in. A removal that loses information is
+not a bump this project intends to make.
+
+**Change what a field means.** Rarest, and the only kind that can break a
+reader silently. It is why the schema number exists at all.
+
+### What it may not do
+
+- **Reuse a number.** Schema 5 is schema 5 forever.
+- **Change a field's meaning without a bump.** If the number is the same, the
+  meaning is the same.
+- **Remove `meta.schema`.**
+
+### How to read it, in one line
+
+Tolerate forward, refuse backward — the same rule this project's own code
+follows. `core/diff.lua` compares `schema >= 2`, not `== 2`, and degrades
+by *naming what it cannot say* ("the older map predates the dependency
+graph") rather than by failing. That is the pattern to copy: a reader that
+requires an exact number breaks on the next bump for no reason, and one that
+ignores the number entirely reports nonsense about an older map.
+
+Reading extensions that go further than the file — a panel computing
+something from the artifact, served over the local server — are stage 2, and
+writing extensions stage 3; both are open, and both live in
+[`docmap-desktop`'s roadmap](https://github.com/StefanBartl/docmap-desktop).
+
 ## What a host must not assume
 
 - **That the map on disk was written by the engine now on `PATH`.** A
@@ -242,6 +304,7 @@ answering correctly.
   should say which.
 - **That `build` is present.** It is absent for an engine run from a source
   checkout, and absent is a real answer.
-- **That the schema will not change.** Compare `schema` rather than assuming;
-  it is bumped when the artifact gains a field that changes what an older
-  reader would conclude.
+- **That the schema will not change.** Compare `schema` rather than assuming.
+  And do not read "bump" as "gains a field": **schema 5 removed three**
+  (`quicks.headline`/`basis`/`detail`, which moved onto the page). The full
+  compatibility statement is the next section.
