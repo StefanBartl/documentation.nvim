@@ -158,6 +158,12 @@ if ! command -v tree-sitter >/dev/null 2>&1; then
   TSC="$work/npm-local/node_modules/.bin/tree-sitter"
   [ -n "$EXE_EXT" ] && TSC="$work/npm-local/node_modules/.bin/tree-sitter.cmd"
 fi
+# Everything from here to the first `build` runs quietly on success, and on
+# Windows it has now failed twice with *nothing* on stderr -- which leaves
+# "which command died" unanswerable from the log. `set -x` for this region
+# only: the clones and the Swift generate are a few dozen lines of trace, and
+# a silent exit 1 costs a whole round trip to guess at.
+set -x
 mkdir -p "$work/grammars"
 GSUF="so"
 [ -n "$EXE_EXT" ] && GSUF="dll"
@@ -216,6 +222,8 @@ git clone --quiet --depth 1 https://github.com/alex-pinkus/tree-sitter-swift.git
 # OCaml needs two: `.ml` and `.mli` are different languages to the parser.
 "$TSC" build --output "$work/grammars/ocaml.$GSUF" "$work/tree-sitter-ocaml/grammars/ocaml"
 "$TSC" build --output "$work/grammars/ocaml_interface.$GSUF" "$work/tree-sitter-ocaml/grammars/interface"
+
+set +x
 
 echo "== packaging the engine (scripts/package.lua)"
 STATIC_LIBS="$work/static-libs"
