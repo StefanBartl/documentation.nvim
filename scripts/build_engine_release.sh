@@ -132,7 +132,7 @@ echo "== dynamic lua_tree_sitter.so (so bundle_manifest.lua's probe run can see 
 echo "== luastatic (a plain Lua script, not a build target)"
 curl -sL -o "$work/luastatic.lua" https://raw.githubusercontent.com/ers35/luastatic/master/luastatic.lua
 
-echo "== 21 grammars via the tree-sitter CLI"
+echo "== 23 grammars via the tree-sitter CLI"
 # The same mechanism .github/workflows/ci.yml's own `tests` job already
 # uses for JS/TS/TSX -- `tree-sitter build` needs no separate libtree-sitter
 # at all, since a grammar's shared library depends only on the C ABI in
@@ -180,6 +180,7 @@ git clone --quiet --depth 1 https://github.com/tree-sitter/tree-sitter-scala.git
 git clone --quiet --depth 1 https://github.com/tree-sitter/tree-sitter-haskell.git "$work/tree-sitter-haskell"
 git clone --quiet --depth 1 https://github.com/elixir-lang/tree-sitter-elixir.git "$work/tree-sitter-elixir"
 git clone --quiet --depth 1 https://github.com/WhatsApp/tree-sitter-erlang.git "$work/tree-sitter-erlang"
+git clone --quiet --depth 1 https://github.com/tree-sitter/tree-sitter-ocaml.git "$work/tree-sitter-ocaml"
 git clone --quiet --depth 1 https://github.com/alex-pinkus/tree-sitter-swift.git "$work/tree-sitter-swift"
 # Swift ships no generated parser, unlike every other grammar here.
 (cd "$work/tree-sitter-swift" && npm install --silent && npx tree-sitter generate)
@@ -204,6 +205,9 @@ git clone --quiet --depth 1 https://github.com/alex-pinkus/tree-sitter-swift.git
 "$TSC" build --output "$work/grammars/haskell.$GSUF" "$work/tree-sitter-haskell"
 "$TSC" build --output "$work/grammars/elixir.$GSUF" "$work/tree-sitter-elixir"
 "$TSC" build --output "$work/grammars/erlang.$GSUF" "$work/tree-sitter-erlang"
+# OCaml needs two: `.ml` and `.mli` are different languages to the parser.
+"$TSC" build --output "$work/grammars/ocaml.$GSUF" "$work/tree-sitter-ocaml/grammars/ocaml"
+"$TSC" build --output "$work/grammars/ocaml_interface.$GSUF" "$work/tree-sitter-ocaml/grammars/interface"
 
 echo "== packaging the engine (scripts/package.lua)"
 STATIC_LIBS="$work/static-libs"

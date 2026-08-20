@@ -1043,9 +1043,36 @@ wave actually taught, beyond the ten:
       **Measured on `ninenines/cowboy`:** 29 files, all 29 with a module
       name, 1359 functions — **374 public**, the export lists doing very
       visible work — 226 documented, 8 includes.
-- [ ] **OCaml** — `.ml`, `.mli`. The `.mli` interface file *is* the
-      published surface, which is the header/source split C already forced a
-      decision on — and here the language means it rather than implies it.
+- [x] ~~**OCaml**~~ — `core/lang/ocaml.lua`, built 2026-08-20, the
+      twenty-third backend. The `.mli` prediction held, and it is stronger
+      than the entry says: **the export list lives in another file**, which
+      nothing else here does. This backend reads a sibling to answer a
+      question about the file in front of it.
+
+      Third time for "absent means everything" — no `.mli` publishes the
+      whole module, after Haskell's missing export list and Python's missing
+      `__all__`. And OCaml answers the header/source question C, Ada and
+      Delphi all ask, but cleanly: C's split had to be decided per file by a
+      rule this tool invented, OCaml's is decided by the compiler.
+
+      Two firsts: the only backend that **selects between two grammars by
+      extension** (an interface holds `val`s with no bodies, which the
+      implementation grammar cannot parse), and the only one with an **empty
+      `line_comments`** — OCaml has no line comment at all, so markers come
+      through `(* … *)` alone.
+
+      **And the measurement changed the design, which is the entry worth
+      keeping.** The first version called a doc comment *after* a declaration
+      a rare shape for record fields and skipped it. Scanned against
+      `mirage/alcotest`: **0 documented `val`s out of 50** — because every
+      one is written signature-first with the prose beneath, which is
+      ocamldoc's convention for interfaces. That is the Doxygen-only mistake
+      about C, in a language where *position* rather than punctuation was
+      what got read wrong. After: **36 of 50**.
+
+      **Measured on `mirage/alcotest`:** 28 `.ml` files, 16 with a sibling
+      `.mli`, 49 functions (39 public — the interfaces doing visible work);
+      and on the 16 interfaces, 50 `val`s with 36 documented.
 - [ ] **F#** — `.fs`, `.fsi`. Same interface-file shape, XML doc comments,
       and file *order* is semantically meaningful, which nothing else here
       has to model.
