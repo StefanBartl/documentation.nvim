@@ -17,16 +17,36 @@
 --- people's code), but they say so in `note` rather than being quietly
 --- omitted, which would leave the reader with no answer at all.
 ---
---- ## Why there are no per-keyword anchors
+--- ## The per-entry anchors, and how they were checked
 ---
 --- `reference.url` is one base URL, and `docs/ROADMAP/IDEAS/ReferenceTab.md`
---- explains the rule at length: one link per language that can rot, rather
---- than several hundred that can rot independently. The per-entry anchors
---- that rule permits are deliberately **not** filled in here — the Lua 5.1
---- manual's section anchors were not verified when this was written, and a
---- reference panel full of links that land in the wrong place is the failure
---- this repository already has a `dead-readme-link` check because of. Add
---- them per entry once checked; the renderer already handles their absence.
+--- explains the rule: one link per language that can rot, rather than
+--- several hundred that can rot independently. The per-entry anchors that
+--- rule permits were left empty until 2026-08-20, for a stated reason — the
+--- 5.1 manual's anchors had not been verified, and a reference panel full of
+--- links landing in the wrong place is the failure this repository already
+--- has a `dead-readme-link` check because of.
+---
+--- **They are filled now, and every one was read out of the manual rather
+--- than guessed.** The published 5.1 manual was fetched, its 397 `<a name>`
+--- anchors extracted, and each entry matched against that set:
+---
+---   * **35 library functions** take `#pdf-<name>`, which is the manual's own
+---     convention and was confirmed present for each.
+---   * **22 keywords** take a section anchor, and the section was located by
+---     searching the manual text for the sentence that documents the word —
+---     not by reading the table of contents and inferring. That is how `do`
+---     and `end` ended up at 2.4.2 (Blocks) rather than beside `if` at 2.4.4,
+---     and how `self` ended up at 2.5.9 with function definitions.
+---   * **`goto` gets none, deliberately.** It is not in 5.1 at all — which is
+---     what its own `note` already says, and a link would have contradicted
+---     the entry beside it.
+---   * **The 18 `vim.*` entries get none**, for the reason the renderer
+---     already encodes: a Neovim name is not in the Lua manual, and the page
+---     does not offer the link for an entry that carries `origin`.
+---
+--- Re-checking is a fetch and a set comparison, not a re-reading; the recipe
+--- above is the whole method.
 ---
 --- The explanation never depends on the link. Every `summary` below stands
 --- on its own, offline, inside the artifact.
@@ -63,71 +83,96 @@ M.syntax = {
 ---@type table<string, Documentation.Glossary.Entry>
 M.keywords = {
   -- Control flow
-  ["if"] = { summary = "Starts a conditional. Needs `then`, closes with `end`." },
-  ["then"] = { summary = "Opens the body of an `if` or `elseif`." },
+  ["if"] = { anchor = "#2.4.4", summary = "Starts a conditional. Needs `then`, closes with `end`." },
+  ["then"] = { anchor = "#2.4.4", summary = "Opens the body of an `if` or `elseif`." },
   ["elseif"] = {
+    anchor = "#2.4.4",
     summary = "A further condition, tested only when the ones above it failed.",
     note = "One word, not `else if` — the two-word form would need a second `end`.",
   },
-  ["else"] = { summary = "The branch taken when every condition above failed." },
-  ["end"] = { summary = "Closes a block: `if`, `for`, `while`, `function`, `do`." },
+  ["else"] = { anchor = "#2.4.4", summary = "The branch taken when every condition above failed." },
+  ["end"] = {
+    anchor = "#2.4.2",
+    summary = "Closes a block: `if`, `for`, `while`, `function`, `do`.",
+  },
   ["for"] = {
+    anchor = "#2.4.5",
     summary = "A loop, in one of two forms: numeric (`for i = 1, n`) or generic (`for k, v in pairs(t)`).",
   },
   ["in"] = {
+    anchor = "#2.4.5",
     summary = "Separates the loop variables of a generic `for` from the iterator that feeds them.",
   },
-  ["while"] = { summary = "Loops while the condition holds, tested before each pass." },
+  ["while"] = {
+    anchor = "#2.4.4",
+    summary = "Loops while the condition holds, tested before each pass.",
+  },
   ["repeat"] = {
+    anchor = "#2.4.4",
     summary = "Loops until the condition holds, tested *after* each pass — so the body always runs at least once.",
   },
   ["until"] = {
+    anchor = "#2.4.4",
     summary = "Ends a `repeat` block and states its exit condition.",
     note = "The condition can see locals declared inside the body, unlike every other scope in the language.",
   },
   ["do"] = {
+    anchor = "#2.4.2",
     summary = "Opens a block. On its own it makes a scope; after `for`/`while` it opens the loop body.",
   },
-  ["break"] = { summary = "Leaves the innermost enclosing loop." },
+  ["break"] = { anchor = "#2.4.4", summary = "Leaves the innermost enclosing loop." },
   ["goto"] = {
     summary = "Jumps to a `::label::` in the same function.",
     note = "Lua 5.2. Available in LuaJIT, so usable in Neovim — unlike most 5.2+ additions.",
   },
   ["return"] = {
+    anchor = "#2.4.4",
     summary = "Returns zero or more values from a function.",
     note = "Must be the last statement in its block; `do return end` is the idiom for an early exit.",
   },
 
   -- Functions and scope
-  ["function"] = { summary = "Defines a function, as a statement or as a value." },
+  ["function"] = {
+    anchor = "#2.5.9",
+    summary = "Defines a function, as a statement or as a value.",
+  },
   ["local"] = {
+    anchor = "#2.4.7",
     summary = "Declares a variable in the current scope. Without it, an assignment creates a global.",
   },
 
   -- Values
   ["nil"] = {
+    anchor = "#2.2",
     summary = "The absence of a value. Also the only value besides `false` that is falsy.",
     note = "Storing `nil` in a table removes the key rather than holding it — which is why `#t` and `ipairs` stop at a hole.",
   },
-  ["true"] = { summary = "The boolean true." },
+  ["true"] = { anchor = "#2.2", summary = "The boolean true." },
   ["false"] = {
+    anchor = "#2.2",
     summary = "The boolean false.",
     note = 'With `nil`, one of only two falsy values — `0` and `""` are both true in Lua.',
   },
 
   -- Operators that are words
   ["and"] = {
+    anchor = "#2.5.3",
     summary = "Logical and, short-circuiting.",
     note = "Returns one of its *operands*, not a boolean: `a and b` is `a` when `a` is falsy, otherwise `b`.",
   },
   ["or"] = {
+    anchor = "#2.5.3",
     summary = "Logical or, short-circuiting.",
     note = "Also returns an operand, which is what makes `x = x or default` the idiomatic default.",
   },
-  ["not"] = { summary = "Logical negation. Always yields a boolean, unlike `and`/`or`." },
+  ["not"] = {
+    anchor = "#2.5.3",
+    summary = "Logical negation. Always yields a boolean, unlike `and`/`or`.",
+  },
 
   -- Not keywords, but the things a reader most often stops at
   ["self"] = {
+    anchor = "#2.5.9",
     summary = "The implicit first parameter a method receives, created by defining it with `:` instead of `.`.",
     note = "Not a keyword — an ordinary parameter name the `:` sugar inserts for you.",
   },
@@ -165,104 +210,151 @@ M.keywords = {
 M.stdlib = {
   -- Base — the most-used names in the language, by a wide margin.
   ["ipairs"] = {
+    anchor = "#pdf-ipairs",
     summary = "Iterates a sequence 1, 2, 3… and stops at the first missing index.",
     note = "Stops at a hole, which is why `nil` in the middle of an array-like table silently truncates every loop over it.",
   },
   ["pairs"] = {
+    anchor = "#pdf-pairs",
     summary = "Iterates every key of a table, in an unspecified order.",
     note = "The order can differ between runs of the same program — anything that has to be deterministic sorts the keys first.",
   },
   ["require"] = {
+    anchor = "#pdf-require",
     summary = "Loads a module once and returns what it returned, from cache on every later call.",
     note = "Cached by module name: a second `require` does not re-run the file, which is why editing a loaded module needs a restart or an explicit cache eviction.",
   },
   ["pcall"] = {
+    anchor = "#pdf-pcall",
     summary = "Calls a function and catches its error, returning `ok, result-or-error` instead of propagating.",
   },
   ["xpcall"] = {
+    anchor = "#pdf-xpcall",
     summary = "`pcall` with a handler that runs before the stack unwinds, so it can capture a traceback.",
   },
   ["type"] = {
+    anchor = "#pdf-type",
     summary = 'The type of a value as a string: "nil", "boolean", "number", "string", "table", "function", "thread", "userdata".',
   },
-  ["tostring"] = { summary = "A value as a string, honouring a `__tostring` metamethod." },
+  ["tostring"] = {
+    anchor = "#pdf-tostring",
+    summary = "A value as a string, honouring a `__tostring` metamethod.",
+  },
   ["tonumber"] = {
+    anchor = "#pdf-tonumber",
     summary = "A string as a number, or `nil` when it is not one. Takes an optional base.",
   },
   ["select"] = {
+    anchor = "#pdf-select",
     summary = "`select('#', ...)` counts varargs; `select(n, ...)` returns them from the nth on.",
     note = "The counting form is the only reliable way to see trailing `nil`s in `...`, which `#` and `ipairs` both hide.",
   },
   ["setmetatable"] = {
+    anchor = "#pdf-setmetatable",
     summary = "Attaches a metatable, giving a table behaviour for indexing, calling, comparison and more.",
   },
   ["getmetatable"] = {
+    anchor = "#pdf-getmetatable",
     summary = "The value's metatable, or what its `__metatable` field chose to expose instead.",
   },
-  ["rawget"] = { summary = "Reads a table field without consulting `__index`." },
-  ["rawset"] = { summary = "Writes a table field without consulting `__newindex`." },
+  ["rawget"] = {
+    anchor = "#pdf-rawget",
+    summary = "Reads a table field without consulting `__index`.",
+  },
+  ["rawset"] = {
+    anchor = "#pdf-rawset",
+    summary = "Writes a table field without consulting `__newindex`.",
+  },
   ["next"] = {
+    anchor = "#pdf-next",
     summary = "One step of `pairs`. `next(t) == nil` is the idiomatic test for an empty table.",
   },
   ["error"] = {
+    anchor = "#pdf-error",
     summary = "Raises an error. A level of 0 omits position information, 1 blames the caller, 2 the caller's caller.",
   },
   ["assert"] = {
+    anchor = "#pdf-assert",
     summary = "Returns its arguments when the first is truthy, raises the second as an error otherwise.",
   },
   ["unpack"] = {
+    anchor = "#pdf-unpack",
     summary = "A table's array part as multiple return values.",
     note = "`unpack` in 5.1/LuaJIT, `table.unpack` from 5.2 — this is the most common source of a 5.1-vs-5.4 portability break.",
   },
   ["print"] = {
+    anchor = "#pdf-print",
     summary = "Writes its arguments to stdout, tab-separated. Rarely what you want in a plugin — see `vim.notify`.",
   },
 
   -- table
   ["table.concat"] = {
+    anchor = "#pdf-table.concat",
     summary = "Joins a table's array part into a string with an optional separator.",
     note = "The idiomatic way to build a long string: repeated `..` allocates a new string every time, this allocates once.",
   },
   ["table.sort"] = {
+    anchor = "#pdf-table.sort",
     summary = "Sorts a table's array part in place, with an optional comparator.",
     note = 'The comparator must be a strict ordering — returning true for equal elements raises "invalid order function" rather than sorting oddly.',
   },
   ["table.insert"] = {
+    anchor = "#pdf-table.insert",
     summary = "Appends a value, or inserts it at a position and shifts the rest up.",
   },
   ["table.remove"] = {
+    anchor = "#pdf-table.remove",
     summary = "Removes and returns the last element, or the one at a position, shifting the rest down.",
   },
 
   -- string
   ["string.format"] = {
+    anchor = "#pdf-string.format",
     summary = "C-style formatting: `%s`, `%d`, `%q` (a Lua-readable quoted string), `%.2f`.",
   },
   ["string.gsub"] = {
+    anchor = "#pdf-string.gsub",
     summary = "Replaces every match of a pattern, returning the new string and the number of replacements.",
     note = "Returns *two* values, which is why `x = (s:gsub(...))` needs its parentheses in a multiple-assignment or argument position.",
   },
   ["string.gmatch"] = {
+    anchor = "#pdf-string.gmatch",
     summary = "Iterates every match of a pattern — the loop form of `string.match`.",
   },
-  ["string.match"] = { summary = "The first match of a pattern, or its captures when it has any." },
+  ["string.match"] = {
+    anchor = "#pdf-string.match",
+    summary = "The first match of a pattern, or its captures when it has any.",
+  },
   ["string.find"] = {
+    anchor = "#pdf-string.find",
     summary = "Where a pattern matches: start and end indices, plus captures. `true` as the fourth argument makes it a plain-text search.",
   },
-  ["string.sub"] = { summary = "A substring by index. Negative indices count from the end." },
-  ["string.rep"] = { summary = "A string repeated n times, with an optional separator." },
+  ["string.sub"] = {
+    anchor = "#pdf-string.sub",
+    summary = "A substring by index. Negative indices count from the end.",
+  },
+  ["string.rep"] = {
+    anchor = "#pdf-string.rep",
+    summary = "A string repeated n times, with an optional separator.",
+  },
 
   -- math, os, io — the handful this tree actually reaches for
-  ["math.min"] = { summary = "The smallest of its arguments." },
-  ["math.max"] = { summary = "The largest of its arguments." },
+  ["math.min"] = { anchor = "#pdf-math.min", summary = "The smallest of its arguments." },
+  ["math.max"] = { anchor = "#pdf-math.max", summary = "The largest of its arguments." },
   ["math.floor"] = {
+    anchor = "#pdf-math.floor",
     summary = "Rounds toward negative infinity. The usual way to get an integer out of a division in 5.1.",
   },
   ["os.time"] = {
+    anchor = "#pdf-os.time",
     summary = "Seconds since the epoch, or the time a table of date fields describes.",
   },
-  ["os.date"] = { summary = "A formatted date string. A leading `!` in the format means UTC." },
+  ["os.date"] = {
+    anchor = "#pdf-os.date",
+    summary = "A formatted date string. A leading `!` in the format means UTC.",
+  },
   ["io.open"] = {
+    anchor = "#pdf-io.open",
     summary = "Opens a file, returning a handle or `nil` plus a message.",
     note = "Never raises — the `nil, err` return is the whole error path, so an unchecked call fails later and elsewhere.",
   },
