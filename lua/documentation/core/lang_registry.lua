@@ -53,6 +53,7 @@ local KNOWN_BACKENDS = {
   "documentation.core.lang.go",
   "documentation.core.lang.rust",
   "documentation.core.lang.php",
+  "documentation.core.lang.ruby",
 }
 
 local loaded = false

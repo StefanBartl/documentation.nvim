@@ -775,10 +775,39 @@ The ten highest-traffic languages on either list that are not already built.
       symbols, and 109 of 286 `use` edges resolving to a node in the tree —
       with **zero** `require` edges, which is exactly what the header
       predicts of a PSR-4 project.
-- [ ] **Ruby** — `.rb`. No visibility keyword at declaration site: `private`
-      is a *positional* statement affecting everything after it, the same
-      shape C++'s access specifier turned out to have, so it is tracked
-      while walking.
+- [x] ~~**Ruby**~~ — `core/lang/ruby.lua`, built 2026-08-20, the fifteenth
+      backend. The positional visibility this entry predicted is exactly
+      that, tracked while walking as C++'s access specifier is — **and Ruby
+      adds two spellings C++ has no equivalent of.** `private def foo` marks
+      one definition without changing the default, and `private :foo` marks a
+      method **by name**, possibly long after it was written. No other
+      language here can change a declaration's visibility from somewhere else
+      in the file, which is why methods are indexed by name as they are
+      recorded. A class method after `private` is still public, since
+      `private` affects instance methods only.
+
+      **The naming is Ruby's own**: `Widget#add` for an instance method,
+      `Widget.build` for a class method. They are different methods and can
+      share a name, so merging them under `::` — as C++ and Rust do — would
+      lose that.
+
+      **`param_docs = false`, and this is the first backend to declare it
+      while still parsing parameters.** YARD's `@param [Integer] x` is real,
+      common and worth showing, so it is extracted and displayed. But YARD is
+      a *gem*, not the language — RDoc ships with Ruby and has no
+      per-parameter form at all — so judging Ruby by parameter documentation
+      would report a project documenting beautifully in RDoc as documenting
+      nothing. **Parse and display; do not judge.** A different position from
+      Zig's, Go's, assembly's and Rust's, where there was nothing to parse.
+
+      YARD's `@api private` is honoured as well, the authoring-convention
+      layer PHP's `@internal` sits on.
+
+      **Measured on `sinatra/sinatra`:** 7 files, 161 methods (132 public, 46
+      of those documented), 50 symbols, 18 requires — and **zero YARD
+      parameters**, because Sinatra documents in RDoc. That is precisely the
+      project `param_docs = false` protects: its real summaries are extracted
+      and shown, and it is not marked down for a convention it never adopted.
 - [ ] **Kotlin** — `.kt`, `.kts`. KDoc, four visibilities collapsing to two
       exactly as Java's did, `package` plus file stem for identity.
 - [ ] **Swift** — `.swift`. Markup comments (`///`), five access levels

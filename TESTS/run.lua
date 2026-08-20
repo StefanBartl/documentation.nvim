@@ -98,6 +98,7 @@ local specs = {
   "lang_go_spec.lua",
   "lang_rust_spec.lua",
   "lang_php_spec.lua",
+  "lang_ruby_spec.lua",
   "doccoverage_by_language_spec.lua",
   "lang_js_gaps_spec.lua",
   "polyglot_fixture_spec.lua",
