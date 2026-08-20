@@ -48,9 +48,10 @@ arrived with.
 |---|---|
 | [`FEATURES/FEATURES.md`](FEATURES/FEATURES.md) | The decision record: what shipped, which commit, and why it was built that way. |
 | [`FEATURES/`](FEATURES/README.md) | This plugin's own `docs/FEATURES/` catalog — the user-facing half, and the Features tab's first real test. Deliberately a representative sample, not full coverage. |
-| [`ROADMAP/ROADMAP.md`](ROADMAP/ROADMAP.md) | What is still open. Only items with no decision yet; a decision to *not* build something lives inline where it was made. |
-| [`ROADMAP/WORKPLAN.md`](ROADMAP/WORKPLAN.md) | **The resume point.** Written so the work continues from a cold start with nothing lost. |
-| [`ROADMAP/IDEAS/`](ROADMAP/IDEAS/IDEAS.md) | The backlog, and the costed analyses — see below. |
+| **[`docmap-desktop/docs/PLAN.md`](https://github.com/StefanBartl/docmap-desktop/blob/main/docs/PLAN.md)** | **The queue — and it is not in this repository.** Since 2026-08-20 there is one plan for all three (`documentation.nvim`, `docmap-desktop`, `runtime-analysis.nvim`), because the same task used to appear in five places in three different states. Quick wins, medium, large. |
+| [`ROADMAP/ROADMAP.md`](ROADMAP/ROADMAP.md) | Where this plugin is going, in prose. Direction, not schedule. |
+| [`ROADMAP/WORKPLAN.md`](ROADMAP/WORKPLAN.md) | The record of how the language work was derived — including the parts that rested on a wrong assumption. Not a queue. |
+| [`ROADMAP/IDEAS/`](ROADMAP/IDEAS/IDEAS.md) | The costed analyses — *why* each item is shaped the way it is, and what argues against it. See below. |
 | [`CHECKLIST/architecture.md`](CHECKLIST/architecture.md) | This tree's own hand-verified facts, each cited and dated. |
 
 ### The costed analyses (`ROADMAP/IDEAS/`)
