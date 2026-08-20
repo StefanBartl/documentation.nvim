@@ -1,5 +1,11 @@
 # Multi-language support — cost analysis and task breakdown
 
+> **Begründungsdokument, keine Warteschlange.** Was hier kostet, wie es
+> zugeschnitten ist und was dagegen spricht — die *Reihenfolge* steht in
+> [`docmap-desktop/docs/PLAN.md`](https://github.com/StefanBartl/docmap-desktop/blob/main/docs/PLAN.md) (L1, L3). Die Häkchen sind seit
+> 2026-08-20 entfernt: eine Sprache ist hier ein Kostenvoranschlag, kein
+> Ticket.
+
 Merged 2026-08-15 from two companion documents that had drifted apart under
 mismatched relative links: this file (the task breakdown) and
 `MULTILANG2.md` (the cost analysis it was meant to reference as
@@ -183,7 +189,7 @@ changes the shape every language backend plugs into.
   `core.lang.python`) is still just intent, not a written rule — there is
   only one backend to test it against. Write it when Phase 2 gives it a
   second prefix to check.
-- [ ] **`Documentation.Node` grows an owning-scope concept.** Functions
+- **`Documentation.Node` grows an owning-scope concept.** Functions
   currently hang off the *module*. Python methods belong to a class, Rust
   functions to an `impl` block, Go methods to a receiver type. Touches
   every consumer of `Documentation.FunctionInfo` (`duplicates.lua`'s
@@ -206,7 +212,7 @@ changes the shape every language backend plugs into.
   complexity. None of those has been asked for yet. **Do not build it as a
   refactor in advance** — that is exactly what the visibility entry below
   learned: it closed by being *used*, not by being restructured first.
-- [ ] **`Documentation.Node` allows one file, many modules.** Rust's `mod x
+- **`Documentation.Node` allows one file, many modules.** Rust's `mod x
   { … }` and JS's multiple named exports both break the file-is-a-module
   assumption `scan.lua`'s walk is built on. **Not blocking Phase 1 either**:
   a JS/TS module IS its file, the same shape Lua already has — this is
@@ -335,31 +341,31 @@ relative, so nothing about them moved.
 
 ### Phase 2 — Python — **not started**
 
-- [ ] Docstring **style detection**: reST, Google, and NumPy conventions
+- Docstring **style detection**: reST, Google, and NumPy conventions
   coexist across real Python codebases, sometimes within one. Two problems,
   not one — no universal format (needs a per-style parser with a detector),
   and a docstring is a *runtime string* literal, not a comment block, so
   the parse is structured text inside a string node rather than tags in
   comments the way LuaCATS/JSDoc are.
-- [ ] Decorators (`@property`, `@staticmethod`, a project's own) are a real
+- Decorators (`@property`, `@staticmethod`, a project's own) are a real
   shape with no Lua equivalent — decide whether they are metadata on
   `Documentation.FunctionInfo` or a check's own concern before writing the
   extractor, not after.
-- [ ] Import extraction: `import x`, `from x import y`, relative imports
+- Import extraction: `import x`, `from x import y`, relative imports
   (`from ..pkg import x`) against `sys.path` — closer to Rust's
   parent-declares-the-module problem than to Lua's flat `require`.
 
 ### Phase 3 — Rust — **not started**
 
-- [ ] `mod x { … }` is the sharpest instance of Phase 0's "one file, many
+- `mod x { … }` is the sharpest instance of Phase 0's "one file, many
   modules" gap — a Rust module is declared by its *parent*, inverted from
   every other language here where a file declares its own identity.
   Confirm the Phase-0 IR change actually covers this shape specifically,
   with a real multi-module `.rs` file, before writing the extractor.
-- [ ] `impl` blocks own methods — the Phase-0 owning-scope field's other
+- `impl` blocks own methods — the Phase-0 owning-scope field's other
   real test case besides Python classes; a method's owner is not textually
   where the method is defined the way `M.foo` is in Lua.
-- [ ] rustdoc (`///`) is prose Markdown with **no tag vocabulary at all**.
+- rustdoc (`///`) is prose Markdown with **no tag vocabulary at all**.
   The param-shaped checks (`undocumented-param`, `param-name-mismatch`)
   have nothing to compare against and do not port. `missing-summary` does.
   Do not build fake `@param` recognition against prose that was never
@@ -367,15 +373,15 @@ relative, so nothing about them moved.
 
 ### Phase 4 — Go — **not started**
 
-- [ ] godoc's *entire* checkable convention is "the comment starts with the
+- godoc's *entire* checkable convention is "the comment starts with the
   identifier it documents." Worst fit of the five for a reason: this
   replaces six of Lua's fourteen checks with one. Confirm before starting
   that one check is still worth a whole backend — the honest answer may be
   "only once JS/TS and one other language have already proven the Phase-0
   architecture is real," not on its own merits.
-- [ ] Receivers (`func (r *Type) Method()`) are Go's version of the
+- Receivers (`func (r *Type) Method()`) are Go's version of the
   owning-scope problem — same Phase-0 field, third real test case.
-- [ ] Package-per-directory (not per-file) is closer to Lua's own
+- Package-per-directory (not per-file) is closer to Lua's own
   `init.lua`-marks-a-module convention than to JS/Python/Rust — likely the
   cheapest walk-level fit of the five once Phase 0 lands.
 
@@ -1100,20 +1106,20 @@ wave actually taught, beyond the ten:
       **Measured on `mirage/alcotest`:** 28 `.ml` files, 16 with a sibling
       `.mli`, 49 functions (39 public — the interfaces doing visible work);
       and on the 16 interfaces, 50 `val`s with 36 documented.
-- [ ] **F#** — `.fs`, `.fsi`. Same interface-file shape, XML doc comments,
+- **F#** — `.fs`, `.fsi`. Same interface-file shape, XML doc comments,
       and file *order* is semantically meaningful, which nothing else here
       has to model.
-- [ ] **Julia** — `.jl`. Docstrings above the definition, `module`/`export`.
-- [ ] **R** — `.R`, `.r`. Roxygen2 (`#'` with `@param`/`@return`) is a
+- **Julia** — `.jl`. Docstrings above the definition, `module`/`export`.
+- **R** — `.R`, `.r`. Roxygen2 (`#'` with `@param`/`@return`) is a
       documentation tool with a generator behind it, the same class of fact
       Javadoc was; `NAMESPACE`'s export list is the visibility answer.
-- [ ] **Perl** — `.pl`, `.pm`. POD is a documentation format that is *not*
+- **Perl** — `.pl`, `.pm`. POD is a documentation format that is *not*
       comments — it interleaves with code and has its own lexer, which is
       the first time a backend has to read two syntaxes in one file.
-- [ ] **Groovy** — `.groovy`, `.gradle`. Groovydoc, JVM visibility. Its
+- **Groovy** — `.groovy`, `.gradle`. Groovydoc, JVM visibility. Its
       real use is CI/CD and Gradle builds, so this is a build-file mapper as
       much as a language one.
-- [ ] **Solidity** — `.sol`. NatSpec (`/// @notice`, `@dev`, `@param`) is a
+- **Solidity** — `.sol`. NatSpec (`/// @notice`, `@dev`, `@param`) is a
       documented standard, and visibility is four keywords the compiler
       requires on every function — the strictest visibility of anything in
       this list.
@@ -1219,37 +1225,37 @@ built pays for the pattern.
 Included because both rankings list them and because a repository's
 automation is part of what a map should show.
 
-- [ ] **Bash** — `.sh`, `.bash`, `.zsh`. Functions exist; there is no
+- **Bash** — `.sh`, `.bash`, `.zsh`. Functions exist; there is no
       module system and no visibility, so path identity as with Zig, and
       `source`/`.` is the require edge.
-- [ ] **PowerShell** — `.ps1`, `.psm1`, `.psd1`. Comment-based help
+- **PowerShell** — `.ps1`, `.psm1`, `.psd1`. Comment-based help
       (`.SYNOPSIS`, `.PARAMETER`) is a real convention with `Get-Help`
       behind it; `Export-ModuleMember` and the `.psd1` manifest are the
       export list.
 
 **Wave 4 — no maintained grammar, so a line scanner, per decision 4.**
 
-- [ ] **Fortran** — `.f90`, `.f95`, `.f03`, `.f`, `.for`. `module`/`use`,
+- **Fortran** — `.f90`, `.f95`, `.f03`, `.f`, `.for`. `module`/`use`,
       `public`/`private` statements, and fixed-form source in the older
       extensions where column position is syntax.
-- [ ] **Ada** — `.ads`, `.adb`. Specification and body in separate files —
+- **Ada** — `.ads`, `.adb`. Specification and body in separate files —
       the OCaml/C shape again, and the third language to force that
       decision, which is worth watching for a pattern the IR should carry.
-- [ ] **COBOL** — `.cob`, `.cbl`. Divisions and sections are the structure;
+- **COBOL** — `.cob`, `.cbl`. Divisions and sections are the structure;
       `COPY` is the require edge. Fixed-form columns again.
-- [ ] **Delphi / Object Pascal** — `.pas`, `.dpr`. `unit`/`interface`/
+- **Delphi / Object Pascal** — `.pas`, `.dpr`. `unit`/`interface`/
       `implementation` is a genuine published-surface split declared in one
       file, which is a shape neither C nor OCaml has.
-- [ ] **MATLAB** — `.m`. One function per file by convention, so the file
+- **MATLAB** — `.m`. One function per file by convention, so the file
       name *is* the function name. `.m` also being Objective-C's extension
       is a conflict to resolve when an Objective-C backend exists, not
       before.
-- [ ] **Visual Basic (.NET)** — `.vb`. `Module`/`Class`, `Public`/`Private`,
+- **Visual Basic (.NET)** — `.vb`. `Module`/`Class`, `Public`/`Private`,
       `Imports`, and XML doc comments.
 
 **Wave 5 — the one decided into its own shape.**
 
-- [ ] **SQL** — `.sql`. Per decision 3.
+- **SQL** — `.sql`. Per decision 3.
 
 **Not built, and here is the reason:**
 
@@ -1465,11 +1471,11 @@ structurally supported today, and has never been measured.** That claim is
 exactly the kind Part 2's own closing caution says to re-verify against a
 real parse rather than take this document's word for.
 
-- [ ] Scan a real Rust+JS tree (`docmap-desktop` itself) and a Lua+TS tree.
+- Scan a real Rust+JS tree (`docmap-desktop` itself) and a Lua+TS tree.
       The expected result is a map with JS nodes and no Rust nodes — what is
       actually being tested is whether that happens *honestly or silently*.
-- [ ] Count files claimed by no backend, and put the count in the report.
-- [ ] `--languages` / `:DocMap languages`: registered backends, which
+- Count files claimed by no backend, and put the count in the report.
+- `--languages` / `:DocMap languages`: registered backends, which
       grammars loaded, unclaimed extensions with frequencies.
 - **Acceptance:** a mixed tree produces a map whose report names the half it
   skipped. `3 812 .py files skipped, no Python backend` — the standing
@@ -1522,7 +1528,7 @@ strand that pays off even if no further language is ever built. Tracked in
 detail in `docmap-desktop/docs/ROADMAP.md`; the engine-side half of it is one
 change:
 
-- [ ] `--capabilities` grows `languages: [{ name, grammar_loaded }]`, read off
+- `--capabilities` grows `languages: [{ name, grammar_loaded }]`, read off
       the registry the same way `routes` is read off `core/api.routes` —
       advertised without `standalone/docmap.lua` being told. Backward
       compatible: a missing field means "older engine", the same distinction
@@ -1533,16 +1539,16 @@ change:
 Part 2's open Phase-0 items, plus two seams Parts 1–3 identify the *need* for
 without naming as work.
 
-- [ ] **3.1** `language` per node; schema version bump; verify `diff.lua`'s
+- **3.1** `language` per node; schema version bump; verify `diff.lua`'s
       tolerance path against a **real** old artifact from this repo's history,
       not a synthesised one.
-- [ ] **3.2** Owning scope on `Documentation.FunctionInfo` — four customers
+- **3.2** Owning scope on `Documentation.FunctionInfo` — four customers
       (Python classes, Rust `impl`, Go receivers, JS class methods), one
       field.
-- [ ] **3.3** One file, many modules. Do not implement before a real
+- **3.3** One file, many modules. Do not implement before a real
       multi-module `.rs` exists as a fixture.
-- [ ] **3.4** Visibility as a field.
-- [ ] **3.5** **A doc-convention registry, separate from `lang_registry`.**
+- **3.4** Visibility as a field.
+- **3.5** **A doc-convention registry, separate from `lang_registry`.**
       The language seam exists; the documentation seam does not. LuaCATS,
       JSDoc and Doxygen are one family with one tag vocabulary; rustdoc and
       godoc are prose with none. Modelled as a second registry, three
@@ -1550,17 +1556,17 @@ without naming as work.
       implementations, or worse, invented `@param` recognition in prose that
       was never structured that way. **The decision about where this seam
       sits has to be made before Rust, not during it.**
-- [ ] **3.6** **Check profiles.** Each check declares which doc convention it
+- **3.6** **Check profiles.** Each check declares which doc convention it
       requires; a check with no applicable convention reports *not
       applicable* rather than passing. Without this, the first tagless
       language produces a wall of false findings on its first run, and the
       only available response is disabling the check globally. See
       [`I18N.md`](I18N.md) Part 5 — that plan rewrites the same `add()`
       function, and the two changes must land in one pass.
-- [ ] **3.7** Real per-language sample trees in CI. Not optional; this is the
+- **3.7** Real per-language sample trees in CI. Not optional; this is the
       only thing that would have caught `core/plugins.lua`'s 235 false
       positives.
-- [ ] **3.8** Write the cross-backend layer rule (`core.lang.x` must not
+- **3.8** Write the cross-backend layer rule (`core.lang.x` must not
       require `core.lang.y`) — possible as soon as a second prefix exists.
 - **Acceptance:** Lua and the three ECMA grammars produce byte-identical maps
   to before, except for the fields deliberately added.
@@ -1608,14 +1614,14 @@ Only meaningful here: after Stage 6, `docmap-desktop` is the first codebase
 whose halves are *both* mapped — and the seam between them the obvious
 remaining blind spot. Both graphs stop at the process boundary today.
 
-- [ ] A `bridge` edge kind in `ir.edges`, parallel to `require`/`call`/
+- A `bridge` edge kind in `ir.edges`, parallel to `require`/`call`/
       `type`/`extends`.
-- [ ] First recognizer, Tauri: `#[tauri::command] fn name` ↔ `invoke("name")`.
+- First recognizer, Tauri: `#[tauri::command] fn name` ↔ `invoke("name")`.
       Name-based, therefore fallible — exact matches only, near-matches are
       never guessed. The same position `calls.lua` already takes on computed
       targets.
-- [ ] Rendering: its own edge kind in Deps and Calls, toggleable.
-- [ ] `bridge-orphan`: a command nothing invokes, an `invoke` with no
+- Rendering: its own edge kind in Deps and Calls, toggleable.
+- `bridge-orphan`: a command nothing invokes, an `invoke` with no
       counterpart. Real bugs that nothing in this ecosystem can currently see.
 - **Acceptance:** every `#[tauri::command]` in `docmap-desktop`'s
   `src-tauri/src/main.rs` finds its caller in `src/main.js`, against a hand

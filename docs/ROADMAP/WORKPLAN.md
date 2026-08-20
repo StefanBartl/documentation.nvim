@@ -1,5 +1,12 @@
 # Work plan — the language axes and what follows from them
 
+> **Protokoll, keine Warteschlange.** Die offenen Punkte aller drei
+> Repositories stehen seit 2026-08-20 in **einem** Plan:
+> [`docmap-desktop/docs/PLAN.md`](https://github.com/StefanBartl/docmap-desktop/blob/main/docs/PLAN.md). Dieses Dokument behält, was dort
+> nicht hingehört — die Herleitung, samt der Teile, die sich als falsche
+> Annahme herausgestellt haben. Die Häkchen sind entfernt, damit es nicht
+> wie eine zweite Warteschlange aussieht.
+
 **Purpose: this file is the resume point.** Everything agreed in the session
 of 2026-08-18 is written down here, including the parts not built, so the
 work can continue from a cold start in another chat with nothing lost. It is
@@ -222,7 +229,7 @@ change detection), §2.1/§2.2 (the panels gated on the `TAGS` refactor), §5.x
       Its `basis` says whose claim the number is and that nothing fails
       because of it — asserted in `TESTS/quicks_spec.lua`, because that
       sentence *is* the feature. See `docs/FEATURES/FEATURES.md`.
-- [ ] **Per-entry reference anchors**, once someone has opened them. The
+- **Per-entry reference anchors**, once someone has opened them. The
       renderer already supports them; they are unfilled on purpose.
 - [x] ~~**`.jsx`**, **class methods**, **`module.exports = {…}`**~~ — all
       three closed 2026-08-18, each shape verified against a real parse
@@ -258,7 +265,7 @@ backlog and already deferred for its absence:
       107 modules required by a consumer, 108 required only by the library
       itself, 33 by nobody. The two-way version says 141 unused, wrong about
       all 108 in between.
-- [ ] **A cross-repo dashboard** in `docmap-desktop`, which is the one place
+- **A cross-repo dashboard** in `docmap-desktop`, which is the one place
       that already holds several projects at once. The workspace-level view
       no single repository can have.
 
@@ -276,14 +283,14 @@ What is genuinely missing and is meaningful *only* for a config:
       bug in `bindings.lua` itself: `buffer` was read through a string-only
       accessor, so every `{ buffer = true }` keymap had been recorded as
       global since the module shipped.
-- [ ] **Other plugin managers.** `plugins.lua` is scoped to lazy.nvim's spec
+- **Other plugin managers.** `plugins.lua` is scoped to lazy.nvim's spec
       shape and says so; packer's `use {…}`, vim-plug's `Plug '…'` and
       mini.deps' `add()` are separate extractors, not a bent version of that
       one.
-- [ ] **Lazy-load inventory** — which plugin loads on which event/ft/cmd,
+- **Lazy-load inventory** — which plugin loads on which event/ft/cmd,
       from spec fields already parsed. Answers "why is this not loaded yet",
       which is the second question a config is opened for.
-- [ ] **Orphaned spec files** — a `lua/plugins/foo.lua` whose plugin nothing
+- **Orphaned spec files** — a `lua/plugins/foo.lua` whose plugin nothing
       references any more.
 
 Sequence note: keymap conflicts first. It is a check over data that already
@@ -389,11 +396,11 @@ Agreed convention, to be applied across both repos' `docs/`:
 
 Open pass:
 
-- [ ] `IDEAS/IDEAS.md` — several entries are marked done inline
+- `IDEAS/IDEAS.md` — several entries are marked done inline
       (§3.4, §4.1, §8.2) rather than removed.
-- [ ] `IDEAS/IDEAS_IMPLEMENTATION_PLAN.md` — re-rate now that §9's cost has
+- `IDEAS/IDEAS_IMPLEMENTATION_PLAN.md` — re-rate now that §9's cost has
       been paid four times, and that §1.7's blocking precondition is met.
-- [ ] `IDEAS/MULTILANG.md` — Phase 0's stage list still shows items this
+- `IDEAS/MULTILANG.md` — Phase 0's stage list still shows items this
       session closed.
 
 ---
