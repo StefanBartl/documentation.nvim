@@ -19,7 +19,7 @@ Pick whichever suits your tree. CI clones into `.deps/`.
 export LIB_NVIM_DIR=/path/to/lib.nvim
 ```
 
-## The four things CI runs
+## The five things CI runs
 
 ```bash
 scripts/ci.sh
@@ -34,7 +34,7 @@ nvim --headless -l scripts/ci.lua
 That is all of them, in order, stopping at the first failure. One gate at a
 time by naming it — `scripts/ci.sh luacheck`, `nvim --headless -l
 scripts/ci.lua luacheck` — which is also how `.github/workflows/ci.yml` calls
-it, one stage per job, so the four keep their independent red/green marks and
+it, one stage per job, so the five keep their independent red/green marks and
 their parallelism.
 
 **What each gate *is* lives in [`scripts/ci.lua`](../scripts/ci.lua) and
@@ -88,15 +88,28 @@ same rule `*.sh` already had. If you cloned before that landed, one
 nvim --headless -u NONE -l TESTS/run.lua
 ```
 
-Two specs, both driven by the tiny shared harness in
+**Sixty-seven specs**, every one driven by the tiny shared harness in
 [`TESTS/harness.lua`](../TESTS/harness.lua) (`eq`, `ok`, `tmpfile`,
-`read_lines` — no framework):
+`read_lines` — no framework). The list in
+[`TESTS/run.lua`](../TESTS/run.lua) is the inventory; a handful are worth
+knowing by name before touching what they cover:
 
 | Spec | Covers |
 |---|---|
 | [`docmap_spec.lua`](../TESTS/docmap_spec.lua) | `functions`, `check`, `scan`, the graph stages, `diff`/`history`, and the `install()` watch end to end. |
 | [`lang_registry_spec.lua`](../TESTS/lang_registry_spec.lua) | `core/lang_registry.lua` — registration order, `reset()` recovering the real "lua" backend from Lua's own module cache rather than losing it. Its own file: it touches the process-wide singleton other specs' real scans depend on. |
+| [`backend_contract_spec.lua`](../TESTS/backend_contract_spec.lua) | What every backend must keep, proved rather than asserted: a comment token is verified by *finding a marker*, `emits_calls` by running the backend over its own parity fixture. Also fails a backend with no parity fixture, so a twenty-fourth cannot drop out of the capability matrix silently. |
+| [`scan_scope_spec.lua`](../TESTS/scan_scope_spec.lua) | `opts.exclude` and `opts.languages` — including the reset discipline, which is the half that fails silently. |
 | [`docmap_browse_spec.lua`](../TESTS/docmap_browse_spec.lua) | `browse` — real floats, real buffers. |
+| `lang_*_spec.lua` | One per language backend. **Each skips when its grammar is absent**, which is the normal local state — see [`LANGUAGES.md § Running the language specs`](LANGUAGES.md#running-the-language-specs) for the `DOCMAP_<LANG>_PARSER` variable each one reads. |
+
+**A green run does not mean every backend was exercised.** Without grammars,
+the language specs report `ok` after their contract assertions and skip the
+parse. Point at built grammars before trusting a language change:
+
+```bash
+DOCMAP_PYTHON_PARSER=/path/to/python.so nvim --headless -u NONE -l TESTS/run.lua
+```
 
 The runner prints one line per spec and exits non-zero on the first failure. It
 writes to stdout directly rather than through `print`: `print` in a headless
@@ -117,6 +130,22 @@ scoping this with an autocmd glob pattern is the obvious approach and silently
 never fires on Windows, because Vim matches the raw OS-native buffer path
 against a forward-slash pattern. The explicit `is_subpath` check replaced it,
 and the test guards the opposite failure of over-matching.
+
+## The capability matrix
+
+```bash
+DOCMAP_TS_DIR=/path/to/grammars nvim --headless -u NONE -l scripts/parity.lua
+```
+
+Runs every backend over its own fixture in `TESTS/fixtures/parity/` and
+prints what came back — the table in
+[`LANGUAGES.md § Parity`](LANGUAGES.md#parity), measured rather than written
+down. `--markdown` emits it ready to paste. A backend whose grammar is
+missing is reported as `?` throughout rather than as a row of blanks:
+"not measured" and "measured, absent" are different facts, and collapsing
+them is what the audit exists to stop.
+
+Rerun it after touching a backend, and paste the result if a cell changed.
 
 ## Regenerating this repository's own map
 
