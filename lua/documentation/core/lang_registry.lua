@@ -54,6 +54,7 @@ local KNOWN_BACKENDS = {
   "documentation.core.lang.rust",
   "documentation.core.lang.php",
   "documentation.core.lang.ruby",
+  "documentation.core.lang.kotlin",
 }
 
 local loaded = false
