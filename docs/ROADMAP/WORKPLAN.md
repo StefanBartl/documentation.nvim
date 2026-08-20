@@ -376,6 +376,22 @@ correction is the useful part, not the feature.
       VimScript; that config is out of reach here rather than half-read, and
       saying so is cheaper than a second parser.
 
+- [x] **The Reference tab — decided 2026-08-21: not built.** Step 6 of
+      `ReferenceTab.md` asked honestly whether the panels still earn a tab
+      once the in-place lookups exist. Counted over this repository's 791
+      snippets: 64 of the Lua glossary's 76 entries are reachable by
+      hovering something already on screen, 18,807 decorations emitted. A
+      tab would index answers the reader already meets at the point of the
+      question.
+
+      The count paid for itself anyway: the stdlib glossary was keyed by
+      dotted name, and Lua is written with colons — **1004 colon calls
+      against 6 dotted ones** for the same eleven functions, i.e. the most
+      common stdlib call shape in the language was invisible to the feature
+      built to explain stdlib calls. A declared `syntax.method_namespace`
+      fixed it, +934 decorations, verified by running the page's own
+      tokenizer over the generated artifact.
+
 **Part 4's config-shaped work is complete.** The estimate that was wrong
 twice in one file — M for the extractors, S for the orphan check — was wrong
 in the same direction both times: it described the feature instead of the

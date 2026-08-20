@@ -91,6 +91,7 @@
 ---@field block_comment [string, string]? Opening and closing delimiter.
 ---@field strings [string, string][] Opening/closing delimiter pairs.
 ---@field escape string? Character that escapes the next one inside a string.
+---@field method_namespace string? The stdlib namespace a colon call belongs to — `"string"` for Lua, where `s:gsub(…)` *is* `string.gsub`. Set it and the page looks a single-word colon call up in that namespace; leave it unset and colon calls stay undecorated, which is what a language without one namespace of methods needs.
 
 ---One keyword, and what the reader is told about it.
 ---@class Documentation.Glossary.Entry

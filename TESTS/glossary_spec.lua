@@ -41,6 +41,21 @@ return function(H)
     )
     ok(gl.syntax and gl.syntax.strings ~= nil, where .. ": declares its string delimiters")
 
+    -- A declared method namespace is a promise the stdlib table has to keep:
+    -- the page looks `s:gsub(…)` up as `<namespace>.gsub`, so a namespace
+    -- with no entries under it decorates nothing and a reader would never
+    -- learn that the feature was meant to be there.
+    local ns = gl.syntax and gl.syntax.method_namespace
+    if ns then
+      local n_under = 0
+      for name in pairs(gl.stdlib or {}) do
+        if name:sub(1, #ns + 1) == ns .. "." then
+          n_under = n_under + 1
+        end
+      end
+      ok(n_under > 0, where .. ": method_namespace " .. ns .. " has entries the page can reach")
+    end
+
     for name, entry in pairs(gl.keywords) do
       ok(
         type(entry.summary) == "string" and entry.summary ~= "",
