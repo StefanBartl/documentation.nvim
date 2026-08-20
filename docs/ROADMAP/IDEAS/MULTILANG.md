@@ -808,8 +808,34 @@ The ten highest-traffic languages on either list that are not already built.
       parameters**, because Sinatra documents in RDoc. That is precisely the
       project `param_docs = false` protects: its real summaries are extracted
       and shown, and it is not marked down for a convention it never adopted.
-- [ ] **Kotlin** — `.kt`, `.kts`. KDoc, four visibilities collapsing to two
-      exactly as Java's did, `package` plus file stem for identity.
+- [x] ~~**Kotlin**~~ — `core/lang/kotlin.lua`, built 2026-08-20, the
+      sixteenth backend. The four visibilities collapse to two as this entry
+      predicted — **but the interesting part is the default, which the entry
+      did not name.** A Kotlin declaration with no modifier is `public`. C#
+      says private for the same silence and Java says package-private: three
+      languages that look alike on the page and disagree about what silence
+      means. Most Kotlin declares no modifier at all, so the rule is written
+      as *not private, not protected, not internal* — asking for the keyword
+      would report an entire codebase as unpublished.
+
+      **KDoc has one tag no other language here does:** `@property name`,
+      which documents a constructor parameter that is also a property. It is
+      read as a parameter, because in a `data class` that is the only place
+      the fields are described — anything else would leave every data class
+      in the language undocumented.
+
+      One fixture finding: taking the *first declaration* for the file
+      summary is wrong in Kotlin, because a top-level `const val` above the
+      class is ordinary. A type is preferred over a function and a function
+      over a property, so the summary describes the file rather than its
+      first constant.
+
+      Fifth language to need the interface default — after C#, Go, Rust and
+      PHP.
+
+      **Measured on `Kotlin/kotlinx.coroutines`** (the common source set):
+      111 files, all 111 with a module name, 1164 functions (747 public, 360
+      of those documented), 754 symbols, 370 imports, 93 file summaries.
 - [ ] **Swift** — `.swift`. Markup comments (`///`), five access levels
       (`open`/`public`/`internal`/`fileprivate`/`private`) collapsing to
       two, and no import-by-path — a module is a build target, so the path
