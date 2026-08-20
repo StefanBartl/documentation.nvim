@@ -836,10 +836,40 @@ The ten highest-traffic languages on either list that are not already built.
       **Measured on `Kotlin/kotlinx.coroutines`** (the common source set):
       111 files, all 111 with a module name, 1164 functions (747 public, 360
       of those documented), 754 symbols, 370 imports, 93 file summaries.
-- [ ] **Swift** — `.swift`. Markup comments (`///`), five access levels
-      (`open`/`public`/`internal`/`fileprivate`/`private`) collapsing to
-      two, and no import-by-path — a module is a build target, so the path
-      is the identity here too.
+- [x] ~~**Swift**~~ — `core/lang/swift.lua`, built 2026-08-20, the
+      seventeenth backend. Everything this entry named held. Two things it
+      did not name are the interesting ones.
+
+      **The documentation is Markdown list items, a fourth shape.** This tool
+      had met tag formats (LuaCATS, JSDoc, Javadoc, PHPDoc, KDoc), prose with
+      sections (Python), and markup (C#'s XML). Swift is none: a parameter is
+      documented by a *bullet*, `- Parameter x: text`, with `- Parameters:`
+      opening an indented list when there are several. It is DocC's own form,
+      so unlike Ruby's YARD it is both parsed **and** judged.
+
+      **The default visibility is `internal` — module-only — which is a
+      fourth answer about silence.** C# says private, Java says
+      package-private, Kotlin and PHP say public, Swift says module-only.
+      Four languages, four meanings for the same absence, which is why each
+      backend writes its own rule instead of sharing one.
+
+      **And the same Lua trap twice in one session.** `what == "protocol" and
+      false or nil` evaluates to `nil`, because `false` is falsy and the `or`
+      branch runs — so every protocol member fell through to the module-only
+      default and came back internal. The identical shape cost Python every
+      method's visibility a few backends earlier. `nil` and `false` are both
+      unusable as the middle operand, and both times a fixture caught it.
+
+      Sixth language in a row to need the interface/protocol default — C#,
+      Go, Rust, PHP, Kotlin, Swift.
+
+      One note for the release script: **Swift is the only grammar here that
+      ships no generated parser**, so it needs `npm install` and
+      `tree-sitter generate` before `tree-sitter build`.
+
+      **Measured on `Alamofire/Alamofire`:** 43 files, 472 functions (342
+      public, 187 of those documented), **399 bullet parameters**, 447
+      symbols, 54 imports, 34 file summaries.
 - [ ] **Dart** — `.dart`. `///` doc comments, and visibility is a **leading
       underscore that the compiler enforces**, which makes Dart the one
       language where the underscore convention is a fact rather than a
