@@ -3067,3 +3067,36 @@ hand against `grep` before believing the panel.
 - **Modules:** `core/render/html.lua` (`renderAnalysisAnnotations`),
   `core/tags.lua` (`field`)
 - **Tests:** `TESTS/adoption_spec.lua`
+
+## The tag card — the lookup layer's third kind (2026-08-20)
+
+`ReferenceTab.md` lists four surfaces where a reader meets notation they may
+not recognise, and argues they should be one layer rather than four tooltip
+implementations. Keywords and stdlib names shipped in August; this is the
+third: **the annotation badges are the tags**, so they are the trigger.
+
+A reader who does not know what `nodiscard` promises is looking straight at
+the word. Sending them to a tab to find out is the proximity failure that
+document warns about — and the reason the badges got the card rather than a
+new panel.
+
+**Nothing new was built to show it.** `data-kw` already carries a dwell
+timer, a grace period on the way out so the pointer can travel into the card,
+a keyboard path through `focusin`, and placement that flips above the anchor
+when the card would fall off the bottom. The badges use that attribute; the
+card learned one more kind. The placement rule was extracted into `kwPlace`
+when it gained a second caller — two copies of a flip rule is two chances to
+flip one of them the wrong way.
+
+**The link rule is resolved in Lua**, by `tags.for_page()`, not re-derived in
+the page: "an origin with no published reference gets no link, ever" is the
+one part of the catalogue that is a decision rather than data, and a second
+implementation would get it wrong in the direction of linking somewhere
+plausible. Verified in a browser on both paths: `@internal` shows *this
+project's own convention* and no link; `@deprecated` links to
+`luals.github.io/wiki/annotations/#deprecated`; an uncatalogued tag shows no
+card at all rather than an empty one.
+
+- **Modules:** `core/render/html.lua` (`tagBadge`, `kwOpen`'s tag branch,
+  `kwPlace`), `core/tags.lua` (`for_page`)
+- **Tests:** `TESTS/adoption_spec.lua`

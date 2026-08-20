@@ -212,7 +212,7 @@ same thing: a short definition, in place, with an optional link out.
 |---|---|---|
 | **Source snippets** (`.fn-snip`) | a language keyword — `goto`, `<close>`, `await`, `yield` | a per-language keyword glossary (new) |
 | **Source snippets** | a standard-library call — `table.concat`, `Object.entries` | a per-language stdlib glossary (new); `calls_external` already knows which ones this tree actually uses |
-| **Rendered annotations** | `@param`, a `@deprecated` badge, a LuaCATS type string | the `TAGS` table this document already names as the precondition for the tag panel |
+| ~~**Rendered annotations**~~ | a `@deprecated`/`@async`/`@nodiscard`/`@internal`/`@since` badge | **built 2026-08-20** on `core/tags.lua`. The badges *are* the tags, so they are the trigger — a reader who does not know what `nodiscard` promises is looking straight at the word. `@param` and type strings are not triggers yet: those are rendered as structured sections rather than as the tag's own name |
 | **Drift findings** | a check id — `param-name-mismatch`, `layer-violation` | the check catalogue, which `MULTILANG.md` Part 4's stage 3.6 and `I18N.md`'s I18N-0 are *both* about to introduce anyway |
 
 Four features or one depends entirely on whether the lookup is a registry or
