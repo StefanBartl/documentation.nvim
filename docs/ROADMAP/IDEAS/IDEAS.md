@@ -287,6 +287,59 @@ specific thing" in a PR comment.
 
 ---
 
+### 3.6 Compiler Explorer, two steps further — **noted 2026-08-20, not built**
+
+`opts.godbolt` already puts a *Compiler Explorer ↗* link beside every module
+and function, built client-side from that entity's own `fn.snippet` as a
+`clientstate` URL — no API call, nothing non-reproducible in the artifact.
+Two extensions were asked for, and both are worth having for the same
+reason: the link answers "what does this compile to" for **one** thing, and
+the two questions people actually ask are comparative and offline.
+
+**1. Compare two functions there, side by side.** The Compare tab already
+holds whatever was marked with `+`, and its Matrix layout exists to answer
+*where do these differ*. Sending both marked functions to Compiler Explorer
+in one `clientstate` — two editor panes, two compiler panes — answers the
+same question one layer down, at the instruction level. That is exactly the
+question the structural **duplicates** panel raises and cannot settle: two
+functions with an identical parse-tree shape may or may not compile to the
+same thing, and nothing in this tool can say which.
+
+Cheap, because the mechanism is already there: `clientstate` describes a
+whole session layout, not a single editor, so this is a larger JSON built
+from two snippets instead of one. No new payload, no new IR field.
+
+**2. Offer a local Compiler Explorer, not only the public one.** Today the
+link goes to `godbolt.org`, which means a network call and somebody else's
+server seeing the source. For a private repository that is the wrong
+default, and for an offline machine it is no feature at all.
+
+The shape asked for: when the link is used, ask — **open online, or download
+and install a local Compiler Explorer** — and then do the corresponding
+thing, loading the functions into whichever was chosen.
+
+Three things to decide before building it, none of them hard but all of them
+worth writing down first:
+
+* **Where the choice lives.** A prompt on every click is a prompt nobody
+  wants twice; this is a setting with a first-run question, the same shape
+  the app's engine path already has.
+* **Who installs it.** A local Compiler Explorer is a Node application with
+  its own compilers to configure — that is a real installation, not a
+  download. The honest version offers to *point at* one that exists and
+  documents how to get one, rather than a plugin that installs a toolchain
+  behind somebody's back.
+* **The artifact stays reproducible.** A generated page must not hard-code
+  one machine's `localhost:10240`. The URL base belongs in the same
+  client-side place the link already is, read at click time — so a committed
+  map opens against whatever the reader has, not against whatever the author
+  had.
+
+Worth pairing with the offline story generally: this is the one feature in
+the generated page that reaches the network at all.
+
+---
+
 ### 3.3 Print / PDF stylesheet
 
 A `@media print` block so the Tree tab and the Analysis panels print
