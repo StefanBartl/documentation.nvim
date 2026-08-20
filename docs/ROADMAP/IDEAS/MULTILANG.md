@@ -724,8 +724,57 @@ The ten highest-traffic languages on either list that are not already built.
       of every public trait as internal. C#'s interface and Go's interface
       were the first two. Three languages, three spellings, one meaning:
       *this declaration exists in order to be published.*
-- [ ] **PHP** — `.php`. PHPDoc, `public`/`private`/`protected`, `namespace`,
-      and `require`/`include`/`use` as three different edges to tell apart.
+- [x] ~~**PHP**~~ — `core/lang/php.lua`, built 2026-08-20, the fourteenth
+      backend. The three edges this entry named are told apart, and telling
+      them apart turned out to be the interesting part: `use` is a *symbolic*
+      import that loads nothing, `require`/`include` load a *file* at run
+      time, and a project uses one or the other rather than both. **PHP is
+      the first language here where both kinds produce edges in one map** —
+      C has only the file kind, Java and C# only the symbolic one.
+
+      Both resolve, differently. A `use` names a class, and PSR-4 *requires*
+      the class name to match the file name — so `Acme\Other\Thing` matches
+      the module this backend derives for `src/Other/Thing.php`. A `require`
+      names a path and is rewritten `./`-relative, as assembly's `%include`
+      is.
+
+      **The default visibility runs opposite to C#'s, and that is worth more
+      than a footnote.** A PHP method with no modifier is **public**. C#
+      taught this tool that an absent modifier can mean private and that
+      reading it wrong inverts an entire API; PHP is where the same absence
+      means the opposite. So the rule is written as *not private and not
+      protected* rather than as *has `public`* — the latter would report
+      every unmarked method in every legacy PHP file as internal.
+
+      **PHP is also the only backend where a keyword and an authoring
+      convention are both available and both read.** PHPDoc's `@internal`
+      keeps a `public` method out of the published surface, which is the
+      convention layer Lua and the ECMA family live on, sitting over a
+      language that also has real keywords.
+
+      **Two findings, one from the fixture and one from the contract test.**
+      `__DIR__ . '/helpers.php'` reads literally as `/helpers.php`, which
+      would resolve against the top of the scanned tree — a real file,
+      somewhere else; the slash there is a separator, not a root. And
+      `backend_contract_spec.lua` reported PHP's own comment token as
+      producing no marker — correctly, because **PHP source outside `<?php`
+      is text**, so a bare `// TODO: x` is inline HTML with no comment node
+      in it. The grammar was right and the question was wrong, so the
+      contract gained `code_prelude`: what a minimal file of a language must
+      begin with for its code to be code. Absent for all thirteen others.
+
+      And for the fourth time in four backends: **an interface member is
+      public and cannot be declared otherwise** — `private` on a PHP
+      interface method is a fatal error. C#'s interface, Go's interface,
+      Rust's trait, PHP's interface. Four languages, four spellings, one
+      meaning.
+
+      **Measured on `guzzle/guzzle`:** 68 files, all 68 with a fully
+      qualified module name, 625 functions (269 public, 160 of those
+      documented), 187 documented parameters with union types intact, 306
+      symbols, and 109 of 286 `use` edges resolving to a node in the tree —
+      with **zero** `require` edges, which is exactly what the header
+      predicts of a PSR-4 project.
 - [ ] **Ruby** — `.rb`. No visibility keyword at declaration site: `private`
       is a *positional* statement affecting everything after it, the same
       shape C++'s access specifier turned out to have, so it is tracked
