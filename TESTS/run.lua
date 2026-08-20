@@ -115,6 +115,7 @@ local specs = {
   "lang_js_gaps_spec.lua",
   "polyglot_fixture_spec.lua",
   "resolve_relative_spec.lua",
+  "markdown_links_spec.lua",
   "snippet_spec.lua",
   "bindings_spec.lua",
   "browse_endpoints_spec.lua",

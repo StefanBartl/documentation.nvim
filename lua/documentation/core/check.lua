@@ -145,24 +145,12 @@ end
 --- relative links identically, only `base_dir` differs, and it is always
 --- the linking file's own directory — verified against every `node.readme`
 --- in this repo's own map, never a mismatch.
----@param base_dir string
----@param target string
----@return string
-local function resolve_relative_link(base_dir, target)
-  local joined = base_dir .. "/" .. target
-  local parts, stack = {}, {}
-  for seg in joined:gmatch("[^/]+") do
-    parts[#parts + 1] = seg
-  end
-  for _, seg in ipairs(parts) do
-    if seg == ".." then
-      table.remove(stack)
-    elseif seg ~= "." then
-      stack[#stack + 1] = seg
-    end
-  end
-  return table.concat(stack, "/")
-end
+---
+--- **Moved to `docs.resolve_link` 2026-08-20**, when `render/markdown.lua`
+--- turned out to need the same walk to rebase a summary's links into the
+--- artifact directory. Two copies of a path resolver is the drift this
+--- plugin reports in other people's trees.
+local resolve_relative_link = docs.resolve_link
 
 --- Blank out fenced code blocks and inline code spans, so link-shaped text
 --- inside an example (this repo's own `` `[text](url)` `` in
