@@ -103,4 +103,50 @@ return function(H)
       end
     end
   end
+
+  -- ---------------------------------------------------------------------
+  -- Every backend has a parity fixture.
+  --
+  -- `scripts/parity.lua` measures the capability matrix in
+  -- `docs/LANGUAGES.md` by running each backend over one real file of its
+  -- own language. A backend with no fixture is reported as "no fixture" and
+  -- **silently leaves a row out of the audit** -- the same failure mode as
+  -- the missing comment token above, one level up: the table looks complete
+  -- because the missing language is not in it.
+  --
+  -- Asserts the file exists, not what is in it. What is in it is the
+  -- fixture's own job and the matrix is where it shows.
+  -- ---------------------------------------------------------------------
+  do
+    local root = (vim.fn.getcwd():gsub("\\", "/"))
+    local dir = root .. "/TESTS/fixtures/parity"
+    ok(vim.fn.isdirectory(dir) == 1, "the parity fixture directory must exist")
+
+    -- Keyed by backend name, matching `FIXTURES` in `scripts/parity.lua`.
+    -- Two hand-maintained copies of one list is exactly what this repo
+    -- avoids elsewhere -- but the script must run under a bare
+    -- `nvim -l` with no harness, and a spec must run without the script,
+    -- so the duplication buys each of them its own independence. This
+    -- assertion is what stops them drifting.
+    for _, backend in ipairs(all) do
+      local matches = vim.fn.glob(dir .. "/**/" .. backend.name .. ".*", false, true)
+      -- Java's fixture is `Java.java`: the language requires the file name
+      -- to match the public type, so the one lower-case name would not
+      -- compile. Matched case-insensitively rather than special-cased.
+      if #matches == 0 then
+        for _, path in ipairs(vim.fn.glob(dir .. "/**/*", false, true)) do
+          local stem = path:match("([^/]+)%.[^.]+$")
+          if stem and stem:lower() == backend.name:lower() then
+            matches[#matches + 1] = path
+          end
+        end
+      end
+      ok(
+        #matches > 0,
+        backend.name
+          .. ": needs a fixture in TESTS/fixtures/parity/, or it is left out of "
+          .. "the capability matrix without saying so"
+      )
+    end
+  end
 end

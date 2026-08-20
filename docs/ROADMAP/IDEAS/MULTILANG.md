@@ -1193,7 +1193,51 @@ automation is part of what a map should show.
 
 ### And then: feature parity across all of them
 
-- [ ] **The parity pass, once every backend exists.** The rule asked for is
+- [x] ~~**The parity pass, once every backend exists.**~~ — done 2026-08-20.
+      The matrix is [`docs/LANGUAGES.md § Parity`](../../LANGUAGES.md#parity),
+      measured by `scripts/parity.lua` over one fixture per language in
+      `TESTS/fixtures/parity/` rather than written down by hand — for the
+      reason the docs pass had just demonstrated: a count written in a
+      document is a claim, a count derived from the code is a fact.
+
+      **Four columns are complete across all twenty-three** — file summary,
+      declaration summary, visibility, require edges — and markers are too,
+      after the pass fixed three languages where they were not.
+
+      **The blanks split three ways, and the split is the result.** Twenty
+      are language facts with a written reason (module identity where the
+      path is the identity; per-parameter prose where the language has no
+      such form). Nineteen are a deliberate decision (no glossary decorates
+      nothing rather than borrowing another language's keywords). And
+      **twenty-three are neither** — call edges in nineteen backends and
+      module-scope symbols in four — which is exactly the failure this entry
+      was looking for: a blank with no sentence beside it. They are now in
+      `ROADMAP.md`, described as unbuilt rather than as impossible, because
+      nothing in any of those languages makes them impossible.
+
+      **Four defects found on the way**, all the same shape — a capability
+      reporting nothing rather than reporting a problem. Markers were
+      invisible inside Haskell `haddock`, Kotlin `multiline_comment` and Dart
+      `documentation_comment` nodes, which is to say inside the *doc* comment
+      of each of those languages. `haskell.lua` already knew about `haddock`
+      and reassembles runs by row; `markers.lua` did not — **one module
+      learned the fact and the other did not**, and only a table across all
+      the languages made the disagreement visible. A block comment's closer
+      was also being reported as part of the note. Both fixed, both
+      regression-tested. And OCaml's visibility silently reads as
+      "everything public" on a host missing `ocaml_interface` — not a code
+      defect, a trap now written down.
+
+      **The one thing a future backend must copy from this**: the fixtures
+      are idiomatic per language, not one shape translated twenty-three
+      times. Five languages have no file-level doc comment and take the first
+      *type*'s block instead; Rust's module identity comes from its position
+      under `src/`; Ruby's `private` does nothing to a `def self.` method.
+      Every one of those was a wrong first fixture that measured a fixture
+      fact and reported it as a language fact.
+
+      **What was asked for, kept because it is the standard the result was
+      measured against.** The rule is
       that a feature Lua has, every language has — *in its own terms*, not
       by pretending each language is Lua. So this is an audit with a table:
       one row per contract capability (file summary, declaration summary,

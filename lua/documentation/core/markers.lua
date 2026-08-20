@@ -259,10 +259,30 @@ local function parsed_comments(src, backend)
   ---not understood", so the text fallback never ran either. Found by
   ---`backend_contract_spec.lua`, which is why that spec proves the token
   ---*works* rather than that it is declared.
+  ---
+  ---**The last three arrived together, and in the same quiet direction.**
+  ---The parity audit (`scripts/parity.lua`) walked every backend's fixture
+  ---looking for nodes that begin with a declared comment token and are not
+  ---in this set, and found one per grammar in three languages: Haskell's
+  ---`haddock` (a `-- |` block, which swallows the plain `--` lines that
+  ---follow it, so a marker on the second line of a documented declaration
+  ---was invisible), Kotlin's `multiline_comment` (every `/* */` and every
+  ---KDoc block — declared in `block_comments` and never read), and Dart's
+  ---`documentation_comment` (`///`, which is where a Dart author writes
+  ---almost everything). All three are the *doc* comment of their language,
+  ---which is precisely where a `TODO:` about a declaration goes.
+  ---
+  ---`backend_contract_spec.lua` could not have caught these: it proves the
+  ---token works by building the smallest file that could hold a marker, and
+  ---the smallest file always lands in a plain `comment` node. Finding them
+  ---needed a file with a *documented declaration* in it.
   local COMMENT_NODES = {
     comment = true,
     line_comment = true,
     block_comment = true,
+    haddock = true,
+    multiline_comment = true,
+    documentation_comment = true,
   }
 
   ---@param node TSNode
@@ -282,6 +302,37 @@ local function parsed_comments(src, backend)
   end
   walk(trees[1]:root())
   return out
+end
+
+---Drop a block comment's closing delimiter off the end of a marker's text.
+---
+---Only the parser path needs this. The text scanner below already slices a
+---line at the closer before it ever reaches `match_marker`, but a parsed
+---comment node carries its *whole* span — delimiters included — so
+---`/* TODO: cap it */` came out as the text "cap it */". The closer is
+---punctuation belonging to the comment, not to the note, and it was being
+---rendered into the Notes tab.
+---
+---Anchored to the end and applied once: a note that legitimately ends in
+---`*/` cannot be told apart from one that does not, and the only reading
+---that is right more often is "this is the delimiter".
+---`text` is typed optional because `match_marker`'s fourth return is: a
+---marker with a name always has one, but saying so here would need an
+---assertion at the only call site to prove what the branch already knows.
+---@param text string?
+---@param syn { line: string[], block: { [1]: string, [2]: string }[] }
+---@return string
+local function strip_closer(text, syn)
+  if not text or text == "" then
+    return ""
+  end
+  for _, block in ipairs(syn.block) do
+    local closer = block[2]
+    if #text >= #closer and text:sub(-#closer) == closer then
+      return vim.trim(text:sub(1, -#closer - 1))
+    end
+  end
+  return text
 end
 
 ---Collect marker comments from source text.
@@ -314,7 +365,7 @@ function M.scan_source(src, backend)
             kind = name,
             word = word,
             author = author,
-            text = note,
+            text = strip_closer(note, syn),
             line = c.row + offset + 1,
           }
         end

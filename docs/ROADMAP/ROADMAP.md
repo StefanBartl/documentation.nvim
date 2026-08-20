@@ -16,10 +16,23 @@ the work survives a cold start in a new session.
 
 ## Genuinely open
 
-- **Multi-language support.** Extending the scanner past Lua — cost analysis,
-  what 85% reuse actually hides, and a phased task breakdown (Phase 0/1,
-  JS/TS, already built; everything past that still planning). See
-  [`IDEAS/MULTILANG.md`](IDEAS/MULTILANG.md).
+- **Multi-language support.** Twenty-three backends built. What each reads is
+  [`LANGUAGES.md`](../LANGUAGES.md); what each cost is
+  [`IDEAS/MULTILANG.md`](IDEAS/MULTILANG.md). Sixteen further languages are
+  *available* rather than scheduled — see that file's decision 4.
+- **Call edges outside Lua and the ECMA family.** Found by the parity pass
+  2026-08-20 and the largest single gap in the tool: `lua`, `js`, `ts` and
+  `tsx` return call sites, and **the other nineteen backends return `{}`**.
+  So the Hierarchy tab's Calls and Module Calls views, `:DocMap why`, the
+  call-hierarchy LSP integration and `dead-function`'s call-edge tier are all
+  empty in nineteen languages. **Nothing in any of those languages makes this
+  impossible** — it is unbuilt, not blocked, and it had no sentence anywhere
+  before the audit. Invisible from any one language; it took a table across
+  all of them. See [`LANGUAGES.md § Parity`](../LANGUAGES.md#parity).
+- **Module-scope symbols in the four oldest non-Lua backends.** `zig`, `java`,
+  `c` and `cpp` return none; every backend written from Python onward does.
+  Nothing decided this — the capability arrived after those four and never
+  went back. Small next to the entry above, and the same kind of finding.
 - **Running without Neovim.** Already works for "map a Lua project from the
   terminal"; costed separately is dropping the Neovim dependency entirely.
   See [`IDEAS/PORTABILITY.md`](IDEAS/PORTABILITY.md).

@@ -18,6 +18,7 @@ memory.
 - [The contract, field by field](#the-contract-field-by-field)
 - [Grammars](#grammars)
 - [What a missing grammar costs](#what-a-missing-grammar-costs)
+- [Parity](#parity)
 - [Running the language specs](#running-the-language-specs)
 - [Adding a backend](#adding-a-backend)
 
@@ -195,6 +196,169 @@ broken, which is why they stay distinct all the way out to the report.
 The probe is deliberately **not cached**: it is asked once per handshake, and
 a cached "missing" would survive the user pointing at their grammars
 directory — precisely the moment the answer is supposed to change.
+
+---
+
+## Parity
+
+The rule the parity pass audits: **a capability Lua has, every language has —
+in its own terms, not by pretending each language is Lua.** One row per
+language, one column per capability, and a blank cell is only acceptable with
+a sentence beside it naming what makes it blank.
+
+**Every cell below was measured, not judged.** `scripts/parity.lua` runs each
+backend over a real file of its own language in
+[`TESTS/fixtures/parity/`](../TESTS/fixtures/parity) and reports what came
+back. Regenerate it with:
+
+```bash
+DOCMAP_TS_DIR=C:/tools/docmap-grammars nvim --headless -u NONE -l scripts/parity.lua --markdown
+```
+
+| Language | File summary | Module identity | Declaration summary | Parameters | Returns | Visibility | Require edges | Call edges | Symbols | Markers | Glossary |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| `lua` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `js` | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `ts` | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `tsx` | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `zig` | ✓ | — | ✓ | — | — | ✓ | ✓ | — | — | ✓ | — |
+| `java` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — |
+| `c` | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — |
+| `cpp` | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — |
+| `asm` | ✓ | — | ✓ | — | — | ✓ | ✓ | — | ✓ | ✓ | — |
+| `python` | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — |
+| `csharp` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — |
+| `go` | ✓ | — | ✓ | — | — | ✓ | ✓ | — | ✓ | ✓ | — |
+| `rust` | ✓ | ✓ | ✓ | — | — | ✓ | ✓ | — | ✓ | ✓ | — |
+| `php` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — |
+| `ruby` | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — |
+| `kotlin` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — |
+| `swift` | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — |
+| `dart` | ✓ | — | ✓ | — | — | ✓ | ✓ | — | ✓ | ✓ | — |
+| `scala` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — |
+| `haskell` | ✓ | ✓ | ✓ | — | — | ✓ | ✓ | — | ✓ | ✓ | — |
+| `elixir` | ✓ | ✓ | ✓ | — | — | ✓ | ✓ | — | ✓ | ✓ | — |
+| `erlang` | ✓ | ✓ | ✓ | — | — | ✓ | ✓ | — | ✓ | ✓ | — |
+| `ocaml` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — |
+
+**Four columns are complete across all twenty-three**: file summary,
+declaration summary, visibility and require edges. Markers are complete too,
+after this pass fixed three languages where they were not — see below.
+
+### Why each blank is blank
+
+**Module identity — twelve blanks, every one a language fact.** The cell means
+*the file states its own module name*; the blank means **the path is the
+identity**, which is how those languages resolve imports in the first place.
+JavaScript, TypeScript and TSX resolve ESM by path; Zig's `@import` is a path;
+C and C++ `#include` a path; Python's import path is the file path; Ruby's
+`require` names a path; Swift has no module name in a file at all (the module
+is the build target); Dart's `library` directive exists and is close to
+extinct in practice. Assembly has no module construct to state.
+
+**Go is the one where the name genuinely exists and still cannot be used.** A
+Go package is a *directory* — every `.go` file in it declares the same
+`package foo` — so taking that as the module name would have three files
+claiming one identity. It arrives at the same answer as Zig, C and assembly by
+a completely different route.
+
+Of the eleven fills, ten read a declaration (`---@module`, `package`,
+`namespace`, `defmodule`, `-module`, a Haskell module header, an OCaml file
+stem). **Rust is the eleventh and reads the filesystem**: a module path is
+derived from the file's position under `src/`, which is why its fixture lives
+in `TESTS/fixtures/parity/src/` — put anywhere else it measures "no identity"
+and reports a fixture fact as a language fact.
+
+**Parameters and returns — eight blanks, every one a language fact**, and they
+are `param_docs = false` languages: Zig documents a declaration as a whole,
+assembly's label has no parameter list, godoc has no tag vocabulary at all,
+rustdoc's `# Arguments` is a Markdown heading rather than a form, dartdoc's
+`[n]` is a cross-reference rather than a slot, a Haskell type signature has no
+parameter names in it to match against, ExDoc describes arguments in prose,
+and Erlang's `-spec` names types rather than parameters.
+
+**Two things this column does not mean.** First, **the signature always
+carries the parameters** — `fn.signature` is `widen(n int)` for Go the same as
+for Lua, and the map shows it. What is missing is per-parameter *prose*.
+Second, **Ruby has ✓ here and `param_docs = false`**, which looks like a
+contradiction and is the most useful cell in the table: YARD's
+`@param [Integer] x` is real, common and worth showing, so it is extracted and
+displayed — but YARD is a gem and RDoc ships with the language with no
+per-parameter form, so Ruby is *not judged* by it. That is why nine backends
+declare `param_docs = false` while only eight have this cell blank.
+
+**Glossary — nineteen blanks, a decision rather than a gap.** A backend
+without one decorates nothing, which is the honest degradation; falling back
+to another language's keywords would explain `goto` in a file where it means
+something else. Adding one is per-language work with a maintenance cost, and
+the two that exist were written because somebody hovers those words.
+
+### The two blanks with no language behind them
+
+These are the failure the parity pass was looking for, and it found them.
+**Nothing in any of these languages makes either capability impossible.**
+They are simply not built, they had no sentence anywhere before this pass, and
+saying so is the point:
+
+- **Call edges: four backends of twenty-three.** `lua`, `js`, `ts` and `tsx`
+  return call sites; the other nineteen return `{}` from `scan_file`'s second
+  slot. So the Hierarchy tab's Calls and Module Calls views, `:DocMap why`,
+  the call-hierarchy LSP integration and `dead-function`'s call-edge tier all
+  work in Lua and the ECMA family and are empty everywhere else. This is the
+  largest single gap in the tool, it is invisible from any one language, and
+  it took a table across all of them to see.
+- **Symbols: the four oldest non-Lua backends.** `zig`, `java`, `c` and `cpp`
+  return no module-scope symbols. Every backend written from Python onward
+  does. Nothing decided this — the capability arrived after those four and
+  never went back.
+
+Both are now tracked in
+[`ROADMAP/ROADMAP.md`](ROADMAP/ROADMAP.md). Neither is dressed up as a
+language limit, because it is not one.
+
+### What the audit fixed on the way
+
+Building the matrix found four defects, all of the same shape: **a capability
+that reported nothing rather than reporting a problem.**
+
+- **Markers were invisible in Haskell, Kotlin and Dart doc comments.**
+  `markers.lua` recognises comment nodes by name, and its list held `comment`,
+  `line_comment` and `block_comment`. Haskell's grammar emits `haddock` for a
+  `-- |` block — swallowing the plain `--` lines that follow it, so a marker
+  on the second line of a documented declaration was gone. Kotlin emits
+  `multiline_comment` for every `/* */` and every KDoc block, which the
+  backend *declares* in `block_comments` and nothing ever read. Dart emits
+  `documentation_comment` for `///`, which is where Dart writes almost
+  everything. All three are the **doc** comment of their language — exactly
+  where a `TODO:` about a declaration goes.
+
+  It failed quietly in the way that module's own header already warns about:
+  the parser answered, so the text fallback never ran, so the file simply had
+  no markers. And `haskell.lua` already knew about `haddock` nodes and
+  reassembles runs by row — **one module learned the fact and the other did
+  not**, which is the more useful half of this finding.
+
+  `backend_contract_spec.lua` could not have caught it. It proves a comment
+  token works by building the smallest file that could hold a marker, and the
+  smallest file always lands in a plain `comment` node. Finding this needed a
+  file with a *documented declaration* in it, which is what a parity fixture
+  is.
+
+- **A block comment's closer was part of the note.** `/* TODO: cap it */` was
+  reported as the text `cap it */` and rendered that way into the Notes tab.
+  Only the parser path: the text fallback slices a line at the closer before
+  the matcher ever sees it, so one path was right and the other was not.
+
+Both are regression-tested in `TESTS/markers_spec.lua`.
+
+- **OCaml's visibility needs two grammars, and one of them fails silently.**
+  Not a code defect — a trap worth knowing. Visibility lives in the sibling
+  `.mli`, which is a different language to the parser. A host holding
+  `ocaml.dll` and not `ocaml_interface.dll` parses the `.ml` perfectly, cannot
+  read the interface, concludes there is no `.mli`, and reports **every
+  declaration as public**. Not an error and not a degraded parse: a confident
+  wrong answer about the one question that file exists to settle. The audit's
+  own first run hit it.
 
 ---
 

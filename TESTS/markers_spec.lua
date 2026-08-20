@@ -252,4 +252,85 @@ return function(H)
       end
     end
   end
+
+  -- ---------------------------------------------------------------------
+  -- Doc comments, which is where a marker about a declaration actually
+  -- goes. Three grammars name that node something `COMMENT_NODES` did not
+  -- know, and all three failed in the quiet direction: the parser answered,
+  -- so the text fallback never ran, so the file simply had no markers.
+  --
+  -- Found by `scripts/parity.lua`, not by `backend_contract_spec.lua` —
+  -- that one proves a comment token works by building the smallest file
+  -- that could hold a marker, and the smallest file always lands in a plain
+  -- `comment` node. It took a file with a *documented declaration* in it.
+  --
+  -- Each case skips when its grammar is absent, the same rule the language
+  -- specs follow.
+  -- ---------------------------------------------------------------------
+  do
+    -- Named rather than written inline at three call sites: a `"\n"` inside
+    -- a table literal inside a spec is the kind of byte a later edit gets
+    -- wrong silently.
+    local NL = string.char(10)
+    local cases = {
+      {
+        lang = "haskell",
+        file = "x.hs",
+        why = "a marker on the second line of a `-- |` run is inside a `haddock` node",
+        src = table.concat({ "-- | Widen a value.", "-- TODO: cap it", "widen n = n" }, NL),
+      },
+      {
+        lang = "kotlin",
+        file = "x.kt",
+        why = "Kotlin declares `block_comments` and every `/* */` is a `multiline_comment`",
+        src = table.concat({ "/**", " * TODO: cap it", " */", "fun f() {}" }, NL),
+      },
+      {
+        lang = "dart",
+        file = "x.dart",
+        why = "`///` is a `documentation_comment`, and it is where Dart writes prose",
+        src = table.concat({ "/// TODO: cap it", "int f() => 1;" }, NL),
+      },
+    }
+    for _, c in ipairs(cases) do
+      local backend = registry.for_file(c.file)
+      ok(backend ~= nil, c.lang .. " must be registered")
+      local explicit = os.getenv("DOCMAP_" .. c.lang:upper() .. "_PARSER")
+      local added
+      if explicit and explicit ~= "" then
+        _, added = pcall(vim.treesitter.language.add, c.lang, { path = explicit })
+      else
+        _, added = pcall(vim.treesitter.language.add, c.lang)
+      end
+      if added == true then
+        local found = markers.scan_source(c.src, backend)
+        eq(#found, 1, c.lang .. ": " .. c.why)
+        eq(found[1].kind, "TODO")
+        eq(
+          found[1].text,
+          "cap it",
+          c.lang .. ": the note is the note, not the note plus a delimiter"
+        )
+      else
+        ok(true, "markers: no " .. c.lang .. " parser — skipping")
+      end
+    end
+  end
+
+  -- ---------------------------------------------------------------------
+  -- A block comment's closer belongs to the comment, not to the note. Only
+  -- the parser path had this wrong: it hands `match_marker` the node's whole
+  -- span, so `/* TODO: cap it */` was reported with the `*/` still on it and
+  -- rendered that way into the Notes tab. The text fallback always sliced at
+  -- the closer, which is why one path was right and the other was not.
+  -- ---------------------------------------------------------------------
+  do
+    local found = scan({ "--[[ TODO: cap it ]]", "local x = 1" })
+    eq(#found, 1)
+    eq(found[1].text, "cap it", "the closing delimiter is not part of the note")
+
+    local js = scan({ "/* TODO: cap it */", "const a = 1;" }, js_backend)
+    eq(#js, 1)
+    eq(js[1].text, "cap it", "same for the ECMA family's closer")
+  end
 end
