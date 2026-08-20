@@ -676,7 +676,7 @@ grouped by the question you arrived with. The table below is the short list.
 | [docs/LANGUAGES.md](docs/LANGUAGES.md) | The twenty-three backends as a reference: what each reads, the `Documentation.LangBackend` contract field by field, grammar resolution, what a missing grammar costs, and how to add the twenty-fourth. |
 | [docs/COMMANDS.md](docs/COMMANDS.md) | `:DocMap` and `:DocBrowse`, subcommand by subcommand. |
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | Using it day to day: which panel answers which question, reading the Telemetry join's badges correctly, Trail vs filter vs fuzzy jump. |
-| [docs/REUSE.md](docs/REUSE.md) | Generating a map for your own plugin. |
+| [docs/REUSE.md](docs/REUSE.md) | Generating a map for your own plugin — including the GitHub Action, which is the version that requires copying nothing. |
 | [docs/CHECKLIST_FORMAT.md](docs/CHECKLIST_FORMAT.md) | The hand-verified ledger: a syntax for facts a scanner cannot decide, watched for staleness by their citation rather than re-derived. |
 | [docs/CALL_HIERARCHY.md](docs/CALL_HIERARCHY.md) | Incoming/outgoing calls in Neovim, alongside LuaLS (which has none): setup, keymaps, and how to tell an unattached client from a function with no callers. |
 | [docs/HOSTING.md](docs/HOSTING.md) | Embedding the map in your own program: the `--capabilities` handshake, the `--api=<route>` answers, `?theme=`, and the page's two-way message channel. |
