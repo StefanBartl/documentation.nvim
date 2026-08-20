@@ -1098,16 +1098,28 @@ predicted. The standing instruction they were decided under is worth
 repeating, because it shaped all four: **rather more effort, correct and
 separable, than a shortcut that falls over later.**
 
-1. **Coverage per language reports two counts, not one.** Eight of the
+1. **Coverage per language reports two counts, not one.** Nine of the
    twenty-three backends declare `param_docs = false`, so a function there
-   is documented once it has a summary; the other fifteen also require every
-   parameter. One percentage per language would have put two different
+   is documented once it has a summary; the other fourteen also require
+   every parameter. One percentage per language would have put two different
    measures in one column. Each row now carries `summarised` — comparable
    across *all* twenty-three, since every language has the concept — and
-   `documented`, comparable across the fifteen that judge parameters and
-   equal to the first for the eight that do not. `judges_params` says which
+   `documented`, comparable across the fourteen that judge parameters and
+   equal to the first for the nine that do not. `judges_params` says which
    a row is, so a reader sees the difference rather than a number that
    quietly means something else per line.
+
+   > **This entry first said eight and fifteen.** The prose above numbers
+   > the `param_docs = false` languages as they arrived and calls Ruby "a
+   > different case again" — parsed and shown, not judged — which is true
+   > and is also *why it was left out of the total*, where it belongs: the
+   > field is `false`, and the field is what every consumer reads. The nine
+   > are `zig`, `asm`, `go`, `rust`, `ruby`, `dart`, `haskell`, `elixir`,
+   > `erlang`. The tool's own numbers were never affected — `judges_params`
+   > is derived from the field, not from this sentence — which is exactly
+   > why nothing caught it until [`LANGUAGES.md`](../../LANGUAGES.md)
+   > tabulated the registry instead of the prose. **A count written in a
+   > document is a claim; a count derived from the code is a fact.**
 
 2. **The interface default stays written out per backend.** Seven languages
    needed the same correction — C#, Go, Rust, PHP, Kotlin, Swift, Scala —

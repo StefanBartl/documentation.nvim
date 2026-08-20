@@ -241,9 +241,10 @@ one repository routinely mixes them.
 **Only Lua has a module tag.** Everywhere else the file's path *is* its
 identity, because that is how those languages resolve imports — so
 `check.lua` never reports a missing `@module` for a language that has no
-such concept. Lua's `init.lua`, Python's `__init__.py` and JavaScript's
-`index.js` are the three directory-owns-a-module conventions. Everywhere else a
-directory is a namespace and every file is its own module.
+such concept. Lua's `init.lua`, the ECMA family's `index.{js,ts,tsx}`,
+Python's `__init__.py` and Rust's `mod.rs` are the four
+directory-owns-a-module conventions. Everywhere else a directory is a
+namespace and every file is its own module.
 
 ### Grammars, and the one backend that needs none
 
@@ -666,9 +667,13 @@ Repository-specific checks go in `opts.extra_checks`.
 
 ## Documentation
 
+**Start at [docs/README.md](docs/README.md)** — the folder's own index,
+grouped by the question you arrived with. The table below is the short list.
+
 | Document | Covers |
 |---|---|
 | [docs/PIPELINE.md](docs/PIPELINE.md) | Every stage, every design decision, and the measurement behind each one. |
+| [docs/LANGUAGES.md](docs/LANGUAGES.md) | The twenty-three backends as a reference: what each reads, the `Documentation.LangBackend` contract field by field, grammar resolution, what a missing grammar costs, and how to add the twenty-fourth. |
 | [docs/COMMANDS.md](docs/COMMANDS.md) | `:DocMap` and `:DocBrowse`, subcommand by subcommand. |
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | Using it day to day: which panel answers which question, reading the Telemetry join's badges correctly, Trail vs filter vs fuzzy jump. |
 | [docs/REUSE.md](docs/REUSE.md) | Generating a map for your own plugin. |
@@ -676,7 +681,7 @@ Repository-specific checks go in `opts.extra_checks`.
 | [docs/CALL_HIERARCHY.md](docs/CALL_HIERARCHY.md) | Incoming/outgoing calls in Neovim, alongside LuaLS (which has none): setup, keymaps, and how to tell an unattached client from a function with no callers. |
 | [docs/MCP.md](docs/MCP.md) | The MCP server: exposing the module tree, require graph, call graph and drift findings to a coding agent as tools. |
 | [docs/ROADMAP/IDEAS/PORTABILITY.md](docs/ROADMAP/IDEAS/PORTABILITY.md) | Mapping a Lua project that is not a Neovim plugin — and what a Neovim-free port would actually cost. |
-| [docs/ROADMAP/IDEAS/MULTILANG.md](docs/ROADMAP/IDEAS/MULTILANG.md) | Every language backend: what each one cost, the contract answers it had to give, and the measurements against real repositories that changed three of them. |
+| [docs/ROADMAP/IDEAS/MULTILANG.md](docs/ROADMAP/IDEAS/MULTILANG.md) | Every language backend: what each one cost, the contract answers it had to give, and the measurements against real repositories — every one of which changed something. The per-language reference table is [docs/LANGUAGES.md](docs/LANGUAGES.md). |
 | [docs/ROADMAP/IDEAS/I18N.md](docs/ROADMAP/IDEAS/I18N.md) | The other language axis: translating what this tool says, not what it reads. Which surfaces cost what, the four rules decided up front, and what each locale needs beyond a catalog. |
 | [docs/FRAMEWORK_CONVENTIONS.md](docs/FRAMEWORK_CONVENTIONS.md) | The layer above language support — recognizing one ecosystem's structural convention (lazy.nvim specs today; Next.js-style file routing and React hooks costed as the web-ecosystem case). |
 | [docs/FEATURES/ECOSYSTEM.md](docs/FEATURES/ECOSYSTEM.md) | **Architectural concept**, agreed, nothing implemented: where docs cross-references, API-endpoint inventory, hover previews and an API request runner each belong — and why the runtime half is its own plugin (`runtime-analysis.nvim`), a Neovim plugin rather than a binary, meeting this one in the editor rather than in the committed artifact. |

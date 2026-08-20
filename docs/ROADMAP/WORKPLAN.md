@@ -326,6 +326,38 @@ organised by the plan they came from and none of these did.
 >
 > Tracked jointly with `docmap-desktop`'s `docs/WORKPLAN.md` §10.7, since
 > it is one job across two repositories.
+>
+> **This repository's half done 2026-08-20**, by the same method: inventory
+> from the code first. What it found, in the order it hurt:
+>
+> - **`docs/PIPELINE.md` — "the document to read before changing anything",
+>   2158 lines — did not mention multi-language support once.** Its eleven
+>   matches for "language" were all `lua-language-server` or Compiler
+>   Explorer. It opened with "an annotated Lua tree" and described a scan
+>   stage that hardcodes `init.lua`, which stopped being true at the first
+>   backend. `REUSE.md`, `WORKFLOW.md` and `MCP.md` mention languages zero
+>   times each. **The folder described a nine-months-younger tool.**
+> - **No per-language reference existed anywhere.** The only record was
+>   `IDEAS/MULTILANG.md` — a *decision log*, in a folder named for things
+>   not yet built. Now [`docs/LANGUAGES.md`](../LANGUAGES.md): the
+>   twenty-three backends tabulated from `lang_registry.report()`, the
+>   contract field by field, grammar resolution and the three-state
+>   handshake, every `DOCMAP_<LANG>_PARSER`, and what adding one costs.
+> - **The folder had no index.** Thirty-odd files; the README's table listed
+>   eighteen. Now [`docs/README.md`](../README.md), grouped by the question
+>   a reader arrives with.
+> - **Two counts in prose disagreed with the code**, and tabulating the
+>   registry is what caught both: `param_docs = false` is **nine**
+>   languages, not eight — Ruby was called "a different case" and then
+>   dropped from the total — and there are **four** directory-owns-a-module
+>   conventions, not three; Rust's `mod.rs` was missing from the README's
+>   sentence and knew it was the fourth in its own header. Neither affected
+>   a number the tool reports, both were fixed at the source.
+>
+> **The lesson, worth more than the fixes:** a count written in a document
+> is a claim, a count derived from the code is a fact — and the docs that
+> were most wrong were the ones nobody suspected, because they had been
+> *edited* recently without being *re-inventoried*.
 
 Agreed convention, to be applied across both repos' `docs/`:
 

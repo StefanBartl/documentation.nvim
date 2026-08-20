@@ -1,9 +1,15 @@
 # Generating a map for your own plugin
 
 Nothing in `documentation.nvim` knows about any particular repository's
-layout. `opts.root` / `opts.source` point it at any tree whose files carry
-`---@module`; everything else — module prefix, directory layout, types
+layout, and — since twenty-three language backends — nothing in it assumes
+the tree is Lua either. `opts.root` / `opts.source` point it at any tree a
+backend claims; everything else — module prefix, directory layout, types
 directory name, output directory — is an option with a default.
+
+The examples below are Lua because this is a Neovim plugin documenting
+itself. Nothing in the setup changes for another language: point `source` at
+the directory, and `lang_registry` picks the backend per file. Which
+languages, and what each one needs, is [`LANGUAGES.md`](LANGUAGES.md).
 
 Two ways in, depending on whether you want it in the editor or in CI.
 
@@ -36,10 +42,11 @@ same config also calls `setup()`), set `command_name` and
 `browse_command_name`. Leaving both at their defaults is a silent overwrite,
 not an error: `usercmd.create` defaults to `force = true`.
 
-Mapping a Lua project that is **not** a Neovim plugin works the same way and
+Mapping a project that is **not** a Neovim plugin works the same way and
 needs nothing extra — `nvim --headless -l` is being used as a Lua interpreter
-that happens to ship a parser. The one real precondition is `---@module` on
-your files. See [PORTABILITY.md](ROADMAP/IDEAS/PORTABILITY.md), which also costs out what
+that happens to ship parsers. The only precondition is a grammar for the
+language on the runtimepath, which for anything Neovim ships is already true.
+See [PORTABILITY.md](ROADMAP/IDEAS/PORTABILITY.md), which also costs out what
 dropping the Neovim dependency entirely would take.
 
 ## In CI and in a pre-commit hook
@@ -247,28 +254,36 @@ be a leak.
 
 ## What the tree has to look like
 
-One requirement: files carry `---@module`. That is what the scanner reads —
-each file's leading comment block, everything before the first non-comment
-line, and it stops there. It does not parse Lua.
+**In Lua, one requirement: files carry `---@module`.** That is what the
+scanner reads — each file's leading comment block, everything before the
+first non-comment line, and it stops there. It does not parse the language.
+
+**In every other language, no requirement at all.** Lua is the one backend
+that sets `module_tag = true`, because a Lua module's canonical name cannot
+be recovered from its path; everywhere else the path *is* the identity, so
+`missing-module-tag` never fires and there is nothing to add to your files
+before mapping them. See [`LANGUAGES.md`](LANGUAGES.md).
 
 Function-level data (`node.functions`, the call graph, complexity) comes from
 `vim.treesitter` instead, and needs no annotation at all beyond the doc
 comments you already write.
 
-Everything past that one requirement is opt-in, and each tag buys a specific
-thing: `@param` unlocks the three structural checks and the coverage number,
-`@internal` makes that number describe your API rather than your helpers,
-`@see` gets cross-references with a check behind them. The full contract —
-which tag feeds which part of the pipeline, plus a minimum-viable set to adopt
-first — is in [ANNOTATION_TAGS.md](ANNOTATION_TAGS.md).
+Everything past that is opt-in, and each tag buys a specific thing: `@param`
+unlocks the three structural checks and the coverage number, `@internal`
+makes that number describe your API rather than your helpers, `@see` gets
+cross-references with a check behind them. The full contract — which tag
+feeds which part of the pipeline, plus a minimum-viable set to adopt first —
+is in [ANNOTATION_TAGS.md](ANNOTATION_TAGS.md), written for LuaCATS; the
+equivalent per language is whatever that language's own doc convention
+already spells, which each backend reads without configuration.
 
 Structure is derived, not declared:
 
 | Node kind | What it is |
 |---|---|
-| `module` | A directory containing `init.lua` |
-| `namespace` | A directory without `init.lua`, grouping others |
-| `file` | A non-`init.lua` Lua file |
+| `module` | A directory containing the language's module file — `init.lua`, `index.ts`, `__init__.py`, `mod.rs` |
+| `namespace` | A directory without one, grouping others |
+| `file` | Any other source file a backend claims |
 
 A `@types/` directory (name configurable via `opts.types_dir`) is an
 **attribute** of its module, not a sibling node.
