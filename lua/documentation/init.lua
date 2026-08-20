@@ -298,6 +298,48 @@ M.render = {
   end,
 }
 
+---`ir.quicks` as the artifact carries it: the numbers, without the three
+---strings that phrase them.
+---
+---**`headline`, `basis` and `detail` are interface text, not repository
+---data.** Everything else `module_map.json` holds describes the tree — a
+---module summary is the *subject*, and `I18N.md` rule 2.4 is explicit that
+---the subject is never translated. These three are the tool talking about
+---the tree in English, and measured over this repository's own artifact
+---they are the only such sentences in it: 820 of the English sentences in
+---`module_map.json` are node summaries, 118 more are the repository's own
+---docs and features, and exactly 10 are these.
+---
+---They stay on the *page*, which builds its own payload — the same split
+---`glossaries` and `marker_kinds` already take, and for the same stated
+---reason: the artifact is byte-deterministic and describes the repository,
+---while the renderer's own vocabulary rides along with the renderer.
+---Nothing is lost by dropping them here, because `n` and `total` now travel
+---beside `value`, so a consumer can phrase "45 of 72" in its own language
+---instead of receiving it in English.
+---@param quicks Documentation.Quicks.Result?
+---@return table
+local function strip_quicks_prose(quicks)
+  local out = { good = {}, bad = {}, total_good = 0, total_bad = 0 }
+  if not quicks then
+    return out
+  end
+  out.total_good = quicks.total_good or 0
+  out.total_bad = quicks.total_bad or 0
+  for _, bucket in ipairs({ "good", "bad" }) do
+    for i, q in ipairs(quicks[bucket] or {}) do
+      local copy = {}
+      for k, v in pairs(q) do
+        if k ~= "headline" and k ~= "basis" and k ~= "detail" then
+          copy[k] = v
+        end
+      end
+      out[bucket][i] = copy
+    end
+  end
+  return out
+end
+
 ---Serialize the IR deterministically: nodes in `ir.order`, object keys in a
 ---fixed sequence, and every nested value through `docmap.json` rather than
 ---`vim.json.encode`, whose key order is unspecified.
@@ -415,7 +457,7 @@ function M.to_json(ir)
   -- `module_map.json` alone it would silently lose the drift verdicts and
   -- report a cleaner tree than the one that was scanned.
   put(',\n  "quicks": ')
-  put(json.encode(ir.quicks or { good = {}, bad = {}, total_good = 0, total_bad = 0 }))
+  put(json.encode(strip_quicks_prose(ir.quicks)))
   -- Unlike duplicates/docs/quicks above, `nil` here is not "scan_full didn't
   -- run yet" — it is the real, common answer "this repo ships no
   -- lib.nvim.deps manifest" / "no docs/FEATURES/ folder", and `json.encode`

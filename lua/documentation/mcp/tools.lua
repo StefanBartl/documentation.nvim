@@ -299,7 +299,7 @@ catalogue.docmap_findings = {
           severity = f.severity,
           check = f.check,
           node = f.node,
-          message = f.message,
+          message = require("documentation.core.findings").format(f),
         }
       end
     end

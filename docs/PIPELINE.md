@@ -775,6 +775,44 @@ grouping namespace with no module file of any language — guessing one from
 the children would make a directory holding both look like whichever child
 came first. That field is why `module_map.json`'s schema went to 3.
 
+### Findings carry parameters, not sentences (I18N-0)
+
+A check records `{ severity, check, node, params }` and never a rendered
+string; `core/findings.lua` turns one into a sentence at the edge that shows
+it — quickfix, diagnostics, CLI report, page, markdown, mdview, SARIF, MCP.
+The reason is word order rather than tidiness: `%s requires %s, but %s must
+not reach into %s` gives a translator four anonymous slots it cannot
+reorder, and every language that needs a different order is then
+untranslatable. The templates use named placeholders for exactly that.
+
+`opts.extra_checks` is unaffected by design — a finding that arrives with
+its own `message` passes through untouched, because that prose belongs to
+another repository's code and this catalogue has never seen it.
+
+A key with no template renders as `<check-name>` plus its parameters rather
+than blank (`I18N.md` rule 2.3): a check added without a catalog entry has
+to look unfinished. `findings_spec.lua` fails on it as well, which is the
+actual gate; the visible fallback is what keeps the runtime honest in the
+window before someone runs the tests.
+
+### Schema 5 — `quicks` keeps its numbers and loses its sentences
+
+`headline`, `basis` and `detail` are the tool describing the tree in
+English, unlike everything else in the artifact, which *is* the tree. The
+measurement that settled it: of the English sentences in this repository's
+own `module_map.json`, 820 are node summaries and 118 more are its own docs
+and features — the **subject**, which `I18N.md` rule 2.4 says is never
+translated — and exactly 10 were interface text, all of them `quicks`.
+
+Those ten now ride on the page, which builds its own payload, the same split
+`glossaries` and `marker_kinds` already take and for the reason stated
+there: the artifact is byte-deterministic and describes the repository,
+while the renderer's vocabulary belongs to the renderer. Nothing is lost,
+because `n` and `total` now travel beside `value` — "45 of 72" is a fact
+about the repository and stays in it; the phrase "45 of 72" is not, and
+does not. `diff.lua` tolerates the bump untouched: its check is written
+`>= 2`, not `== 4`.
+
 Two rules keep the seam from eroding, and the map's own checks enforce the
 first: **`documentation.core` may not reach into `documentation.core.lang.*`**,
 and **`KNOWN_BACKENDS` in the registry is the only place a backend module is

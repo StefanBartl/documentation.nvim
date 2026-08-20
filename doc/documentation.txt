@@ -290,6 +290,17 @@ Two options that need a word of warning:
                 Delay-guarded: it only appears after ~150ms, so `churn`
                 on a small repository never flashes any UI.
 
+                                                  *documentation-findings*
+A drift finding travels as data — `{ severity, check, node, params }` — and
+becomes a sentence at whichever surface shows it: the quickfix list,
+`vim.diagnostic`, the generated page, the markdown, the SARIF file, the MCP
+response. `documentation.core.findings` holds the English templates.
+
+The reason is word order, not tidiness: a sentence assembled inside the check
+gives a translator anonymous slots it cannot reorder. Checks supplied through
+`opts.extra_checks` are unaffected — a finding that arrives with its own
+`message` is passed through exactly as written.
+
 `calls_heuristic`
                 Adds one guessed shape back to the call graph: an unresolved
                 bare name matching exactly one function in the whole tree,

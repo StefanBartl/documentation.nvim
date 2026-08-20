@@ -11,6 +11,10 @@
 --- powers the tree, the filter and the detail pane without duplicating data.
 
 local json = require("documentation.core.json")
+-- One finding, one sentence. Rendered here rather than carried already
+-- rendered — see `core/findings.lua` for why the check no longer builds
+-- its own English.
+local fmt_finding = require("documentation.core.findings").format
 
 local M = {}
 
@@ -8449,7 +8453,23 @@ function M.render(ir, findings, opts)
   -- `</script>` inside JSON would terminate the block early.
   payload = payload:gsub("</", "<\\/")
 
-  local findings_json = json.encode(findings):gsub("</", "<\\/")
+  -- **This page is an edge, so this is where a finding becomes a
+  -- sentence.** The embedded array carries `message` rather than the
+  -- `params` the finding travels with, because the page's own JS reads
+  -- `x.message` and a committed artifact has to be readable without a
+  -- catalog beside it. Sending params and a catalog instead is I18N-3,
+  -- deliberately not this task: it changes what the artifact *is*, and
+  -- the point of I18N-0 is that it changes nothing anyone can see.
+  local rendered = {}
+  for i, f in ipairs(findings) do
+    rendered[i] = {
+      severity = f.severity,
+      check = f.check,
+      node = f.node,
+      message = fmt_finding(f),
+    }
+  end
+  local findings_json = json.encode(rendered):gsub("</", "<\\/")
 
   local c = ir.meta.counts
   local t = { error = 0, warn = 0, info = 0 }
@@ -8472,7 +8492,7 @@ function M.render(ir, findings, opts)
       f.severity,
       f.severity,
       esc(f.check),
-      esc(f.message)
+      esc(fmt_finding(f))
     )
   end
 

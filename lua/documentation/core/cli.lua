@@ -26,7 +26,13 @@ local function report(findings)
   local tally = docmap.tally(findings)
   for _, f in ipairs(findings) do
     if f.severity ~= "info" then
-      io.stderr:write(("  [%s] %-22s %s\n"):format(f.severity, f.check, f.message))
+      io.stderr:write(
+        ("  [%s] %-22s %s\n"):format(
+          f.severity,
+          f.check,
+          require("documentation.core.findings").format(f)
+        )
+      )
     end
   end
   io.stdout:write(

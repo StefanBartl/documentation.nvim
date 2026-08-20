@@ -8,6 +8,7 @@
 -- exercise at all.
 
 return function(H)
+  local fmsg = require("documentation.core.findings").format
   local eq, ok = H.eq, H.ok
   local scan = require("documentation.core.scan")
   local check = require("documentation.core.check")
@@ -142,11 +143,11 @@ return function(H)
     "check.type-vs-class: warn severity, matching dead-see-target's own class"
   )
   ok(
-    bad.message:find("RateLimits", 1, true) ~= nil,
+    fmsg(bad):find("RateLimits", 1, true) ~= nil,
     "check.type-vs-class: names the real @type value in the message"
   )
   ok(
-    bad.message:find("t.bad", 1, true) ~= nil or bad.message:find("M :", 1, true) ~= nil,
+    fmsg(bad):find("t.bad", 1, true) ~= nil or fmsg(bad):find("M :", 1, true) ~= nil,
     "check.type-vs-class: message points at the real module/class shape to use instead"
   )
 
