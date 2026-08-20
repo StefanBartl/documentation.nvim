@@ -51,6 +51,9 @@
 ---| "trail_delete" # forget a saved trail
 ---| "filter"       # filter this list in place
 ---| "search"       # fuzzy jump across modules and functions
+---| "detail"       # into the detail pane, where it can be scrolled
+---| "detail_back"  # detail pane: back to the list
+---| "lookup"       # detail pane: the glossary card for the word under the cursor
 ---| "help"         # the `?` cheatsheet
 ---| "close"        # close the browser
 

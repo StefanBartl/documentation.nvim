@@ -25,7 +25,8 @@
 --- history · h/l direction · +/_ depth · p pin · d unpin, S/L/X save, load
 --- and forget a trail (all Trail) · gd source · gq quickfix · gI impact · gO
 --- open the page here · gD the opened commit's diff · f filter this list · /
---- search across everything · ? this list · q close.
+--- search across everything · w into the detail pane (K there explains a
+--- word, q/<Esc> back) · ? this list · q close.
 ---
 --- The authoritative key list is the `KEYS` table below: `bind()` installs
 --- from it and `?` renders from it, so neither this header nor any document
@@ -1003,6 +1004,106 @@ end
 ---@type fun(st: table)
 local cheatsheet
 
+---`<Tab>` — put the cursor in the detail pane.
+---
+---**Until this existed, that pane could not be reached.** The browser's keys
+---are bound to the list buffer and the panes are floats, so `<C-w>w` from the
+---list lands in the editor *behind* them. Measured over this repository's own
+---root list: two of sixteen entries render 46 lines of detail into a 14-row
+---pane, with no way to scroll to the rest. Nothing was hiding it — there was
+---simply no key.
+---@param st table
+local function focus_detail(st)
+  if not (st.slots.detail and st.slots.detail:is_valid()) then
+    return
+  end
+  pcall(vim.api.nvim_set_current_win, st.slots.detail.winid)
+end
+
+---`<Tab>`/`q`/`<Esc>` in the detail pane — back to the list.
+---
+---`q` and `<Esc>` return rather than close, unlike in the list. A reader who
+---stepped one pane sideways expects one step back, and closing the whole
+---browser from here would lose the position they walked to.
+---@param st table
+local function focus_list(st)
+  if st.slots.list and st.slots.list:is_valid() then
+    st.slots.list:focus()
+  end
+end
+
+---The file the current entry's text came from, for the glossary's sake.
+---
+---The row's own `source` first: in Structure a function row and its module
+---row can be different files, and the glossary is chosen by extension. The
+---centered node is the fallback, for rows that name no file of their own
+---(`external`, `message`).
+---@param st table
+---@param entry Documentation.Browse.Entry|nil
+---@return string?
+local function entry_path(st, entry)
+  if entry and type(entry.source) == "string" then
+    return entry.source
+  end
+  local node = st.ir.nodes[(entry and entry.id) or st.id]
+  return node and (node.source or node.path) or nil
+end
+
+---`K` in the detail pane — the glossary card for the word under the cursor.
+---
+---**Only inside an inline `` `code` `` span**, and the reason is counted:
+---across this repository's browser text a glossary term sits inside a span
+---213 times and inside plain English prose 2 558 times — "and", "for", "in",
+---"not", "end", "type". Answering everywhere would be wrong twelve times out
+---of thirteen, and wrong in the worst available way: a correct definition
+---pinned to a word that is not code. The spans come from `highlight.spans`,
+---which is what the pane is already coloured from, so the decoration and the
+---answer can never disagree about what is code here.
+---
+---Every "no" says which no it is. A key that silently does nothing is a key a
+---reader tries twice and then stops trusting.
+---@param st table
+local function lookup(st)
+  local lk = require("documentation.editor.browse.lookup")
+  local win = st.slots.detail and st.slots.detail.winid
+  if not (win and vim.api.nvim_win_is_valid(win)) then
+    return
+  end
+  local pos = vim.api.nvim_win_get_cursor(win)
+  local line = vim.api.nvim_buf_get_lines(st.slots.detail.bufnr, pos[1] - 1, pos[1], false)[1] or ""
+  local word, span = lk.word_at(line, pos[2])
+  if not span then
+    notify.info("K explains code — the cursor is in prose")
+    return
+  end
+  if not word then
+    notify.info("K explains code — the cursor is on punctuation")
+    return
+  end
+
+  local path = entry_path(st, selected(st))
+  local gl = lk.glossary_for(path)
+  if not gl then
+    notify.info(
+      ("no glossary for %s"):format(path and vim.fn.fnamemodify(path, ":e") or "this entry")
+    )
+    return
+  end
+
+  local key, entry, kind = lk.resolve(word, gl)
+  if not entry then
+    notify.info(("no glossary entry for `%s`"):format(word))
+    return
+  end
+
+  kit.viewer({
+    title = (" %s "):format(key),
+    lines = lk.card(key, entry, kind, gl),
+    theme = st.opts.theme,
+    filetype = "documentation-browse-lookup",
+  })
+end
+
 ---The keymap table, and the **only** description of what the browser's keys
 ---do. `bind()` installs from it and the `?` cheatsheet renders from it, so
 ---the two cannot disagree — a hand-maintained second list of keys is exactly
@@ -1030,6 +1131,7 @@ local cheatsheet
 ---@field keys string[] Left-hand sides, all doing the same thing.
 ---@field desc string Cheatsheet text.
 ---@field only string|string[]|nil Mode(s) this applies in; nil = everywhere.
+---@field where "list"|"detail"|nil Which pane the key is bound in; nil = the list, which is every key but the two the detail pane owns.
 ---@field run fun(st: table)|nil Handler, or nil for a native key.
 ---@field disabled boolean|nil Set by `resolve_keys` when the user passed `false`. Never set in the defaults.
 
@@ -1172,6 +1274,35 @@ local KEYS = {
     run = set_filter,
   },
   { id = "search", keys = { "/" }, desc = "fuzzy jump across modules and functions", run = search },
+  -- `w` for window, and *not* `<Tab>`: in a terminal `<Tab>` and `<C-i>` are
+  -- the same keycode, so binding it here silently took `<C-i>` away from the
+  -- history — which is exactly what happened, and what
+  -- `docmap_browse_spec.lua` caught. `w` is free: this is a read-only list,
+  -- so the word motion it shadows had nothing to move over.
+  --
+  -- A dedicated key rather than the native `<C-w>w` because the layout has
+  -- four windows, so one `wincmd w` from the list does not land on the
+  -- detail pane at all. Measured, not assumed.
+  {
+    id = "detail",
+    keys = { "w" },
+    desc = "into the detail pane — scroll it, and `K` explains a word",
+    run = focus_detail,
+  },
+  {
+    id = "detail_back",
+    keys = { "q", "<Esc>" },
+    desc = "detail pane: back to the list",
+    where = "detail",
+    run = focus_list,
+  },
+  {
+    id = "lookup",
+    keys = { "K" },
+    desc = "detail pane: explain the `code` word under the cursor",
+    where = "detail",
+    run = lookup,
+  },
   {
     id = "help",
     keys = { "?" },
@@ -1317,10 +1448,14 @@ local function bind(st)
   for _, spec in ipairs(st.keys) do
     local run = spec.run
     if run then
+      -- `where` picks the buffer. Two keys live in the detail pane, and
+      -- binding them on the list as well would give `K` and `q` a second
+      -- meaning on a surface where neither is what the reader means.
+      local target = spec.where == "detail" and st.slots.detail.bufnr or bufnr
       for _, key in ipairs(spec.keys) do
         map("n", key, function()
           run(st)
-        end, mo(spec.desc))
+        end, { buffer = target, nowait = true, desc = spec.desc })
       end
     end
   end
@@ -1328,7 +1463,16 @@ local function bind(st)
   -- Opt-out, and a no-op when which-key is not installed. Last, so it can
   -- describe exactly what was bound above rather than what was intended.
   if st.opts.which_key ~= false then
-    require("documentation.editor.browse.whichkey").register(bufnr, st.keys, MODES)
+    -- The list's keys only. which-key is registering against the *list*
+    -- buffer, and offering `K` there would describe a key that is not bound
+    -- in the pane the popup is being shown over.
+    local list_keys = {}
+    for _, spec in ipairs(st.keys) do
+      if spec.where ~= "detail" then
+        list_keys[#list_keys + 1] = spec
+      end
+    end
+    require("documentation.editor.browse.whichkey").register(bufnr, list_keys, MODES)
   end
 end
 

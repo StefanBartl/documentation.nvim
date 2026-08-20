@@ -691,8 +691,26 @@ Keys, once open:
     X             forget a saved trail (Trail)
     f             filter this list in place
     /             search
+    w             into the detail pane, where it can be scrolled
     ?             this table, in a float, for the current mode
     q             close
+
+In the detail pane:
+
+    K             explain the word under the cursor, if it is inside a
+                  `code` span
+    q <Esc>       back to the list
+
+`w` rather than `<Tab>`: a terminal sends the same byte for `<Tab>` and
+`<C-i>`, and `<C-i>` steps forward through the visit history above.
+
+`K` answers only inside an inline `code` span, and says so when it does not.
+Counted over this repository's own browser text, a glossary term appears 213
+times inside a code span and 2 558 times in ordinary prose -- "and", "for",
+"in", "end", "type". A `K` that answered everywhere would attach a correct
+definition to a word that is not code, roughly twelve times out of thirteen.
+The definitions are the same ones the generated HTML page shows on hover, read
+from the same per-language glossary.
 
 `?` is rendered from the same table the browser installs its keys from, so it
 cannot describe a key that does not exist or omit one that does. Keys the
