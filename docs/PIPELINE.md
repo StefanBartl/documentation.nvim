@@ -1631,7 +1631,7 @@ the default), the same "only the axes a view actually uses" rule
 A tool palette, not a diagram — a fifth tab (`atool` state axis, same
 `iview=`-shaped URL rule as the Index tab) whose toolbar switches between
 panels the way Hierarchy's view buttons switch between graphs, applied to
-aggregate numbers instead of boxes. **Sixteen tools today**, and every one
+aggregate numbers instead of boxes. **Seventeen tools today**, and every one
 of them explains itself on hover and on focus — see *Explaining the page's
 own furniture* below:
 
@@ -1643,6 +1643,7 @@ own furniture* below:
 - **Complexity** — `fn.complexity` (cyclomatic/McCabe, [`functions.lua`](../lua/documentation/core/functions.lua))
 - **Duplicates** — `ir.duplicates` (structural copy-paste detection, [`duplicates.lua`](../lua/documentation/core/duplicates.lua))
 - **Plugins** — `n.plugins` (lazy.nvim spec inventory, [`plugins.lua`](../lua/documentation/core/plugins.lua))
+- **Lazy loading** — the same `n.plugins`, indexed the other way round: which plugins load on each event, filetype, command and key, and which are paid for at startup regardless. No new extraction; a second index over data the scan already stamped
 - **Tools** — `ir.tools` (this repo's own `lib.nvim.deps` manifest, [`tools.lua`](../lua/documentation/core/tools.lua))
 - **Telemetry** — `runtime-analysis.telemetry`'s call counts, joined by [`telemetry_join.lua`](../lua/documentation/core/telemetry_join.lua) — the one panel that is not IR-only, see its own paragraph below
 - **Loaded** — `runtime-analysis.loaded`'s persisted loaded-vs-declared snapshots, joined by [`loaded_diff.lua`](../lua/documentation/core/loaded_diff.lua) — also not IR-only, see its own paragraph below
@@ -1974,6 +1975,34 @@ a caller would have to keep in sync with `:RA loaded snapshot`'s own
 `<prefix>` argument by hand. Both sides computing the identical value
 independently is what lets the CLI command and this reading side agree
 without either passing the other a config value.
+
+### When a plugin loads — four states, not two
+
+The Plugins panel answers *what does this plugin load on*. **Lazy loading**
+answers the inverse — *which plugins load on this* — which is the question
+"why is that not loaded yet" is really asking, and the only one that can say
+what typing a command actually costs.
+
+Deriving it exposed a defect in the panel next door. `pluginTraits` answered
+"no trigger — loads at startup" for every spec with no `event`/`cmd`/`ft`/
+`keys`, and that is wrong for one of them **in the direction that matters**:
+
+| Spec | Loads |
+|---|---|
+| `lazy = false` | at startup, whatever else it declares |
+| any of `event`/`cmd`/`ft`/`keys` | on that trigger |
+| `lazy = true`, no trigger | **only when something `require`s it** |
+| nothing stated, no trigger | at startup (lazy.nvim's own default) |
+
+The third row used to be reported as the fourth. Telling the author of a
+dependency-only plugin that it costs them startup time is the opposite of the
+truth — and measured against a real 52-entry config, **seven** specs were in
+exactly that state and every one was mislabelled.
+
+This is also the one place the page re-derives a default that
+`core/plugins.lua` deliberately does not: the extractor records `lazy` as
+`nil` when unstated rather than guessing, and the guess belongs where the
+question is asked.
 
 ### Explaining the page's own furniture
 

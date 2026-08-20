@@ -1922,7 +1922,7 @@ local JS = [[
       else if(k === "ext") s.ext = (v === "1" || v === "true");
       else if(k === "iview") s.iview = (v === "modules") ? "modules" : "functions";
       else if(k === "atool") s.atool = (v === "doc" || v === "deps" || v === "complexity" ||
-        v === "duplicates" || v === "plugins" || v === "tools" || v === "hooks" ||
+        v === "duplicates" || v === "plugins" || v === "lazy" || v === "tools" || v === "hooks" ||
         v === "checklist" || v === "api" || v === "annotations" ||
         v === "docs" || v === "endpoints" || v === "telemetry" || v === "loaded" ||
         v === "bindings") ? v : "test";
@@ -4019,6 +4019,11 @@ local JS = [[
       "literals — the one kind of drift the require graph cannot see, since " +
       "two modules that each grew their own `read(path)` do not require " +
       "each other.",
+    "atool.lazy":
+      "The Plugins question inverted: which plugins load on each event, " +
+      "filetype, command and key, and which are paid for at startup " +
+      "regardless. Answers what typing a command actually costs, and why " +
+      "something is not loaded yet.",
     "atool.plugins":
       "Every lazy.nvim-shaped plugin spec in the tree. Matters when this is " +
       "pointed at a Neovim *config* rather than a plugin, where most files " +
@@ -5303,15 +5308,49 @@ local JS = [[
   // hand because the two run in different languages and read the same
   // `Documentation.PluginSpec` shape for two different surfaces (this panel,
   // that command's quickfix list).
+  // Whether anything in this spec defers the load.
+  function pluginHasTrigger(spec){
+    return ((spec.event || []).length + (spec.cmd || []).length +
+            (spec.keys || []).length + (spec.ft || []).length) > 0;
+  }
+
+  // **When this plugin is actually loaded — four states, not two.**
+  //
+  // This used to answer "no trigger — loads at startup" for every spec with
+  // no `event`/`cmd`/`ft`/`keys`, and that is wrong for one of them in a way
+  // that matters. `lazy = true` with no trigger does *not* load at startup:
+  // it loads when another plugin `require`s it, or on `:Lazy load`. Telling
+  // its author it costs them startup time is the opposite of the truth, and
+  // it is the state a dependency-only plugin is normally in.
+  //
+  // Measured before being called a defect: against a real 52-entry config,
+  // **seven** specs were in exactly that state and every one was labelled
+  // "loads at startup".
+  //
+  // `lazy` is `null` when unstated, which lazy.nvim resolves by looking at
+  // the triggers — the same rule applied here, and the one place this file
+  // re-derives a default the extractor deliberately did not.
+  function pluginLoad(spec){
+    if(spec.lazy === false) return "startup";
+    if(pluginHasTrigger(spec)) return "trigger";
+    if(spec.lazy === true) return "ondemand";
+    return "startup";
+  }
+
   function pluginTraits(spec){
     var bits = [];
+    var load = pluginLoad(spec);
     if(spec.lazy === false) bits.push("eager");
     if((spec.event || []).length) bits.push("event:" + spec.event.join(","));
     if((spec.cmd || []).length) bits.push("cmd:" + spec.cmd.join(","));
     if((spec.keys || []).length) bits.push("keys:" + spec.keys.join(","));
     if((spec.ft || []).length) bits.push("ft:" + spec.ft.join(","));
     if(spec.enabled === false) bits.push("disabled");
-    if(bits.length === 0) bits.push("no trigger — loads at startup");
+    if(load === "ondemand"){
+      bits.push("lazy = true, no trigger — loads only when required");
+    }else if(bits.length === 0){
+      bits.push("no trigger — loads at startup");
+    }
     return bits.join("  ");
   }
 
@@ -5324,6 +5363,124 @@ local JS = [[
   // Sorted by repo, ascending, by default — unlike every other panel here.
   // The others rank a health metric worst-first; this is an inventory, and
   // "what do I have installed" is read alphabetically, not by severity.
+  // The lazy-load inventory: the Plugins panel's question, inverted.
+  //
+  // Plugins answers "what does this plugin load on"; every row already says
+  // so. What it cannot answer without reading every row is the other
+  // direction — *which* plugins load on `VeryLazy`, what typing `:Neogit`
+  // actually costs, and what is paid for unconditionally at startup. That is
+  // the question "why is this not loaded yet" is really asking, and it is a
+  // different index over the same data rather than new data.
+  //
+  // No new Lua extraction: `core/plugins.lua` already stamps `event`, `cmd`,
+  // `ft` and `keys` per spec during the scan. This walks the serialised IR,
+  // the same way the fan-in panel does.
+  function renderAnalysisLazy(){
+    // trigger identity -> row. Keyed by kind *and* value: an `ft` named
+    // `lua` and a `cmd` named `lua` would otherwise share a row and claim
+    // each other's plugins.
+    var byTrigger = {};
+    var total = 0;
+
+    function bucket(kind, value){
+      var key = kind + "\u0000" + value;
+      if(!byTrigger[key]){
+        byTrigger[key] = { kind: kind, value: value, repos: [], seen: {} };
+      }
+      return byTrigger[key];
+    }
+
+    IR.nodes.forEach(function(n){
+      (n.plugins || []).forEach(function(spec){
+        total++;
+        var load = pluginLoad(spec);
+        // The two trigger-less states get a bucket of their own rather than
+        // being left out. "What loads at startup" is the most expensive
+        // answer on this panel, and a panel about load timing that omitted
+        // it would be answering the easy half.
+        if(load === "startup"){
+          var st = bucket("startup", "");
+          if(!st.seen[spec.repo]){ st.seen[spec.repo] = true; st.repos.push(spec.repo); }
+          return;
+        }
+        if(load === "ondemand"){
+          var od = bucket("ondemand", "");
+          if(!od.seen[spec.repo]){ od.seen[spec.repo] = true; od.repos.push(spec.repo); }
+          return;
+        }
+        ["event", "cmd", "ft", "keys"].forEach(function(kind){
+          (spec[kind] || []).forEach(function(v){
+            var b = bucket(kind, String(v));
+            if(!b.seen[spec.repo]){ b.seen[spec.repo] = true; b.repos.push(spec.repo); }
+          });
+        });
+      });
+    });
+
+    var rows = Object.keys(byTrigger).map(function(k){
+      var b = byTrigger[k];
+      b.repos.sort();
+      return {
+        kind: b.kind,
+        value: b.value,
+        label: b.kind === "startup" ? "at startup"
+          : b.kind === "ondemand" ? "when required by something else"
+          : b.kind + ": " + b.value,
+        count: b.repos.length,
+        repos: b.repos.join(", "),
+        haystack: b.kind + " " + b.value + " " + b.repos.join(" "),
+        sortkey: b.kind + "#" + b.value
+      };
+    });
+
+    if(total === 0){
+      return '<p class="ntext none">No lazy.nvim-shaped plugin spec found in this tree, ' +
+        'so there is nothing to say about when anything loads. ' +
+        'See <code>core/plugins.lua</code> for what is recognized.</p>';
+    }
+
+    var cols = [
+      { label: "Loads", key: "label", get: function(r){ return r.label; }, initial: "asc" },
+      { label: "Plugins", key: "count", get: function(r){ return r.count; }, initial: "desc" },
+      { label: "Which", key: "repos", get: function(r){ return r.repos; }, initial: "asc" }
+    ];
+
+    var totalRows = rows.length;
+    rows = anFilter(rows);
+    // **Startup first, then the biggest groups**, unlike the alphabetical
+    // Plugins inventory next door. This panel is read for cost: what is paid
+    // unconditionally comes first, and after that a trigger carrying seven
+    // plugins matters more than one carrying a single plugin. `ondemand`
+    // sorts last because it is the one state that costs nothing until
+    // something asks.
+    var ORDER = { startup: 0, event: 1, ft: 2, cmd: 3, keys: 4, ondemand: 5 };
+    anSort(rows, cols, function(a, b){
+      if(ORDER[a.kind] !== ORDER[b.kind]) return ORDER[a.kind] - ORDER[b.kind];
+      if(a.count !== b.count) return b.count - a.count;
+      return a.value < b.value ? -1 : (a.value > b.value ? 1 : 0);
+    });
+
+    var startup = byTrigger["startup\u0000"];
+    var nstartup = startup ? startup.repos.length : 0;
+
+    var parts = [];
+    parts.push('<p class="nsub">' + total + ' plugin spec entr' +
+      (total === 1 ? 'y' : 'ies') + ' across ' + totalRows + ' distinct load point' +
+      (totalRows === 1 ? '' : 's') + '. <strong>' + nstartup + '</strong> load' +
+      (nstartup === 1 ? 's' : '') + ' at startup — everything else is deferred.' +
+      anFilterNote(rows.length, totalRows) + '</p>');
+    if(rows.length === 0){
+      return parts.join("") + '<p class="ntext none">No load point matches that filter.</p>';
+    }
+    parts.push('<table class="antable">' + anHead(cols) + '<tbody>');
+    rows.forEach(function(r){
+      parts.push('<tr><td>' + esc(r.label) + '</td><td class="num">' + r.count +
+        '</td><td class="dim">' + esc(r.repos) + '</td></tr>');
+    });
+    parts.push("</tbody></table>");
+    return parts.join("");
+  }
+
   function renderAnalysisPlugins(){
     var rows = [];
     var seen = {};
@@ -5833,6 +5990,7 @@ local JS = [[
     if(atool === "complexity") return renderAnalysisComplexity();
     if(atool === "duplicates") return renderAnalysisDuplicates();
     if(atool === "hooks") return renderAnalysisHooks();
+    if(atool === "lazy") return renderAnalysisLazy();
     if(atool === "docs") return renderAnalysisDocs();
     if(atool === "endpoints") return renderAnalysisEndpoints();
     if(atool === "tools") return renderAnalysisTools();
@@ -5843,7 +6001,8 @@ local JS = [[
   function drawAnalysis(){
     var atool = (state.atool === "doc" || state.atool === "deps" ||
       state.atool === "complexity" || state.atool === "duplicates" ||
-      state.atool === "plugins" || state.atool === "tools" || state.atool === "hooks" ||
+      state.atool === "plugins" || state.atool === "lazy" ||
+      state.atool === "tools" || state.atool === "hooks" ||
       state.atool === "docs" || state.atool === "endpoints" || state.atool === "telemetry" ||
       state.atool === "loaded" || state.atool === "checklist" ||
       state.atool === "api" || state.atool === "annotations" ||
@@ -9444,6 +9603,7 @@ function M.render(ir, findings, opts)
     '<button class="anview-btn" data-atool="complexity" data-explain="atool.complexity">Complexity</button>',
     '<button class="anview-btn" data-atool="duplicates" data-explain="atool.duplicates">Duplicates</button>',
     '<button class="anview-btn" data-atool="plugins" data-explain="atool.plugins">Plugins</button>',
+    '<button class="anview-btn" data-atool="lazy" data-explain="atool.lazy">Lazy loading</button>',
     '<button class="anview-btn" data-atool="bindings" data-explain="atool.bindings">Bindings</button>',
     '<button class="anview-btn plugin-gated" data-atool="tools" data-explain="atool.tools">Tools</button>',
     '<button class="anview-btn plugin-gated" data-atool="telemetry" data-explain="atool.telemetry">Telemetry</button>',
