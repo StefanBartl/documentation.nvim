@@ -572,6 +572,71 @@ building, not after: `--check` compares the committed page byte-for-byte,
 and a link that could vary between two identical regenerations would have
 broken that guarantee.
 
+### Two marked functions in one `clientstate`
+
+Session 2026-08-21. The Duplicates panel raises a question it cannot answer:
+two functions have the same structure, so do they compile to the same thing?
+Mark both — the `+` beside any function — and the Compare tab offers to open
+them in **one** Compiler Explorer, one editor each. `clientstate`'s `sessions`
+is an array, so this is that format used as documented rather than a trick.
+
+**Why marks rather than a button on a duplicate group.** Two measurements,
+over 232 duplicate groups in 27 repositories:
+
+* **144 of the 232 groups have exactly two members**, so a pair is the common
+  case rather than a special one.
+* A pair of this repository's own duplicates comes to **3 104 characters at
+  the longest** — comfortably inside godbolt.org's 8 KB request line — while
+  **two of its 17 whole groups exceed it**. A "compile this group" button
+  would therefore have failed on the groups most worth looking at.
+
+Marks also are not confined to one group, which matters more than the size:
+the comparison worth making is often between a duplicate and the thing it
+*should* have been, and that lives somewhere else entirely.
+
+Modules are skipped rather than refused. A module's source here is its
+functions concatenated, which is already an approximation; a third editor
+holding one would answer a different question without saying so.
+
+### A Compiler Explorer you run yourself
+
+The link has always been the only feature of the generated page that reaches
+the network at all. It can now point at a local instance instead, set in the
+Compare tab and stored in `localStorage`.
+
+**In `localStorage`, and never in the artifact.** A committed
+`docs/map/index.html` is shared; a baked `localhost:10240` would be a link
+that works for its author and silently fails for everyone else who opens the
+repository. The override is a fact about the machine the page is being *read*
+on, not about the tree it describes — the same reasoning that keeps the
+click-gesture preference out of the artifact. `compiler_explorer_spec.lua`
+holds that property: the only address in the source is the public one.
+
+Two consequences worth stating, because both are places the obvious
+implementation gets it wrong:
+
+* **The 8 KB ceiling is godbolt.org's front end, not Compiler Explorer's.**
+  It is CloudFront refusing a long request line with a bare `414`. A local
+  instance has nothing like it, so the check is skipped there rather than
+  inherited — applying it would be this page inventing a restriction its
+  target does not have and refusing a link that would have worked.
+* **The warning is rewritten, not relabelled.** "Experimental — leaves your
+  machine" is the whole point of the notice and it is simply untrue of an
+  address on that machine. A warning that cries wolf is one people learn to
+  click past, including on the pages where it is true.
+
+Only `http://` and `https://` origins are accepted, checked both when stored
+and when read: a configurable base URL that could hold a `javascript:` would
+be a click target the page built for itself.
+
+**And it is opened, never fetched.** This page carries a warning elsewhere
+that a caller-supplied URL is an SSRF-shaped capability, so the distinction
+is worth stating rather than leaving to inspection: the configured address
+reaches exactly one call, `window.open` — a navigation the reader asked for,
+in a new tab, whose response this page never sees. The only `fetch` in the
+page is same-origin `/api/*`. A reader-set preference that the page then read
+back would be a different feature with a different posture.
+
 ## Live preview via mdview.nvim (`opts.mdview`)
 
 Session 2026-08-10. `install()`-only, off by default, same posture as

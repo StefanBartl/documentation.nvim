@@ -221,7 +221,18 @@ All options, with their defaults: >lua
       mdview = false,           -- install() only: live IR push to a running
                                 -- mdview.nvim session, soft dependency
       godbolt = false,          -- EXPERIMENTAL, generate()-time: a Compiler
-                                -- Explorer link next to every module/function
+                                -- Explorer link next to every module/function.
+                                -- Mark two functions and the Compare tab
+                                -- opens both in one Compiler Explorer, one
+                                -- editor each -- which is the question the
+                                -- Duplicates panel raises and cannot answer.
+                                -- The reader can point the page at a
+                                -- Compiler Explorer they run themselves;
+                                -- that address lives in their browser and is
+                                -- never written into the generated page,
+                                -- because a committed map carrying one
+                                -- machine's localhost is a broken link for
+                                -- everyone else who opens it.
 
       command_name = "DocMap",
       browse_command_name = "DocBrowse",
