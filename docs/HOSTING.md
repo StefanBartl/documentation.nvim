@@ -285,9 +285,17 @@ requires an exact number breaks on the next bump for no reason, and one that
 ignores the number entirely reports nonsense about an older map.
 
 Reading extensions that go further than the file — a panel computing
-something from the artifact, served over the local server — are stage 2, and
-writing extensions stage 3; both are open, and both live in
-[`docmap-desktop`'s roadmap](https://github.com/StefanBartl/docmap-desktop).
+something from the artifact — are stage 2, and **the first one is built**:
+`docmap-desktop`'s workspace view resolves `requires_external` across every
+map it holds, which is the one question a single artifact cannot answer. It
+records that a module outside the repository was required and can say nothing
+about where that module lives, because it never saw it; several artifacts
+can. That consumer runs entirely off the files, with no engine involved and
+nothing registered here — which is the claim this section makes, now with
+something standing on it.
+
+Writing extensions are stage 3 and still open; both live in
+[`docmap-desktop`'s plan](https://github.com/StefanBartl/docmap-desktop).
 
 ## What a host must not assume
 
