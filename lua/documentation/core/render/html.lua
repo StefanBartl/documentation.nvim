@@ -397,6 +397,22 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .godi-wrap:hover .godi-tip,.godi-wrap:focus-within .godi-tip{display:block}
 .godi-off{opacity:.55;text-decoration:line-through}
 .godi-note{margin-top:4px;font-size:11.5px;color:var(--muted);max-width:62ch}
+/* The Compare tab's Compiler Explorer bar. Above the comparison rather than
+   under it: it acts on what is marked, and a control below a matrix of ten
+   rows is a control nobody finds. */
+.cebar{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 12px;
+  margin:0 0 14px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.cebtn{font:inherit;font-size:12.5px;padding:5px 10px;border:1px solid var(--line);
+  border-radius:7px;background:var(--panel);color:var(--ink);cursor:pointer}
+.cebtn:hover{border-color:var(--accent);color:var(--accent)}
+.cebtn:focus-visible{outline:2px solid var(--accent-soft);outline-offset:2px}
+.cenote{font-size:12px;color:var(--muted);max-width:64ch}
+.cehost{flex-basis:100%}
+.cehost>summary{cursor:pointer;font-size:12px;color:var(--muted)}
+.cehost .cenote{margin:8px 0}
+.cehostin{font:inherit;font-family:var(--mono);font-size:12px;padding:5px 8px;
+  border:1px solid var(--line);border-radius:7px;background:var(--bg);
+  color:var(--ink);width:min(34ch,100%);margin-right:8px}
 .feat-name[data-node]:focus-visible,.feat-tab-name[data-node]:focus-visible{
   outline:2px solid var(--accent-soft);outline-offset:2px}
 /* Roving-tabindex lists: the container is the tab stop, the item is what the
@@ -1357,16 +1373,57 @@ local JS = [[
   // project" view — Compiler Explorer's own Lua compiler (`luac`) takes
   // exactly one file per compile in any case; there is no project mode for
   // it the way CMake/C++ has.
-  function godboltUrl(source){
-    var state = { sessions: [{ id: 1, language: "lua", source: source,
-      compilers: [{ id: "lua547", options: "" }] }] };
+  // Which Compiler Explorer. `godbolt.org` unless the reader has said
+  // otherwise, and **the committed page never carries anything else** —
+  // a generated artifact that hard-wired one machine's `localhost:10240`
+  // would be a link that works for its author and 404s for everyone the
+  // repository is shared with. So the override lives in `localStorage`,
+  // which is a fact about the machine the page is being *read* on rather
+  // than about the tree it describes.
+  //
+  // Unscoped, for the reason `docmap:classic-clicks` is: someone running a
+  // local Compiler Explorer runs one, not one per repository.
+  var CE_LS_KEY = "docmap:compiler-explorer";
+  var CE_DEFAULT = "https://godbolt.org";
+
+  function ceBase(){
+    try {
+      var v = (localStorage.getItem(CE_LS_KEY) || "").trim().replace(/\/+$/, "");
+      // Only ever an origin this page could have reached anyway. A stored
+      // `javascript:` would otherwise become a click target built by the
+      // page itself, which is the one thing a base URL must not be able to
+      // turn into.
+      if(/^https?:\/\//.test(v)) return v;
+    } catch(e){ void 0; }
+    return CE_DEFAULT;
+  }
+
+  function ceIsLocal(){ return ceBase() !== CE_DEFAULT; }
+
+  // One or more sources in one `clientstate`. Compare Explorer's own format
+  // is an array of sessions, so two functions side by side is the format
+  // being used as documented rather than a trick — and it is the question
+  // the Duplicates panel raises and cannot answer: these two have the same
+  // shape, do they compile to the same thing?
+  //
+  // Measured on this repository's 17 duplicate groups: a pair comes to 3 104
+  // characters at the longest, comfortably inside the limit below, while two
+  // of the 17 whole groups exceed it. Pairs are the case this is built for
+  // and also the common one — 144 of the corpus's 232 groups have exactly
+  // two members.
+  function godboltUrl(sources){
+    if(typeof sources === "string") sources = [sources];
+    var state = { sessions: sources.map(function(src, i){
+      return { id: i + 1, language: "lua", source: src,
+        compilers: [{ id: "lua547", options: "" }] };
+    }) };
     // btoa is Latin1-only; encodeURIComponent/unescape is the standard
     // UTF-8-safe detour around that (Lua source can carry UTF-8 in
     // comments/strings). The result then needs the url-safe substitution
     // Compiler Explorer's own clientstate format documents.
     var b64 = btoa(unescape(encodeURIComponent(JSON.stringify(state))))
       .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-    return "https://godbolt.org/clientstate/" + b64;
+    return ceBase() + "/clientstate/" + b64;
   }
 
   // Emits nothing at all unless `opts.godbolt` was set at generation time
@@ -1387,14 +1444,25 @@ local JS = [[
   // who is deciding whether to click.
   function godboltTrigger(kind, key){
     if(!IR.meta.godbolt) return "";
+    // The warning is rewritten, not merely relabelled, when the reader has
+    // pointed this at their own instance. "Leaves your machine" is the whole
+    // point of the notice and it is simply untrue of `localhost` — a warning
+    // that cries wolf is one people learn to click past.
+    var tip = ceIsLocal()
+      ? '<b>Experimental — your own Compiler Explorer.</b> Opens ' + esc(ceBase()) +
+        ' in a new tab with this function’s source and shows you real ' +
+        '<code>luac</code> bytecode. Nothing leaves your machine, because that ' +
+        'address is on it. Cleared in the Compare tab.'
+      : '<b>Experimental — leaves your machine.</b> ' +
+        'Opens Compiler Explorer in a new tab and hands it this function’s source, so ' +
+        'godbolt.org compiles it and shows you real <code>luac</code> bytecode. The code ' +
+        'travels inside the link itself: nothing is uploaded ahead of time and nothing is ' +
+        'stored there. It is still someone else’s server, and this map has no other ' +
+        'outbound request anywhere. The Compare tab is where you point this at a ' +
+        'Compiler Explorer you run yourself instead.';
     return '<span class="godi-wrap"><a href="#" class="godi" data-godbolt="' + kind +
       '" data-godbolt-key="' + esc(key) + '">⚙ Compiler Explorer ↗</a>' +
-      '<span class="godi-tip" role="note"><b>Experimental — leaves your machine.</b> ' +
-      'Opens Compiler Explorer in a new tab and hands it this function’s source, so ' +
-      'godbolt.org compiles it and shows you real <code>luac</code> bytecode. The code ' +
-      'travels inside the link itself: nothing is uploaded ahead of time and nothing is ' +
-      'stored there. It is still someone else’s server, and this map has no other ' +
-      'outbound request anywhere.</span></span>';
+      '<span class="godi-tip" role="note">' + tip + '</span></span>';
   }
 
   // Where a mention lives, and the line it sits on. Rendered into the same
@@ -8675,20 +8743,29 @@ local JS = [[
     // that says `414 ERROR` and nothing else — and the alternative is real:
     // the per-function triggers on the same page do work.
     var url = godboltUrl(source);
-    if(url.length > 8000){
+    if(ceTooLong(url)){
       godboltTooLong(el, url.length);
       return;
     }
     window.open(url, "_blank");
   });
 
+  // The 8 KB ceiling belongs to **godbolt.org's front end**, not to Compiler
+  // Explorer: it is CloudFront refusing a long request line with a bare
+  // `414`. A locally-run instance has no such thing in front of it, so
+  // applying the limit there would be this page inventing a restriction its
+  // target does not have — and refusing a link that would have worked.
+  function ceTooLong(url){ return !ceIsLocal() && url.length > 8000; }
+
   // Explain a refusal where the reader clicked, and leave it explained: the
   // trigger keeps the message as its title afterwards, so the same link does
   // not invite the same click again.
   function godboltTooLong(el, len){
-    var msg = "Too large for Compiler Explorer: this would be a " +
+    var msg = "Too large for godbolt.org: this would be a " +
       Math.round(len / 1024) + " KB URL and their front end rejects anything " +
-      "over 8 KB with a 414. Open a single function instead — those fit.";
+      "over 8 KB with a 414. Open a single function instead — those fit. " +
+      "A Compiler Explorer you run yourself has no such limit; the Compare " +
+      "tab is where you point this page at one.";
     el.classList.add("godi-off");
     el.title = msg;
     var note = el.parentNode && el.parentNode.querySelector(".godi-note");
@@ -8950,11 +9027,82 @@ local JS = [[
       return;
     }
 
-    if(view === "matrix"){ body.innerHTML = cmpMatrixHTML(entries); return; }
+    if(view === "matrix"){ body.innerHTML = ceBarHTML(entries) + cmpMatrixHTML(entries); return; }
 
     var cls = view === "columns" ? "cmp-cols" : "cmp-stack";
-    body.innerHTML = '<div class="' + cls + '">' +
+    body.innerHTML = ceBarHTML(entries) + '<div class="' + cls + '">' +
       entries.map(cmpCardHTML).join("") + "</div>";
+  }
+
+  // =====================================================================
+  // Marked functions, side by side, in one Compiler Explorer
+  //
+  // The Duplicates panel raises a question it cannot answer: two functions
+  // have the same shape, so do they compile to the same thing? Marking both
+  // and opening them in one `clientstate` answers it — Compiler Explorer's
+  // own format is an array of sessions, so this is the documented shape
+  // used as documented, not a trick.
+  //
+  // **Why marks rather than a button in the Duplicates panel.** The marks
+  // mechanism, the key scheme and the Compare tab all already exist, and
+  // marks are not limited to one group: the comparison worth making is
+  // often between a duplicate and the thing it *should* have been, which
+  // lives in some other group or in no group at all.
+  //
+  // Modules are skipped rather than refused. A module's "source" is its
+  // functions concatenated, which is already an approximation, and mixing
+  // one into a comparison of two functions would put a session in there
+  // that answers a different question. The bar says how many it took.
+  // =====================================================================
+  function ceSources(entries){
+    return entries.filter(function(e){
+      return e.kind === "fn" && e.fn && e.fn.snippet;
+    });
+  }
+
+  function ceBarHTML(entries){
+    if(!IR.meta.godbolt) return "";
+    var usable = ceSources(entries);
+    var base = ceBase();
+    var local = ceIsLocal();
+
+    var h = ['<div class="cebar">'];
+    if(usable.length >= 2){
+      h.push('<button type="button" class="cebtn" id="cego">⚙ Compile all ' +
+        usable.length + ' together ↗</button>');
+      h.push('<span class="cenote">' +
+        (local
+          ? 'Opens ' + esc(base) + ' with one editor per function.'
+          : 'Opens godbolt.org with one editor per function — their source ' +
+            'travels inside the link, and it is still someone else’s server.') +
+        '</span>');
+    } else {
+      h.push('<span class="cenote">Mark two or more <em>functions</em> to compile ' +
+        'them side by side. ' +
+        (entries.length > usable.length
+          ? 'Modules are left out: a module’s source here is its functions ' +
+            'concatenated, which answers a different question.'
+          : '') +
+        '</span>');
+    }
+
+    // The setting lives here rather than in a preferences panel the page
+    // does not have. It is also where it is most wanted: this is the view
+    // that builds the longest URLs, and the 8 KB ceiling is godbolt.org's
+    // alone.
+    h.push('<details class="cehost"' + (local ? " open" : "") + '>');
+    h.push('<summary>' + (local ? esc(base) : "godbolt.org") + '</summary>');
+    h.push('<p class="cenote">Point this at a Compiler Explorer you run ' +
+      'yourself and nothing leaves your machine. Stored in this browser only ' +
+      '— never written into the generated page, because a committed map ' +
+      'that hard-wired one machine’s address would be a broken link for ' +
+      'everyone else who opens it.</p>');
+    h.push('<input type="url" id="cehostin" class="cehostin" spellcheck="false" ' +
+      'placeholder="http://localhost:10240" value="' + (local ? esc(base) : "") + '">');
+    h.push('<button type="button" class="cebtn" id="cehostsave">Use this</button>');
+    h.push('<button type="button" class="cebtn" id="cehostreset">Back to godbolt.org</button>');
+    h.push("</details></div>");
+    return h.join("");
   }
 
   document.querySelectorAll("#cmptoggle .cmpview-btn").forEach(function(b){
@@ -8962,6 +9110,57 @@ local JS = [[
       navigate({ tab: "compare", cview: b.dataset.cview });
     });
   });
+  // Delegated, because `#cego` and the host controls are rebuilt by every
+  // `drawCompare` — binding them per draw is how a handler ends up attached
+  // three times to the same button.
+  document.addEventListener("click", function(ev){
+    var t = ev.target;
+    if(!t || !t.id) return;
+
+    if(t.id === "cego"){
+      var usable = ceSources(state.marks.map(markEntry).filter(Boolean));
+      if(usable.length < 2) return;
+      var url = godboltUrl(usable.map(function(e){ return e.fn.snippet; }));
+      if(ceTooLong(url)){
+        // Said in the bar rather than in a new tab: godbolt.org answers an
+        // over-long request line with an unexplained `414` page, and the
+        // reader would have no way to connect it to the number of marks.
+        var note = document.querySelector(".cebar .cenote");
+        if(note){
+          note.textContent = "Too large for godbolt.org: " +
+            Math.round(url.length / 1024) + " KB of URL against their 8 KB " +
+            "limit. Unmark a few, or point this at a Compiler Explorer you " +
+            "run yourself — that limit is their front end's, not the tool's.";
+        }
+        return;
+      }
+      window.open(url, "_blank");
+      return;
+    }
+
+    if(t.id === "cehostsave"){
+      var input = document.getElementById("cehostin");
+      var v = (input && input.value || "").trim().replace(/\/+$/, "");
+      // Refused rather than stored-and-ignored. A value that silently does
+      // nothing is worse than one that says why: `ceBase` would fall back to
+      // godbolt.org and the reader would think they had switched.
+      if(!/^https?:\/\//.test(v)){
+        if(input) input.setCustomValidity("Needs to start with http:// or https://");
+        if(input) input.reportValidity();
+        return;
+      }
+      try { localStorage.setItem(CE_LS_KEY, v); } catch(e){ void 0; }
+      drawCompare();
+      return;
+    }
+
+    if(t.id === "cehostreset"){
+      try { localStorage.removeItem(CE_LS_KEY); } catch(e){ void 0; }
+      drawCompare();
+      return;
+    }
+  });
+
   document.getElementById("cmpclear").addEventListener("click", clearMarks);
   document.getElementById("markbar").addEventListener("click", function(){
     navigate({ tab: "compare" });
