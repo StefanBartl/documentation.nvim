@@ -28,9 +28,9 @@ local M = {}
 ---runs git a different way and would otherwise carry a second copy of it.
 ---@param cwd string
 ---@param out_dir string Excluded: in a repo that commits its own map, it is touched by nearly every commit.
----@return table<string, string[]>? dates
----@return string? err
-local function commit_dates(cwd, out_dir)
+---@param cb fun(dates: table<string, string[]>|nil, err: string|nil) called on the main loop
+---@return nil
+local function commit_dates(cwd, out_dir, cb)
   local cmd = {
     "git",
     "log",
@@ -42,22 +42,29 @@ local function commit_dates(cwd, out_dir)
     (":(exclude)%s"):format(out_dir),
   }
 
-  local proc
-  vim.system(cmd, { cwd = cwd, text = true }, function(res)
-    proc = res
+  -- `git log` over a repository's full history is the slow part of this
+  -- command. It used to be pumped with `vim.wait(120000, ...)`, which keeps the
+  -- loop running (that is why the progress handle was visible at all) but still
+  -- holds input for the whole run. The result is delivered through `cb` now, so
+  -- nothing is held at all; the 120s ceiling moves to vim.system's own timeout.
+  vim.system(cmd, { cwd = cwd, text = true, timeout = 120000 }, function(proc)
+    -- vim.system callbacks run off the main loop; the caller touches quickfix,
+    -- notify and :copen.
+    vim.schedule(function()
+      if not proc then
+        cb(nil, "git log did not finish within 120s")
+        return
+      end
+      if proc.code ~= 0 then
+        local stderr = vim.trim(proc.stderr or "")
+        -- A timeout kill surfaces as a non-zero exit with no stderr; keep the
+        -- old wording for that case so the message stays recognisable.
+        cb(nil, stderr ~= "" and ("git log failed: " .. stderr) or "git log did not finish within 120s")
+        return
+      end
+      cb(require("documentation.core.checklist").parse_history(proc.stdout or ""), nil)
+    end)
   end)
-  local settled = vim.wait(120000, function()
-    return proc ~= nil
-  end, 20)
-
-  if not settled or not proc then
-    return nil, "git log did not finish within 120s"
-  end
-  if proc.code ~= 0 then
-    return nil, "git log failed: " .. vim.trim(proc.stderr or "")
-  end
-
-  return require("documentation.core.checklist").parse_history(proc.stdout or ""), nil
 end
 
 ---@param status Documentation.Checklist.Status
@@ -116,64 +123,68 @@ function M.run(ctx, arg)
   end
 
   local progress = require("documentation.bindings.progress").create(ctx, "reading history")
-  local dates, err = commit_dates(ctx.cfg.root, ctx.cfg.out_dir or "docs/map")
-  if progress then
-    progress:finish(err or "history read")
-  end
-  if not dates then
-    ctx.notify.warn(err or "could not read history")
-    return
-  end
-
-  local checklist = require("documentation.core.checklist")
-  local statuses = checklist.status(ledger, dates)
-
-  local items = {}
-  local stale, unverified = 0, 0
-  for _, status in ipairs(statuses) do
-    if status.state == "stale" then
-      stale = stale + 1
-    elseif status.state == "unverified" then
-      unverified = unverified + 1
+  -- commit_dates() is asynchronous now, so everything that needs the history
+  -- moved into its callback. The command returns immediately; the progress
+  -- handle stays up until the callback closes it.
+  commit_dates(ctx.cfg.root, ctx.cfg.out_dir or "docs/map", function(dates, err)
+    if progress then
+      progress:finish(err or "history read")
+    end
+    if not dates then
+      ctx.notify.warn(err or "could not read history")
+      return
     end
 
-    if want_all or status.state == "stale" or status.state == "unverified" then
-      local filename, lnum = target(ctx.cfg, status)
-      items[#items + 1] = {
-        filename = filename,
-        lnum = lnum,
-        col = 1,
-        text = describe(status),
-        -- `E` only for stale: an unverified item is a gap in the ledger, not
-        -- a claim that has gone wrong, and marking both the same way would
-        -- make the one that matters harder to pick out.
-        type = status.state == "stale" and "E" or "W",
-      }
-    end
-  end
+    local checklist = require("documentation.core.checklist")
+    local statuses = checklist.status(ledger, dates)
 
-  if #items == 0 then
-    ctx.notify.info(
-      ("Checklist clean: %d item(s), %d verified against a citation, nothing stale."):format(
-        ledger.total,
-        ledger.cited
+    local items = {}
+    local stale, unverified = 0, 0
+    for _, status in ipairs(statuses) do
+      if status.state == "stale" then
+        stale = stale + 1
+      elseif status.state == "unverified" then
+        unverified = unverified + 1
+      end
+
+      if want_all or status.state == "stale" or status.state == "unverified" then
+        local filename, lnum = target(ctx.cfg, status)
+        items[#items + 1] = {
+          filename = filename,
+          lnum = lnum,
+          col = 1,
+          text = describe(status),
+          -- `E` only for stale: an unverified item is a gap in the ledger, not
+          -- a claim that has gone wrong, and marking both the same way would
+          -- make the one that matters harder to pick out.
+          type = status.state == "stale" and "E" or "W",
+        }
+      end
+    end
+
+    if #items == 0 then
+      ctx.notify.info(
+        ("Checklist clean: %d item(s), %d verified against a citation, nothing stale."):format(
+          ledger.total,
+          ledger.cited
+        )
       )
-    )
-    return
-  end
+      return
+    end
 
-  vim.fn.setqflist({}, " ", {
-    title = ("docmap checklist: %d stale, %d unverified, %d total"):format(
-      stale,
-      unverified,
-      ledger.total
-    ),
-    items = items,
-  })
-  vim.cmd("copen")
-  ctx.notify.info(
-    ("%d stale, %d unverified, of %d item(s)."):format(stale, unverified, ledger.total)
-  )
+    vim.fn.setqflist({}, " ", {
+      title = ("docmap checklist: %d stale, %d unverified, %d total"):format(
+        stale,
+        unverified,
+        ledger.total
+      ),
+      items = items,
+    })
+    vim.cmd("copen")
+    ctx.notify.info(
+      ("%d stale, %d unverified, of %d item(s)."):format(stale, unverified, ledger.total)
+    )
+  end)
 end
 
 return M
