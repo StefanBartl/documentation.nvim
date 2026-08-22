@@ -85,48 +85,69 @@ local MODES = {
 
 ---@param st table
 ---@param args string[]
----@return string|nil stdout
----@return string|nil err
-local function git(st, args)
+---@param cb fun(stdout: string|nil, err: string|nil)  invoked on the main loop
+---@return nil
+local function git(st, args, cb)
   local cmd = { "git" }
   vim.list_extend(cmd, args)
-  local proc = vim.system(cmd, { cwd = st.opts.root, text = true }):wait()
-  if proc.code ~= 0 then
-    return nil, vim.trim(proc.stderr or "git failed")
-  end
-  return proc.stdout or ""
+  vim.system(cmd, { cwd = st.opts.root, text = true }, function(proc)
+    -- vim.system callbacks run off the main loop; every caller here goes on to
+    -- touch buffers and windows.
+    vim.schedule(function()
+      if proc.code ~= 0 then
+        return cb(nil, vim.trim(proc.stderr or "git failed"))
+      end
+      cb(proc.stdout or "", nil)
+    end)
+  end)
 end
 
 ---Load the commit list once per session. Cached on the state: it is the same
 ---list every time the mode is entered, and re-running `git log` on each `5`
 ---keypress would make the mode feel slower than it is.
+---
+---Asynchronous. `git log` over the full history used to run through
+---`vim.system(...):wait()` right inside `render`, so entering history mode
+---froze the editor. `st.commits` is now filled in a callback and `on_ready`
+---asks for another frame. Until it arrives the list renders empty for one
+---frame -- which is what `st.commits = {}` already produced on failure, so the
+---view needs no new state to understand.
+---
+---`st.commits_loading` keeps `render` from starting a second `git log` on
+---every frame while the first is still running.
 ---@param st table
-local function load_commits(st)
-  if st.commits then
+---@param on_ready fun()  called once the commit list is on the state
+local function load_commits(st, on_ready)
+  if st.commits or st.commits_loading then
     return
   end
+  st.commits_loading = true
+
   -- Unit/record separators, not a printable delimiter: a subject can contain
   -- whatever character looked safe.
-  local out, err =
-    git(st, { "log", "-n", "200", "--date=short", "--format=%H%x1f%h%x1f%an%x1f%ad%x1f%s%x1e" })
-  if not out then
-    st.commits = {}
-    notify.warn("git log failed: " .. tostring(err))
-    return
-  end
+  git(st, { "log", "-n", "200", "--date=short", "--format=%H%x1f%h%x1f%an%x1f%ad%x1f%s%x1e" }, function(out, err)
+    st.commits_loading = nil
+    if not out then
+      st.commits = {}
+      notify.warn("git log failed: " .. tostring(err))
+      on_ready()
+      return
+    end
 
-  local commits = {}
-  for record in out:gmatch("([^\30]+)") do
-    local rec = vim.trim(record)
-    if rec ~= "" then
-      local f = vim.split(rec, "\31", { plain = true })
-      if #f >= 5 then
-        commits[#commits + 1] =
-          { sha = f[1], short = f[2], author = f[3], date = f[4], subject = f[5] }
+    local commits = {}
+    for record in out:gmatch("([^\30]+)") do
+      local rec = vim.trim(record)
+      if rec ~= "" then
+        local f = vim.split(rec, "\31", { plain = true })
+        if #f >= 5 then
+          commits[#commits + 1] =
+            { sha = f[1], short = f[2], author = f[3], date = f[4], subject = f[5] }
+        end
       end
     end
-  end
-  st.commits = commits
+    st.commits = commits
+    on_ready()
+  end)
 end
 
 ---Analyse one commit: its diff, the artifacts either side of it, and the
@@ -136,12 +157,19 @@ end
 ---root commit, which has no parent to name. Excluding `out_dir` is not
 ---cosmetic: measured here, a commit's full diff is 4.8 MB of which all but
 ---~16 KB is the regenerated map.
+---
+---Asynchronous, and this is the one that mattered most: three subprocesses per
+---commit (the diff plus the map at `sha` and at `sha^`), each formerly a
+---`:wait()`. Stepping through history froze the editor once per row. The three
+---are chained rather than run in parallel -- they hit the same object database,
+---and `st.impact` must only become visible once all three have landed.
 ---@param st table
 ---@param sha string
-local function load_impact(st, sha)
+---@param on_ready fun()  called once the analysis is on the state
+local function load_impact(st, sha, on_ready)
   local out_dir = st.opts.out_dir or "docs/map"
 
-  local diff_text, derr = git(st, {
+  git(st, {
     "show",
     "--unified=0",
     "--format=",
@@ -149,33 +177,39 @@ local function load_impact(st, sha)
     "--",
     ".",
     (":(exclude)%s"):format(out_dir),
-  })
-  if not diff_text then
-    notify.warn("git show failed: " .. tostring(derr))
-    st.impact = nil
-    return
-  end
-  st.diff_text = diff_text
-
-  ---@param rev string
-  ---@return Documentation.IR|nil
-  local function ir_at(rev)
-    local rel = out_dir .. "/module_map.json"
-    local raw = git(st, { "show", ("%s:%s"):format(rev, rel) })
-    if not raw or raw == "" then
-      return nil
+  }, function(diff_text, derr)
+    if not diff_text then
+      notify.warn("git show failed: " .. tostring(derr))
+      st.impact = nil
+      on_ready()
+      return
     end
-    local ok, doc = pcall(vim.json.decode, raw, { luanil = { object = true, array = true } })
-    if not ok or type(doc) ~= "table" or type(doc.nodes) ~= "table" then
-      return nil
-    end
-    return require("documentation.editor.browse.source").rehydrate(doc)
-  end
+    st.diff_text = diff_text
 
-  local ir_after = ir_at(sha)
-  local ir_before = ir_at(sha .. "^")
-  st.impact_has_map = ir_after ~= nil
-  st.impact = require("documentation.core.history").analyze(diff_text, ir_after, ir_before)
+    ---@param rev string
+    ---@param cb fun(ir: Documentation.IR|nil)
+    local function ir_at(rev, cb)
+      local rel = out_dir .. "/module_map.json"
+      git(st, { "show", ("%s:%s"):format(rev, rel) }, function(raw)
+        if not raw or raw == "" then
+          return cb(nil)
+        end
+        local ok, doc = pcall(vim.json.decode, raw, { luanil = { object = true, array = true } })
+        if not ok or type(doc) ~= "table" or type(doc.nodes) ~= "table" then
+          return cb(nil)
+        end
+        cb(require("documentation.editor.browse.source").rehydrate(doc))
+      end)
+    end
+
+    ir_at(sha, function(ir_after)
+      ir_at(sha .. "^", function(ir_before)
+        st.impact_has_map = ir_after ~= nil
+        st.impact = require("documentation.core.history").analyze(diff_text, ir_after, ir_before)
+        on_ready()
+      end)
+    end)
+  end)
 end
 
 ---@return boolean
@@ -227,10 +261,25 @@ local function render(st)
   -- `impact_sha` so stepping back onto a commit already looked at costs
   -- nothing.
   if st.mode == "history" then
-    load_commits(st)
+    -- Both loaders are asynchronous now. This frame is drawn with whatever is
+    -- already on the state, and each loader asks for another frame once its
+    -- data has landed. `again` refuses that request when the browser has been
+    -- closed or replaced in the meantime -- a late callback must never draw
+    -- into a dead window or resurrect a previous instance's state.
+    local function again()
+      if state == st and M.is_open() then
+        render(st)
+      end
+    end
+
+    load_commits(st, again)
+
     if st.sha and st.impact_sha ~= st.sha then
-      load_impact(st, st.sha)
+      -- Set before the load, not after: it is the "this commit is being
+      -- handled" marker, and leaving it unset until the callback would make
+      -- every intervening frame start the same three subprocesses again.
       st.impact_sha = st.sha
+      load_impact(st, st.sha, again)
     elseif not st.sha then
       st.impact, st.impact_sha, st.impact_has_map, st.diff_text = nil, nil, nil, nil
     end
