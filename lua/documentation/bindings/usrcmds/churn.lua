@@ -34,124 +34,131 @@ function M.run(ctx, arg)
   vim.list_extend(cmd, { "--", ".", (":(exclude)%s"):format(out_dir) })
 
   -- `git log` over a repository's whole history is the slow part of this
-  -- command, so it gets an indicator. It has to be `vim.system` + `vim.wait`
-  -- rather than the `:wait()` this used before: `:wait()` does not drain
-  -- scheduled callbacks, and a progress handle needs them to become visible at
-  -- all — measured 0 visible samples under `:wait()` against 62 under
-  -- `vim.wait`. See bindings/progress.lua. Same blocking behaviour either way,
-  -- so nothing downstream changes.
+  -- command, so it gets an indicator. It used to be `vim.system` + a
+  -- `vim.wait` pump rather than `:wait()`, because `:wait()` does not drain
+  -- scheduled callbacks and a progress handle needs them to become visible at
+  -- all -- measured 0 visible samples under `:wait()` against 62 under
+  -- `vim.wait`. See bindings/progress.lua.
+  --
+  -- The pump kept the loop running but still held input for the whole run.
+  -- Everything downstream now lives in vim.system's callback instead, so the
+  -- command returns immediately and the indicator still updates. The 120s
+  -- ceiling moved to vim.system's own timeout.
   local progress = require("documentation.bindings.progress").create(
     ctx,
     range == "" and "reading history" or ("reading history (%s)"):format(range)
   )
 
-  local proc
-  vim.system(cmd, { cwd = ctx.cfg.root, text = true }, function(res)
-    proc = res
-  end)
-  local settled = vim.wait(120000, function()
-    return proc ~= nil
-  end, 20)
-
-  if not settled or not proc then
-    if progress then
-      progress:finish("git log timed out")
-    end
-    ctx.notify.warn("git log did not finish within 120s")
-    return
-  end
-
-  if proc.code ~= 0 then
-    if progress then
-      progress:finish("git log failed")
-    end
-    ctx.notify.warn("git log failed: " .. vim.trim(proc.stderr or ""))
-    return
-  end
-
-  local counts, seen_commits = {}, 0
-  for record in (proc.stdout or ""):gmatch("[^\30]+") do
-    local touched = {}
-    for line in record:gmatch("[^\r\n]+") do
-      local path = vim.trim(line)
-      if path ~= "" then
-        touched[path] = true
+  vim.system(cmd, { cwd = ctx.cfg.root, text = true, timeout = 120000 }, function(proc)
+    -- Off the main loop here; everything below touches notify and a buffer.
+    vim.schedule(function()
+      if not proc then
+        if progress then
+          progress:finish("git log timed out")
+        end
+        ctx.notify.warn("git log did not finish within 120s")
+        return
       end
-    end
-    if next(touched) then
-      seen_commits = seen_commits + 1
-      -- Per commit, not per occurrence: a path listed twice in one commit is
-      -- still one change to it.
-      for path in pairs(touched) do
-        counts[path] = (counts[path] or 0) + 1
+
+      if proc.code ~= 0 then
+        local stderr = vim.trim(proc.stderr or "")
+        if progress then
+          progress:finish("git log failed")
+        end
+        -- A timeout kill surfaces as a non-zero exit with no stderr; keep the
+        -- old wording for that case so the message stays recognisable.
+        ctx.notify.warn(
+          stderr ~= "" and ("git log failed: " .. stderr) or "git log did not finish within 120s"
+        )
+        return
       end
-    end
-  end
 
-  -- Closed here rather than at each `return` below: the tally above is pure
-  -- string work over an in-memory buffer, and `churn.rank` is too, so the wait
-  -- the indicator exists for is already over by this point.
-  if progress then
-    progress:finish(("%d commits examined"):format(seen_commits))
-  end
 
-  if seen_commits == 0 then
-    ctx.notify.info(
-      range == "" and ("No commits outside %s."):format(out_dir)
-        or ("No commits in %s outside %s."):format(range, out_dir)
-    )
-    return
-  end
+      local counts, seen_commits = {}, 0
+      for record in (proc.stdout or ""):gmatch("[^\30]+") do
+        local touched = {}
+        for line in record:gmatch("[^\r\n]+") do
+          local path = vim.trim(line)
+          if path ~= "" then
+            touched[path] = true
+          end
+        end
+        if next(touched) then
+          seen_commits = seen_commits + 1
+          -- Per commit, not per occurrence: a path listed twice in one commit is
+          -- still one change to it.
+          for path in pairs(touched) do
+            counts[path] = (counts[path] or 0) + 1
+          end
+        end
+      end
 
-  local churn = require("documentation.core.churn")
-  local ir = ctx.handle.ir()
+      -- Closed here rather than at each `return` below: the tally above is pure
+      -- string work over an in-memory buffer, and `churn.rank` is too, so the wait
+      -- the indicator exists for is already over by this point.
+      if progress then
+        progress:finish(("%d commits examined"):format(seen_commits))
+      end
 
-  -- The third axis, when this machine has one. Read here rather than inside
-  -- `churn.rank`, which is pure and headless-testable and stays that way:
-  -- it takes a plain `id -> counts` table and never learns that
-  -- `runtime-analysis.nvim` exists.
-  --
-  -- Every step is allowed to fail into "no data": the plugin may not be
-  -- installed, telemetry may never have been enabled for this namespace, or
-  -- the tree may have no `opts.title` to derive a namespace from. None of
-  -- those is an error and none of them changes the ranking -- they change
-  -- whether a column is there.
-  local join = require("documentation.core.telemetry_join")
-  local namespace = join.namespace(ctx.cfg)
-  local data = namespace and join.load(namespace)
-  local calls = data and join.by_node(ir, data) or nil
+      if seen_commits == 0 then
+        ctx.notify.info(
+          range == "" and ("No commits outside %s."):format(out_dir)
+            or ("No commits in %s outside %s."):format(range, out_dir)
+        )
+        return
+      end
 
-  local result = churn.rank(counts, ir, seen_commits, calls)
+      local churn = require("documentation.core.churn")
+      local ir = ctx.handle.ir()
 
-  if #result.entries == 0 then
-    ctx.notify.info(
-      ("%d commit(s) examined, none touching a scanned module with documented functions."):format(
-        seen_commits
+      -- The third axis, when this machine has one. Read here rather than inside
+      -- `churn.rank`, which is pure and headless-testable and stays that way:
+      -- it takes a plain `id -> counts` table and never learns that
+      -- `runtime-analysis.nvim` exists.
+      --
+      -- Every step is allowed to fail into "no data": the plugin may not be
+      -- installed, telemetry may never have been enabled for this namespace, or
+      -- the tree may have no `opts.title` to derive a namespace from. None of
+      -- those is an error and none of them changes the ranking -- they change
+      -- whether a column is there.
+      local join = require("documentation.core.telemetry_join")
+      local namespace = join.namespace(ctx.cfg)
+      local data = namespace and join.load(namespace)
+      local calls = data and join.by_node(ir, data) or nil
+
+      local result = churn.rank(counts, ir, seen_commits, calls)
+
+      if #result.entries == 0 then
+        ctx.notify.info(
+          ("%d commit(s) examined, none touching a scanned module with documented functions."):format(
+            seen_commits
+          )
+        )
+        return
+      end
+
+      vim.fn.setqflist({}, " ", {
+        title = ("docmap churn: %s"):format(range == "" and "all history" or range),
+        items = churn.quickfix_items(result, ctx.cfg.root),
+      })
+      vim.cmd("copen")
+
+      local top = result.entries[1]
+      ctx.notify.info(
+        ("%d module(s) over %d commits — hottest %s (%d × %d = %d)%s"):format(
+          #result.entries,
+          seen_commits,
+          top.module or top.node,
+          top.commits,
+          top.complexity,
+          top.score,
+          result.unmatched > 0
+              and (" · %d changed path(s) back no scanned module"):format(result.unmatched)
+            or ""
+        )
       )
-    )
-    return
-  end
-
-  vim.fn.setqflist({}, " ", {
-    title = ("docmap churn: %s"):format(range == "" and "all history" or range),
-    items = churn.quickfix_items(result, ctx.cfg.root),
-  })
-  vim.cmd("copen")
-
-  local top = result.entries[1]
-  ctx.notify.info(
-    ("%d module(s) over %d commits — hottest %s (%d × %d = %d)%s"):format(
-      #result.entries,
-      seen_commits,
-      top.module or top.node,
-      top.commits,
-      top.complexity,
-      top.score,
-      result.unmatched > 0
-          and (" · %d changed path(s) back no scanned module"):format(result.unmatched)
-        or ""
-    )
-  )
+    end)
+  end)
 end
 
 return M
