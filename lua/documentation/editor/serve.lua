@@ -367,15 +367,33 @@ function M.start(cfg)
 
   -- Port 0 lets the OS pick a free one, which avoids both a hardcoded port
   -- colliding with something else and a retry loop looking for a free one.
+  -- It stays the default for exactly that reason.
+  --
+  -- `opts.serve_port` overrides it for the one case the default cannot
+  -- serve: a URL that has to survive a restart, because it is bookmarked or
+  -- written into another tool's configuration. A fixed port can be taken,
+  -- and then the bind fails and says so — which is the honest outcome, and
+  -- better than silently landing somewhere else than the URL the reader
+  -- already saved.
+  local port_wanted = tonumber(cfg and cfg.serve_port) or 0
+  if port_wanted < 0 or port_wanted > 65535 or port_wanted % 1 ~= 0 then
+    server:close()
+    return nil, ("serve_port is not a port number: %s"):format(tostring(cfg.serve_port))
+  end
+
   local ok_bind, bind_err = pcall(function()
     -- 127.0.0.1 only. Never 0.0.0.0: this is a personal tool on a personal
     -- machine, and binding wider would expose the repo's source to the
     -- network for no gain whatsoever.
-    assert(server:bind("127.0.0.1", 0))
+    assert(server:bind("127.0.0.1", port_wanted))
   end)
   if not ok_bind then
     server:close()
-    return nil, "bind failed: " .. tostring(bind_err)
+    return nil,
+      ("bind failed%s: %s"):format(
+        port_wanted ~= 0 and (" on port " .. port_wanted) or "",
+        tostring(bind_err)
+      )
   end
 
   local name = server:getsockname()

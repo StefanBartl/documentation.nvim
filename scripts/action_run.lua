@@ -109,20 +109,40 @@ local function source()
   return #list == 1 and list[1] or list
 end
 
+--- Where `config.build`'s warnings go in a CI job.
+---
+--- Same reason `standalone/docmap.lua` grew one: `build()` warns about an
+--- unrecognised option, a malformed `.docmap.json` and a typo'd `checks`
+--- key through a `notify` it is handed, and a host that hands it none turns
+--- every one of those into silence. In a CI log silence is the worst of the
+--- three places it can happen — nobody is watching, and the run goes green.
+---
+--- `stderr`, because stdout is the report the job's summary is read from.
+local notify = {
+  warn = function(msg)
+    io.stderr:write("docmap: " .. tostring(msg) .. "\n")
+  end,
+}
+
 local opts = require("documentation.config").build(root, {
   source = source(),
   title = env("DOCMAP_ACTION_TITLE"),
   out_dir = env("DOCMAP_ACTION_OUT_DIR"),
   repo_url = env("DOCMAP_ACTION_REPO_URL"),
   branch = env("DOCMAP_ACTION_BRANCH"),
-})
+}, notify)
 
--- **No `layers`, no `extra_checks`, and that is deliberate.** Both are
--- repository-specific policy: a layer rule is a claim about one tree's own
--- architecture, and an extra check is code. Neither can be expressed as an
--- action input without inventing a configuration language, and a repository
--- that wants them has outgrown "adopt it in three lines" — it should copy
--- `scripts/gen_map.lua` as `docs/REUSE.md` describes. The action covers the
--- case it is for and says so rather than half-covering the next one.
+-- **No `layers` here, and none needed.** The reasoning this comment used to
+-- carry was that a layer rule cannot be expressed as an action input without
+-- inventing a configuration language. That was right about *inputs* and the
+-- wrong conclusion: the answer to "this does not fit on a command line" is a
+-- file. `config.build` above reads the repository's own `.docmap.json`, so a
+-- tree with layer rules gets them here exactly as it does under `:DocMap`.
+--
+-- **No `extra_checks`, and that one is permanent.** It is a list of Lua
+-- functions, and `.docmap.json` is data that this action reads out of a
+-- repository it just cloned. A repository that wants its own checks has
+-- outgrown "adopt it in three lines" and should copy `scripts/gen_map.lua`
+-- as `docs/REUSE.md` describes.
 local code = require("documentation.core.cli").run(opts, _G.arg or {})
 vim.cmd("cq " .. code)

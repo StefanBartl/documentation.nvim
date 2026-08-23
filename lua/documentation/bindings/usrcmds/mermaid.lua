@@ -38,8 +38,20 @@ function M.run(ctx, arg)
 
   local ir = ctx.handle.ir()
   local docmap = require("documentation")
-  local src = kind == "deps" and docmap.render.mermaid_deps(ir, {})
-    or docmap.render.mermaid(ir, nil, {})
+  -- Two shapes, two depth fields, one direction. `deps_depth` is a roll-up
+  -- level and `max_depth` is a hierarchy cutoff; passing either where the
+  -- other belongs silently redraws the wrong picture, which is why
+  -- `Documentation.DiagramOpts` names them apart rather than sharing one.
+  local diagram = ctx.cfg.diagram or {}
+  local src = kind == "deps"
+      and docmap.render.mermaid_deps(ir, {
+        depth = diagram.deps_depth,
+        direction = diagram.direction,
+      })
+    or docmap.render.mermaid(ir, nil, {
+      max_depth = diagram.max_depth,
+      direction = diagram.direction,
+    })
 
   -- Same buffer-reuse dance as `usrcmds/dot.lua`, and for the reason that
   -- module found the hard way: `nvim_buf_set_name` raises on a name

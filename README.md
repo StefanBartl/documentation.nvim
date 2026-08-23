@@ -443,9 +443,76 @@ per-field documentation is in
                             -- no-op when it is not. Set false to opt out.
     telemetry_namespace = nil,  -- default: opts.title -- the namespace both
                                 -- this and :DocBrowse's telemetry mode use
+
+    checks = {},          -- switch a check off, or re-grade it
+    theme = "system",     -- theme baked into the generated page
+    serve_port = 0,       -- 0 lets the OS pick; set it for a stable URL
+
+    features_dir = nil,   -- default: docs/FEATURES, then docs/features
+    checklist_dir = nil,  -- default: docs/CHECKLIST[.md], then lowercase
+    install_dir = "docs", -- where install.json / INSTALL.md live
+
+    browse = {},          -- :DocBrowse's layout, theme and opening list
+    diagram = {},         -- how :DocMap dot / mermaid draw
   },
 }
 ```
+
+### `.docmap.json` — options the repository states about itself
+
+Most of the table above is a fact about the *tree*, not about your session,
+and until now a Lua table was the only place to put one. That left the other
+three hosts — the standalone binary, the GitHub Action, `docmap-desktop` —
+able to pass only the handful of options that fit on a command line.
+
+A `.docmap.json` at the repository root is read by every one of them:
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/StefanBartl/documentation.nvim/main/docs/docmap.schema.json",
+  "source": ["lua", "src"],
+  "exclude": ["src/generated"],
+  "repo_url": "https://github.com/me/my-plugin",
+  "layers": [
+    { "from": "myplugin.core", "to": "myplugin.ui", "why": "the pipeline stays runnable headless" }
+  ],
+  "checks": { "undocumented-param": false, "missing-module-tag": "warn" }
+}
+```
+
+Precedence, loosest first: the defaults, what `config.build` derives from the
+root, **this file**, the host's explicit `opts` table, then CLI flags. So a
+Neovim spec still wins over the file, and `--exclude=` still wins over both.
+
+A repository may state facts about itself and not about the session reading
+it: `command_name`, `keys`, `watch`, `diagnostics`, `telemetry` and their
+neighbours are refused with a warning naming them, because a checkout you
+cloned must not be able to rebind your keys or start a watcher. The file is
+**data, never code** for the same reason — `extra_checks` is a list of Lua
+functions and stays a host-side option. The full split is in
+[`lua/documentation/config/file.lua`](lua/documentation/config/file.lua).
+
+### Switching a check off, or re-grading it
+
+`opts.checks` is keyed by the check code a finding carries — the same string
+the quickfix list, the SARIF report and the page's Findings tab all show.
+
+```lua
+checks = {
+  ["undocumented-param"] = false,   -- off entirely
+  ["missing-module-tag"] = "warn",  -- keep it, stop failing CI on it
+  ["dead-function"] = "info",
+}
+```
+
+`false` drops every finding of that check; a severity string re-grades it.
+Anything unlisted keeps the severity it is raised with, and the policy
+applies to `extra_checks` results too, since those carry a code like any
+other. A code that names nothing is reported rather than ignored.
+
+This is what makes gradual adoption workable: `missing-module-tag` is an
+`error`, so a repository annotating its tree file by file used to have a red
+`--check` from the first commit until the last one.
 
 ### Rebinding the browser's keys
 
@@ -591,12 +658,16 @@ repository's root:
 `source` is optional; without it the source root is detected the same way
 `:DocMap` detects it.
 
-The Action deliberately exposes neither `layers` nor `extra_checks`. Both are
-repository-specific policy — one is a claim about a tree's own architecture,
-the other is code — and neither fits an input without inventing a
-configuration language. A repository that wants them copies two files and
-edits five lines instead: [docs/REUSE.md](docs/REUSE.md). This repository is
-its own example, with three layer rules, so its CI keeps `gen_map.lua`.
+`exclude` and `languages` are there too, one path per line and one
+comma-separated list respectively — the same two flags the standalone CLI
+takes.
+
+The Action still exposes no `layers` input, and does not need one: layer
+rules go in the repository's own `.docmap.json` (see
+[Configuration](#configuration)), which every host reads, including this one.
+`extra_checks` is the one that genuinely stops here, because it is Lua code
+and that file is data. A repository that wants its own checks copies two
+files and edits five lines instead: [docs/REUSE.md](docs/REUSE.md).
 
 ## Live handle instead of files
 

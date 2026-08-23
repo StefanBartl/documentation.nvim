@@ -159,7 +159,7 @@ function M.scan_full(opts)
   -- deliberately never resolved here — see `core/tools.lua`'s header for why
   -- that would break `--check`.
   ir.tools = timing.measure(t, "tools", function()
-    return require("documentation.core.tools").resolve(opts.root)
+    return require("documentation.core.tools").resolve(opts.root, opts.install_dir)
   end)
 
   -- This repo's own docs/FEATURES/ folder, same posture as docs/tools above:
@@ -167,7 +167,7 @@ function M.scan_full(opts)
   -- simply leaves ir.features nil. See core/features.lua and
   -- docs/FEATURES_FORMAT.md.
   ir.features = timing.measure(t, "features", function()
-    return require("documentation.core.features").resolve(opts.root)
+    return require("documentation.core.features").resolve(opts.root, opts.features_dir)
   end)
 
   -- The hand-verified ledger, same posture as `features`/`tools` above: a
@@ -177,7 +177,7 @@ function M.scan_full(opts)
   -- artifact invalidate itself, so it is computed live by `:DocMap checklist`
   -- and the serve tier instead. See core/checklist.lua.
   ir.checklist = timing.measure(t, "checklist", function()
-    return require("documentation.core.checklist").resolve(opts.root)
+    return require("documentation.core.checklist").resolve(opts.root, opts.checklist_dir)
   end)
 
   local luals_err

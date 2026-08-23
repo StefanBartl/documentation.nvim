@@ -47,7 +47,46 @@
 ---@field plugins? Documentation.PluginsOpts Plugin-spec extraction settings — see `Documentation.PluginsOpts`.
 ---@field bindings? Documentation.BindingsOpts Keymap/user-command/autocmd extraction (`core/bindings.lua`). The `vim.*` APIs are always recognized and need no configuration at all; this exists only to declare a config's own wrappers, which is the common case in a real Neovim config and cannot be guessed safely.
 ---@field snippet_max_lines? integer Lines kept per function's embedded source snippet (`fn.snippet` — the hover-preview payload, and, when `opts.godbolt` is on, the Compiler Explorer link's own source) before the rest becomes an omitted-line count instead. Resolved once per `scan()`/`scan_full()` call into `core/snippet.lua`'s `M.MAX_LINES` — see that module's own header for why a scan-scoped override rather than a permanent global mutation. Default 40 (`core/snippet.lua`'s `M.DEFAULT_MAX_LINES`).
+---@field browse? Documentation.BrowseConfig Presentation defaults for `:DocBrowse` — layout fractions, theme, and which list it opens on. Absent means the browser's own defaults. Every field here already existed on `Documentation.Browse.Opts` and was honoured by `browse.open`; what was missing was any route from a user's spec to it, so a configured layout was reachable only by calling the Lua API by hand.
+---@field diagram? Documentation.DiagramOpts Presentation defaults for `:DocMap dot`/`:DocMap mermaid` — direction, roll-up depth, scope radius. Same situation `browse` was in: `render.dot`/`render.mermaid` read all of these and the two commands passed `{}`, so no spelling of a user's config could change a rendered graph.
+---@field checks? table<string, boolean|Documentation.Severity> Per-check policy, keyed by the `check` code a finding carries (`"undocumented-param"`, `"missing-summary"`, …). `false` switches a check off entirely; a severity string re-grades it. Unlisted checks keep the severity they are raised with. Applies to `extra_checks` results too, since those carry a `check` code like any other. See `core/check_policy.lua`.
+---@field features_dir? string|string[] Directory holding this repository's feature files — see `docs/FEATURES_FORMAT.md`. Default `{ "docs/FEATURES", "docs/features" }`, the first that exists. A repository whose prose lives under `documentation/` rather than `docs/` had no way to say so, while `tests_dir`/`out_dir`/`types_dir` were all options — this closes an inconsistency, not a feature gap.
+---@field checklist_dir? string|string[] Where the release checklist lives — see `docs/CHECKLIST_FORMAT.md`. Default `{ "docs/CHECKLIST", "docs/checklist", "docs/CHECKLIST.md", "docs/checklist.md" }`, the first that exists. A directory of `*.md` and a single file are both accepted, same as before.
+---@field install_dir? string Directory holding `install.json`/`INSTALL.md`, the declared external-tool manifest read by `core/tools.lua`. Default "docs".
+---@field theme? "light"|"dark"|"system" Theme baked into the generated page. Default "system" — follow the reader's OS, which is what the page did before this existed and what it still does when unset. `light`/`dark` stamp `data-theme` in `<head>`, the same attribute the `?theme=` query parameter sets, so a committed artifact can carry a project's own answer instead of depending on whoever opens it.
+---@field serve_port? integer Port `:DocMap serve` binds. Default 0 — the OS picks a free one, which is right for a server started on demand and closed again. Set it when the URL has to be stable enough to bookmark or to put in another tool's config.
 ---@field generate_all? Documentation.GenerateAllOpts `usrcmds.setup()` only. Cross-repo project list for `:DocMap all [full]`/`:DocMapAll`/`:DocMapAllFull` — plain data a consuming plugin's own spec supplies (this file never reads a config's plugin list itself). Absent or empty `projects`: none of the three actions is registered at all. See `bindings/usrcmds/generate_all.lua`.
+
+---`opts.browse` — how `:DocBrowse` presents itself.
+---
+---A subset of `Documentation.Browse.Opts`, deliberately: the rest of that
+---class is *what to show* (`root`, `center`, `live`, `mode` per invocation),
+---which is the command's argument, not a setting. What is here is *how to
+---show it*, which is the half a person decides once.
+---@class Documentation.BrowseConfig
+---@field width? number Fraction of the editor the whole layout uses. Default 0.86.
+---@field height? number Fraction of the editor the whole layout uses. Default 0.86.
+---@field list_width? number Fraction of the layout given to the list column. Default 0.38.
+---@field theme? Lib.UI.Kit.ThemeArg Passed through to the kit layout.
+---@field depth? integer Initial Deps walk depth. Default 2.
+---@field mode? Documentation.Browse.Mode Which list `:DocBrowse` opens on when the command names none. Default "structure". A mode given on the command line still wins.
+
+---`opts.diagram` — how `:DocMap dot` and `:DocMap mermaid` draw.
+---
+---One table for both renderers rather than two, because every field here is
+---a picture-shaping decision a person makes once for a repository and not a
+---per-renderer one: a tree that reads well top-down reads well top-down in
+---both, and a roll-up depth that keeps one legible keeps the other legible.
+---The two renderers' own parameter names are kept (`rankdir` is Graphviz's
+---spelling, `direction` is Mermaid's) rather than unified into a third
+---vocabulary that would match neither tool's documentation.
+---@class Documentation.DiagramOpts
+---@field direction? "TB"|"TD"|"BT"|"LR"|"RL" Mermaid flowchart direction, for both `mermaid` shapes. Default "LR".
+---@field max_depth? integer Deepest node level `:DocMap mermaid tree` draws. Default 2.
+---@field deps_depth? integer Level the require graph is rolled up to in `:DocMap mermaid deps`. Default 1. Named apart from `max_depth` because the two bound different things — one is how deep the hierarchy is drawn, the other is how coarsely edges are aggregated — and one name for both would silently apply a tree depth to an edge roll-up.
+---@field rankdir? "TB"|"BT"|"LR"|"RL" Graphviz rank direction for `:DocMap dot`. Default "LR".
+---@field cluster_depth? integer Node level `:DocMap dot` draws subgraph clusters at. Default 2.
+---@field hops? integer Radius, in edges, of the neighbourhood `:DocMap dot <module>` keeps around the named module. Default 2.
 
 ---`opts.generate_all` — the cross-repo project list `:DocMap all [full]`/
 ---`:DocMapAll`/`:DocMapAllFull` and, when `autoload` is set, the first-load

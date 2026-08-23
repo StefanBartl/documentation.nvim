@@ -32,7 +32,7 @@ local M = {}
 ---Transcribed from `lua/documentation/@types/init.lua`'s `Documentation.Opts`
 ---class; keep in sync when a field is added there.
 ---@type table<string, true>
-local KNOWN_OPTS_KEYS = {
+M.KNOWN_OPTS_KEYS = {
   root = true,
   root_markers = true,
   source = true,
@@ -76,6 +76,14 @@ local KNOWN_OPTS_KEYS = {
   bindings = true,
   snippet_max_lines = true,
   generate_all = true,
+  browse = true,
+  diagram = true,
+  checks = true,
+  features_dir = true,
+  checklist_dir = true,
+  install_dir = true,
+  theme = true,
+  serve_port = true,
 }
 
 ---`opts.source` as a list, whatever shape it was written in.
@@ -100,6 +108,33 @@ function M.sources(opts)
     return #src > 0 and src or { "lua" }
   end
   return { src or "lua" }
+end
+
+---A configured directory option as the candidate list its reader wants.
+---
+---`opts.features_dir`, `opts.checklist_dir` and `opts.source` are all the
+---same shape — "one path, or several, or nothing and use the built-in list"
+---— and every one of them was originally read by a bespoke two-line
+---`type(x) == "table"` test at its own call site. `M.sources` above is what
+---the *ninth* copy of that test cost; these options exist because
+---`tests_dir`/`out_dir`/`types_dir` were configurable and their siblings
+---under `docs/` were not, and shipping them with nine more copies of the
+---same test would be repeating the mistake in the same file.
+---
+---An empty list is treated as absent, not as "no candidates": a reader who
+---writes `features_dir = {}` has not asked for a project with no features,
+---they have written the empty case of a list they meant to fill.
+---@param configured string|string[]|nil What the user wrote, if anything.
+---@param defaults string[] Built-in candidates, in resolution order.
+---@return string[] Always at least one entry.
+function M.dir_list(configured, defaults)
+  if type(configured) == "table" then
+    return #configured > 0 and configured or defaults
+  end
+  if type(configured) == "string" and configured ~= "" then
+    return { configured }
+  end
+  return defaults
 end
 
 ---The single source root, when a caller genuinely needs one path.
@@ -298,7 +333,7 @@ function M.build(root, overrides, notify)
   if notify then
     local unknown = {}
     for k in pairs(overrides or {}) do
-      if not KNOWN_OPTS_KEYS[k] then
+      if not M.KNOWN_OPTS_KEYS[k] then
         unknown[#unknown + 1] = tostring(k)
       end
     end
@@ -306,22 +341,53 @@ function M.build(root, overrides, notify)
       table.sort(unknown)
       notify.warn(("opts: unrecognized key(s): %s"):format(table.concat(unknown, ", ")))
     end
+
+    -- `opts.checks`'s *keys* are check codes, not option names, so the loop
+    -- above cannot see a typo in one. Validated here rather than in
+    -- `check.run` because this is the one place a `notify` exists at all:
+    -- `core/` is the half that has to stay runnable without an editor, and
+    -- the standalone build has no notification surface to warn through.
+    require("documentation.core.check_policy").validate(overrides and overrides.checks, notify)
   end
+
+  -- The repository's own `.docmap.json`, read before anything is derived.
+  -- It has to come first because two of the three derived values depend on
+  -- what it says: `languages` steers source detection, and a `source` it
+  -- states means detection's answer is not wanted at all. See
+  -- `config/file.lua` for the precedence this sits in and for what a
+  -- repository is and is not allowed to say.
+  local from_file = require("documentation.config.file").load(root, notify) or {}
+
+  -- The file's `checks` gets the same key check the host's did. Not folded
+  -- into the block above, which runs before the file has been read; and
+  -- worth doing twice rather than once over the merged table, because the
+  -- merge would hide *which* of the two spelled a code wrong — which is the
+  -- only thing the reader needs to know to fix it.
+  require("documentation.core.check_policy").validate(from_file.checks, notify)
 
   ---A copy per call, never `DEFAULTS` itself: the merge below writes into this
   ---table, and mutating the shared defaults would leak one caller's options
   ---into every later `build()` in the process.
   ---@type Documentation.Opts
-  -- Read out of `overrides` rather than off the merged table, because the
-  -- merge has not happened yet and detection needs the answer *first* —
-  -- see `M.detect_source`'s own header for why a switched-off backend must
-  -- not get to name the directory the walk starts in.
+  -- Read out of `overrides`/the file rather than off the merged table,
+  -- because the merge has not happened yet and detection needs the answer
+  -- *first* — see `M.detect_source`'s own header for why a switched-off
+  -- backend must not get to name the directory the walk starts in.
+  local languages = (overrides and overrides.languages) or from_file.languages
+
   local opts = vim.tbl_extend("force", {}, DEFAULTS, {
     root = root,
-    source = M.detect_source(root, overrides and overrides.languages),
+    source = M.detect_source(root, languages),
     title = vim.fn.fnamemodify(root, ":t"),
   })
 
+  -- Two shallow passes in precedence order rather than one merge of a
+  -- pre-combined table: the host's explicit `opts` must win key by key, and
+  -- pre-combining would have to reimplement exactly this loop to decide
+  -- which of the two supplied each key.
+  for k, v in pairs(from_file) do
+    opts[k] = v
+  end
   for k, v in pairs(overrides or {}) do
     opts[k] = v
   end

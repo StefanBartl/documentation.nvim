@@ -46,6 +46,11 @@ end
 --- matching `docs/BINDINGS.md`'s own convention, same "first match wins"
 --- shape `lib.nvim.deps.spec`'s `SPEC_FILES` uses for install.json/
 --- INSTALL.md.
+---
+--- The *default* list, since `opts.features_dir` — a repository whose prose
+--- lives under `documentation/` rather than `docs/` — replaces it. Still a
+--- list either way: "first match wins" is what lets a project keep both
+--- spellings on a case-sensitive filesystem while it renames one.
 local CANDIDATE_FOLDERS = { "docs/FEATURES", "docs/features" }
 
 ---One `- **Key:** value` bullet.
@@ -228,12 +233,13 @@ local function parse_file(path, rel, theme)
 end
 
 ---@param root string Repo root (`ctx.cfg.root` / `opts.root`).
----@return Documentation.Features.Result|nil result `nil` when this repo ships no `docs/FEATURES/` (or `docs/features/`) folder at all.
-function M.resolve(root)
+---@param dirs string|string[]|nil `opts.features_dir`. Absent means `CANDIDATE_FOLDERS`.
+---@return Documentation.Features.Result|nil result `nil` when this repo ships no features folder at all.
+function M.resolve(root, dirs)
   local normalized = (root:gsub("\\", "/"):gsub("/+$", ""))
 
   local folder
-  for _, candidate in ipairs(CANDIDATE_FOLDERS) do
+  for _, candidate in ipairs(require("documentation.config").dir_list(dirs, CANDIDATE_FOLDERS)) do
     if is_dir(normalized .. "/" .. candidate) then
       folder = candidate
       break

@@ -53,6 +53,14 @@ function M.run(ctx, arg)
   local parsed = M.parse(arg)
   local cfg = ctx.cfg
 
+  -- `opts.browse` is presentation, so it is read as a whole table rather
+  -- than field by field: every key of `Documentation.BrowseConfig` is a
+  -- passthrough to `Documentation.Browse.Opts` under the same name, and a
+  -- per-field list here would be a second place to update each time one is
+  -- added — which is exactly how `width`/`height`/`list_width`/`theme`/
+  -- `depth` came to exist on the browser and be unreachable from a spec.
+  local browse = cfg.browse or {}
+
   require("documentation.editor.browse").open({
     root = cfg.root,
     source = cfg.source,
@@ -63,6 +71,11 @@ function M.run(ctx, arg)
     -- copy of them that only this entry point gets.
     keys = cfg.keys,
     which_key = cfg.which_key,
+    width = browse.width,
+    height = browse.height,
+    list_width = browse.list_width,
+    theme = browse.theme,
+    depth = browse.depth,
     -- `telemetry` mode's own join (ECOSYSTEM.md step 8) needs a namespace to
     -- read `runtime-analysis.telemetry` data by — see `Documentation.Browse.
     -- Opts.title`'s own doc-comment for why this is the same `title` every
@@ -70,7 +83,12 @@ function M.run(ctx, arg)
     title = cfg.title,
     telemetry_namespace = cfg.telemetry_namespace,
     live = parsed.live,
-    mode = parsed.mode,
+    -- The argument wins over the configured default, and `nil` from the
+    -- parser is what lets it: `:DocBrowse history` says which list to open,
+    -- `opts.browse.mode` says which one to open when the command says
+    -- nothing. A configured default that overrode an explicit argument
+    -- would make the command's own grammar unreliable.
+    mode = parsed.mode or browse.mode,
     center = parsed.center,
   })
 end

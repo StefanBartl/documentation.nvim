@@ -1869,6 +1869,15 @@ function M.run(ir, opts)
     end
   end
 
+  -- `opts.checks` last, so it reaches `extra_checks` results too: a project
+  -- that writes its own check has exactly the same reason to want it graded
+  -- `info` on a branch as it has for any built-in one, and a policy that
+  -- covered only the checks this repository ships would be arbitrary.
+  --
+  -- Before the sort, not after — the list is serialized in severity order
+  -- and byte-compared by `--check`. See `core/check_policy.lua`.
+  findings = require("documentation.core.check_policy").apply(findings, opts.checks)
+
   local rank = { error = 1, warn = 2, info = 3 }
   table.sort(findings, function(a, b)
     if rank[a.severity] ~= rank[b.severity] then

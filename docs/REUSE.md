@@ -49,9 +49,48 @@ language on the runtimepath, which for anything Neovim ships is already true.
 See [PORTABILITY.md](ROADMAP/IDEAS/PORTABILITY.md), which also costs out what
 dropping the Neovim dependency entirely would take.
 
+## Before either: `.docmap.json`
+
+Most of what a repository wants to say about itself is a fact about the
+*tree* — where its sources are, what its layers are, which checks its team
+decided are noise — and every host below reads it from one file at the
+repository root:
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/StefanBartl/documentation.nvim/main/docs/docmap.schema.json",
+  "source": "lua/myplugin",
+  "title": "myplugin.nvim",
+  "repo_url": "https://github.com/me/my-plugin",
+  "layers": [
+    { "from": "myplugin.core", "to": "myplugin.ui", "why": "the pipeline stays runnable headless" }
+  ]
+}
+```
+
+Put it there first, and the two recipes below get shorter rather than
+longer: the copied `gen_map.lua` needs no options table at all, and the
+GitHub Action needs no inputs. It is also the only way a `layers` rule
+reaches the standalone binary or `docmap-desktop`, neither of which has an
+options table to be given one in.
+
+The file is **data, never code**: it is read out of a repository that CI
+just cloned or that somebody added to a desktop app by pointing at a
+directory, and executing it would make "look at this project's map" a
+code-execution primitive on any tree. `extra_checks` is a list of Lua
+functions and therefore stays a host-side option — which is the one thing
+the recipes below still exist for.
+
+A repository states facts about itself and not about the session reading
+it. `command_name`, `keys`, `watch`, `diagnostics` and `telemetry` are
+refused with a warning naming them; the full split, and the reason for each
+group, is in
+[`lua/documentation/config/file.lua`](../lua/documentation/config/file.lua).
+
 ## In CI and in a pre-commit hook
 
-Copy two files and edit five lines.
+Copy two files and edit five lines — or fewer, with a `.docmap.json` in
+place.
 
 ### 1. `scripts/gen_map.lua`
 
@@ -236,12 +275,17 @@ standalone build produces a different one — a complete module tree with no
 function-level data — so a check running it would call every repository
 stale, forever.
 
-**Where the action stops.** It has no `layers` and no `extra_checks` inputs,
-because both are repository-specific policy — a layer rule is a claim about
-one tree's own architecture, and an extra check is code. A repository that
-wants either has outgrown three lines and should copy `scripts/gen_map.lua`
-as described above. This repository is its own example: its map is generated
-with three layer rules, so its CI runs `gen_map.lua` and not the action.
+**Where the action stops, and where it no longer does.** It has no `layers`
+input and never will: both halves of the old reasoning — that a layer rule
+is a claim about one tree's own architecture, and that it fits no YAML input
+without inventing a configuration language — were right about inputs and
+wrong about the conclusion. The answer to "this does not fit on a command
+line" is a file, so `layers` goes in `.docmap.json` and the action reads it
+like every other host.
+
+`extra_checks` is the one that genuinely stops here, because it is code and
+that file is data. A repository that wants its own checks has outgrown three
+lines of YAML and should copy `scripts/gen_map.lua` as described above.
 
 Pin `@v1` rather than `@main` once you care about reproducibility. The action
 runs whichever engine ref it was resolved from, deliberately: **a generated

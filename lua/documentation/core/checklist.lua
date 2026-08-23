@@ -96,6 +96,11 @@ end
 --- same shape and reasoning as `core/features.lua`'s own `CANDIDATE_FOLDERS`.
 --- The `.md` entries are the degenerate single-file case: a project with six
 --- checklist items should not have to make a directory for them.
+---
+--- The *default* list; `opts.checklist_dir` replaces it. A configured entry
+--- ending in `.md` is still read as the single-file case, so pointing at one
+--- file is as valid a configuration as pointing at a directory — the
+--- distinction is drawn from the path, never from which option was used.
 local CANDIDATES = { "docs/CHECKLIST", "docs/checklist", "docs/CHECKLIST.md", "docs/checklist.md" }
 
 ---Split into lines, `\n`-terminated tail included so the last real line is
@@ -284,15 +289,16 @@ end
 
 ---Read the checklist corpus under `root`.
 ---@param root string Absolute repository root, forward slashes, no trailing slash.
+---@param dirs string|string[]|nil `opts.checklist_dir`. Absent means `CANDIDATES`.
 ---@return Documentation.Checklist.Result? `nil` when the repo has no checklist at all.
-function M.resolve(root)
+function M.resolve(root, dirs)
   if type(root) ~= "string" or root == "" then
     return nil
   end
 
   local source, files = nil, {}
 
-  for _, candidate in ipairs(CANDIDATES) do
+  for _, candidate in ipairs(require("documentation.config").dir_list(dirs, CANDIDATES)) do
     local abs = root .. "/" .. candidate
     if candidate:match("%.md$") then
       local text = read_file(abs)

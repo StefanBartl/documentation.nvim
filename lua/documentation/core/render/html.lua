@@ -9438,6 +9438,13 @@ function M.render(ir, findings, opts)
   -- header comment.
   meta.godbolt = not not opts.godbolt
 
+  -- Validated here rather than trusted, because the value is interpolated
+  -- into a `<script>` in the emitted document: a typo would be inert, but
+  -- an arbitrary string would not be. Only the two literals that mean
+  -- anything survive; "system", nil, and everything else become no default
+  -- at all, which is what the page has always done.
+  local baked_theme = (opts.theme == "light" or opts.theme == "dark") and opts.theme or nil
+
   local nodes = {}
   for _, id in ipairs(ir.order) do
     nodes[#nodes + 1] = ir.nodes[id]
@@ -9608,9 +9615,21 @@ function M.render(ir, findings, opts)
     --
     -- Three states, like the app: `light` and `dark` decide, anything
     -- else -- including no parameter at all -- means follow the OS.
+    --
+    -- `opts.theme` is the same three states, baked in as the *fallback*
+    -- rather than as the answer: a project that reads better dark can say
+    -- so in its own artifact, and a reader who appends `?theme=light`
+    -- still wins, because the person holding the window is a better judge
+    -- of their own screen than the person who generated the file. Absent
+    -- (or "system") emits no default at all, so every map generated before
+    -- this option existed is byte-identical to one generated after it.
     [[<script>(function(){]],
     [[  try{]],
     [[    var t = new URLSearchParams(location.search).get("theme");]],
+    -- `""` rather than `nil` when there is no baked theme: this is one
+    -- `table.concat` over a list, and a `nil` in the middle of it puts a
+    -- hole in the array part and truncates the document at that point.
+    baked_theme and ('    if(t !== "light" && t !== "dark") t = "%s";'):format(baked_theme) or "",
     [[    if(t === "light" || t === "dark")]],
     [[      document.documentElement.setAttribute("data-theme", t);]],
     [[  }catch(e){}]],

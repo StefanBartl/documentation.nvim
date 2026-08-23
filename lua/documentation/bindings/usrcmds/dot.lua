@@ -29,9 +29,19 @@ function M.run(ctx, arg)
     end
   end
 
+  -- `opts.diagram` decides how the picture is drawn; the command argument
+  -- decides what is in it. `nil` for an unset field is what keeps the
+  -- renderer's own defaults the single statement of them — see
+  -- `Documentation.DiagramOpts` for why the two renderers keep their own
+  -- parameter names instead of a shared third vocabulary.
+  local diagram = ctx.cfg.diagram or {}
+
   local src = require("documentation").render.dot(ir, {
     kind = kind == "calls" and "call" or "require",
     scope = scope,
+    rankdir = diagram.rankdir,
+    cluster_depth = diagram.cluster_depth,
+    hops = diagram.hops,
   })
 
   -- A name identifies the query, so asking the same one twice should reuse it

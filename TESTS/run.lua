@@ -76,6 +76,8 @@ local specs = {
   "docmap_spec.lua",
   "lang_registry_spec.lua",
   "detect_source_spec.lua",
+  "config_file_spec.lua",
+  "check_policy_spec.lua",
   "coverage_gaps_spec.lua",
   "artifact_contract_spec.lua",
   "payload_contract_spec.lua",

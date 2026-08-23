@@ -1,0 +1,172 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/StefanBartl/documentation.nvim/main/docs/docmap.schema.json",
+  "title": ".docmap.json",
+  "description": "Options a repository states about itself, read by documentation.nvim's config.build. Every key here is a fact about the tree; options that belong to whoever opens the repository (keys, commands, watchers, telemetry) are deliberately absent — see lua/documentation/config/file.lua.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+
+    "source": {
+      "description": "Directory or directories to scan, relative to the root. Omit to let the language backends detect it.",
+      "anyOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }]
+    },
+    "exclude": {
+      "description": "Repository-relative paths the walk does not descend into. Not a glob language: a path prefix.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "languages": {
+      "description": "Backend names this scan may use. Empty or absent means all of them.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "lua_root": { "type": "string", "description": "Directory the Lua module path is relative to. Default \"lua\"." },
+    "types_dir": { "type": "string", "description": "Directory name holding type definitions. Default \"@types\"." },
+    "out_dir": { "type": "string", "description": "Where the artifacts are written, relative to the root. Default \"docs/map\"." },
+    "tests_dir": { "type": "string", "description": "Directory scanned for auto-derived test coverage. Default \"TESTS\"." },
+    "features_dir": {
+      "description": "Feature files — see docs/FEATURES_FORMAT.md. Default docs/FEATURES, then docs/features.",
+      "anyOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }]
+    },
+    "checklist_dir": {
+      "description": "Release checklist — see docs/CHECKLIST_FORMAT.md. A directory of *.md, or a single .md file.",
+      "anyOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }]
+    },
+    "install_dir": { "type": "string", "description": "Directory holding install.json / INSTALL.md. Default \"docs\"." },
+    "consumers": { "type": "string", "description": "Directory of sibling checkouts whose maps name this project as a dependency. Enables consumer-require-missing." },
+
+    "title": { "type": "string", "description": "Display name for the root node. Default: the repository directory name." },
+    "repo_url": { "type": "string", "description": "Base URL source links are built from, e.g. https://github.com/user/repo." },
+    "branch": { "type": "string", "description": "Branch used in source links. Default \"main\"." },
+
+    "layers": {
+      "description": "Architecture rules. A module under `from` requiring one under `to` is reported as layer-violation.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "to"],
+        "properties": {
+          "from": { "type": "string", "description": "Module prefix the rule applies to." },
+          "to": { "type": "string", "description": "Module prefix it may not require." },
+          "why": { "type": "string", "description": "Shown with the finding. Write the reason, not the rule." }
+        }
+      }
+    },
+    "checks": {
+      "description": "Per-check policy, keyed by the check code a finding carries. false switches it off; a severity re-grades it.",
+      "type": "object",
+      "additionalProperties": {
+        "anyOf": [
+          { "type": "boolean" },
+          { "type": "string", "enum": ["error", "warn", "info"] }
+        ]
+      },
+      "propertyNames": {
+        "examples": [
+          "binding-conflict",
+          "consumer-require-missing",
+          "dead-function",
+          "dead-readme-link",
+          "dead-see-target",
+          "doc-references-missing",
+          "example-does-not-parse",
+          "layer-violation",
+          "missing-module-tag",
+          "missing-readme",
+          "missing-summary",
+          "module-path-mismatch",
+          "orphaned-class-alias",
+          "param-name-mismatch",
+          "require-cycle",
+          "require-not-declared",
+          "tag-file-unavailable",
+          "tag-require-missing",
+          "test-references-missing",
+          "tools-spec-invalid",
+          "type-vs-class",
+          "undocumented-param",
+          "unreferenced-module",
+          "unused-require"
+        ]
+      }
+    },
+    "quicks": {
+      "description": "Tuning for the Quicks verdicts on the generated page.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "thresholds": {
+          "type": "object",
+          "description": "Per-verdict cut points, keyed by verdict id with hyphens written as underscores (test_coverage).",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["good", "bad"],
+            "properties": { "good": { "type": "number" }, "bad": { "type": "number" } }
+          }
+        },
+        "limit_good": { "type": "integer", "minimum": 0 },
+        "limit_bad": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "dead_code": { "type": "boolean", "description": "Also report published functions with no caller in the tree. Off by default: a library is made of these by design." },
+    "calls_heuristic": { "type": "boolean", "description": "Also emit call edges guessed by unique-name match. Off by default." },
+    "docs_heuristic": { "type": "boolean", "description": "Also resolve doc references written as a bare function name. Off by default." },
+    "luals": { "type": "boolean", "description": "Merge lua-language-server --doc output into the IR. Costs real seconds on a full tree." },
+    "luals_timeout_ms": { "type": "integer", "minimum": 0, "description": "Kill the lua-language-server run after this long. Default 60000." },
+    "snippet_max_lines": { "type": "integer", "minimum": 0, "description": "Lines kept per function's embedded source snippet." },
+
+    "badge": { "type": "boolean", "description": "Also write coverage.svg beside the other artifacts." },
+    "godbolt": { "type": "boolean", "description": "Experimental. Add a Compiler Explorer link beside every module and function in the page." },
+    "pdf": { "type": "boolean", "description": "Also write overview.pdf via pdfport.nvim. Asynchronous." },
+    "theme": {
+      "type": "string",
+      "enum": ["light", "dark", "system"],
+      "description": "Theme baked into the generated page as the fallback. A reader's ?theme= still wins. Default \"system\"."
+    },
+    "diagram": {
+      "description": "How :DocMap dot and :DocMap mermaid draw.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "direction": { "type": "string", "enum": ["TB", "TD", "BT", "LR", "RL"], "description": "Mermaid flowchart direction. Default LR." },
+        "max_depth": { "type": "integer", "minimum": 0, "description": "Deepest node level `mermaid tree` draws. Default 2." },
+        "deps_depth": { "type": "integer", "minimum": 0, "description": "Level the require graph is rolled up to in `mermaid deps`. Default 1." },
+        "rankdir": { "type": "string", "enum": ["TB", "BT", "LR", "RL"], "description": "Graphviz rank direction. Default LR." },
+        "cluster_depth": { "type": "integer", "minimum": 0, "description": "Node level `dot` draws subgraph clusters at. Default 2." },
+        "hops": { "type": "integer", "minimum": 0, "description": "Radius, in edges, of the neighbourhood kept around a named module. Default 2." }
+      }
+    },
+
+    "tag_files": {
+      "description": "Module prefix -> another project's docs/map-shaped directory holding a committed module_map.json.",
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "external_repos": {
+      "description": "Module prefix -> \"owner/repo\", or a table with repo/branch/lua_root. Builds a guessed blob URL for a module with no artifact of its own.",
+      "type": "object",
+      "additionalProperties": {
+        "anyOf": [
+          { "type": "string" },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "repo": { "type": "string" },
+              "branch": { "type": "string" },
+              "lua_root": { "type": "string" }
+            }
+          }
+        ]
+      }
+    },
+    "plugins": { "type": "object", "description": "Plugin-spec extraction settings." },
+    "bindings": { "type": "object", "description": "Keymap/user-command/autocmd extraction over project-specific wrappers." },
+    "telemetry_namespace": { "type": "string", "description": "The runtime-analysis.telemetry namespace this project's data is filed under. Default: title." }
+  }
+}

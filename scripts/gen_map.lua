@@ -71,51 +71,16 @@ local opts = require("documentation.config").build(root, {
   repo_url = "https://github.com/StefanBartl/documentation.nvim",
   branch = "main",
 
-  -- The one rule this repository declares about itself, and the reason
-  -- `core/` and `editor/` are directories rather than a convention: the
-  -- pipeline has to stay runnable with no editor around it, and nothing but
-  -- a check keeps a boundary like that from quietly rotting. `--check` now
-  -- fails when a core module requires an editor one.
+  -- **`layers` is not here any more.** It lives in `.docmap.json` at the
+  -- repository root, and that move is what this file is now an example of:
+  -- an architecture rule is a fact about the *tree*, so every host that maps
+  -- the tree should get it — this script, the standalone binary, the GitHub
+  -- Action, `docmap-desktop`. Stated here it reached exactly one of the
+  -- four, and `standalone/docmap.lua` had a hand-kept copy of the same three
+  -- rules to make up half the difference.
   --
-  -- Deliberately one-directional. The editor half reaching into the core is
-  -- the point of the core existing; it is the other direction that costs
-  -- something. See docs/ROADMAP/PORTABILITY.md.
-  layers = {
-    {
-      from = "documentation.core",
-      to = "documentation.editor",
-      why = "the pipeline has to stay runnable without an editor — see docs/ROADMAP/PORTABILITY.md",
-    },
-    -- Added with the bindings layer, so the split is enforced rather than
-    -- being a directory rename nothing checks.
-    --
-    -- Only this direction. An `editor -> bindings` rule was tried and is
-    -- wrong: `browse` requires `bindings.keymaps` for the override rule,
-    -- which is a *utility* over key tables rather than part of the command
-    -- surface, and the deprecated `editor/command.lua` shim delegates upward
-    -- to `bindings.usrcmds` on purpose. Both are intended, so a rule that
-    -- flagged them would only teach people to ignore the check.
-    {
-      from = "documentation.core",
-      to = "documentation.bindings",
-      why = "the pipeline knows nothing about commands or keys",
-    },
-    -- Added with `core/lang_registry.lua` (docs/ROADMAP/MULTILANG.md Phase
-    -- 0), for the same reason as the two rules above: the walk asks the
-    -- registry which language owns a file, and nothing else in `core` may
-    -- reach a specific backend directly — that is exactly the coupling a
-    -- second language backend would otherwise be tempted to introduce.
-    --
-    -- The registry itself is not `documentation.core.lang.*` (it is
-    -- `documentation.core.lang_registry`, a sibling segment) precisely so
-    -- this rule does not also flag the registry's own, legitimate knowledge
-    -- of every backend — see that module's header.
-    {
-      from = "documentation.core",
-      to = "documentation.core.lang",
-      why = "language backends are reached through core/lang_registry.lua, never directly — see docs/ROADMAP/MULTILANG.md",
-    },
-  },
+  -- What stays here is what genuinely belongs to *this invocation*. See
+  -- `config/file.lua` for the split and docs/REUSE.md for what to copy.
 })
 
 local code = require("documentation.core.cli").run(opts, _G.arg or {})
@@ -125,8 +90,9 @@ local code = require("documentation.core.cli").run(opts, _G.arg or {})
 -- Written here rather than by `cli.run` because it is *this repository's* own
 -- documentation, not an artifact of the pipeline: another plugin pointing
 -- docmap at its own tree wants a module map, not a page describing
--- `:DocBrowse`'s keys. Same reason `layers` above lives here and not in a
--- default.
+-- `:DocBrowse`'s keys — unlike `layers`, which moved to `.docmap.json`
+-- precisely because it *is* a fact about the tree that every host should
+-- get.
 --
 -- Skipped under `--check`, which must write nothing — the hook and CI both run
 -- it that way, and a "verify" that rewrites a file is not a verify. A stale

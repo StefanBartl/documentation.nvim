@@ -57,6 +57,28 @@ inputs:
   branch:
     description: "Branch used in source links (`opts.branch`). Default `main`. Same staleness caveat as `repo-url`."
     required: false
+  exclude:
+    description: >-
+      Repository-relative paths the walk does not descend into
+      (`opts.exclude`), one per line. Not a glob language: a path prefix,
+      matching the `--exclude=` flag exactly.
+
+      Newline-separated rather than comma-separated, unlike `source` and
+      `languages` above: a directory name can legitimately contain a comma
+      (`a,b` is a valid directory) and splitting on one is how such a
+      directory becomes two that do not exist. The two flags already differ
+      this way for the same reason — see `core/cli.lua`'s own note on it.
+    required: false
+  languages:
+    description: >-
+      Backend names this scan may use (`opts.languages`), comma-separated —
+      `lua`, `ts`, `go`, … Empty means all of them, which is the default and
+      almost always right.
+
+      It narrows the *walk*, not just the report: a repository whose `src/`
+      holds generated JavaScript beside its real sources can restrict the
+      scan to the languages it actually maintains.
+    required: false
   check:
     description: >-
       Verify without writing (`--check`). The default, and the only mode
@@ -127,6 +149,14 @@ runs:
         DOCMAP_ACTION_OUT_DIR: ${{ inputs['out-dir'] }}
         DOCMAP_ACTION_REPO_URL: ${{ inputs['repo-url'] }}
         DOCMAP_ACTION_BRANCH: ${{ inputs.branch }}
+        # Read by the shell below rather than by `action_run.lua`: both are
+        # already flags `core/cli.run` parses, so they travel as arguments
+        # like `--check` does and need no second reading path. Passed through
+        # the environment rather than interpolated into the script, because
+        # `exclude` is multi-line user input and `${{ }}` inside `run:`
+        # splices text straight into the shell.
+        DOCMAP_EXCLUDE: ${{ inputs.exclude }}
+        DOCMAP_LANGUAGES: ${{ inputs.languages }}
       run: |
         set -euo pipefail
         engine="${{ runner.temp }}/docmap-engine/documentation.nvim"
@@ -137,5 +167,25 @@ runs:
         [ "${{ inputs.check }}" = "true" ] && args+=("--check")
         [ "${{ inputs.lenient }}" = "true" ] && args+=("--lenient")
         [ -n "${{ inputs.sarif }}" ] && args+=("--sarif=${{ inputs.sarif }}")
+
+        # One `--exclude=` per line. `--languages=` is one flag, comma
+        # separated, matching the flag's own grammar rather than repeating
+        # this loop for it.
+        #
+        # `if` rather than the `[ x ] && y` shorthand the three lines above
+        # use, and the difference matters here: this one is the *last*
+        # command in a loop body, so its exit status becomes the `while`
+        # loop's, and under `set -e` an empty last line would end the job.
+        # The shorthand is safe above only because a bare `&&` list is
+        # exempt; a loop wrapping one is not.
+        while IFS= read -r path; do
+          if [ -n "$path" ]; then
+            args+=("--exclude=$path")
+          fi
+        done <<< "${DOCMAP_EXCLUDE:-}"
+
+        if [ -n "${DOCMAP_LANGUAGES:-}" ]; then
+          args+=("--languages=${DOCMAP_LANGUAGES}")
+        fi
 
         nvim --headless -l "$engine/scripts/action_run.lua" "${args[@]+"${args[@]}"}"

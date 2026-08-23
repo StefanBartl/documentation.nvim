@@ -240,7 +240,20 @@ for i = 2, #arg do
   local api = a:match("^%-%-api=(.+)$")
   local snap = a:match("^%-%-snapshot=(.+)$")
   if src then
-    source = src
+    -- Comma-separated, matching `scripts/action_run.lua`'s own reading of the
+    -- same option and for the reason stated there: a repository can hold two
+    -- languages in two places, one starting directory means the walk never
+    -- *visits* the other, and a comma in a source directory name is not a
+    -- case anyone has. A single entry stays a plain string, so a one-root
+    -- repository produces byte-identical output to every run before this.
+    local list = {}
+    for part in src:gmatch("[^,]+") do
+      local trimmed = part:match("^%s*(.-)%s*$")
+      if trimmed ~= "" then
+        list[#list + 1] = trimmed
+      end
+    end
+    source = #list == 1 and list[1] or (#list > 0 and list or nil)
   elseif url then
     repo_url = url
   elseif br then
@@ -256,6 +269,26 @@ for i = 2, #arg do
   end
 end
 
+--- Where `config.build`'s warnings go in a build with no editor in it.
+---
+--- Without this they went nowhere. `build()` takes a `lib.nvim.notify`-shaped
+--- instance and this entry point passed none, so an unrecognised option, a
+--- malformed `.docmap.json` or a typo'd `checks` key were all silently
+--- ignored — in exactly the host where a person is least able to guess that
+--- something was ignored, since `docmap-desktop` runs this binary and shows
+--- only its output.
+---
+--- `stderr`, not stdout: stdout carries the run's own report, which
+--- `scripts/ci.lua` and the app both parse.
+---
+--- Only `.warn` is implemented, because only `.warn` is called. A wider
+--- fake would be claiming a contract this file does not honour.
+local notify = {
+  warn = function(msg)
+    io.stderr:write("docmap: " .. tostring(msg) .. "\n")
+  end,
+}
+
 local opts = require("documentation.config").build(root, {
   source = source, -- nil: config.build auto-detects, same as scripts/gen_map.lua's callers that omit it
   -- `nil` rather than an empty table for both: `config.build` merges
@@ -269,24 +302,19 @@ local opts = require("documentation.config").build(root, {
   -- build's output against the committed map must not overwrite the committed
   -- map to do it. Left nil, `config.build`'s own default applies as before.
   out_dir = out_dir,
-  layers = {
-    {
-      from = "documentation.core",
-      to = "documentation.editor",
-      why = "the pipeline has to stay runnable without an editor — see docs/ROADMAP/PORTABILITY.md",
-    },
-    {
-      from = "documentation.core",
-      to = "documentation.bindings",
-      why = "the pipeline knows nothing about commands or keys",
-    },
-    {
-      from = "documentation.core",
-      to = "documentation.core.lang",
-      why = "language backends are reached through core/lang_registry.lua, never directly",
-    },
-  },
-})
+}, notify)
+
+-- **`layers` used to be hardcoded here, and it was a bug rather than a
+-- shortcut.** This CLI is generic over any root — it is what `docmap-desktop`
+-- runs for every project in somebody's list — and the three rules it carried
+-- were *this* repository's own architecture, applied to every tree it was
+-- ever pointed at. They matched nothing elsewhere, so the damage was not
+-- wrong findings; it was that no other project could state any rules of its
+-- own, because a generic CLI had no way to be handed one.
+--
+-- `config.build` now reads `<root>/.docmap.json`, which is where this
+-- repository's three rules live. Every other repository gets its own, or
+-- none, which is what it always should have been. See `config/file.lua`.
 
 -- `--api=<route>`: answer one of the generated page's own `/api/*` routes
 -- and print its JSON, instead of generating anything.

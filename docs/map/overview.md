@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**5 modules** · 6 namespaces · 120 helper files
+**5 modules** · 6 namespaces · 122 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -55,6 +55,7 @@ flowchart LR
   nlua_documentation_core_bindings_lua["documentation.core.bindings"]
   nlua_documentation_core_calls_lua["documentation.core.calls"]
   nlua_documentation_core_check_lua["documentation.core.check"]
+  nlua_documentation_core_check_policy_lua["documentation.core.check_policy"]
   nlua_documentation_core_checklist_lua["documentation.core.checklist"]
   nlua_documentation_core_churn_lua["documentation.core.churn"]
   nlua_documentation_core_cli_lua["documentation.core.cli"]
@@ -129,6 +130,7 @@ flowchart LR
   nlua_documentation_core_api_lua --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_core_calls_lua --> nlua_documentation_core_deps_lua
   nlua_documentation_core_calls_lua --> nlua_documentation_core_lang_registry_lua
+  nlua_documentation_core_check_lua --> nlua_documentation_core_check_policy_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_consumers_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_deps_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_doccoverage_lua
@@ -223,7 +225,7 @@ flowchart LR
 |---|---|---|---|
 | `bindings` |  |  |  |
 | &nbsp;&nbsp;`documentation.bindings.usrcmds` | The user commands: `:DocMap` and `:DocBrowse` — registration, argument dispatch and completion. | 6 | [README](../../lua/documentation/bindings/usrcmds/README.md) · [src](../../lua/documentation/bindings/usrcmds/init.lua) |
-| `documentation.config` | Resolving a full `Documentation.Opts` for a repository: the defaults in [`DEFAULTS.lua`](../../lua/documentation/config/DEFAULTS.lua), what can be derived from `root`, and the merge rule… | 6 | [README](../../lua/documentation/config/README.md) · [src](../../lua/documentation/config/init.lua) |
+| `documentation.config` | Resolving a full `Documentation.Opts` for a repository: the defaults in [`DEFAULTS.lua`](../../lua/documentation/config/DEFAULTS.lua), what can be derived from `root`, and the merge rule… | 7 | [README](../../lua/documentation/config/README.md) · [src](../../lua/documentation/config/init.lua) |
 | `core` |  |  | [README](../../lua/documentation/core/README.md) |
 | &nbsp;&nbsp;`lang` |  |  |  |
 | &nbsp;&nbsp;&nbsp;&nbsp;`glossary` |  |  |  |
