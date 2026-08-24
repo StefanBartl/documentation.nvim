@@ -1448,6 +1448,25 @@ cheatsheet = function(st)
   end
   lines[#lines + 1] = ""
 
+  -- The right-click trigger, which is a bound key with no row above it.
+  --
+  -- Every other line here comes from `st.keys`, and `<RightMouse>` is not in
+  -- that table on purpose: it is not an action, it opens a menu built from
+  -- the very rows already listed. But it *is* a key this buffer binds, and
+  -- `?` is where somebody goes to find out which keys exist — a bound key
+  -- the panel never mentions is undiscoverable by design.
+  --
+  -- `docmap_browse_spec` asserts exactly that invariant ("every bound key is
+  -- in the panel") and caught this, though only after the History assertions
+  -- above it stopped failing first and stopped hiding it.
+  if st.opts.menu ~= false then
+    lines[#lines + 1] = ("  %-" .. pad .. "s%s"):format(
+      "<RightMouse>",
+      "context menu with the rows above (needs nvzone/menu)"
+    )
+    lines[#lines + 1] = ""
+  end
+
   kit.viewer({
     title = (" DocBrowse keys — %s "):format(st.mode),
     lines = lines,

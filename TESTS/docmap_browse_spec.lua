@@ -913,6 +913,32 @@ return function(H)
       local h_win, h_buf = slot("documentation-browse-list")
       vim.api.nvim_set_current_win(h_win)
 
+      -- **Wait for `git log` before looking.** Since the async rewrite
+      -- (`perf(async): Browse-History blockiert nicht mehr`) the commit list
+      -- is fetched in a callback, and `render` draws `(loading commits…)`
+      -- until it lands. Every assertion below reads a list that does not
+      -- exist yet without this.
+      --
+      -- It failed in two different places for one reason, which is what made
+      -- it look like two bugs: with a full history the row count came up
+      -- short, and on CI — `actions/checkout` is shallow, so `rev-list
+      -- --count HEAD` is 1 — `>= 1` was satisfied by the placeholder row
+      -- itself, the `<CR>` below then landed on a `kind="message"` entry,
+      -- and the failure surfaced seven lines further down as "opens a
+      -- commit".
+      --
+      -- Polled through the *buffer* rather than the state: this spec drives
+      -- the browser the way a person does, and a wait keyed on an internal
+      -- field would keep passing if the render stopped reflecting it.
+      vim.wait(20000, function()
+        local first = vim.api.nvim_buf_get_lines(h_buf, 0, 1, false)[1] or ""
+        return not first:find("loading commits", 1, true)
+      end, 50)
+
+      -- Captured *after* the wait, not before: the status line is
+      -- `("%d commits"):format(#(st.commits or {}))`, so a copy taken while
+      -- the load was still in flight would read "0 commits" — and the
+      -- `-` assertion at the end compares against it.
       local commit_list = status_now()
       ok(commit_list:find("history", 1, true) ~= nil, "browse: mode=history opens on History")
       ok(
