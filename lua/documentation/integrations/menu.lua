@@ -28,8 +28,12 @@ local M = {}
 ---@param mode string
 ---@return boolean
 local function applies_in(spec, mode)
-  if not spec.only then return true end
-  if type(spec.only) == "string" then return spec.only == mode end
+  if not spec.only then
+    return true
+  end
+  if type(spec.only) == "string" then
+    return spec.only == mode
+  end
   return vim.tbl_contains(spec.only, mode)
 end
 
@@ -39,15 +43,21 @@ end
 ---@param st table browse session state, as bound in `browse/init.lua`'s `bind(st)` (`st.keys`, `st.mode`)
 ---@return Lib.ContextMenu.Item[]
 function M.items(st)
-  if type(st) ~= "table" or type(st.keys) ~= "table" then return {} end
+  if type(st) ~= "table" or type(st.keys) ~= "table" then
+    return {}
+  end
 
   local out = {}
   for _, spec in ipairs(st.keys) do
     if spec.run and not spec.disabled and spec.where ~= "detail" and applies_in(spec, st.mode) then
       local label = (spec.desc:gsub("^%l", string.upper))
       local rtxt = spec.keys and spec.keys[1]
-      local e = contextmenu.entry(true, "  " .. label, function() spec.run(st) end, rtxt)
-      if e then out[#out + 1] = e end
+      local e = contextmenu.entry(true, "  " .. label, function()
+        spec.run(st)
+      end, rtxt)
+      if e then
+        out[#out + 1] = e
+      end
     end
   end
   return out

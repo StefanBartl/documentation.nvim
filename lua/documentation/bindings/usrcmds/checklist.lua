@@ -59,7 +59,10 @@ local function commit_dates(cwd, out_dir, cb)
         local stderr = vim.trim(proc.stderr or "")
         -- A timeout kill surfaces as a non-zero exit with no stderr; keep the
         -- old wording for that case so the message stays recognisable.
-        cb(nil, stderr ~= "" and ("git log failed: " .. stderr) or "git log did not finish within 120s")
+        cb(
+          nil,
+          stderr ~= "" and ("git log failed: " .. stderr) or "git log did not finish within 120s"
+        )
         return
       end
       cb(require("documentation.core.checklist").parse_history(proc.stdout or ""), nil)

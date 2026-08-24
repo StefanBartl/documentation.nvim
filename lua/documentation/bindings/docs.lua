@@ -121,6 +121,32 @@ function M.render()
   put("cheatsheet, marked `(disabled)`.")
   put("")
 
+  -- Right-click context menu ------------------------------------------------
+  --
+  -- Emitted here rather than written into `docs/BINDINGS.md` by hand, and
+  -- that is not a style preference: this file *is* `docs/BINDINGS.md`.
+  -- `scripts/gen_map.lua` overwrites it wholesale on every run, so a
+  -- paragraph added to the file survives exactly until the next `:DocMap` —
+  -- and then vanishes with nothing anywhere saying it did. Prose that
+  -- belongs to the binding surface belongs in the thing that renders the
+  -- binding surface.
+  --
+  -- Static rather than derived from a table, unlike everything above it,
+  -- because there is no table: the trigger is one keymap and the entries are
+  -- the rows already rendered above. A generated sentence about a single
+  -- `<RightMouse>` would be a table of one.
+  put("### Right-click context menu")
+  put("")
+  put("`<RightMouse>` on the list buffer opens a context menu (via")
+  put("[nvzone/menu](https://github.com/nvzone/menu), a soft dependency) mirroring")
+  put('every row above except the two "detail pane" ones (`detail_back`, `lookup`')
+  put("— the trigger lives on the list buffer, not the detail pane) and only")
+  put("showing rows whose **Modes** column includes the browser's current mode,")
+  put("same as the `?` cheatsheet already does. `opts.menu = false` disables the")
+  put("trigger entirely; a missing `nvzone/menu` install degrades to a single")
+  put("notify, never an error.")
+  put("")
+
   -- Autocommands -----------------------------------------------------------
   put("## Autocommands")
   put("")

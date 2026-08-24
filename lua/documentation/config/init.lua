@@ -56,6 +56,7 @@ M.KNOWN_OPTS_KEYS = {
   browse_command_name = true,
   keys = true,
   which_key = true,
+  menu = true,
   debug = true,
   watch = true,
   watch_ms = true,

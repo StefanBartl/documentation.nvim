@@ -126,29 +126,33 @@ local function load_commits(st, on_ready)
 
   -- Unit/record separators, not a printable delimiter: a subject can contain
   -- whatever character looked safe.
-  git(st, { "log", "-n", "200", "--date=short", "--format=%H%x1f%h%x1f%an%x1f%ad%x1f%s%x1e" }, function(out, err)
-    st.commits_loading = nil
-    if not out then
-      st.commits = {}
-      notify.warn("git log failed: " .. tostring(err))
-      on_ready()
-      return
-    end
+  git(
+    st,
+    { "log", "-n", "200", "--date=short", "--format=%H%x1f%h%x1f%an%x1f%ad%x1f%s%x1e" },
+    function(out, err)
+      st.commits_loading = nil
+      if not out then
+        st.commits = {}
+        notify.warn("git log failed: " .. tostring(err))
+        on_ready()
+        return
+      end
 
-    local commits = {}
-    for record in out:gmatch("([^\30]+)") do
-      local rec = vim.trim(record)
-      if rec ~= "" then
-        local f = vim.split(rec, "\31", { plain = true })
-        if #f >= 5 then
-          commits[#commits + 1] =
-            { sha = f[1], short = f[2], author = f[3], date = f[4], subject = f[5] }
+      local commits = {}
+      for record in out:gmatch("([^\30]+)") do
+        local rec = vim.trim(record)
+        if rec ~= "" then
+          local f = vim.split(rec, "\31", { plain = true })
+          if #f >= 5 then
+            commits[#commits + 1] =
+              { sha = f[1], short = f[2], author = f[3], date = f[4], subject = f[5] }
+          end
         end
       end
+      st.commits = commits
+      on_ready()
     end
-    st.commits = commits
-    on_ready()
-  end)
+  )
 end
 
 ---Analyse one commit: its diff, the artifacts either side of it, and the

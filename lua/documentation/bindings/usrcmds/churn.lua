@@ -73,7 +73,6 @@ function M.run(ctx, arg)
         return
       end
 
-
       local counts, seen_commits = {}, 0
       for record in (proc.stdout or ""):gmatch("[^\30]+") do
         local touched = {}

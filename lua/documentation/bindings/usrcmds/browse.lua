@@ -71,6 +71,7 @@ function M.run(ctx, arg)
     -- copy of them that only this entry point gets.
     keys = cfg.keys,
     which_key = cfg.which_key,
+    menu = cfg.menu,
     width = browse.width,
     height = browse.height,
     list_width = browse.list_width,
