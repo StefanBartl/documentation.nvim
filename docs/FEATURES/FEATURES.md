@@ -3100,3 +3100,30 @@ card at all rather than an empty one.
 - **Modules:** `core/render/html.lua` (`tagBadge`, `kwOpen`'s tag branch,
   `kwPlace`), `core/tags.lua` (`for_page`)
 - **Tests:** `TESTS/adoption_spec.lua`
+
+## Right-click context menu on `:DocBrowse` (2026-08-24)
+
+Part of a cross-plugin push (`lib.nvim.contextmenu`, a new shared module for
+building [nvzone/menu](https://github.com/nvzone/menu)-shaped entries and
+binding a `<RightMouse>` trigger) to give the personal-plugin ecosystem's
+buffer-owning UIs a mouse-driven alternative to their keyboard shortcuts,
+without any of them taking a hard dependency on `menu`.
+
+`documentation.integrations.menu` builds its entries straight from `st.keys`
+— the browse session's already-resolved key table, `opts.keys`
+overrides/disables included — rather than a second hand-maintained list,
+the same anti-drift reasoning behind the `?` cheatsheet above. Two filters
+on top of what `?` shows: only list-buffer entries (`where == "detail"` keys
+are excluded, since the trigger lives on the list buffer, not the detail
+pane), and only the ones applicable to the browser's *current* mode
+(deps/calls/trail/history/endpoints/…) — `applies_in` is duplicated rather
+than exported, since it is an implementation detail of the state machine,
+not part of `browse/init.lua`'s public surface. `bind(st)` binds the
+trigger unconditionally; an all-disabled config or a missing `nvzone/menu`
+install both degrade to an empty menu / a single notify, never an error.
+
+- **Modules:** `documentation/integrations/menu.lua` (`M.items`,
+  `M.submenu`), `documentation/editor/browse/init.lua` (`bind`, trigger
+  wiring)
+- **Config:** `opts.menu` (default `true`, same opt-out shape as
+  `opts.which_key`)

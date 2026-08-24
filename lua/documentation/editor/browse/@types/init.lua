@@ -21,6 +21,7 @@
 ---@field list_width? number Fraction of the layout given to the list column. Default 0.38.
 ---@field keys? table<Documentation.Browse.KeyAction, string|string[]|false> Rebind or disable the browser's keys, by action. A string or list of strings replaces that action's left-hand sides; `false` disables it (the action stays in the `?` cheatsheet, marked off, so a missing key is explained rather than mysterious). Unlisted actions keep their defaults. All bindings are buffer-local to the browser, so a replacement only has to be free *inside* it. An unknown action name is reported, not ignored.
 ---@field which_key? boolean Register the resolved bindings with which-key when it is installed. Default true — a no-op when which-key is absent, since registration is guarded by `core.soft_require.probe("which-key")`. Set false to keep the browser out of which-key entirely.
+---@field menu? boolean Bind a `<RightMouse>` context menu (nvzone/menu, soft dependency; entries from `documentation.integrations.menu`) mirroring the resolved bindings, same list-buffer scope as `which_key`. Default true — a no-op when nvzone/menu is absent, degrading to a single notify rather than an error. Set false to keep the browser out of it entirely.
 
 ---A rebindable action in the browser. The `id` of an entry in the `KEYS`
 ---table in `browse/init.lua`, which is the only place these are defined.

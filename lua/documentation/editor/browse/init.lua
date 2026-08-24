@@ -38,6 +38,7 @@
 
 require("documentation.editor.browse.@types")
 
+local contextmenu = require("lib.nvim.contextmenu")
 local filter = require("documentation.editor.browse.filter")
 local kit = require("lib.nvim.ui.kit")
 local map = require("lib.nvim.map")
@@ -1522,6 +1523,17 @@ local function bind(st)
       end
     end
     require("documentation.editor.browse.whichkey").register(bufnr, list_keys, MODES)
+  end
+
+  -- Right-click context menu (nvzone/menu, soft dependency; entries from
+  -- documentation.integrations.menu). Trigger is bound unconditionally;
+  -- items() self-gates on the current mode and disabled/detail-only keys,
+  -- so an all-disabled config just yields an empty list and the bound
+  -- keymap becomes a no-op. Same opt-out shape as which_key above.
+  if st.opts.menu ~= false then
+    contextmenu.bind_buffer(bufnr, function()
+      return require("documentation.integrations.menu").items(st)
+    end, { desc = "DocBrowse: right-click context menu" })
   end
 end
 

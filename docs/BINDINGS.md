@@ -63,6 +63,17 @@ column — not by the default key, so a rebinding survives a change of
 defaults. `false` disables an action; it then still appears in the `?`
 cheatsheet, marked `(disabled)`.
 
+### Right-click context menu
+
+`<RightMouse>` on the list buffer opens a context menu (via
+[nvzone/menu](https://github.com/nvzone/menu), a soft dependency) mirroring
+every row above except the two "detail pane" ones (`detail_back`, `lookup`
+— the trigger lives on the list buffer, not the detail pane) and only
+showing rows whose **Modes** column includes the browser's current mode,
+same as the `?` cheatsheet already does. `opts.menu = false` disables the
+trigger entirely; a missing `nvzone/menu` install degrades to a single
+notify, never an error.
+
 ## Autocommands
 
 All created lazily. Requiring `documentation` installs none of them.

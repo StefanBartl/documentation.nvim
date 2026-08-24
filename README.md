@@ -436,6 +436,9 @@ per-field documentation is in
 
     which_key = true,     -- register :DocBrowse's keys with which-key when
                           -- it is installed; a no-op when it is not
+    menu = true,           -- <RightMouse> context menu mirroring :DocBrowse's
+                            -- keys (nvzone/menu, soft dependency); a no-op
+                            -- when it is not installed
     keys = {},            -- rebind or disable :DocBrowse's keys, by action
 
     telemetry = true,      -- self-instrument this tree with runtime-
