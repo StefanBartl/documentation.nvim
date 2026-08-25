@@ -50,13 +50,26 @@ local SK_FUNCTION = 12
 
 ---Absolute path -> repo-relative, forward-slashed, matching the shape
 ---`Documentation.Node.source` is written in.
+---
+---`root` arrives already canonicalised by `config.normalise_root`
+---(`lib.nvim.fs.normkey` -> `uv.fs_realpath`), but `abs_path` comes from
+---`vim.uri_to_fname` on a URI built from a *buffer name* — whatever spelling
+---the file was opened under. On Windows those can be the same file under
+---two names (an 8.3 short path against its long form, or a differently-cased
+---drive letter), and a raw prefix compare then rejects a file that is
+---plainly inside the tree. Slash-unification alone is not enough, so try the
+---cheap comparison first and fall back to canonicalising `abs_path` the same
+---way `root` already was.
 ---@param root string Already normalized (forward slashes, no trailing slash).
 ---@param abs_path string
 ---@return string?
 local function to_repo_relative(root, abs_path)
   local norm = (abs_path:gsub("\\", "/"))
   if norm:sub(1, #root + 1) ~= root .. "/" then
-    return nil
+    norm = require("documentation.config").normalise_root(norm)
+    if norm:sub(1, #root + 1) ~= root .. "/" then
+      return nil
+    end
   end
   return norm:sub(#root + 2)
 end

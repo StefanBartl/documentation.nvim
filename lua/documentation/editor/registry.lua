@@ -34,6 +34,46 @@ local function norm_root(root)
   return require("documentation.config").normalise_root(root)
 end
 
+---Is `buf_path` (a raw `nvim_buf_get_name` result) inside any of `dirs`?
+---
+---`is_subpath` is a pure string comparison over `vim.fs.normalize`d paths,
+---which unifies separators and nothing else. `dirs` are built from a root
+---that went through `norm_root` -> `lib.nvim.fs.normkey` -> `uv.fs_realpath`,
+---while a buffer name is whatever spelling the user (or a caller like
+---`vim.cmd.edit`) happened to open the file with. On Windows those two can
+---be the *same file* under different names — most visibly an 8.3 short path
+---(`C:/Users/STEFAN~1/...`, which is what `vim.fn.tempname()` hands back)
+---against its long form, but also a lower-case drive letter or a symlinked
+---checkout on any OS. Comparing them raw makes every autocmd below silently
+---never fire for such a buffer.
+---
+---So canonicalise the buffer path through the *same* normaliser the root
+---used before comparing. The dirname is resolved rather than the whole path
+---because `BufNewFile` fires for a file that does not exist on disk yet —
+---`fs_realpath` would fail on it and fall back to the raw, uncanonicalised
+---spelling, whereas its directory does exist.
+---@param buf_path string
+---@param dirs string[]
+---@return boolean
+local function buf_in_dirs(buf_path, dirs)
+  if buf_path == "" then
+    return false
+  end
+  local is_subpath = require("lib.nvim.fs.is_subpath")
+  local slashed = buf_path:gsub("\\", "/")
+  local dir, base = slashed:match("^(.*)/([^/]*)$")
+  local canonical = slashed
+  if dir and dir ~= "" then
+    canonical = norm_root(dir) .. "/" .. base
+  end
+  for _, d in ipairs(dirs) do
+    if is_subpath(canonical, d) or is_subpath(slashed, d) then
+      return true
+    end
+  end
+  return false
+end
+
 ---@param entry table
 local function notify_watchers(entry)
   for _, cb in ipairs(entry.watchers) do
@@ -84,7 +124,6 @@ function M.ensure_watch(root)
   for _, src in ipairs(require("documentation.config").sources(opts)) do
     source_dirs[#source_dirs + 1] = root .. "/" .. src
   end
-  local is_subpath = require("lib.nvim.fs.is_subpath")
   -- Raw nvim_create_augroup on purpose, not autocmd.group(): uninstall()
   -- below deletes this group by numeric id (nvim_del_augroup_by_id), which
   -- autocmd.group()'s name -> id cache has no visibility into — a second
@@ -99,22 +138,12 @@ function M.ensure_watch(root)
   -- is the obvious approach and the wrong one: Vim's pattern matcher compares
   -- against the raw buffer path, which is OS-native (backslashes on
   -- Windows), while any path built here is forward-slash — verified this
-  -- mismatches and the autocmd silently never fires. `is_subpath` already
-  -- exists for exactly this normalize-both-sides comparison (its own
-  -- history has the same backslash bug on record), so scope with a cheap
+  -- mismatches and the autocmd silently never fires. `buf_in_dirs` above
+  -- does the normalize-both-sides comparison instead, so scope with a cheap
   -- extension-only pattern and an explicit subpath check in the callback
   -- instead of trusting the glob engine with directory structure.
   autocmd.create({ "BufWritePost" }, function(args)
-    local buf_path = vim.api.nvim_buf_get_name(args.buf)
-    local in_tree = false
-    if buf_path ~= "" then
-      for _, dir in ipairs(source_dirs) do
-        if is_subpath(buf_path, dir) then
-          in_tree = true
-          break
-        end
-      end
-    end
+    local in_tree = buf_in_dirs(vim.api.nvim_buf_get_name(args.buf), source_dirs)
     if in_tree then
       debounce.call()
     end
@@ -160,7 +189,6 @@ function M.ensure_callhierarchy(root)
   for _, src in ipairs(require("documentation.config").sources(opts)) do
     source_dirs[#source_dirs + 1] = root .. "/" .. src
   end
-  local is_subpath = require("lib.nvim.fs.is_subpath")
   local callhierarchy = require("documentation.editor.callhierarchy")
 
   local group = vim.api.nvim_create_augroup("LibDocmapCallHierarchy:" .. root, { clear = true })
@@ -171,16 +199,7 @@ function M.ensure_callhierarchy(root)
   -- matter here — an existing file being opened, or a new one being
   -- written for the first time.
   autocmd.create({ "BufReadPost", "BufNewFile" }, function(args)
-    local buf_path = vim.api.nvim_buf_get_name(args.buf)
-    local in_tree = false
-    if buf_path ~= "" then
-      for _, dir in ipairs(source_dirs) do
-        if is_subpath(buf_path, dir) then
-          in_tree = true
-          break
-        end
-      end
-    end
+    local in_tree = buf_in_dirs(vim.api.nvim_buf_get_name(args.buf), source_dirs)
     if in_tree then
       -- `entry.handle` is read here, not captured — at the time this
       -- function is *defined* (inside `install()`, before the handle table
@@ -238,7 +257,6 @@ function M.ensure_diagnostics(root)
   for _, src in ipairs(require("documentation.config").sources(opts)) do
     source_dirs[#source_dirs + 1] = root .. "/" .. src
   end
-  local is_subpath = require("lib.nvim.fs.is_subpath")
   local diagnostics = require("documentation.bindings.diagnostics")
 
   diagnostics.publish(root, entry.handle)
@@ -248,16 +266,7 @@ function M.ensure_diagnostics(root)
 
   local group = vim.api.nvim_create_augroup("LibDocmapDiagnostics:" .. root, { clear = true })
   autocmd.create({ "BufReadPost", "BufNewFile" }, function(args)
-    local buf_path = vim.api.nvim_buf_get_name(args.buf)
-    local in_tree = false
-    if buf_path ~= "" then
-      for _, dir in ipairs(source_dirs) do
-        if is_subpath(buf_path, dir) then
-          in_tree = true
-          break
-        end
-      end
-    end
+    local in_tree = buf_in_dirs(vim.api.nvim_buf_get_name(args.buf), source_dirs)
     if in_tree then
       diagnostics.publish(root, entry.handle)
     end

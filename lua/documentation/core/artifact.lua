@@ -18,8 +18,18 @@
 
 local M = {}
 
----Normalize a repo root the same way `documentation.editor.registry` does,
----so a handle installed there and an artifact read here agree on the key.
+---Tidy a repo root's *spelling*: forward slashes, no trailing separator.
+---
+---**Not the registry's key function.** `documentation.editor.registry` keys
+---on `config.normalise_root`, which additionally runs the path through
+---`uv.fs_realpath` (resolving symlinks, and on Windows an 8.3 short name to
+---its long form) and upper-cases the drive letter. This one deliberately
+---cannot: `core/` has to stay runnable in the standalone build, which has no
+---`fs_realpath` at all (`standalone/vim_shim.lua`). It is idempotent on an
+---already-canonical root, which is what every caller here has — `opts.root`
+---arrives via `config.build`, which normalises it — so the two agree in
+---practice. Do not reach for this to *reconstruct* a registry key from a raw
+---path; use `config.normalise_root` for that.
 ---@param root string
 ---@return string
 function M.norm_root(root)

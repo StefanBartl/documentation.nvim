@@ -77,7 +77,16 @@ return function(H)
       docmap.install({ root = root, source = "lua/demo", lua_root = "lua", mdview = true })
 
     eq(#calls, 1, "mdview: install()'s initial scan pushes exactly once")
-    local expected_path = (root:gsub("\\", "/")) .. "/docs/map/overview.md"
+    -- `install()` keys the registry on `config.normalise_root(root)`, which
+    -- runs the path through `lib.nvim.fs.normkey` -> `uv.fs_realpath`. On
+    -- Windows that turns the 8.3 short path `vim.fn.tempname()` hands back
+    -- (`C:/Users/STEFAN~1/...`) into its long form, so the pushed path is
+    -- built from the *canonical* root, not the raw string this spec holds.
+    -- Normalising the expectation the same way is the real comparison --
+    -- the assertion still pins the exact, full `<root>/<out_dir>/overview.md`
+    -- rather than being loosened to a suffix or case-insensitive match.
+    local expected_path = require("documentation.config").normalise_root(root)
+      .. "/docs/map/overview.md"
     eq(calls[1].path, expected_path, "mdview: pushes to <root>/<out_dir>/overview.md")
     ok(calls[1].opts.immediate == true, "mdview: sends immediately, not queued")
     ok(

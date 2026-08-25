@@ -2390,9 +2390,12 @@ return function(H)
   -- `install()` treats a collision as replace and drops them.
   local registry = require("documentation.editor.registry")
   -- The group name is keyed on the *normalized* root, the same way the
-  -- registry keys its entries — a raw tempname carries backslashes on Windows.
-  local watch_group = "LibDocmapWatch:"
-    .. require("documentation.editor.browse.source").norm_root(heur_root)
+  -- registry keys its entries — so it has to be built with the registry's own
+  -- key function, `config.normalise_root`. Not `core.artifact.norm_root`,
+  -- which only unifies separators and trims a trailing one: a raw tempname
+  -- carries backslashes on Windows *and* an 8.3 short directory name, and
+  -- only the `uv.fs_realpath` inside `normalise_root` resolves the latter.
+  local watch_group = "LibDocmapWatch:" .. require("documentation.config").normalise_root(heur_root)
   local function watching()
     local got, aus = pcall(vim.api.nvim_get_autocmds, { group = watch_group })
     return got and #aus > 0

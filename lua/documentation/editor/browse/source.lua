@@ -26,8 +26,9 @@ local uv = vim.uv
 -- `impact`, `browse/init`, `serve`, and this file's own tests).
 local artifact = require("documentation.core.artifact")
 
--- Normalize a repo root the same way `docmap.registry` does, so a handle
--- installed there and an artifact read here agree on the key.
+-- Tidy a repo root's spelling (forward slashes, no trailing separator) for
+-- joining onto an artifact path. See `core/artifact.lua` for why this is not
+-- the registry's own key function -- `config.normalise_root` is.
 M.norm_root = artifact.norm_root
 
 -- Where a project's generated artifact lives.
