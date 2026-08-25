@@ -19,6 +19,23 @@ Both names are configurable — `opts.command_name` and
 `opts.browse_command_name` — so a second `setup()` call (a plugin
 generating its own map) does not overwrite this one.
 
+### `<Tab>` completion
+
+| Position | Completes to |
+| --- | --- |
+| `:DocMap <action>` | every action name |
+| `:DocMap graph <module>`, `:DocMap why <module>`, `:DocMap dot <module>` | module paths, live from the scanned map |
+| after a module in `graph`/`dot` | `deps`, `calls` |
+| `:DocMap diff <ref>` | the repo's own named revisions: local branches, remote branches (prefixed, e.g. `origin/main`), tags — newest commit first |
+| `:DocMap churn <range>` | the same refs; after `A..` or `A...`, the right-hand side completes and the whole `A..B` token comes back |
+
+Revisions come from `lib.nvim.git.refs`, cached for a few seconds — long
+enough that a held `<Tab>` does not spawn one `git for-each-ref` per
+keystroke, short enough that a branch created mid-session shows up.
+
+Module completion is deliberately skipped until the root has been scanned
+once, so pressing `<Tab>` never triggers a full scan.
+
 ## Keymaps
 
 **The plugin installs no global keymaps.** Every binding below is

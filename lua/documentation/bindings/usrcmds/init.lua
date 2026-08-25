@@ -166,6 +166,28 @@ local function starting_with(candidates, lead)
   end, candidates)
 end
 
+---Named revisions of `root`, for completing `diff`'s and `churn`'s argument.
+---
+---Cached for a few seconds rather than per session: branches come and go
+---while an editor is open (a checkout, a new branch), so a session-long cache
+---would go stale in the ordinary case. The TTL is only there to keep a held
+---`<Tab>` from spawning one `git for-each-ref` per keystroke.
+---@param root string
+---@return string[]
+local function revisions(root)
+  local ns = require("lib.nvim.cache.memory").namespace("documentation.revisions", { ttl = 5 })
+  local hit = ns.get(root)
+  if hit then
+    return hit
+  end
+  -- Capped: past the first few dozen, a candidate list is not something
+  -- anyone reads, and the newest-first ordering means the cut falls on the
+  -- refs least likely to be wanted.
+  local refs = require("lib.nvim.git").refs(root, { limit = 50 })
+  ns.set(root, refs)
+  return refs
+end
+
 ---@param p string
 ---@return string
 local function norm(p)
@@ -357,6 +379,29 @@ function M.setup(opts)
         return starting_with(completion_names(), lead)
       elseif after_graph or line:match("dot%s+%a*$") then
         return starting_with({ "deps", "calls" }, lead)
+      elseif line:match("diff%s") or line:match("churn%s") then
+        -- Both take a revision, so both complete against the repo's own refs.
+        -- Without this they fell through to the action list below, which
+        -- offered `bindings`/`plugins`/... in a slot where an action is not
+        -- what is wanted -- worse than no completion, since every candidate
+        -- was wrong.
+        local refs = revisions(resolve_root())
+        -- `churn` takes a *range*: once the user has typed `A..`, complete the
+        -- right-hand side and hand back the whole `A..B` token, since Vim
+        -- replaces the entire lead rather than appending to it.
+        local base, sep = lead:match("^(.-)(%.%.%.?)$")
+        if not base then
+          base, sep = lead:match("^(.-)(%.%.%.?)[^.]*$")
+        end
+        if base and sep and line:match("churn%s") then
+          local rest = lead:sub(#base + #sep + 1)
+          local out = {}
+          for _, ref in ipairs(starting_with(refs, rest)) do
+            out[#out + 1] = base .. sep .. ref
+          end
+          return out
+        end
+        return starting_with(refs, lead)
       end
       return starting_with(action_names(), lead)
     end,

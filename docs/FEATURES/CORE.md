@@ -3,6 +3,29 @@
 Cross-cutting mechanisms used by more than one tab of the generated page,
 plus the two most recent ecosystem-convention Analysis panels.
 
+## Revision completion on `:DocMap diff` / `:DocMap churn`
+
+Both take a revision — `diff [ref]` a single one, `churn [rev-range]` a
+range — and both now complete against the repository's own named revisions:
+local branches, remote branches (prefixed, `origin/main`, which is how git
+accepts them), and tags, newest commit first. For `churn`, typing `A..` and
+pressing `<Tab>` completes the right-hand side and returns the whole `A..B`
+token, since Vim replaces the entire lead rather than appending to it.
+
+Before this, both slots fell through to the action-name list, offering
+`bindings`/`plugins`/… where a revision belongs — worse than no completion,
+because every candidate was wrong.
+
+Refs are cached for a few seconds, not for the session: branches come and go
+while an editor is open, so a session-long cache would be stale in the
+ordinary case, while the short TTL still keeps a held `<Tab>` from spawning
+one `git for-each-ref` per keystroke.
+
+- **Module:** `bindings/usrcmds/init.lua` (`revisions`, the `complete`
+  callback), [`lib.nvim.git.refs`](https://github.com/StefanBartl/lib.nvim/blob/main/lua/lib/nvim/git/README.md)
+- **Config:** none — always available.
+- **Docs:** [`docs/BINDINGS.md`](../BINDINGS.md) "User commands".
+
 ## Compare marks
 
 Mark any function or module with the `+` beside its `ⓘ` (or a node's own
