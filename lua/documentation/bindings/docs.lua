@@ -77,6 +77,41 @@ function M.render()
   put("generating its own map) does not overwrite this one.")
   put("")
 
+  -- Completion --------------------------------------------------------------
+  --
+  -- Static, and emitted from here rather than kept in `docs/BINDINGS.md`, for
+  -- the reason spelled out at the context-menu block below: this file *is*
+  -- that file. This section had in fact been added to the Markdown by hand and
+  -- was silently dropped by the next `:DocMap` — which is also why the map
+  -- gate went red with nothing in the working tree to explain it.
+  --
+  -- Derived from the argtype declarations in `documentation.bindings.usrcmds`
+  -- rather than a table, because the interesting part is not *that* a slot
+  -- completes but what it completes to, and that is prose either way.
+  put("### `<Tab>` completion")
+  put("")
+  put("| Position | Completes to |")
+  put("| --- | --- |")
+  put("| `:DocMap <action>` | every action name |")
+  put(
+    "| `:DocMap graph <module>`, `:DocMap why <module>`, `:DocMap dot <module>` | module paths, live from the scanned map |"
+  )
+  put("| after a module in `graph`/`dot` | `deps`, `calls` |")
+  put(
+    "| `:DocMap diff <ref>` | the repo's own named revisions: local branches, remote branches (prefixed, e.g. `origin/main`), tags — newest commit first |"
+  )
+  put(
+    "| `:DocMap churn <range>` | the same refs; after `A..` or `A...`, the right-hand side completes and the whole `A..B` token comes back |"
+  )
+  put("")
+  put("Revisions come from `lib.nvim.git.refs`, cached for a few seconds — long")
+  put("enough that a held `<Tab>` does not spawn one `git for-each-ref` per")
+  put("keystroke, short enough that a branch created mid-session shows up.")
+  put("")
+  put("Module completion is deliberately skipped until the root has been scanned")
+  put("once, so pressing `<Tab>` never triggers a full scan.")
+  put("")
+
   -- Keymaps ----------------------------------------------------------------
   put("## Keymaps")
   put("")
