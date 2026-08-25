@@ -1,82 +1,82 @@
-# documentation.nvim — Ausblick
+# documentation.nvim — the outlook
 
-**Was dieses Plugin ist, in einem Satz:** ein Werkzeug, das die
-Dokumentation eines Baums gegen den Baum selbst prüft — und die Karte ist
-das sichtbare Nebenprodukt, nicht der Zweck.
+**What this plugin is, in one sentence:** a tool that checks a tree's
+documentation against the tree itself — and the map is the visible
+by-product, not the purpose.
 
-Der Zweck ist die andere Hälfte: eine erzeugte Karte ist ein hübsches
-Artefakt, eine Karte, die *fehlschlägt*, wenn Dokumentation und Wirklichkeit
-auseinanderlaufen, ist ein Test. Jede Richtung unten ist daran gemessen.
+The purpose is the other half: a generated map is a pretty artifact; a map
+that *fails* when documentation and reality drift apart is a test. Every
+direction below is measured against that.
 
-> **Die Warteschlange steht woanders.** Was als Nächstes gebaut wird — hier
-> *und* in `docmap-desktop` und `runtime-analysis.nvim` — steht seit
-> 2026-08-20 in **einem** Plan:
+> **The queue lives elsewhere.** What gets built next — here *and* in
+> `docmap-desktop` and `runtime-analysis.nvim` — has been in **one** plan
+> since 2026-08-20:
 > [`docmap-desktop/docs/PLAN.md`](https://github.com/StefanBartl/docmap-desktop/blob/main/docs/PLAN.md).
 >
-> Was gebaut wurde und warum, steht in
-> [`FEATURES.md`](../FEATURES/FEATURES.md). Die Herleitung samt Kosten und
-> Gegenargumenten liegt in [`IDEAS/`](IDEAS/) — dieses Dokument ist keins
-> von beidem.
+> What was built and why is in
+> [`FEATURES.md`](../FEATURES/FEATURES.md). The derivation, including costs
+> and counter-arguments, lives in [`IDEAS/`](IDEAS/) — this document is
+> neither of those.
 
-## Die vier großen Richtungen
+## The four big directions
 
-**Mehr Sprachen lesen können.** Dreiundzwanzig Backends hinter einem
-Contract, damit ein gemischtes Repository *eine* Karte ergibt statt mehrerer.
-Was jedes liest, steht in [`LANGUAGES.md`](../LANGUAGES.md); was jedes
-gekostet hat, in [`IDEAS/MULTILANG.md`](IDEAS/MULTILANG.md). Fünfzehn
-weitere sind **verfügbar, nicht geplant** — benannt, kalkuliert und nach
-Kosten geordnet in derselben Datei.
+**Being able to read more languages.** Twenty-three backends behind one
+contract, so that a mixed repository yields *one* map instead of several.
+What each of them reads is in [`LANGUAGES.md`](../LANGUAGES.md); what each of
+them cost is in [`IDEAS/MULTILANG.md`](IDEAS/MULTILANG.md). Fifteen more are
+**available, not planned** — named, costed and ordered by price in the same
+file.
 
-**Call-Kanten außerhalb von Lua, Go und der ECMA-Familie.** Die größte
-einzelne Lücke im Werkzeug: fünf Backends von dreiundzwanzig liefern
-Call-Kanten, achtzehn liefern `{}` — und damit sind die Calls-Ansichten,
-`:DocMap why`, die Call-Hierarchie und `dead-function`s Call-Stufe dort leer.
-**Nichts an diesen Sprachen macht das unmöglich**; es ist ungebaut, nicht
-blockiert. Go war bewusst die erste, als Muster — und die Lehre daraus ist
-die Anweisung für die übrigen: *erst fragen, was in dieser Sprache ein Scope
-ist, dann die Query schreiben.* Ein Go-Paket ist ein Verzeichnis, und ein
-dateiweiser Resolver verliert daran fast die Hälfte eines echten Call-Graphen
-(`aws/smithy-go`: 397 von 883 Kanten).
+**Call edges outside Lua, Go and the ECMA family.** The single largest gap in
+the tool: five backends out of twenty-three deliver call edges, eighteen
+deliver `{}` — which leaves the calls views, `:DocMap why`, the call
+hierarchy and `dead-function`'s call stage empty for those languages.
+**Nothing about these languages makes that impossible**; it is unbuilt, not
+blocked. Go was deliberately the first, as a pattern — and the lesson from it
+is the instruction for the rest: *first ask what a scope is in this language,
+then write the query.* A Go package is a directory, and a per-file resolver
+loses nearly half of a real call graph to that (`aws/smithy-go`: 397 out of
+883 edges).
 
-**Sprechen, nicht nur lesen.** Die Sprachen, die dieses Werkzeug *spricht* —
-eine andere Achse als die oben, trotz des gemeinsamen Worts. Findings tragen
-seit I18N-0 Parameter statt fertiger englischer Sätze; die erzeugte Seite ist
-die verbleibenden ~85 % der Arbeit. Siehe [`IDEAS/I18N.md`](IDEAS/I18N.md).
+**Speaking, not just reading.** The languages this tool *speaks* — a
+different axis from the one above, despite the shared word. Findings have
+carried parameters instead of finished English sentences since I18N-0; the
+generated page is the remaining ~85% of the work. See
+[`IDEAS/I18N.md`](IDEAS/I18N.md).
 
-**Ohne Neovim laufen.** „Eine Lua-Karte aus dem Terminal" geht längst. Die
-Neovim-Abhängigkeit ganz fallen zu lassen ist separat kalkuliert in
-[`IDEAS/PORTABILITY.md`](IDEAS/PORTABILITY.md) — und der Standalone-Build
-hat sich zuletzt vor allem als *Prüfstand* bewährt: er liest das Artefakt als
-gewöhnliche Datei und sieht damit Dinge, die keine Prüfung über den Quellbaum
-sieht.
+**Running without Neovim.** "A Lua map from the terminal" has worked for a
+long time. Dropping the Neovim dependency entirely is costed separately in
+[`IDEAS/PORTABILITY.md`](IDEAS/PORTABILITY.md) — and the standalone build has
+lately proved its worth above all as a *test bench*: it reads the artifact as
+an ordinary file and therefore sees things no check over the source tree
+sees.
 
-## Der eine offene Befund, den man kennen sollte
+## The one open finding worth knowing about
 
-**Der `standalone`-Gate überspringt sich stillschweigend** und zählt trotzdem
-zu „5/5 grün". Er braucht PUC Lua auf dem `PATH` mit `lfs` und `dkjson`;
-fehlt eins davon, druckt er *skipped*. Lokal heißt grün also **„vier Gates
-und ein Achselzucken"** — und genau dahinter sind drei echte Defekte bis in
-ein Release gekommen.
+**The `standalone` gate skips itself silently** and still counts towards "5/5
+green". It needs PUC Lua on the `PATH` with `lfs` and `dkjson`; if one of
+those is missing it prints *skipped*. Locally, green therefore means **"four
+gates and a shrug"** — and exactly behind that, three real defects made it
+into a release.
 
-**Zwei Hälften sind behoben.** `TESTS/shim_contract_spec.lua` fängt seit
-2026-08-20, was *statisch* sichtbar ist — jeder `vim.*`-Pfad und jeder
-Methodenname, den `core/` aufruft, gegen das, was der Shim implementiert. Und
-die Schlusszeile lügt nicht mehr: sie sagte „All 5 gates passed", während
-einer vierzig Zeilen vorher *skipped* gedruckt hatte. Jetzt steht dort
-**„4 gates passed, 1 skipped: standalone"** plus der Satz, der den Rest
-erklärt: *ein übersprungener Gate hat nichts geprüft.*
+**Two halves are fixed.** `TESTS/shim_contract_spec.lua` has caught what is
+*statically* visible since 2026-08-20 — every `vim.*` path and every method
+name that `core/` calls, against what the shim implements. And the closing
+line no longer lies: it used to say "All 5 gates passed" while one of them
+had printed *skipped* forty lines earlier. It now says
+**"4 gates passed, 1 skipped: standalone"** plus the sentence that explains
+the rest: *a skipped gate checked nothing.*
 
-Der Skip selbst bleibt ein Skip — ein Rechner mit Neovim und sonst nichts ist
-der häufige lokale Fall, und ihn rot zu machen ist genau, wie ein Gate
-abgeschaltet wird. Was sich ändert, ist die Genauigkeit: „kein PUC Lua auf
-PATH" und „ein PUC Lua, das die Rocks nicht laden kann" sind verschiedene
-Probleme mit verschiedenen Lösungen, und die Meldung nennt jetzt den
-Interpreter, den fehlenden Rock und die Installationszeile.
+The skip itself stays a skip — a machine with Neovim and nothing else is the
+common local case, and making it red is exactly how a gate gets switched off.
+What changes is the precision: "no PUC Lua on PATH" and "a PUC Lua that
+cannot load the rocks" are different problems with different solutions, and
+the message now names the interpreter, the missing rock and the install line.
 
-**Auf dem Rechner des Autors war die alte Meldung schlicht falsch:** dort
-liegt `lua5.4` auf dem PATH, und ein zweites `lua` daneben, dem nur `dkjson`
-fehlt. „Kein PUC Lua auf PATH" schickte den Leser also seit jeher in die
-falsche Richtung.
+**On the author's machine the old message was simply wrong:** `lua5.4` is on
+the PATH there, and a second `lua` sits beside it that is merely missing
+`dkjson`. "No PUC Lua on PATH" has therefore been sending the reader in the
+wrong direction all along.
 
-Was weiter offen ist: eine Shim-Funktion, die **existiert und sich anders
-verhält**, sieht kein statischer Contract.
+What remains open: a shim function that **exists and behaves differently** is
+invisible to a static contract.
