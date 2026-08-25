@@ -1,11 +1,11 @@
 # Work plan — the language axes and what follows from them
 
-> **Protokoll, keine Warteschlange.** Die offenen Punkte aller drei
-> Repositories stehen seit 2026-08-20 in **einem** Plan:
-> [`docmap-desktop/docs/PLAN.md`](https://github.com/StefanBartl/docmap-desktop/blob/main/docs/PLAN.md). Dieses Dokument behält, was dort
-> nicht hingehört — die Herleitung, samt der Teile, die sich als falsche
-> Annahme herausgestellt haben. Die Häkchen sind entfernt, damit es nicht
-> wie eine zweite Warteschlange aussieht.
+> **A record, not a queue.** Since 2026-08-20 the open items of all three
+> repositories live in **one** plan:
+> [`docmap-desktop/docs/PLAN.md`](https://github.com/StefanBartl/docmap-desktop/blob/main/docs/PLAN.md). This document keeps what does not
+> belong there — the derivation, including the parts that turned out to be
+> wrong assumptions. The checkboxes are removed so that it does not look like
+> a second queue.
 
 **Purpose: this file is the resume point.** Everything agreed in the session
 of 2026-08-18 is written down here, including the parts not built, so the

@@ -1,10 +1,10 @@
 # Multi-language support — cost analysis and task breakdown
 
-> **Begründungsdokument, keine Warteschlange.** Was hier kostet, wie es
-> zugeschnitten ist und was dagegen spricht — die *Reihenfolge* steht in
-> [`docmap-desktop/docs/PLAN.md`](https://github.com/StefanBartl/docmap-desktop/blob/main/docs/PLAN.md) (L1, L3). Die Häkchen sind seit
-> 2026-08-20 entfernt: eine Sprache ist hier ein Kostenvoranschlag, kein
-> Ticket.
+> **A rationale document, not a queue.** What things cost here, how they are
+> cut and what speaks against them — the *order* lives in
+> [`docmap-desktop/docs/PLAN.md`](https://github.com/StefanBartl/docmap-desktop/blob/main/docs/PLAN.md) (L1, L3). The checkboxes have been
+> removed since 2026-08-20: a language here is a cost estimate, not a
+> ticket.
 
 Merged 2026-08-15 from two companion documents that had drifted apart under
 mismatched relative links: this file (the task breakdown) and
