@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**5 modules** · 7 namespaces · 123 helper files
+**5 modules** · 7 namespaces · 124 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -282,7 +282,7 @@ No errors or warnings.
 | `unreferenced-module` | documentation.core.lang.ts is required by no other file in the tree |
 | `unreferenced-module` | documentation.core.lang.tsx is required by no other file in the tree |
 | `unreferenced-module` | documentation.core.lang.zig is required by no other file in the tree |
-| `unreferenced-module` | documentation.editor.health is required by no other file in the tree |
+| `unreferenced-module` | documentation.health is required by no other file in the tree |
 | `unreferenced-module` | documentation.mcp is required by no other file in the tree |
 
 </details>
