@@ -99,7 +99,7 @@ Quicks verdict, because that group says a line is wrong *now* rather than
 that work is scheduled. It is a count and never a gate: a marker is the
 author's claim about their own code, not something this tool measured, and
 `:DocMap check` fails on nothing here. The other keywords are listed in the
-Notes tab and nowhere else. See `docs/FEATURES/FEATURES.md` — *Recorded
+Notes tab and nowhere else. See `docs/FEATURE_LOG.md` — *Recorded
 defects*.
 
 ## The page takes its theme from `?theme=`

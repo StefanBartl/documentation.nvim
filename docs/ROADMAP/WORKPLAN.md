@@ -52,7 +52,7 @@ layer*.
 ## Part 1 — done in this session
 
 Recorded so a reader knows what *not* to redo. Detail lives in the commits;
-the verification evidence lives in `docs/FEATURES/FEATURES.md`.
+the verification evidence lives in `docs/FEATURE_LOG.md`.
 
 **Engine (`documentation.nvim`):**
 
@@ -99,7 +99,7 @@ and the multi-root walk both narrow it; neither closes it.
 `ir.meta.unclaimed`/`outside`/`claimed`. The report fires only for a
 language wholly absent from the map, because `outside` alone would print a
 line on every run for every repository with a `scripts/`. Detail in
-`FEATURES/FEATURES.md`.
+`docs/FEATURE_LOG.md`.
 
 ### 2.2 Language legend in the page — engine
 
@@ -228,7 +228,7 @@ change detection), §2.1/§2.2 (the panels gated on the `TAGS` refactor), §5.x
       only (`TODO`/`HACK`/`PERF` are scheduled work and stay in the tab).
       Its `basis` says whose claim the number is and that nothing fails
       because of it — asserted in `TESTS/quicks_spec.lua`, because that
-      sentence *is* the feature. See `docs/FEATURES/FEATURES.md`.
+      sentence *is* the feature. See `docs/FEATURE_LOG.md`.
 - **Per-entry reference anchors**, once someone has opened them. The
       renderer already supports them; they are unfilled on purpose.
 - [x] ~~**`.jsx`**, **class methods**, **`module.exports = {…}`**~~ — all
@@ -455,7 +455,7 @@ gap. The gap is only visible by running the thing against real code.
 
 Agreed convention, to be applied across both repos' `docs/`:
 
-- Anything **built** moves to `docs/FEATURES/FEATURES.md` (engine) with its
+- Anything **built** moves to `docs/FEATURE_LOG.md` (engine) with its
   verification evidence, and is **removed** from the idea/roadmap file rather
   than left ticked. A backlog that keeps its completed items stops showing
   what is left.

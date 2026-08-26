@@ -43,7 +43,7 @@
 > under `serve`) is still open, and it is gated on the serve tier. This
 > document is therefore a **decision record**, not a backlog — which is why
 > it lives here in `docs/ROADMAP/FEATURES/` alongside
-> [`FEATURES.md`](FEATURES.md) (the same genre: why something was built the
+> [`FEATURES.md`](FEATURE_LOG.md) (the same genre: why something was built the
 > way it was) rather than in `docs/ROADMAP/V1_EXTENSION/`, where its
 > presence made ~half that folder look like pending work when it is not.
 > Its original header — "architectural concept, agreed. Nothing here is
@@ -80,7 +80,7 @@ before the new plugin's step 5.
 ## Epistemic note
 
 This repository's convention is that a design doc states what it verified and
-what it assumed. [`FRAMEWORK_CONVENTIONS.md`](../FRAMEWORK_CONVENTIONS.md) flags
+what it assumed. [`FRAMEWORK_CONVENTIONS.md`](FRAMEWORK_CONVENTIONS.md) flags
 itself as entirely unverified for exactly this reason; this document is
 mixed, so here is the split.
 

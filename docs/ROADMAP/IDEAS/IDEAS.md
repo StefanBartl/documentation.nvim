@@ -53,7 +53,7 @@ Three sibling files, three jobs, and keeping them apart is the point:
 
 | File | Holds |
 |---|---|
-| [`FEATURES.md`](../../FEATURES/FEATURES.md) | What shipped, and the trade-off behind it. The decision record. |
+| [`FEATURES.md`](../../FEATURE_LOG.md) | What shipped, and the trade-off behind it. The decision record. |
 | [`ROADMAP.md`](../ROADMAP.md) | What is genuinely open. A rejection lives in the document that raised the idea, with the condition that would reopen it. |
 | **this file** | What has not been decided about at all yet. |
 

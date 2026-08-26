@@ -33,7 +33,7 @@ separate rather than folded in here.
 `ECOSYSTEM.md` used to sit here and accounted for roughly half its line
 count, while being almost entirely **shipped work** (steps 1–8 of its own
 sequencing; only step 9 remains, gated on the serve tier). It now lives in
-[`../../FEATURES/ECOSYSTEM.md`](../../FEATURES/ECOSYSTEM.md) with the other
+[`docs/ECOSYSTEM.md`](../../ECOSYSTEM.md) with the other
 decision records. What remains in this folder is genuinely open.
 
 ---
@@ -117,7 +117,7 @@ far — stronger than Finding 2, because it survives even for someone who
 *does* use Neovim.
 
 Today this ecosystem is a set of cooperating plugins, and
-[`../../FEATURES/ECOSYSTEM.md`](../../FEATURES/ECOSYSTEM.md) §7 decided
+[`docs/ECOSYSTEM.md`](../../ECOSYSTEM.md) §7 decided
 deliberately that they **meet in the editor**: documentation.nvim knows what
 exists, runtime-analysis.nvim knows what ran, and `:DocBrowse`'s telemetry
 mode is where the two cross. That decision was right for the editor, and it

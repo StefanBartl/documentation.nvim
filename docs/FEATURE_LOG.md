@@ -2,7 +2,7 @@
 
 A ledger of what's been built, why it was built that way, and (where known)
 the commit it shipped in. For *how to use* any of this, see
-[`docs/PIPELINE.md`](../PIPELINE.md) — this file is the decision record, not a
+[`docs/PIPELINE.md`](PIPELINE.md) — this file is the decision record, not a
 usage manual, so it stays short per feature: the interesting trade-off, not
 the full narrative. Full history (verification steps, exact test counts, etc.)
 lives in git log, not here.
@@ -1240,7 +1240,7 @@ binding a bare name directly into scope) and class-method owning-scope
 
 ## The annotation popup (2026-08-03)
 
-Step 1 of [`docs/ROADMAP/FEATURES/ECOSYSTEM.md`](ECOSYSTEM.md)'s sequencing, and chosen to
+Step 1 of [`docs/ECOSYSTEM.md`](ECOSYSTEM.md)'s sequencing, and chosen to
 be first for a specific reason: **it needed no new extraction at all.** Every
 list in this map — Index, Notes, Complexity, Duplicates, Hooks — showed a
 function as its signature and nothing else, while the params, returns,
@@ -1298,7 +1298,7 @@ keyboard focus, and resolves to the right annotation.
 
 ## The documentation corpus — `core/docs.lua` (2026-08-03)
 
-Step 2 of [`docs/ROADMAP/FEATURES/ECOSYSTEM.md`](ECOSYSTEM.md), and the largest genuinely
+Step 2 of [`docs/ECOSYSTEM.md`](ECOSYSTEM.md), and the largest genuinely
 new *extraction* since the JS/TS backend. Everything else in this plugin
 reads source — annotations sitting next to the code they describe. This reads
 the other half: the `.md` files that describe the same tree from outside.
@@ -1776,7 +1776,7 @@ fresh page loads.
 The largest roadmap item this session: a canonical, mechanically-readable
 `docs/FEATURES/` folder format, plus a ninth top-level tab that renders it —
 `core/features.lua` (parser), `ir.features` (IR field), `drawFeatures()`
-(the tab itself), and [`docs/FEATURES_FORMAT.md`](../FEATURES_FORMAT.md)
+(the tab itself), and [`docs/FEATURES_FORMAT.md`](FEATURES_FORMAT.md)
 (the field guide). See `docs/PIPELINE.md`'s own "Features tab" section for
 the full design writeup; this entry is the decision record.
 
@@ -1804,7 +1804,7 @@ onto an indented continuation line — a real, common shape in that file
 folding an indented continuation line into the bullet it continues, and
 only ending the run on a blank line or a flush-left non-bullet line.
 
-**Dogfooded**: this repo's own [`docs/FEATURES/`](../FEATURES) (a
+**Dogfooded**: this repo's own [`docs/FEATURES/`](FEATURES) (a
 deliberately small, real sample — Compare marks, Hierarchy hide/dim, and
 the Plugins/Tools Analysis panels — not full coverage, `docs/PIPELINE.md`
 stays the complete reference), verified rendering in a real browser against

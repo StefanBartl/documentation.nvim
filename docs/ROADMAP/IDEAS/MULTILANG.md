@@ -181,7 +181,7 @@ changes the shape every language backend plugs into.
   registers Lua as the reference implementation, a thin wrapper delegating
   to the pre-existing `scan.lua`/`functions.lua` code, not a rewrite.
   Verified byte-accountable against the pre-change map. See
-  [`docs/FEATURES/FEATURES.md`](../../FEATURES/FEATURES.md) for the design
+  [`docs/FEATURE_LOG.md`](../../FEATURE_LOG.md) for the design
   and the bug the layer rule below caught while building it.
 - [x] **`core.lang.*` layering, enforced — done alongside the interface.**
   One rule so far (`documentation.core` → `documentation.core.lang`
@@ -268,7 +268,7 @@ changes the shape every language backend plugs into.
 Sequenced first per Part 1's conclusion: closest doc-tag fit, largest
 audience, and the language `docs/FRAMEWORK_CONVENTIONS.md`'s layer-2 work
 depends on. Fully built and documented in
-[`docs/FEATURES/FEATURES.md`](../../FEATURES/FEATURES.md) — grammar
+[`docs/FEATURE_LOG.md`](../../FEATURE_LOG.md) — grammar
 (`tree-sitter-javascript`/`typescript`/`tsx`), import extraction (ESM +
 CommonJS), JSDoc/TSDoc parsing, the fourteen-check audit
 (`missing-module-tag` needed a variant, the other thirteen ported as-is),

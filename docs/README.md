@@ -46,7 +46,7 @@ arrived with.
 
 | Document | Answers |
 |---|---|
-| [`FEATURES/FEATURES.md`](FEATURES/FEATURES.md) | The decision record: what shipped, which commit, and why it was built that way. |
+| [`docs/FEATURE_LOG.md`](FEATURE_LOG.md) | The decision record: what shipped, which commit, and why it was built that way. |
 | [`FEATURES/`](FEATURES/README.md) | This plugin's own `docs/FEATURES/` catalog — the user-facing half, and the Features tab's first real test. Deliberately a representative sample, not full coverage. |
 | **[`docmap-desktop/docs/PLAN.md`](https://github.com/StefanBartl/docmap-desktop/blob/main/docs/PLAN.md)** | **The queue — and it is not in this repository.** Since 2026-08-20 there is one plan for all three (`documentation.nvim`, `docmap-desktop`, `runtime-analysis.nvim`), because the same task used to appear in five places in three different states. Quick wins, medium, large. |
 | [`ROADMAP/ROADMAP.md`](ROADMAP/ROADMAP.md) | Where this plugin is going, in prose. Direction, not schedule. |
@@ -82,4 +82,4 @@ one reconstructed afterwards.
 
 | Document | What |
 |---|---|
-| [`FEATURES/O2_NAMING_RESEARCH.md`](FEATURES/O2_NAMING_RESEARCH.md) | Prep for the extraction out of `lib.nvim`. Not an open item — kept so a similar naming exercise is not repeated from scratch. |
+| [`docs/ROADMAP/O2_NAMING_RESEARCH.md`](ROADMAP/O2_NAMING_RESEARCH.md) | Prep for the extraction out of `lib.nvim`. Not an open item — kept so a similar naming exercise is not repeated from scratch. |

@@ -21,7 +21,7 @@ layer 1 — a roadmap note for *if*, not a proposal to start now.
 
 > **Update (2026-08-03): that dependency is satisfied.** `core/lang/ecma.lua`
 > ships functions, imports, calls and symbols for JS/TS/TSX, so layer 2 is no
-> longer blocked. [`ECOSYSTEM.md`](FEATURES/ECOSYSTEM.md) takes the routing question
+> longer blocked. [`ECOSYSTEM.md`](ECOSYSTEM.md) takes the routing question
 > further — in particular it refines this document's "routes belong in
 > Hierarchy" conclusion, which holds for *file-based* routing but not for
 > *call-based* routing (`app.get("/x", h)`), where there is no ancestry to

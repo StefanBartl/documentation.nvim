@@ -14,7 +14,7 @@ direction below is measured against that.
 > [`docmap-desktop/docs/PLAN.md`](https://github.com/StefanBartl/docmap-desktop/blob/main/docs/PLAN.md).
 >
 > What was built and why is in
-> [`FEATURES.md`](../FEATURES/FEATURES.md). The derivation, including costs
+> [`FEATURES.md`](../FEATURE_LOG.md). The derivation, including costs
 > and counter-arguments, lives in [`IDEAS/`](IDEAS/) — this document is
 > neither of those.
 

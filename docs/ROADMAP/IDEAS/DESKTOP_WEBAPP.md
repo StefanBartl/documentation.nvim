@@ -24,7 +24,7 @@ part that is still open (the web/hosted half).
 
 ## What already exists — more than the idea's framing assumed
 
-[`../../FEATURES/ECOSYSTEM.md`](../../FEATURES/ECOSYSTEM.md) §6 already answered
+[`docs/ECOSYSTEM.md`](../../ECOSYSTEM.md) §6 already answered
 the adjacent question for runtime-analysis.nvim ("Neovim plugin, web app,
 Electron app, or a compiled binary?") and found, measured rather than
 guessed: **"a rich browser UI" was already solved twice in-house** —
@@ -130,7 +130,7 @@ Phase 4, ongoing there, not tracked separately here.
 A desktop application is a place where documentation.nvim's static
 structure, runtime-analysis.nvim's runtime evidence, a profiler and
 whatever comes later can be **one program** rather than several tools
-alt-tabbed between. `../FEATURES/ECOSYSTEM.md` §7 deliberately made the
+alt-tabbed between. `docs/ECOSYSTEM.md` §7 deliberately made the
 editor that meeting point for in-editor use — correct there, and it sets a
 ceiling: anything joining this data in the editor has to be a Neovim
 plugin in the same session. `docmap-desktop` is the second meeting point
