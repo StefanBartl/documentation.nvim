@@ -239,7 +239,7 @@ end
 ---@param opts Documentation.Opts?
 ---@return Documentation.Handle
 function M.setup(opts)
-  local usercmd = require("lib.nvim.usercmd")
+  local usercmd = require("lib.nvim.bindings.usercmd")
   local notify = require("lib.nvim.notify").create("[documentation]")
   local registry = require("documentation.editor.registry")
 

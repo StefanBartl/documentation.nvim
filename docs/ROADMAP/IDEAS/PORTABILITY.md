@@ -800,7 +800,7 @@ data (its own commit history, its own checklist ledger), not a fixture.
 **Telemetry specifically stayed a documented "no data," not a lie or a
 crash** — see `ensure_soft`'s own doc comment in `standalone/docmap.lua`
 for the full trace: `runtime-analysis.telemetry` needs
-`lib.nvim.autocmd`, which needs `lib.lua.lazy`, a `lib.*` sub-namespace
+`lib.nvim.bindings.autocmd`, which needs `lib.lua.lazy`, a `lib.*` sub-namespace
 `bundle_manifest.lua`'s `bucket()` does not recognise (`^lib%.nvim` only).
 Reading that data from a compiled standalone binary is therefore still
 open — a real, scoped follow-up, not solved today — while everything that
@@ -908,7 +908,7 @@ shell with nothing pre-installed but what a plain distro image and a
 
 Step 5 recorded the trace and stopped: `bucket()` widened would fix the
 *transitive* half of `runtime-analysis.telemetry`'s chain
-(`lib.nvim.autocmd` -> `lib.lua.lazy`), and named that as a follow-up
+(`lib.nvim.bindings.autocmd` -> `lib.lua.lazy`), and named that as a follow-up
 rather than guessing at the rest. Doing that follow-up found it was only
 half the fix.
 

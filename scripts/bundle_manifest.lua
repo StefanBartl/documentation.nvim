@@ -229,7 +229,7 @@ local function bucket(name)
   -- `lib.nvim` and `lib.lua` are both sub-namespaces the same `lib.nvim`
   -- checkout ships (siblings under `lua/lib/`, not one nested in the
   -- other). Missing `lib.lua` here meant `runtime-analysis.telemetry`'s
-  -- own `lib.nvim.autocmd` -> `lib.lua.lazy` chain was invisible to the
+  -- own `lib.nvim.bindings.autocmd` -> `lib.lua.lazy` chain was invisible to the
   -- packager even when this probe run resolved it live: measured
   -- (`package.loaded`) but never bucketed, so never staged, so never in
   -- the bundle -- a compiled binary that silently answered `/api/
@@ -245,7 +245,7 @@ local function bucket(name)
   -- `runtime-analysis.nvim` is soft (`ensure_soft()`, degrades to "no
   -- data" rather than failing the build). Adding `lib.lua` above fixed
   -- the *transitive* half of the chain
-  -- (`runtime-analysis.telemetry` -> `lib.nvim.autocmd` -> `lib.lua.lazy`)
+  -- (`runtime-analysis.telemetry` -> `lib.nvim.bindings.autocmd` -> `lib.lua.lazy`)
   -- without fixing this: `runtime-analysis.telemetry` and
   -- `runtime-analysis.loaded` themselves matched no bucket at all, so
   -- `require("runtime-analysis.telemetry")` still failed inside the

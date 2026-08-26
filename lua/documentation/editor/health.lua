@@ -35,9 +35,9 @@ local MIN_NVIM = { 0, 10, 0 }
 ---@type string[]
 local DEPS = {
   "lib.nvim.notify",
-  "lib.nvim.map",
-  "lib.nvim.usercmd",
-  "lib.nvim.autocmd",
+  "lib.nvim.bindings.keymap",
+  "lib.nvim.bindings.usercmd",
+  "lib.nvim.bindings.autocmd",
   "lib.nvim.debounce",
   "lib.nvim.ui.kit",
   "lib.nvim.fs.read",

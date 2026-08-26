@@ -425,7 +425,7 @@ function M.start(cfg)
   -- lifecycle obligation that comes with having a runtime at all, so it is
   -- wired at start rather than left to the user remembering `serve stop`.
   local augroup = vim.api.nvim_create_augroup("lib_docmap_serve", { clear = true })
-  require("lib.nvim.autocmd").create("VimLeavePre", function()
+  require("lib.nvim.bindings.autocmd").create("VimLeavePre", function()
     M.stop()
   end, {
     group = augroup,

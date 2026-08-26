@@ -41,7 +41,7 @@ require("documentation.editor.browse.@types")
 local contextmenu = require("lib.nvim.contextmenu")
 local filter = require("documentation.editor.browse.filter")
 local kit = require("lib.nvim.ui.kit")
-local map = require("lib.nvim.map")
+local map = require("lib.nvim.bindings.keymap")
 -- Names the command, not the module path. `:DocBrowse` is what the reader
 -- typed; `documentation.editor.browse` is an implementation detail that grew
 -- a segment when the tree was split, and a message prefix has no business
@@ -1481,7 +1481,7 @@ local function bind(st)
 
   ---A **fresh** options table per binding, never a shared one.
   ---
-  ---`lib.nvim.map` mutates what it is handed — it writes `desc`, `noremap`,
+  ---`lib.nvim.bindings.keymap` mutates what it is handed — it writes `desc`, `noremap`,
   ---`silent` and the normalised `buffer` back into the table before calling
   ---`vim.keymap.set`. One `mo` reused across every call therefore carried the
   ---previous binding's `desc` into the next one, which is invisible until a
@@ -1506,7 +1506,7 @@ local function bind(st)
 
   -- j/k stay native so counts and scrolloff behave; CursorMoved drives the
   -- detail pane instead of re-implementing movement.
-  require("lib.nvim.autocmd").create("CursorMoved", function()
+  require("lib.nvim.bindings.autocmd").create("CursorMoved", function()
     if M.is_open() then
       render_detail(st)
     end

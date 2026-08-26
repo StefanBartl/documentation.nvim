@@ -110,7 +110,7 @@ end
 -- `docmap.functions` cares about: a lazy require hides inside an anonymous
 -- `__index = function(_, k) return require(...)[k] end` just as often as
 -- inside a named one, and treating those as load-time dependencies reported
--- `lib.nvim.usercmd ↔ lib.nvim.usercmd.composer` as a cycle that cannot
+-- `lib.nvim.bindings.usercmd ↔ lib.nvim.bindings.usercmd.composer` as a cycle that cannot
 -- actually happen.
 local FN_BODY_QUERY =
   vim.treesitter.query.parse("lua", "[(function_declaration) (function_definition)] @fn")

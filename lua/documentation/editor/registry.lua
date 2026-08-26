@@ -15,7 +15,7 @@
 --- the actual bug this split avoids, not a hypothetical one.
 
 local notify = require("lib.nvim.notify").create("[documentation]")
-local autocmd = require("lib.nvim.autocmd")
+local autocmd = require("lib.nvim.bindings.autocmd")
 
 local M = {}
 

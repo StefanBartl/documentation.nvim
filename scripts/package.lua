@@ -216,7 +216,7 @@ local function staged_name(p)
   -- Both sub-namespaces the `lib.nvim` checkout ships live under the same
   -- `lua/lib/` root -- `lua/lib/nvim/...` and `lua/lib/lua/...` are
   -- siblings, not nested. `runtime-analysis.telemetry` requires
-  -- `lib.nvim.autocmd`, which requires `lib.lua.lazy` (a pure-Lua utility
+  -- `lib.nvim.bindings.autocmd`, which requires `lib.lua.lazy` (a pure-Lua utility
   -- with nothing Neovim-specific about it) -- missing the second branch
   -- here meant that module was measured by the manifest but never had
   -- anywhere to stage to, silently dropping `runtime-analysis.telemetry`

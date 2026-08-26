@@ -216,7 +216,7 @@ function M.attach()
   -- The debounce timer is precisely what quitting does not wait for, so the
   -- last few pins would be the ones lost — the newest and most likely to
   -- matter.
-  require("lib.nvim.autocmd").create("VimLeavePre", function()
+  require("lib.nvim.bindings.autocmd").create("VimLeavePre", function()
     M.flush()
   end, {
     group = "documentation.trail_store",

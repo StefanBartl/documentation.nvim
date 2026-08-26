@@ -107,7 +107,7 @@ end
 ---machine's own real telemetry (63 KB of real collected data,
 ---`documentation.nvim`'s own self-instrumentation):
 ---`runtime-analysis.telemetry` itself loads, but its own
----`require("lib.nvim.autocmd")` pulls in `lib.lua.lazy`, a *different*
+---`require("lib.nvim.bindings.autocmd")` pulls in `lib.lua.lazy`, a *different*
 ---`lib.*` sub-namespace than `lib.nvim.*` — and `scripts/bundle_manifest.
 ---lua`'s `bucket()` only recognises `^lib%.nvim`, so that module is never
 ---staged into the compiled binary even when the measuring run finds it.
