@@ -1,10 +1,10 @@
 # Workflow — getting real use out of documentation.nvim day to day
 
 Every feature here is documented on its own elsewhere (`docs/COMMANDS.md`,
-`docs/PIPELINE.md`, `docs/ANNOTATION_TAGS.md`). This is the different
-question: once several features exist, *how do they actually combine*
-into something worth reaching for regularly, rather than once after
-install and never again.
+`docs/PIPELINE.md`, `docs/ANNOTATION_TAGS.md`, `docs/LANGUAGES.md`). This is
+the different question: once several features exist, *how do they actually
+combine* into something worth reaching for regularly, rather than once
+after install and never again.
 
 ## Start from `:DocMap check`, not from browsing
 
@@ -18,6 +18,52 @@ not just occasionally: on a mid-sized repo it is a fraction of a second.
 `:checkhealth documentation` is the companion check for "is the tool
 itself set up right" (deps, treesitter parser, the resolved root for
 wherever you ran it from) — run it once per new repo, not per edit.
+
+## Twenty-three languages, and the grammar is what separates a map from a module tree
+
+The plugin started as a Lua tool and is not one any more. Twenty-three
+backends, and a missing grammar is the single most likely reason a panel looks
+empty outside Lua — because the failure is *partial*, not loud: without a
+grammar a backend still produces a complete module tree, hierarchy, summaries
+and require edges, and **no function-level data at all**. That reads like a
+scanner bug and is a missing parser.
+
+`:checkhealth documentation` has a **language support** section that answers
+exactly this, and it lists only the languages that actually occur in your
+source roots — never all twenty-three, because twenty-two absent grammars for a
+Lua repository are a wall nobody reads. Each line ends in the
+`:TSInstall <grammar>` that fixes it.
+
+Three states, not two, and the third matters when reading the report: grammar
+loaded, grammar wanted and missing (*module tree only*), and **needs no
+grammar** — which is full fidelity rather than a degradation. Assembly is the
+one. Treating the third as a failure is the misreading to avoid.
+
+**An empty Calls panel is its own question.** Five of the twenty-three backends
+produce call edges; the capability handshake reports that per backend, so
+"this project has no calls" and "this build has no call extraction for this
+language" stay distinguishable. Before concluding a module calls nothing, check
+which of the two you are looking at.
+
+## `.docmap.json` before options — the repository answers for itself
+
+Most of what a repository wants to say about itself is a fact about the *tree*:
+where its sources are, its layer rules, which checks its team decided are
+noise. That belongs in a `.docmap.json` at the repository root, and it is the
+only channel that reaches the hosts with no options table — the standalone
+binary, the GitHub Action and `docmap-desktop`. Put it there first and the CI
+recipe and the action both get shorter rather than longer.
+
+`opts.languages` and `opts.exclude` are the other direction: what *you* say
+about somebody else's tree, on this machine, for this run. A flag beats the
+file, deliberately — you are answering for this machine, the file is answering
+for everyone. Which is why an empty setting means "the repository decides" and
+not "the default".
+
+The file is **data, never code**: it is read out of a tree CI has just cloned.
+`command_name`, `keys`, `watch`, `diagnostics` and `telemetry` are refused with
+a warning naming them, and `extra_checks` stays a host-side option because it
+is a list of Lua functions.
 
 ## Reading the browser: Hierarchy and Analysis answer different questions
 
@@ -174,6 +220,39 @@ right list (say, Complexity's Analysis panel) and want to rule out
 everything except one subsystem's own naming prefix. `-word` excludes
 instead of matching, useful for "everything in this panel except the
 generated files".
+
+## `:DocMap pick` when you know the name, `:DocBrowse` when you do not
+
+The browser's `/` is a fuzzy jump *inside* the browser: it moves the cursor to
+a row and leaves you there, which is right while exploring. `:DocMap pick` is
+the other question entirely — *I know the name, get me there* — and it ends in
+the file with the browser never opening.
+
+Entries read as `module` and `module#M.fn`, the same two shapes the browser's
+own jump builds, so a name typed in one place is the name typed in the other.
+Neither picker is a hard dependency: `pickers.nvim` with a resolved engine
+first, otherwise `lib.nvim`'s `kit.select`, which defers to whatever you wired
+into `vim.ui.select`.
+
+## `K` in the browser answers only inside a code span, and that is the feature
+
+`w` goes from the list into the detail pane — which is otherwise unreachable,
+since every browse key hangs off the list buffer — and `K` there explains the
+word under the cursor from the same glossary the generated page's keyword hover
+uses. `q`/`<Esc>` come back.
+
+The reason `K` says nothing in ordinary prose is measured rather than
+conservative: a glossary term appears in this repository's browse text 213
+times inside an inline `code` span and 2,558 times in plain prose — "and",
+"for", "in", "end", "type". A `K` that answered everywhere would be wrong
+roughly twelve times in thirteen, and in the worst available way: a correct
+definition attached to a word that is not code. Outside a span the key says why
+it is silent instead of guessing.
+
+On the **list** buffer, `<RightMouse>` opens a context menu mirroring the keys
+the `?` cheatsheet already lists — for when you would rather not recall one. It
+needs nvzone/menu, a soft dependency: without it the trigger degrades rather
+than erroring, and `opts.menu = false` turns it off entirely.
 
 ## Generating for many repos at once: `opts.generate_all`, not a loop
 
