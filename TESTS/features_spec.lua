@@ -236,6 +236,100 @@ return function(H)
     eq(both.folder, "docs/FEATURES", "resolve: uppercase preferred when a repo somehow ships both")
   end
 
+  -- ------------------------------------------------- single-file catalogue
+
+  -- `docs/FEATURES.md` instead of `docs/FEATURES/`. Nine of the sibling
+  -- repos had picked the single file, and resolve() returned nil for every
+  -- one of them — a well-formed catalogue that the Features tab reported as
+  -- "no features". The parse is the same parse; only the lookup changed.
+  do
+    local dr = H.tmpfile("_features_single")
+    dwrite(
+      dr,
+      "docs/FEATURES.md",
+      table.concat({
+        "# Features",
+        "",
+        "Everything this thing does.",
+        "",
+        "## First",
+        "",
+        "Does a thing.",
+        "",
+        "- **Module:** `a.lua`",
+        "",
+        "## Second",
+        "",
+        "Does another.",
+        "",
+      }, "\n")
+    )
+    local result = features.resolve(dr)
+    ok(result ~= nil, "resolve: a single docs/FEATURES.md resolves")
+    eq(result.folder, "docs/FEATURES.md", "resolve: names the file it found")
+    eq(#result.files, 1, "resolve: the single file is the one and only theme")
+    eq(result.files[1].theme, "FEATURES", "resolve: theme name comes from the file name")
+    eq(result.files[1].path, "docs/FEATURES.md", "resolve: path is repo-relative")
+    eq(#result.files[1].entries, 2, "resolve: both sections parsed")
+    eq(result.files[1].entries[1].name, "First", "resolve: first section")
+    eq(result.files[1].entries[1].meta[1].key, "Module", "resolve: metadata parsed as usual")
+    eq(
+      result.files[1].intro,
+      "Everything this thing does.",
+      "resolve: the file's own intro is the file intro, not the folder intro"
+    )
+    eq(result.intro, nil, "resolve: a single file has no folder intro")
+  end
+
+  -- The folder wins. A repo splitting a grown FEATURES.md into themes can
+  -- leave the old file in place while it works, without the two fighting.
+  do
+    local dr = H.tmpfile("_features_single_and_folder")
+    dwrite(dr, "docs/FEATURES.md", "## From the file\n\nOld.\n")
+    dwrite(dr, "docs/FEATURES/CORE.md", "## From the folder\n\nNew.\n")
+    local result = features.resolve(dr)
+    eq(result.folder, "docs/FEATURES", "resolve: the folder wins over the single file")
+    eq(
+      result.files[1].entries[1].name,
+      "From the folder",
+      "resolve: and its content is what comes back"
+    )
+  end
+
+  -- ------------------------------------------------------------- ordering
+
+  -- `core` first, then `FEATURES`, then the rest alphabetically. Name order
+  -- alone put ARCHITECTURE above CORE, which is the reverse of the order
+  -- somebody reads them in — core is the answer to "why would I install
+  -- this", so it goes at the top.
+  do
+    local dr = H.tmpfile("_features_order")
+    for _, name in ipairs({ "ZEBRA", "CORE", "ARCHITECTURE", "FEATURES", "misc" }) do
+      dwrite(dr, "docs/FEATURES/" .. name .. ".md", "## In " .. name .. "\n\nText.\n")
+    end
+    local result = features.resolve(dr)
+    local order = {}
+    for _, f in ipairs(result.files) do
+      order[#order + 1] = f.theme
+    end
+    eq(
+      table.concat(order, ","),
+      "CORE,FEATURES,ARCHITECTURE,ZEBRA,misc",
+      "resolve: core first, FEATURES second, the rest by name"
+    )
+  end
+
+  -- The match is case-insensitive: a repo writing core.md gets the same slot
+  -- as one writing CORE.md.
+  do
+    local dr = H.tmpfile("_features_order_case")
+    for _, name in ipairs({ "alpha", "core" }) do
+      dwrite(dr, "docs/FEATURES/" .. name .. ".md", "## In " .. name .. "\n\nText.\n")
+    end
+    local result = features.resolve(dr)
+    eq(result.files[1].theme, "core", "resolve: lowercase core still leads")
+  end
+
   -- ----------------------------------------------------- scan_full wiring
 
   -- ir.features is set, through the real pipeline, not just the standalone

@@ -53,10 +53,45 @@ error: `ir.features` is simply `nil`, and the tab says so — the same
 "a missing thing is a real answer, not a broken one" posture `ir.tools`
 already takes toward a repo with no `lib.nvim.deps` manifest.
 
+### One file instead of a folder
+
+A small plugin does not need a folder. **`docs/FEATURES.md` on its own is
+read exactly like a folder holding one theme file**, with the same parse —
+the file's `# Title` + prose is its intro, each `##` is a feature, the
+bullets are metadata:
+
+```
+docs/FEATURES.md    -- the whole catalogue, one file
+```
+
+`docs/features.md` (lowercase) is recognized too, and **a folder wins over a
+file** when a repo has both — so a plugin that has outgrown one file can
+build `docs/FEATURES/` beside the old `docs/FEATURES.md` and delete it when
+the split is finished, without the two fighting over which one the tab shows.
+
+This was ambiguous until 2026-08-26 and read as folder-only, which left nine
+sibling repos with a well-formed single-file catalogue reported as "no
+features". Spelled out here because the sentence below is what they were
+going by.
+
+### Naming and order
+
 A repo picks its own theme names and its own number of files — one
 `FEATURES.md` for a small plugin, a dozen theme files for a large one.
 Nothing here prescribes a taxonomy; `docs/FEATURES/README.md` is where a
 repo states its own.
+
+Two names do get a fixed position when present, because a reader's order is
+not alphabetical order:
+
+| File | Position |
+|---|---|
+| `core.md` (any case) | first — the handful of features the plugin exists for, ahead of the ones it grew |
+| `FEATURES.md` (any case) | second — inside a folder, the overview of everything not singled out into its own theme |
+| everything else | after those, by name |
+
+Alphabetical order alone put `ARCHITECTURE.md` above `CORE.md`, which is the
+reverse of how anybody reads them.
 
 ---
 

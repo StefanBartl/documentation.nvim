@@ -53,6 +53,33 @@ end
 --- spellings on a case-sensitive filesystem while it renames one.
 local CANDIDATE_FOLDERS = { "docs/FEATURES", "docs/features" }
 
+--- Files that come first inside a features folder, in this order, before the
+--- rest sorts alphabetically.
+---
+--- `core` first because it is the answer to "why would I install this" — the
+--- handful of features the plugin exists for, ahead of the ones it grew. Then
+--- `FEATURES`, which is where a repo that has outgrown a single file keeps the
+--- overview of everything that is *not* singled out. Everything else follows
+--- in name order, as before.
+---
+--- Matched case-insensitively against the theme name (the file name without
+--- `.md`), so `CORE.md`, `core.md` and `Core.md` all land in the same slot.
+local LEADING_THEMES = { "core", "features" }
+
+---Sort key for a theme file: leading themes by their position in
+---`LEADING_THEMES`, everything else after them.
+---@param theme string File name without `.md`.
+---@return integer
+local function theme_rank(theme)
+  local lowered = theme:lower()
+  for i, leading in ipairs(LEADING_THEMES) do
+    if lowered == leading then
+      return i
+    end
+  end
+  return #LEADING_THEMES + 1
+end
+
 ---One `- **Key:** value` bullet.
 ---@param line string Already right-trimmed.
 ---@return string|nil key
@@ -232,21 +259,52 @@ local function parse_file(path, rel, theme)
   return { path = rel, theme = theme, intro = intro, entries = entries }
 end
 
+---Single-file fallback: `docs/FEATURES.md` instead of `docs/FEATURES/`.
+---
+---A small plugin has no reason to spread a dozen features over a folder, and
+---nine of the sibling repos had picked the single file — where `resolve` used
+---to return nil, so the Features tab said "no features" for a perfectly good
+---catalogue. The parse is identical: `parse_file` does not care whether its
+---file has siblings.
+---
+---The folder wins when a repo has both, so a repo splitting a grown
+---`FEATURES.md` into themes can leave the old file in place until it is done.
+---@param normalized string Repo root, forward slashes, no trailing separator.
+---@param candidates string[] The folder candidates; each gets `.md` appended.
+---@return Documentation.Features.Result|nil
+local function resolve_single_file(normalized, candidates)
+  for _, candidate in ipairs(candidates) do
+    local rel = candidate .. ".md"
+    local abs = normalized .. "/" .. rel
+    if uv.fs_stat(abs) then
+      local theme = candidate:match("([^/]+)$") or candidate
+      local file = parse_file(abs, rel, theme)
+      if file then
+        return { folder = rel, intro = nil, files = { file } }
+      end
+      return nil
+    end
+  end
+  return nil
+end
+
 ---@param root string Repo root (`ctx.cfg.root` / `opts.root`).
 ---@param dirs string|string[]|nil `opts.features_dir`. Absent means `CANDIDATE_FOLDERS`.
----@return Documentation.Features.Result|nil result `nil` when this repo ships no features folder at all.
+---@return Documentation.Features.Result|nil result `nil` when this repo ships neither a features folder nor a single features file.
 function M.resolve(root, dirs)
   local normalized = (root:gsub("\\", "/"):gsub("/+$", ""))
 
+  local candidates = require("documentation.config").dir_list(dirs, CANDIDATE_FOLDERS)
+
   local folder
-  for _, candidate in ipairs(require("documentation.config").dir_list(dirs, CANDIDATE_FOLDERS)) do
+  for _, candidate in ipairs(candidates) do
     if is_dir(normalized .. "/" .. candidate) then
       folder = candidate
       break
     end
   end
   if not folder then
-    return nil
+    return resolve_single_file(normalized, candidates)
   end
   local abs_folder = normalized .. "/" .. folder
 
@@ -274,7 +332,16 @@ function M.resolve(root, dirs)
         names[#names + 1] = name
       end
     end
-    table.sort(names)
+    -- `core` first, then `FEATURES`, then the rest by name — see
+    -- `LEADING_THEMES`. Name order alone put ARCHITECTURE above CORE, which
+    -- is the opposite of the order somebody reads them in.
+    table.sort(names, function(a, b)
+      local ra, rb = theme_rank(a:gsub("%.md$", "")), theme_rank(b:gsub("%.md$", ""))
+      if ra ~= rb then
+        return ra < rb
+      end
+      return a < b
+    end)
     for _, name in ipairs(names) do
       local theme = name:gsub("%.md$", "")
       local file = parse_file(abs_folder .. "/" .. name, folder .. "/" .. name, theme)
