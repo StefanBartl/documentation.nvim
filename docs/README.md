@@ -67,6 +67,7 @@ one reconstructed afterwards.
 | [`I18N.md`](ROADMAP/IDEAS/I18N.md) | The other language axis: translating what this tool *says*, not what it reads. |
 | [`DESKTOP_WEBAPP.md`](ROADMAP/IDEAS/DESKTOP_WEBAPP.md) | A desktop/web version — costed, then partly built. |
 | [`ReferenceTab.md`](ROADMAP/IDEAS/ReferenceTab.md) | A Lua syntax and LuaCATS crib sheet as its own tab, and why one link per language beats several hundred that rot independently. |
+| [`FeaturesSubTabs.md`](ROADMAP/IDEAS/FeaturesSubTabs.md) | One sub-tab per theme file in the Features tab, so `core.md` leads and the rest is opened on demand. Cost is one function; the decision to make first is how it relates to `Tab: true`. |
 | [`IDEAS.md`](ROADMAP/IDEAS/IDEAS.md) | The idea backlog itself. |
 | [`IMPLEMENTATION_PLAN.md`](ROADMAP/IDEAS/IMPLEMENTATION_PLAN.md) | The V1 extension plan across the analyses above. |
 | [`IDEAS_IMPLEMENTATION_PLAN.md`](ROADMAP/IDEAS/IDEAS_IMPLEMENTATION_PLAN.md) | `IDEAS.md`'s backlog scored by effort, benefit and quick wins. Different scope from the file above it, deliberately. |
