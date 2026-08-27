@@ -48,17 +48,7 @@ local DEPS = {
   "lib.nvim.cross.uv.spawn_capture",
 }
 
----@return boolean
-local function version_ok()
-  local v = vim.version()
-  if v.major ~= MIN_NVIM[1] then
-    return v.major > MIN_NVIM[1]
-  end
-  if v.minor ~= MIN_NVIM[2] then
-    return v.minor > MIN_NVIM[2]
-  end
-  return v.patch >= MIN_NVIM[3]
-end
+local version_ok = require("lib.nvim.health").version_ok
 
 ---Count the `.lua` files directly under `dir`, recursively, without loading
 ---the scanner: the point of this check is to answer "is `source` pointing at
@@ -118,7 +108,7 @@ function M.check()
 
   local v = vim.version()
   local vstr = ("%d.%d.%d"):format(v.major, v.minor, v.patch)
-  if version_ok() then
+  if version_ok(MIN_NVIM) then
     h_ok(("Neovim %s (>= %d.%d.%d)"):format(vstr, MIN_NVIM[1], MIN_NVIM[2], MIN_NVIM[3]))
   else
     h_warn(
