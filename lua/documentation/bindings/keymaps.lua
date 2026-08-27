@@ -18,6 +18,20 @@
 --- buffer-local to a scratch buffer it created, which is why an override only
 --- has to be free inside that buffer. See `bindings/autocmds.lua` for the same
 --- accounting of autocommands.
+---
+--- **Why not `lib.nvim.bindings.keymap`'s registry** (2026-08-27), when every
+--- other plugin here now declares its keymaps through it: the registry earns
+--- its keep by turning a plugin's *fixed preset* into named, overridable
+--- actions and recording them centrally. This surface already has all of
+--- that -- named ids, list-or-single overrides, `false` for "declared but
+--- off", an unknown-id report -- and it has three things the registry has no
+--- shape for: `where`, which decides whether a key lands on the list pane or
+--- the detail pane; `only`, which scopes a key to some of the browser's
+--- modes; and the `run(st)` closures over one browser instance's state, of
+--- which two may be open at once with different bindings. The central record
+--- would fill with per-instance duplicates of keys that live and die with a
+--- float. Passing on it here is the same judgement that keeps `KEYS` beside
+--- its handlers rather than in this file.
 
 local M = {}
 

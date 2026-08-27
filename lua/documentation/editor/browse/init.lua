@@ -1479,14 +1479,15 @@ end
 local function bind(st)
   local bufnr = st.slots.list.bufnr
 
-  ---A **fresh** options table per binding, never a shared one.
+  ---A fresh options table per binding.
   ---
-  ---`lib.nvim.bindings.keymap` mutates what it is handed — it writes `desc`, `noremap`,
-  ---`silent` and the normalised `buffer` back into the table before calling
-  ---`vim.keymap.set`. One `mo` reused across every call therefore carried the
-  ---previous binding's `desc` into the next one, which is invisible until a
-  ---`desc` is actually set (as it now is) and then shows up as every key in
-  ---which-key being labelled "close".
+  ---`lib.nvim.bindings.keymap` used to mutate what it was handed — writing
+  ---`desc`, `noremap`, `silent` and the normalised `buffer` back into the
+  ---table before calling `vim.keymap.set` — so one `mo` reused across every
+  ---call carried the previous binding's `desc` into the next one, and every
+  ---key here showed up in which-key labelled "close". lib.nvim copies now
+  ---(2026-08-27), so this is no longer load-bearing; it stays because a table
+  ---built where it is used reads better than one hoisted out of the loop.
   ---@param desc string
   ---@return table
   local function mo(desc)
