@@ -431,6 +431,20 @@ per-field documentation is in
                            -- -> "owner/repo", verified against a local
                            -- checkout when you name one)
     extra_checks = {},    -- your own drift checks
+
+    -- Ceiling for a `git log` over the full history: `churn`, the
+    -- checklist's history pass and the MCP tool all bound by it. Two minutes
+    -- is generous for most repositories and tight for a very old one.
+    git_log_timeout_ms = 120000,
+    -- How long a telemetry read stays cached. The number it shows is a
+    -- snapshot of a file another process appends to all day: no TTL makes it
+    -- live, a longer one only makes it wrong for longer.
+    telemetry_ttl_ms = 2000,
+    -- Detail carried per documentation reference. Both bound the size of a
+    -- byte-deterministic artifact that is already large.
+    context_max = 120,
+    refs_per_entity = 20,
+
     command_name = "DocMap",
     browse_command_name = "DocBrowse",
 
