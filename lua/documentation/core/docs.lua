@@ -76,14 +76,18 @@ local M = {}
 
 local collect_recursive = require("lib.nvim.fs.collect_recursive")
 
---- Longest stored context around a mention. Bounded because this ships in a
---- byte-deterministic artifact that is already 750 KB — see
---- `docs/ECOSYSTEM.md` on why file contents are not embedded wholesale.
+--- Longest stored context around a mention, and how many references are kept
+--- per entity before the rest become a count. Both are bounded because this
+--- ships in a byte-deterministic artifact that is already 750 KB — see
+--- `docs/ECOSYSTEM.md` on why file contents are not embedded wholesale, and
+--- note that a function mentioned 200 times in one changelog does not need
+--- 200 rows to make its point.
+---
+--- Both are defaults rather than constants: the artifact stays deterministic
+--- for a given configuration, so how much detail it is worth carrying is the
+--- reader's tradeoff, not this module's. `opts.context_max` /
+--- `opts.refs_per_entity`.
 local CONTEXT_MAX = 120
-
---- References kept per entity before the rest become a count. A function
---- mentioned 200 times in one changelog does not need 200 rows to make its
---- point, and the artifact should not carry them.
 local REFS_PER_ENTITY = 20
 
 ---Strip a leading `M.`-style table prefix: `M.scan_full` -> `scan_full`.
@@ -423,11 +427,12 @@ function M.code_spans(content)
 end
 
 ---@param s string
+---@param max integer
 ---@return string
-local function condense(s)
+local function condense(s, max)
   local flat = s:gsub("^%s+", ""):gsub("%s+$", ""):gsub("%s+", " ")
-  if #flat > CONTEXT_MAX then
-    flat = flat:sub(1, CONTEXT_MAX - 1) .. "…"
+  if #flat > max then
+    flat = flat:sub(1, max - 1) .. "…"
   end
   return flat
 end
@@ -483,6 +488,13 @@ function M.resolve_all(ir, opts)
   local root = opts.root:gsub("\\", "/"):gsub("/+$", "")
   local idx = M.build_index(ir)
 
+  local context_max = (type(opts.context_max) == "number" and opts.context_max > 0)
+      and opts.context_max
+    or CONTEXT_MAX
+  local refs_per_entity = (type(opts.refs_per_entity) == "number" and opts.refs_per_entity > 0)
+      and opts.refs_per_entity
+    or REFS_PER_ENTITY
+
   local files, refs, missing = {}, {}, {}
   local overflow = {}
 
@@ -505,12 +517,12 @@ function M.resolve_all(ir, opts)
             refs[key] = list
           end
           n_refs = n_refs + 1
-          if #list < REFS_PER_ENTITY then
+          if #list < refs_per_entity then
             list[#list + 1] = {
               doc = rel,
               line = span.line,
               text = span.text,
-              context = condense(span.context),
+              context = condense(span.context, context_max),
               confidence = target.confidence,
             }
           else

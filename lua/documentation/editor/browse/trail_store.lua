@@ -49,7 +49,20 @@ local trail = require("documentation.editor.browse.trail")
 local M = {}
 
 local FILE = "trails.json"
-local WRITE_MS = 400
+---Debounce before the trail file is written, in ms.
+---
+---`browse.trail_write_ms`: the dial between "a crash loses less" and "the
+---disk is touched less". 400 suits a local SSD; a network home directory
+---wants more.
+---@return integer
+local function write_ms()
+  local ok, config = pcall(require, "documentation.config")
+  if not ok or type(config.get) ~= "function" then
+    return 400
+  end
+  local n = ((config.get() or {}).browse or {}).trail_write_ms
+  return (type(n) == "number" and n >= 0) and n or 400
+end
 
 ---In-memory mirror of the file, or nil before the first read.
 ---@type table<string, { current: Documentation.Browse.Pin[], saved: table<string, Documentation.Browse.Pin[]> }>|nil
@@ -188,7 +201,7 @@ function M.schedule(root)
   if not flush_soon then
     flush_soon = debounce.new(function()
       M.flush()
-    end, WRITE_MS)
+    end, write_ms())
   end
   -- `.call`, not `flush_soon(...)`: the handle is a plain table. Calling it
   -- raised, `trail.on_change` fans out under `pcall`, and the debounced write

@@ -24,6 +24,8 @@
 ---@field layers? Documentation.LayerRule[] Module-prefix layering rules for the `layer-violation` check. Empty/absent disables the check.
 ---@field luals? boolean Merge `lua-language-server --doc` output into the IR (class/alias/field detail, type-reference edges). Off by default — a full-tree run costs real seconds. Default false.
 ---@field luals_timeout_ms? integer Kill the `lua-language-server --doc` run after this long. Default 60000.
+---@field context_max? integer Longest stored context around a documentation mention, in bytes. Bounded because the map is a byte-deterministic artifact that is already large; raise it for more detail per reference. Default 120.
+---@field refs_per_entity? integer References kept per entity before the rest become a count. Default 20.
 ---@field progress_style? "auto"|"notify"|"statusline"|"fidget"|"float"|"kit" Indicator while a long `:DocMap` runs (`full`'s LuaLS pass, `churn`'s history walk). Read by the bindings layer only — `core` stays UI-free. Needs lib.nvim, no-op without it. Default "auto".
 ---@field command_name? string Passed to `docmap.command.setup`: register a user command under this name. Default "DocMap".
 ---@field browse_command_name? string Passed to `docmap.command.setup`: register the editor-side map browser under this name. Default "DocBrowse".
@@ -71,6 +73,7 @@
 ---@field theme? Lib.UI.Kit.ThemeArg Passed through to the kit layout.
 ---@field depth? integer Initial Deps walk depth. Default 2.
 ---@field mode? Documentation.Browse.Mode Which list `:DocBrowse` opens on when the command names none. Default "structure". A mode given on the command line still wins.
+---@field trail_write_ms? integer Debounce before the trail file is written, in ms. The dial between "a crash loses less" and "the disk is touched less"; raise it on a network home directory. Default 400.
 
 ---`opts.diagram` — how `:DocMap dot` and `:DocMap mermaid` draw.
 ---
