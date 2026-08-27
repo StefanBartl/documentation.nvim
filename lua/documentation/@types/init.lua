@@ -25,6 +25,7 @@
 ---@field luals? boolean Merge `lua-language-server --doc` output into the IR (class/alias/field detail, type-reference edges). Off by default — a full-tree run costs real seconds. Default false.
 ---@field luals_timeout_ms? integer Kill the `lua-language-server --doc` run after this long. Default 60000.
 ---@field git_log_timeout_ms? integer Ceiling for a `git log` over the full history (`churn`, the checklist's history pass, the MCP tool), in ms. Default 120000.
+---@field telemetry_ttl_ms? integer How long a telemetry read stays cached, in ms. Default 2000.
 ---@field context_max? integer Longest stored context around a documentation mention, in bytes. Bounded because the map is a byte-deterministic artifact that is already large; raise it for more detail per reference. Default 120.
 ---@field refs_per_entity? integer References kept per entity before the rest become a count. Default 20.
 ---@field progress_style? "auto"|"notify"|"statusline"|"fidget"|"float"|"kit" Indicator while a long `:DocMap` runs (`full`'s LuaLS pass, `churn`'s history walk). Read by the bindings layer only — `core` stays UI-free. Needs lib.nvim, no-op without it. Default "auto".

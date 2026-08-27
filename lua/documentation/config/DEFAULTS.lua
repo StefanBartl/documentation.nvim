@@ -36,6 +36,11 @@ local DEFAULTS = {
   -- for a very old or very large one, which is the whole reason it is a key
   -- and not a constant repeated three times.
   git_log_timeout_ms = 120000,
+  -- How long a telemetry read stays cached, in ms. The number it shows is a
+  -- snapshot of a file another process appends to all day: no TTL makes it
+  -- live, and a longer one only makes it wrong for longer. Shorten it while
+  -- watching a namespace fill up.
+  telemetry_ttl_ms = 2000,
 }
 
 return DEFAULTS

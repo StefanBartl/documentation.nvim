@@ -197,10 +197,19 @@ end
 ---reader's burst of hovers into a single read -- and because the number this
 ---shows is a snapshot of a file another process appends to all day: no TTL
 ---makes it live, and a longer one only makes it wrong for longer.
-local TELEMETRY_TTL_MS = 2000
+---
+---Configurable via `telemetry_ttl_ms` for the case the fixed number cannot
+---serve: someone watching a namespace fill up while a run is in progress
+---wants it shorter, someone on a slow filesystem wants the reads rarer.
+---@return integer
+local function telemetry_ttl_ms()
+  local ok, defaults = pcall(require, "documentation.config.DEFAULTS")
+  local n = ok and type(defaults) == "table" and defaults.telemetry_ttl_ms or nil
+  return (type(n) == "number" and n >= 0) and n or 2000
+end
 
 ---Telemetry rows for `namespace`, joined against `ir`, cached for
----`TELEMETRY_TTL_MS`.
+---`telemetry_ttl_ms()`.
 ---
 ---`nil` throughout is a first-class answer and never an error:
 ---`runtime-analysis.nvim` not installed, telemetry never enabled for this
@@ -222,7 +231,7 @@ do
     -- session can have handles for two repositories attached at once, and a
     -- cache keyed on time alone would answer the second with the first
     -- one's numbers for two seconds.
-    if cached_ns == namespace and (now - cached_at) < TELEMETRY_TTL_MS then
+    if cached_ns == namespace and (now - cached_at) < telemetry_ttl_ms() then
       return cached
     end
     local join = require("documentation.core.telemetry_join")
