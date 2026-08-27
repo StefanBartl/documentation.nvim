@@ -429,6 +429,11 @@ function M.install(opts)
   ---@type Documentation.Handle
   local handle = {
     root = root,
+    -- The resolved config this handle was installed with. Exposed because
+    -- consumers reached for it and had nothing: the MCP `churn` tool bounds a
+    -- `git log` by `git_log_timeout_ms` and could otherwise only guess the
+    -- default, while the very same value sits here in `entry.opts`.
+    cfg = entry.opts,
     ir = function()
       return entry.ir
     end,

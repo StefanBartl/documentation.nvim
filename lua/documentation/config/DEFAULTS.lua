@@ -30,6 +30,12 @@ local DEFAULTS = {
   command_name = "DocMap",
   browse_command_name = "DocBrowse",
   progress_style = "auto",
+  -- Ceiling for a `git log` over the repository's full history, in ms —
+  -- `:DocMap churn`, the checklist's history pass and the MCP tool all bound
+  -- themselves by it. Two minutes is generous for most repositories and tight
+  -- for a very old or very large one, which is the whole reason it is a key
+  -- and not a constant repeated three times.
+  git_log_timeout_ms = 120000,
 }
 
 return DEFAULTS

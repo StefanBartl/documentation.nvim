@@ -51,6 +51,7 @@ M.KNOWN_OPTS_KEYS = {
   layers = true,
   luals = true,
   luals_timeout_ms = true,
+  git_log_timeout_ms = true,
   context_max = true,
   refs_per_entity = true,
   progress_style = true,

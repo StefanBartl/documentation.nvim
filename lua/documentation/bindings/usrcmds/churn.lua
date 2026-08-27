@@ -15,6 +15,29 @@
 
 local M = {}
 
+---@internal
+---The configured `git log` ceiling, in ms.
+---
+---One key behind three call sites: `churn`, this checklist pass and the MCP
+---tool all bound themselves by the same two minutes, written out three times.
+---@param cfg table|nil  # A resolved config, when the caller already has one.
+---@return integer
+local function git_log_timeout(cfg)
+  if type(cfg) == "table" and type(cfg.git_log_timeout_ms) == "number" then
+    return cfg.git_log_timeout_ms
+  end
+  local ok, defaults = pcall(require, "documentation.config.DEFAULTS")
+  local n = ok and type(defaults) == "table" and defaults.git_log_timeout_ms or nil
+  return type(n) == "number" and n > 0 and n or 120000
+end
+
+---@internal
+---@param ms integer
+---@return string
+local function timed_out_msg(ms)
+  return ("git log did not finish within %ds"):format(math.floor(ms / 1000))
+end
+
 ---@param ctx Documentation.Bindings.Ctx
 ---@param arg string Everything after "churn" — a rev-range, or "" for all history.
 function M.run(ctx, arg)
@@ -49,14 +72,15 @@ function M.run(ctx, arg)
     range == "" and "reading history" or ("reading history (%s)"):format(range)
   )
 
-  vim.system(cmd, { cwd = ctx.cfg.root, text = true, timeout = 120000 }, function(proc)
+  local timeout = git_log_timeout(ctx.cfg)
+  vim.system(cmd, { cwd = ctx.cfg.root, text = true, timeout = timeout }, function(proc)
     -- Off the main loop here; everything below touches notify and a buffer.
     vim.schedule(function()
       if not proc then
         if progress then
           progress:finish("git log timed out")
         end
-        ctx.notify.warn("git log did not finish within 120s")
+        ctx.notify.warn(timed_out_msg(timeout))
         return
       end
 
@@ -67,9 +91,7 @@ function M.run(ctx, arg)
         end
         -- A timeout kill surfaces as a non-zero exit with no stderr; keep the
         -- old wording for that case so the message stays recognisable.
-        ctx.notify.warn(
-          stderr ~= "" and ("git log failed: " .. stderr) or "git log did not finish within 120s"
-        )
+        ctx.notify.warn(stderr ~= "" and ("git log failed: " .. stderr) or timed_out_msg(timeout))
         return
       end
 

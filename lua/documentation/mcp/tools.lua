@@ -389,17 +389,23 @@ catalogue.docmap_checklist = {
     }, { cwd = handle.root, text = true }, function(res)
       proc = res
     end)
-    -- Bounded the same way the usrcmd bounds it: a `git log` over a
-    -- repository's full history is the slow part of this tool, and an agent
-    -- waiting on a tool call needs a ceiling more than it needs patience.
-    local settled = vim.wait(120000, function()
+    -- Bounded the same way the usrcmd bounds it -- and out of the same config
+    -- key, not a third copy of the number: a `git log` over a repository's
+    -- full history is the slow part of this tool, and an agent waiting on a
+    -- tool call needs a ceiling more than it needs patience.
+    local timeout = 120000
+    if type(handle.cfg) == "table" and type(handle.cfg.git_log_timeout_ms) == "number" then
+      timeout = handle.cfg.git_log_timeout_ms
+    end
+    local settled = vim.wait(timeout, function()
       return proc ~= nil
     end, 20)
     if not settled or not proc or proc.code ~= 0 then
       return result({
         available = false,
         reason = (
-          settled and proc and vim.trim(proc.stderr or "") or "git log did not finish within 120s"
+          settled and proc and vim.trim(proc.stderr or "")
+          or ("git log did not finish within %ds"):format(math.floor(timeout / 1000))
         ),
       })
     end

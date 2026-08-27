@@ -16,6 +16,29 @@
 
 local M = {}
 
+---@internal
+---The configured `git log` ceiling, in ms.
+---
+---One key behind three call sites: `churn`, this checklist pass and the MCP
+---tool all bound themselves by the same two minutes, written out three times.
+---@param cfg table|nil  # A resolved config, when the caller already has one.
+---@return integer
+local function git_log_timeout(cfg)
+  if type(cfg) == "table" and type(cfg.git_log_timeout_ms) == "number" then
+    return cfg.git_log_timeout_ms
+  end
+  local ok, defaults = pcall(require, "documentation.config.DEFAULTS")
+  local n = ok and type(defaults) == "table" and defaults.git_log_timeout_ms or nil
+  return type(n) == "number" and n > 0 and n or 120000
+end
+
+---@internal
+---@param ms integer
+---@return string
+local function timed_out_msg(ms)
+  return ("git log did not finish within %ds"):format(math.floor(ms / 1000))
+end
+
 ---Collect `path -> ISO commit dates` for every path in the repository.
 ---
 ---One `git log` for the whole tree rather than one per cited path: a ledger
@@ -29,8 +52,9 @@ local M = {}
 ---@param cwd string
 ---@param out_dir string Excluded: in a repo that commits its own map, it is touched by nearly every commit.
 ---@param cb fun(dates: table<string, string[]>|nil, err: string|nil) called on the main loop
+---@param cfg table|nil The resolved config, for `git_log_timeout_ms`.
 ---@return nil
-local function commit_dates(cwd, out_dir, cb)
+local function commit_dates(cwd, out_dir, cb, cfg)
   local cmd = {
     "git",
     "log",
@@ -46,23 +70,21 @@ local function commit_dates(cwd, out_dir, cb)
   -- command. It used to be pumped with `vim.wait(120000, ...)`, which keeps the
   -- loop running (that is why the progress handle was visible at all) but still
   -- holds input for the whole run. The result is delivered through `cb` now, so
-  -- nothing is held at all; the 120s ceiling moves to vim.system's own timeout.
-  vim.system(cmd, { cwd = cwd, text = true, timeout = 120000 }, function(proc)
+  -- nothing is held at all; the ceiling moves to vim.system's own timeout.
+  local timeout = git_log_timeout(cfg)
+  vim.system(cmd, { cwd = cwd, text = true, timeout = timeout }, function(proc)
     -- vim.system callbacks run off the main loop; the caller touches quickfix,
     -- notify and :copen.
     vim.schedule(function()
       if not proc then
-        cb(nil, "git log did not finish within 120s")
+        cb(nil, timed_out_msg(timeout))
         return
       end
       if proc.code ~= 0 then
         local stderr = vim.trim(proc.stderr or "")
         -- A timeout kill surfaces as a non-zero exit with no stderr; keep the
         -- old wording for that case so the message stays recognisable.
-        cb(
-          nil,
-          stderr ~= "" and ("git log failed: " .. stderr) or "git log did not finish within 120s"
-        )
+        cb(nil, stderr ~= "" and ("git log failed: " .. stderr) or timed_out_msg(timeout))
         return
       end
       cb(require("documentation.core.checklist").parse_history(proc.stdout or ""), nil)
@@ -187,7 +209,7 @@ function M.run(ctx, arg)
     ctx.notify.info(
       ("%d stale, %d unverified, of %d item(s)."):format(stale, unverified, ledger.total)
     )
-  end)
+  end, ctx.cfg)
 end
 
 return M
