@@ -18,15 +18,11 @@ local fmt_finding = require("documentation.core.findings").format
 
 local M = {}
 
----HTML-escape text destined for markup.
----@param s string?
----@return string
-local function esc(s)
-  if not s or s == "" then
-    return ""
-  end
-  return (s:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"):gsub('"', "&quot;"))
-end
+-- HTML-escape text destined for server-rendered markup. Not to be confused
+-- with the client-side `esc()` defined further down inside the embedded `JS`
+-- string (a JavaScript function, escaping in the browser) — that one is
+-- data, not Lua, and is unrelated to this.
+local esc = require("lib.lua.strings.encoding").html_escape
 
 local CSS = [[
 :root{
