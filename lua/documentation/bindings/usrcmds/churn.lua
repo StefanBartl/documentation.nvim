@@ -13,6 +13,8 @@
 --- since `--check` byte-compares. Same wall the History tab hit. So it lives
 --- beside `impact` — live-computed into the quickfix list, nothing written.
 
+local list = require("lib.nvim.ui.list")
+
 local M = {}
 
 ---@internal
@@ -158,11 +160,10 @@ function M.run(ctx, arg)
         return
       end
 
-      vim.fn.setqflist({}, " ", {
-        title = ("docmap churn: %s"):format(range == "" and "all history" or range),
-        items = churn.quickfix_items(result, ctx.cfg.root),
-      })
-      vim.cmd("copen")
+      list.qf(
+        churn.quickfix_items(result, ctx.cfg.root),
+        ("docmap churn: %s"):format(range == "" and "all history" or range)
+      )
 
       local top = result.entries[1]
       ctx.notify.info(

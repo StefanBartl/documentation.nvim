@@ -7,6 +7,8 @@
 --- them further would put `handle.rescan()` in three places and invite the
 --- three to drift on how they tally findings.
 
+local list = require("lib.nvim.ui.list")
+
 local M = {}
 
 ---Report `opts.debug` timings, if any were collected.
@@ -154,10 +156,7 @@ function M.check(ctx)
       }
     end
   end
-  vim.fn.setqflist({}, " ", { title = "Module map drift", items = items })
-  if #items > 0 then
-    vim.cmd("copen")
-  end
+  list.qf(items, "Module map drift", { open = "auto" })
 end
 
 return M

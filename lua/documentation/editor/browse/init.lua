@@ -52,6 +52,8 @@ local trail = require("documentation.editor.browse.trail")
 local trail_store = require("documentation.editor.browse.trail_store")
 local view = require("documentation.editor.browse.view")
 
+local list = require("lib.nvim.ui.list")
+
 local M = {}
 
 ---Single active browser, mirroring the chooser/confirm single-instance model
@@ -766,12 +768,10 @@ local function to_quickfix(st)
     return
   end
 
-  vim.fn.setqflist({}, " ", {
-    title = ("DocMap %s: %s"):format(st.mode, view.breadcrumb(st.ir, st.id)),
-    items = items,
-  })
+  -- Title first: `M.close()` drops the state these fields come from.
+  local title = ("DocMap %s: %s"):format(st.mode, view.breadcrumb(st.ir, st.id))
   M.close()
-  vim.cmd("copen")
+  list.qf(items, title)
 end
 
 ---`gI` — the blast radius of the centered node into the quickfix list.
@@ -806,16 +806,13 @@ local function impact_to_quickfix(st)
     end
   end
 
-  vim.fn.setqflist({}, " ", {
-    title = ("DocMap impact: %s (%d, %d direct)"):format(
-      view.breadcrumb(st.ir, target),
-      #hull,
-      direct
-    ),
-    items = items,
-  })
+  local title = ("DocMap impact: %s (%d, %d direct)"):format(
+    view.breadcrumb(st.ir, target),
+    #hull,
+    direct
+  )
   M.close()
-  vim.cmd("copen")
+  list.qf(items, title)
 end
 
 ---`gD` — the opened commit's diff in a scratch buffer.

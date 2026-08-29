@@ -14,6 +14,8 @@
 --- current, which is the "is this ledger healthy" view rather than the "what
 --- do I do now" one.
 
+local list = require("lib.nvim.ui.list")
+
 local M = {}
 
 ---@internal
@@ -197,15 +199,14 @@ function M.run(ctx, arg)
       return
     end
 
-    vim.fn.setqflist({}, " ", {
-      title = ("docmap checklist: %d stale, %d unverified, %d total"):format(
+    list.qf(
+      items,
+      ("docmap checklist: %d stale, %d unverified, %d total"):format(
         stale,
         unverified,
         ledger.total
-      ),
-      items = items,
-    })
-    vim.cmd("copen")
+      )
+    )
     ctx.notify.info(
       ("%d stale, %d unverified, of %d item(s)."):format(stale, unverified, ledger.total)
     )

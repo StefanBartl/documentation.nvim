@@ -13,6 +13,8 @@
 --- (Next.js/SvelteKit/Nuxt/Remix) belongs in a Hierarchy view instead, per
 --- `docs/ECOSYSTEM.md` §3.1, and is not what this lists.
 
+local list = require("lib.nvim.ui.list")
+
 local M = {}
 
 ---@param ctx Documentation.Bindings.Ctx
@@ -69,11 +71,7 @@ function M.run(ctx)
     }
   end
 
-  vim.fn.setqflist({}, " ", {
-    title = "docmap endpoints",
-    items = items,
-  })
-  vim.cmd("copen")
+  list.qf(items, "docmap endpoints")
 
   ctx.notify.info(("%d route(s) across %d file(s)  ·  %d documented"):format(#all, nfiles, ndoc))
 end

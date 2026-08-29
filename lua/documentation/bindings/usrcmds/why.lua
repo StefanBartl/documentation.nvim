@@ -7,6 +7,8 @@
 --- entry jumps straight to the line that creates that link. A message would
 --- have been something to read; this is something to act on.
 
+local list = require("lib.nvim.ui.list")
+
 local M = {}
 
 ---@param ctx Documentation.Bindings.Ctx
@@ -55,10 +57,7 @@ function M.run(ctx, arg)
     }
   end
 
-  vim.fn.setqflist({}, " ", {
-    title = ("docmap why: %s → %s"):format(a, b),
-    items = items,
-  })
+  list.qf(items, ("docmap why: %s → %s"):format(a, b), { open = false })
   ctx.notify.info(("%d hop%s%s:  %s"):format(
     #chain,
     #chain == 1 and "" or "s",

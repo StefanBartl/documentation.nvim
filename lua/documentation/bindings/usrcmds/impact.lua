@@ -18,6 +18,8 @@
 --- diff is 4.8 MB of which all but 27 KB is the regenerated map — without it
 --- this analyses mostly its own output.
 
+local list = require("lib.nvim.ui.list")
+
 local M = {}
 
 ---@param ctx Documentation.Bindings.Ctx
@@ -71,10 +73,11 @@ function M.run(ctx, arg)
   local history = require("documentation.core.history")
   local result = history.analyze(dproc.stdout, ir, before)
 
-  vim.fn.setqflist({}, " ", {
-    title = ("docmap impact: %s → working tree"):format(ref),
-    items = history.quickfix_items(result, ir, ctx.cfg.root),
-  })
+  list.qf(
+    history.quickfix_items(result, ir, ctx.cfg.root),
+    ("docmap impact: %s → working tree"):format(ref),
+    { open = false }
+  )
 
   if #result.touched == 0 then
     ctx.notify.info(

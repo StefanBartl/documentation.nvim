@@ -9,6 +9,8 @@
 --- it to `<path>.annot.lua` next to the original instead, for review before
 --- merging it in by hand.
 
+local list = require("lib.nvim.ui.list")
+
 local M = {}
 
 ---@param arg string
@@ -132,13 +134,12 @@ function M.run(ctx, arg)
   end
 
   if #written > 0 then
-    vim.fn.setqflist({}, " ", {
-      title = "docmap annotate",
-      items = vim.tbl_map(function(path)
+    list.qf(
+      vim.tbl_map(function(path)
         return { filename = root .. "/" .. path, lnum = 1, text = "annotated" }
       end, written),
-    })
-    vim.cmd("copen")
+      "docmap annotate"
+    )
   end
 
   ctx.notify.info(

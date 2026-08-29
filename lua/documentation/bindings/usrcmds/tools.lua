@@ -13,6 +13,8 @@
 --- *declared*, deferring "is it installed" to lib.nvim's own `:Lib deps
 --- show`, which already does that live.
 
+local list = require("lib.nvim.ui.list")
+
 local M = {}
 
 ---One line per declared tool: bin, required/optional, why, package names.
@@ -66,11 +68,7 @@ function M.run(ctx)
     }
   end
 
-  vim.fn.setqflist({}, " ", {
-    title = "docmap tools",
-    items = items,
-  })
-  vim.cmd("copen")
+  list.qf(items, "docmap tools")
 
   ctx.notify.info(
     ("%d tool(s) declared in %s%s"):format(

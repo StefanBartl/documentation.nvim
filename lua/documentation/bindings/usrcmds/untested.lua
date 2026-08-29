@@ -26,6 +26,8 @@
 ---
 --- So this reports, and never fails anything.
 
+local list = require("lib.nvim.ui.list")
+
 local M = {}
 
 ---@param ctx Documentation.Bindings.Ctx
@@ -84,11 +86,7 @@ function M.run(ctx)
     }
   end
 
-  vim.fn.setqflist({}, " ", {
-    title = ("docmap untested: %s"):format(namespace),
-    items = items,
-  })
-  vim.cmd("copen")
+  list.qf(items, ("docmap untested: %s"):format(namespace))
 
   local top = rows[1]
   ctx.notify.info(

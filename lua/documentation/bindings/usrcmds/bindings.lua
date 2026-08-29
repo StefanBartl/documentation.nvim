@@ -24,6 +24,8 @@
 --- in `opts.bindings.wrappers`. An empty result for a file that visibly
 --- binds keys almost always means the wrapper is not declared.
 
+local list = require("lib.nvim.ui.list")
+
 local M = {}
 
 ---What a row is keyed by for collision purposes. A keymap collides per
@@ -145,11 +147,7 @@ function M.run(ctx)
     }
   end
 
-  vim.fn.setqflist({}, " ", {
-    title = "docmap bindings",
-    items = items,
-  })
-  vim.cmd("copen")
+  list.qf(items, "docmap bindings")
 
   ctx.notify.info(
     ("%d keymap(s), %d command(s), %d autocmd(s) across %d file(s)%s"):format(

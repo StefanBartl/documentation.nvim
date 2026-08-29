@@ -11,6 +11,8 @@
 --- with no function in sight. See `core/plugins.lua`'s header for what is
 --- and is not recognized.
 
+local list = require("lib.nvim.ui.list")
+
 local M = {}
 
 ---One line per trigger kind actually present, so a row reads at a glance
@@ -109,11 +111,7 @@ function M.run(ctx)
     }
   end
 
-  vim.fn.setqflist({}, " ", {
-    title = "docmap plugins",
-    items = items,
-  })
-  vim.cmd("copen")
+  list.qf(items, "docmap plugins")
 
   ctx.notify.info(
     ("%d plugin spec(s) across %d file(s)%s"):format(
