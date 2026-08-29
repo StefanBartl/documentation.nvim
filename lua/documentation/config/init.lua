@@ -327,7 +327,7 @@ end
 ---`bindings/keymaps.lua`'s `M.resolve` already takes — this module is a base
 ---every layer (including the UI-free pipeline) depends on, so it must not
 ---hard-require `lib.nvim.notify` itself.
----@return Documentation.Opts
+---@return Documentation.Config
 function M.build(root, overrides, notify)
   root = (tostring(root):gsub("\\", "/"):gsub("/+$", ""))
 

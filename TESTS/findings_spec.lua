@@ -1,3 +1,6 @@
+---@diagnostic disable: missing-fields
+-- The fixtures below carry only the fields the unit under test reads; a full
+-- IR, node, finding or entry per case would be noise, not coverage.
 -- TESTS/findings_spec.lua — `core/findings.lua`, the message catalog
 --
 -- I18N-0 moved every finding's sentence out of the check and into a catalog

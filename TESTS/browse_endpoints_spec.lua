@@ -1,3 +1,6 @@
+---@diagnostic disable: missing-fields
+-- The fixtures below carry only the fields the unit under test reads; a full
+-- IR, node, finding or entry per case would be noise, not coverage.
 -- TESTS/browse_endpoints_spec.lua — the Endpoints mode in
 -- documentation.editor.browse.view (step 6 of docs/ECOSYSTEM.md).
 --

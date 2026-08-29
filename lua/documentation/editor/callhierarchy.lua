@@ -422,6 +422,9 @@ function M.attach(bufnr, handle, namespace)
       return make_client(handle, namespace)
     end,
     root_dir = handle.root,
+    -- Neovim's meta for the *options* table declares `cmd`, which belongs to
+    -- the client config passed above it -- there is nothing to add here.
+    ---@diagnostic disable-next-line: missing-fields
   }, {
     bufnr = bufnr,
     -- **The root has to be part of this, and leaving it out was a real

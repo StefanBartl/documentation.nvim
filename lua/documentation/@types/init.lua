@@ -4,8 +4,15 @@
 ---Configuration for a docmap run. Every field that could hardcode a
 ---particular repo's layout is an option, so other plugins can point docmap at
 ---their own tree.
+--- What `config.build` hands back: the same options, with `root` filled in --
+--- `build` takes it as its own first argument, so past that point it is no
+--- longer a question. Everything downstream of the resolve step (the handle,
+--- the `:DocMap` subcommands) takes this, not `Documentation.Opts`.
+---@class Documentation.Config : Documentation.Opts
+---@field root string
+
 ---@class Documentation.Opts
----@field root string Absolute path to the repository root. Omitted in a `usrcmds.setup()` call, `:DocMap`/`:DocBrowse` resolve it **per invocation** from the current buffer's file (see `root_markers`); set it to pin every invocation to one tree, which is what a consuming plugin generating its own map wants.
+---@field root? string Absolute path to the repository root. Omitted in a `usrcmds.setup()` call, `:DocMap`/`:DocBrowse` resolve it **per invocation** from the current buffer's file (see `root_markers`); set it to pin every invocation to one tree, which is what a consuming plugin generating its own map wants.
 ---@field root_markers? string[] `usrcmds.setup()` only, and only when `root` is absent: marker names `vim.fs.root` walks up for to find the repository containing the current buffer's file. Default `{ ".git" }` — matches a worktree's `.git` *file* as well as a normal `.git` directory. Falls back to the working directory for a buffer with no file behind it.
 ---@field consumers? string Directory holding sibling checkouts whose committed maps name this project as a dependency. Enables `consumer-require-missing` and nothing else; unset (the default) leaves that check inert, which is right for the great majority of projects, since most are not libraries with a knowable consumer set. See `core/consumers.lua`.
 ---@field source? string|string[] Directory or directories to scan, relative to `root`. Default: derived by `config.detect_source`. **Several** exist because a repository can hold two languages in two places (`lua/` beside `src/`, or C's `src/` beside `include/`), and one starting directory means the walk never *visits* the other — not skips it, never sees it, and reports nothing about it. A plain string still behaves exactly as it always did, including producing no synthetic parent node.
@@ -213,7 +220,7 @@
 ---@field requires string[] Node ids this node requires, sorted. Derived from `ir.edges`; an index for convenience, not a second source of truth.
 ---@field required_by string[] Node ids that require this node, sorted. Same derivation.
 ---@field requires_external string[] Module paths this node requires that resolve to nothing in the scanned tree — other plugins, or anything outside `source`. Plain strings, not invented nodes: the map only claims to describe what it scanned. The Deps view can draw them on request.
----@field calls_external Documentation.ExternalCall[] Which functions of an external module (from `requires_external`) this node actually calls, and how often — see `core/calls.lua`. Always an array, sorted by module then member; empty when this node requires external modules but never calls into them (a require for its side effects alone, or one this parser's four resolvable call shapes cannot see — see that module's header for what is genuinely invisible to it).
+---@field calls_external? Documentation.ExternalCall[] Which functions of an external module (from `requires_external`) this node actually calls, and how often — see `core/calls.lua`. Always an array, sorted by module then member; empty when this node requires external modules but never calls into them (a require for its side effects alone, or one this parser's four resolvable call shapes cannot see — see that module's header for what is genuinely invisible to it).
 ---@field requires_raw Documentation.RawRequire[] Unresolved `require` occurrences. Internal to the scan pipeline (`deps`/`calls` consume it); deliberately not serialized into `module_map.json`.
 ---@field calls_raw Documentation.RawCall[] Unresolved call sites. Internal, same as `requires_raw`.
 ---@field symbols Documentation.SymbolInfo[] Module-scope tables, constants and bindings in this node's own source. Always an array; runs unconditionally as part of `scan()`.
@@ -763,13 +770,13 @@
 ---@field order string[] All node ids in deterministic walk order.
 ---@field nodes table<string, Documentation.Node>
 ---@field edges Documentation.Edge[] Type-reference edges from LuaLS enrichment. Always an array, empty when `opts.luals` did not run.
----@field duplicates Documentation.Duplicates.Result Functions grouped by structural shape — see `duplicates.lua`. Set by `scan_full`, so a bare `scan()` leaves it nil; serialised into the artifact because the grouping needs `fn.shape`, and a page reading the artifact has no parse tree to redo it with.
+---@field duplicates? Documentation.Duplicates.Result Functions grouped by structural shape — see `duplicates.lua`. Set by `scan_full`, so a bare `scan()` leaves it nil; serialised into the artifact because the grouping needs `fn.shape`, and a page reading the artifact has no parse tree to redo it with.
 ---@field docs Documentation.Docs.Result? Which prose file mentions which module or function — see `docs.lua`. Set by `scan_full`, so a bare `scan()` leaves it nil.
 ---@field tools Documentation.Tools.Result? This repo's declared `lib.nvim.deps` tools — see `core/tools.lua`. Set by `scan_full`; nil when lib.nvim.deps is unavailable or this repo ships no manifest.
 ---@field features Documentation.Features.Result? This repo's own `docs/FEATURES/` — see `core/features.lua`. Set by `scan_full`; nil when this repo ships no such folder.
 ---@field checklist Documentation.Checklist.Result? This repo's own `docs/CHECKLIST/` ledger of hand-verified facts — see `core/checklist.lua`. Set by `scan_full`; nil when this repo ships no checklist. Carries no staleness verdict: that needs git, which cannot enter a byte-compared artifact.
 ---@field tag_audit Documentation.TagAudit? What `opts.tag_files` resolution could not do — `nil` when it was never configured. Read by `tag-require-missing`/`tag-file-unavailable` in `check.lua`.
----@field tag_links table<string, Documentation.TagLink> `requires_external` modules resolved through `opts.tag_files`. Always a table, empty when `opts.tag_files` is unset or nothing resolved — unlike `types_detail`, resolving is local and cheap, so there is no "did this run" question worth a nil.
+---@field tag_links? table<string, Documentation.TagLink> `requires_external` modules resolved through `opts.tag_files`. Always a table, empty when `opts.tag_files` is unset or nothing resolved — unlike `types_detail`, resolving is local and cheap, so there is no "did this run" question worth a nil.
 ---@field timing Documentation.Timing? Per-stage durations, set by `scan_full` when `opts.debug` is on. Deliberately **not** serialised into the artifact: a duration differs on every machine and `--check` byte-compares, so embedding one would make the map invalidate itself.
 
 ---A live handle returned by `docmap.install()`. Keeps a scanned IR in memory
@@ -777,7 +784,7 @@
 ---the file-based `generate()`/`:DocMap` path.
 ---@class Documentation.Handle
 ---@field root string The root this handle was installed for; the registry key.
----@field cfg Documentation.Opts The resolved config this handle was installed with.
+---@field cfg Documentation.Config The resolved config this handle was installed with.
 ---@field ir fun(): Documentation.IR Current IR (already scanned; never triggers a scan itself).
 ---@field findings fun(): Documentation.Finding[] Current drift findings.
 ---@field node fun(id: string): Documentation.Node? Single node lookup on the current IR.

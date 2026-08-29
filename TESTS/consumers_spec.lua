@@ -1,3 +1,6 @@
+---@diagnostic disable: missing-fields
+-- The fixtures below carry only the fields the unit under test reads; a full
+-- IR, node, finding or entry per case would be noise, not coverage.
 -- TESTS/consumers_spec.lua — core/consumers.lua
 --
 -- The reverse index: given a library and the committed maps of projects that

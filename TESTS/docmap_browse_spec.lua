@@ -1,3 +1,6 @@
+---@diagnostic disable: missing-fields
+-- The fixtures below carry only the fields the unit under test reads; a full
+-- IR, node, finding or entry per case would be noise, not coverage.
 -- TESTS/docmap_browse_spec.lua — documentation.editor.browse
 --
 -- Two halves, deliberately separated: `view`/`source` are pure and get a

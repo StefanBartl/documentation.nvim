@@ -20,7 +20,7 @@
 ---different subsets of it and a positional list would have to be extended in
 ---every handler each time one more field is needed.
 ---@class Documentation.Bindings.Ctx
----@field cfg Documentation.Opts Fully resolved options.
+---@field cfg Documentation.Config Fully resolved options -- `root` included, hence the resolved type rather than the input one.
 ---@field handle Documentation.Handle Live registry handle; `handle.ir()` is the current IR.
 ---@field notify table `lib.nvim.notify` instance, prefixed "[documentation]".
 ---@field command_name string The name `:DocMap` was actually registered under, for messages.
