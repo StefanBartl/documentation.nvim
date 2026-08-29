@@ -5,7 +5,7 @@
 --- that differ in what they can express and agree almost entirely on how a
 --- function, a comment and an include look.
 ---
---- **The problem `docs/ROADMAP/IDEAS/MULTILANG.md` Phase 5 warned about,
+--- **The problem Phase 5 of the multi-language work warned about,
 --- and the answer taken.** A `.h` prototype and its `.c` body are two nodes
 --- describing one function, and `Documentation.FunctionInfo` models one
 --- function as one node. Rather than add a `declares`/`defines` edge kind —

@@ -125,8 +125,7 @@ already have. `gs` sends the selected route as a request via
 message rather than being silently unreachable.
 
 **Enriched with endpoint coverage** when `runtime-analysis.nvim` is
-installed and this project has request history (`runtime-analysis.nvim`'s
-own `docs/ROADMAP.md` §6.2) — a leading `○` marks a declared route this
+installed and this project has request history — a leading `○` marks a declared route this
 project's own history has never matched, the same reading the `telemetry`
 mode's own `○` gives a cold function: reachable, but nothing exercised it.
 The join (`documentation.core.endpoint_coverage`) matches a declared route
@@ -143,8 +142,7 @@ a send to it yet".
 
 ## Telemetry mode
 
-The static x runtime join — ECOSYSTEM.md step 8, `docs/ROADMAP/telemetry-
-documentation-bridge.md` (in the `lib.nvim` repo) for the full design. One
+The static x runtime join — ECOSYSTEM.md step 8. One
 row per function this tree's own static analysis and a `runtime-analysis.
 telemetry` namespace (`opts.title` by default, `opts.telemetry_namespace`
 to override) both have an opinion about, badge-prefixed by which of four
@@ -198,8 +196,8 @@ place again.
 
 ## Loaded mode
 
-Diff loaded-vs-declared — `runtime-analysis.nvim`'s own `docs/ROADMAP.md`
-§5.3, "the sharpest form of the static x runtime join" that document names.
+Diff loaded-vs-declared with `runtime-analysis.nvim` — the sharpest form of
+the static x runtime join.
 One row per discrepancy between what this tree's own static analysis
 *declares* a module exports and what is actually on that module's table in
 *this* Neovim process, right now (`runtime-analysis.loaded`'s

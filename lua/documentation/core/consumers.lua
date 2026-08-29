@@ -6,8 +6,7 @@
 --- library and a set of maps belonging to projects that depend on it, which
 --- of its modules does anyone actually require, and which does nobody.
 ---
---- `docs/ROADMAP/IDEAS/IDEAS.md` §1.7 rated this "needs a real multi-repo
---- case first" and left it there. The case exists: 33 `.nvim` repositories
+--- This was rated "needs a real multi-repo case first" and left there. The case exists: 33 `.nvim` repositories
 --- beside this one, ~30 with a committed map, one shared `lib.nvim` they
 --- consume 9–25 modules of apiece.
 ---

@@ -60,11 +60,10 @@ local M = {}
 ---@type table|nil
 local state = nil
 
--- "telemetry" is 8th, not 7th — the design doc it implements
--- (`docs/ROADMAP/telemetry-documentation-bridge.md` in lib.nvim) calls it
+-- "telemetry" is 8th, not 7th — the design that produced it calls it
 -- "Mode 7", written before "endpoints" above claimed position 7 in this
 -- actual list; see ECOSYSTEM.md step 8 for that renumbering note.
--- "loaded" (§5.3, runtime-analysis.nvim's own docs/ROADMAP.md) is 9th.
+-- "loaded" (runtime-analysis.nvim) is 9th.
 local MODES = {
   "structure",
   "deps",

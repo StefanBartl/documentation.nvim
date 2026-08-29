@@ -90,8 +90,8 @@
 ---@field pin_index integer? 1-based position in the trail, for `d`.
 ---@field detail string? One-line hint shown when the row has no richer detail.
 ---@field telemetry_row Documentation.TelemetryJoin.Row? The join row behind a `kind="telemetry"` entry — `nil` for a function `runtime-analysis.telemetry` has no data for, distinct from a row with `calls = 0`.
----@field endpoint_sends RA.History.Entry[]? The static x runtime join behind a `kind="endpoint"` entry (`runtime-analysis.nvim`'s own docs/ROADMAP.md §6.2) — `nil` when no history data exists for this project at all, an empty list when history exists but never matched this route.
----@field loaded_diff_row Documentation.LoadedDiff.Row? The join row behind a `kind="loaded_diff"` entry (`runtime-analysis.nvim`'s own docs/ROADMAP.md §5.3).
+---@field endpoint_sends RA.History.Entry[]? The static x runtime join behind a `kind="endpoint"` entry with `runtime-analysis.nvim` — `nil` when no history data exists for this project at all, an empty list when history exists but never matched this route.
+---@field loaded_diff_row Documentation.LoadedDiff.Row? The join row behind a `kind="loaded_diff"` entry with `runtime-analysis.nvim`.
 
 ---@class Documentation.Browse
 ---@field open fun(opts: Documentation.Browse.Opts): boolean

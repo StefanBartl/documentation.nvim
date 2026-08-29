@@ -1112,7 +1112,7 @@ end
 ---A consumer requires something under this library's namespace that this
 ---library does not have.
 ---
----The check half of `docs/ROADMAP/IDEAS/IDEAS.md` §1.7, and the *only* half
+---The check half of the endpoint-coverage idea, and the *only* half
 ---that can honestly be a check.
 ---
 ---## Why the obvious one was not built

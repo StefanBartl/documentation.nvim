@@ -1,6 +1,6 @@
 ---@module 'documentation.core.lang.python'
 --- Python, registered as a language backend — the tenth, and the first of the
---- thirty in `docs/ROADMAP/IDEAS/MULTILANG.md`'s second list.
+--- thirty on the second language list.
 ---
 --- **Three things here are new to this tool, and each one costs a decision
 --- the nine before it never had to make.**

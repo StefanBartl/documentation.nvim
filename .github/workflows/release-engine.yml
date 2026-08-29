@@ -10,8 +10,7 @@
 # appended to, so a stale asset from three builds ago can never be picked
 # up by accident.
 #
-# macOS is deliberately not built here. See
-# docs/ROADMAP/V1_EXTENSION/PORTABILITY.md: the standalone path is
+# macOS is deliberately not built here: the standalone path is
 # confirmed working on Linux and Windows; macOS was never tested and stays
 # out of scope until it is -- building it here would ship a binary nobody
 # has verified starts, let alone works.
@@ -172,5 +171,5 @@ jobs:
           gh release create standalone-latest release-out/* \
             --repo "$GITHUB_REPOSITORY" \
             --title "Standalone engine (rolling build)" \
-            --notes "Built from $GITHUB_SHA by this repository's own release-engine.yml. Not a numbered release -- consumed by docmap-desktop's release.yml, which always downloads this exact tag. See docs/ROADMAP/V1_EXTENSION/PORTABILITY.md for what each asset is and how it was built." \
+            --notes "Built from $GITHUB_SHA by this repository's own release-engine.yml. Not a numbered release -- consumed by docmap-desktop's release.yml, which always downloads this exact tag." \
             --prerelease

@@ -15,7 +15,7 @@ The output is not pass/fail. It is *what needs attention*.
 ## Why not just write more checks
 
 This came out of reading a real corpus rather than from designing one.
-`docs/ROADMAP/RULES/` in this author's nvim-config is 33 per-plugin reports
+The rules corpus in this author.s nvim-config is 33 per-plugin reports
 plus 9 thematic syntheses, each guideline cited to a real `file:line`. Its
 `keybindings-count.md` asks "does `<leader>xy` support `2<leader>xy`" *per
 keymap* — and no scanner can decide that, because it needs to know whether

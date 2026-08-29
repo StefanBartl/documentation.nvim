@@ -104,7 +104,7 @@ them in prose and one of them states them wrong:
   needs none, by design — see below.
 - **Nine declare `param_docs = false`**: `zig`, `asm`, `go`, `rust`, `ruby`,
   `dart`, `haskell`, `elixir`, `erlang`. The other **fourteen** judge
-  parameters. `ROADMAP/IDEAS/MULTILANG.md`'s decision text says eight and
+  parameters. The original decision text said eight and
   fifteen: it called Ruby "a different case again" in the prose — parsed and
   shown, not judged — and then left it out of the total, which it belongs in,
   because the field is `false` and that is what every consumer reads. The
@@ -361,8 +361,7 @@ saying so is the point:
   `#define` beside the file-scope declarations, because `#define` is the one
   idiom every C project uses for a threshold.
 
-The first is tracked in [`ROADMAP/ROADMAP.md`](ROADMAP/ROADMAP.md), and is
-not dressed up as a language limit, because it is not one.
+The first is tracked as open work, and is not dressed up as a language limit, because it is not one.
 
 ### What the audit fixed on the way
 
@@ -445,8 +444,7 @@ See [`DEVELOPMENT.md`](DEVELOPMENT.md) for the rest of the local loop.
 3. Add the grammar to `scripts/build_engine_release.sh`.
 4. Write `TESTS/<name>_spec.lua`, gated on `DOCMAP_<LANG>_PARSER`.
 5. Add a row to this file's table and to the README's language table.
-6. Record what it cost and what it taught in
-   [`ROADMAP/IDEAS/MULTILANG.md`](ROADMAP/IDEAS/MULTILANG.md).
+6. Record what it cost and what it taught.
 
 **Measured cost**, so the estimate is not a guess: roughly 230–430 lines of
 backend, 120–200 of spec, one grammar, and about half a day — most of it
@@ -466,8 +464,7 @@ code you did not write is not finished.**
 
 ## Where the rest lives
 
-- [`ROADMAP/IDEAS/MULTILANG.md`](ROADMAP/IDEAS/MULTILANG.md) — the
-  per-language record: what each cost, the contract answers it had to give,
+- The per-language record: what each cost, the contract answers it had to give,
   and the measurements that changed several designs. Also the languages that
   are *available* rather than scheduled, and the four decisions taken
   2026-08-20.

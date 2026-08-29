@@ -7,10 +7,8 @@ usage manual, so it stays short per feature: the interesting trade-off, not
 the full narrative. Full history (verification steps, exact test counts, etc.)
 lives in git log, not here.
 
-Carried over from lib.nvim's `docs/ROADMAP/docmap_features.md`, which was
-itself extracted from `docmap_roadmap.md`/`docmap_roadmap_next.md`; the
-original, much longer process narrative each entry below compresses is in
-lib.nvim's git history.
+Carried over from lib.nvim; the original, much longer process narrative each
+entry below compresses is in lib.nvim.s git history.
 
 > **Names in this file predate the extraction** (2026-07-28). Where it says
 > `docmap`, `:LibMap` or `lib.nvim.docmap`, read `documentation`, `:DocMap`
@@ -809,7 +807,7 @@ that verification only happens by actually loading the page.
 
 ## `core/lang_registry.lua` — the language-backend seam (2026-08-03)
 
-`docs/ROADMAP/IDEAS/MULTILANG.md`'s Phase 0, item one and two: a real, working
+Phase 0 of the language work, items one and two: a real, working
 extension point for a second language, built without touching a single
 existing function's behavior. Verified, not assumed — every field on every
 pre-existing node in this repository's own map came back byte-identical
@@ -877,7 +875,7 @@ silently skipped.
 
 ## `core/lang/ecma.lua` — JavaScript, TypeScript and TSX as real backends (2026-08-03)
 
-`docs/ROADMAP/IDEAS/MULTILANG.md`'s Phase 1: the first real (non-Lua) language
+Phase 1 of the language work: the first real (non-Lua) language
 plugged into the seam `core/lang_registry.lua` built. One shared
 implementation (`ecma.lua`) behind three one-line registrations (`js.lua`,
 `ts.lua`, `tsx.lua`), the same relationship `core/lang/lua.lua` has to
@@ -956,8 +954,8 @@ Left genuinely open, not silently answered: calls/symbols extraction,
 class-method owning-scope, `.jsx` support (left for `js.lua` to extend,
 per that file's own header), `module.exports = {...}` recognition, and
 this repository's own CI not yet installing a JS/TS parser to run
-`lang_js_spec.lua`'s assertions rather than its skip path. Tracked in
-`docs/ROADMAP/IDEAS/MULTILANG.md`'s Phase 1 checklist.
+`lang_js_spec.lua`.s assertions rather than its skip path. Tracked on the
+Phase 1 checklist.
 
 ## A seventh Analysis panel — Hooks (2026-08-03)
 
@@ -1164,7 +1162,7 @@ directory, this environment untouched) used for every other verification
 this phase, exercised twice: with the parser present (real assertions)
 and absent (the existing skip path, unchanged).
 
-`docs/ROADMAP/IDEAS/MULTILANG.md`'s "calls/symbols extraction" checklist item
+The "calls/symbols extraction" checklist item
 is now two items: calls is done (with cross-file resolution split out
 as its own explicitly open task), symbols remains untouched.
 
@@ -1233,7 +1231,7 @@ written, confirming the exact five symbols expected and nothing else —
 *then* committed to `TESTS/lang_js_spec.lua` as a real assertion block,
 not just an ad hoc check thrown away after confirming the shape worked.
 
-`docs/ROADMAP/IDEAS/MULTILANG.md`'s Phase 1 checklist now has two remaining
+The Phase 1 checklist now has two remaining
 real gaps from this pass: cross-file call resolution (named imports
 binding a bare name directly into scope) and class-method owning-scope
 (shared with Phase 0, not unique to JS/TS).
@@ -2323,8 +2321,7 @@ what it's conditional on.
 
 Deliberately a CSS class (`.plugin-gated`), not a one-off style on the
 Tools button specifically: raised alongside a concept for a future
-Telemetry Analysis panel (`docs/ROADMAP/ROADMAP.md`'s "Genuinely open"
-section) that will need the identical treatment once built, gated on a
+Telemetry Analysis panel that will need the identical treatment once built, gated on a
 soft dependency (`runtime-analysis.nvim`) rather than a manifest file —
 same visual signal, two different kinds of "optional" underneath it.
 Confirmed with the user which visual treatment (badge + tint, vs. badge
@@ -2570,9 +2567,9 @@ exercise for real, well past what a unit test should require).
 
 ## Loaded panel — cold viewing via persisted snapshots (2026-08-10)
 
-Closes runtime-analysis.nvim's own docs/ROADMAP.md §5.4 ("persist
-loaded-vs-declared for cold viewing"), raised the same day §4.5 (named
-telemetry snapshots) shipped and explicitly left open pending it — "the
+Closes "persist loaded-vs-declared for cold viewing" on the
+runtime-analysis.nvim side, raised the same day named telemetry snapshots
+shipped and explicitly left open pending it — "the
 snapshot mechanism there first will make the marginal cost of asking
 `loaded.lua` for the same thing obvious one way or the other" (that
 entry's own words). It did: once §4.5 existed as a real, working pattern,
@@ -2660,8 +2657,8 @@ event loop" — covered by the real curl verification above instead.
 
 ## `undocumented-param` credits `@overload`-only signatures (2026-08-11)
 
-Closed the last item that had been sitting in `docs/ROADMAP.md`'s
-"Genuinely open" section since `@overload` was first parsed and rendered
+Closed the last item that had been sitting in the "genuinely open" section
+since `@overload` was first parsed and rendered
 (2026-07-31). `check_undocumented_params` (`core/check.lua`) compared a
 function's raw signature parameter count against its `@param` line count
 only — a function documented entirely through `@overload` instead of
@@ -2725,7 +2722,7 @@ nothing said before.
 
 ## Keyword lookup inside rendered snippets (2026-08-18)
 
-`docs/ROADMAP/IDEAS/ReferenceTab.md` turned its keyword panel down because
+The reference-tab design turned its keyword panel down because
 the page rendered no source, so there was nowhere a `goto` was displayed to
 point at. `core/snippet.lua` made that false and nothing noticed. Hovering a
 keyword in a snippet now gives a sentence and one optional link.

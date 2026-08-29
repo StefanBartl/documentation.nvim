@@ -19,8 +19,7 @@
 --- lives structurally outside it, not behind an exception written into the
 --- rule.
 ---
---- See `docs/ROADMAP/IDEAS/MULTILANG.md` for the task list this seam is Phase 0
---- of, and `core/lang/lua.lua` for the reference registration — a thin
+--- See `core/lang/lua.lua` for the reference registration — a thin
 --- wrapper, not a rewrite: `scan.lua`'s `parse_header` and `functions.lua`'s
 --- `scan_file` are unchanged, only which caller reaches them moved.
 
@@ -268,7 +267,7 @@ end
 ---Keyed by extension rather than by backend name because of what the
 ---consumer has in hand: the renderer is looking at a snippet belonging to a
 ---node whose `source` is a path, and the IR does not yet carry a `language`
----field (see `docs/ROADMAP/IDEAS/MULTILANG.md` Part 4, stage 3.1). An
+---field. An
 ---extension is what the page can actually key on today, and when that field
 ---arrives this can gain a second index without the page changing shape.
 ---

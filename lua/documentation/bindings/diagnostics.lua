@@ -6,7 +6,7 @@
 ---
 --- Lives in `bindings/`, not `core/`, for the same reason `progress.lua`
 --- does: `vim.diagnostic` is UI, and `core/` must stay runnable with no
---- editor attached (`docs/ROADMAP/PORTABILITY.md`). `core/check.lua` produces
+--- editor attached. `core/check.lua` produces
 --- `Documentation.Finding[]` knowing nothing about how — or whether — it
 --- is displayed; this module is one of (now) two consumers that decide.
 ---

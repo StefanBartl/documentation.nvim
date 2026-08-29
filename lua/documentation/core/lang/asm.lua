@@ -22,7 +22,7 @@
 --- only backend here whose spec never skips.
 ---
 --- **What the roadmap said assembly has none of, and what measuring found
---- instead.** `docs/ROADMAP/IDEAS/MULTILANG.md` recorded assembly as having
+--- instead.** The multi-language survey recorded assembly as having
 --- no visibility concept and no module system, and half of that was wrong:
 ---
 --- * **Visibility is real and it is explicit.** `.globl` / `.global` (GAS,

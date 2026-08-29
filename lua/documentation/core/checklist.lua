@@ -4,8 +4,8 @@
 --- not a set of automated checks.
 ---
 --- The distinction is the whole point, and it came out of reading a real
---- corpus rather than from designing one. `docs/ROADMAP/RULES/` in this
---- author's nvim-config is 33 per-plugin reports plus 9 thematic syntheses,
+--- corpus rather than from designing one. The rules corpus in this
+--- author.s nvim-config is 33 per-plugin reports plus 9 thematic syntheses,
 --- each guideline cited to a real `file:line`. Its `keybindings-count.md`
 --- asks "does `<leader>xy` support `2<leader>xy`" *per keymap* — and that is
 --- not something a scanner can decide, because it needs to know whether

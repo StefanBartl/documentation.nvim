@@ -1155,7 +1155,7 @@ way it points.
 
 ### Module Calls: weighted alternative to Calls
 
-Roadmap item, Session 2026-08-10 (`docs/ROADMAP/FEATURES.md`). Calls answers
+Roadmap item, Session 2026-08-10. Calls answers
 "which function calls which" one function pair at a time; that is precise but
 does not summarize — reading a module's actual coupling to another module
 means eyeballing a dozen individual function-to-function edges and adding
@@ -1983,11 +1983,10 @@ silently failed to match, unconditionally. Fixed by trying the direct-id
 convention first (an explicit `wrap(tbl, label, {module_id=...})` can
 legitimately name a real `node.id` directly) and a `node.module` index
 second. Found by curling a real join against this tree's own
-self-instrumentation rather than trusting the code read alone — see
-`docs/ROADMAP/FEATURES.md`'s own entry for the full account.
+self-instrumentation rather than trusting the code read alone.
 
 Once `runtime-analysis.nvim` shipped named snapshots (`telemetry.snapshot()`
-et al., its own docs/ROADMAP.md §4.5), the panel gained a picker —
+et al.), the panel gained a picker —
 "Snapshot:" (Latest plus every saved capture) and, once at least one exists,
 "Compare vs:" — that switches it into an A/B diff table (Function/A/B/Δ) via
 the same `GET /api/telemetry`, now accepting an optional `?snapshot=<name>`,
@@ -1996,12 +1995,11 @@ built on the generic Compare tab's marking mechanism, despite an earlier
 design note assuming it would be — `CMP_ROWS` compares *static* IR
 attributes of a marked function/module, which has no time axis at all, and
 a snapshot comparison needed exactly that axis. A dedicated view inside the
-Telemetry panel, not a strained reuse — see `docs/ROADMAP/FEATURES.md`'s
-own entry for the full reasoning, including a real Lua-syntax bug this
+Telemetry panel, not a strained reuse. A real Lua-syntax bug was
 caught before it shipped (a `[[...]]` array-literal pair closing with two
 adjacent `]` inside the file's own `[[ ... ]]` client-script string).
 
-**Loaded** — docs/ROADMAP.md §5.4 on the runtime-analysis.nvim side — is
+**Loaded** — on the runtime-analysis.nvim side — is
 Telemetry's shape applied to a different runtime fact, with one structural
 difference that shows up in the panel itself: **there is no "latest"
 fallback.** Telemetry always has a live aggregate to default to (the

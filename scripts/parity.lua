@@ -1,7 +1,6 @@
 -- scripts/parity.lua — the parity audit, measured rather than reasoned.
 --
--- `docs/ROADMAP/IDEAS/MULTILANG.md` § *And then: feature parity across all of
--- them* asks for one row per contract capability, one column per language,
+-- The feature-parity audit asks for one row per contract capability, one column per language,
 -- and every empty cell either filled or given a written reason. This script
 -- produces the *cells*. The reasons are prose and live in
 -- `docs/LANGUAGES.md`; a script cannot write them and should not pretend to.

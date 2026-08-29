@@ -4,9 +4,8 @@
 --- same relationship `functions.lua` has to `core/lang/lua.lua`. One
 --- implementation, parametrized by grammar name, because the three
 --- grammars agree on every shape this module actually reads — verified
---- against real parses (see `docs/ROADMAP/IDEAS/MULTILANG.md`'s own warning that
---- claims here are task descriptions until checked against something real;
---- this module's shapes *have* been checked, unlike that document's).
+--- against real parses: this module.s shapes *have* been checked, not merely
+--- described.
 ---
 --- ## Scope, stated narrowly on purpose
 ---
@@ -113,7 +112,7 @@ end
 ---expose it as a public function, and this is real, working code rather
 ---than a refactor of Lua's own path. Unifying the two behind one shared
 ---helper is worth doing once a second language actually exists to prove the
----shared shape is right, not before — see `docs/ROADMAP/IDEAS/MULTILANG.md`.
+---shared shape is right, not before.
 ---@param def_node TSNode
 ---@return string shape
 ---@return integer size
@@ -333,8 +332,8 @@ local function extract_requires(stmt_node, src)
       local req = { module = module, line = srow + 1 }
 
       -- Which names the import binds, so `calls.lua` can resolve a bare
-      -- `helper()` to another file's function. This is the piece
-      -- `docs/ROADMAP/IDEAS/MULTILANG.md` names as missing: JS binds an
+      -- `helper()` to another file.s function. This is the piece that was
+      -- missing: JS binds an
       -- imported function directly into scope, with none of the
       -- alias-then-`.member` shape Lua's `local fs = require(...)` gives
       -- `calls.lua` to work with.
@@ -443,8 +442,8 @@ end
 ---   require("…") call_expression         -> `extract_requires` already
 ---                                            models this as a dependency
 ---
----Verified against a real parse (see this file's own header and
----`docs/ROADMAP/IDEAS/MULTILANG.md`): `object`/`array` literals, `number`/
+---Verified against a real parse (see this file.s own header): `object`/`array`
+---literals, `number`/
 ---`string`/`true`/`false` primitives (JS has no single "boolean" node type —
 ---`true` and `false` are distinct), `null`/`undefined` (JS-only shapes with
 ---no Lua equivalent; both fall through to "binding", the same as any other
@@ -633,9 +632,9 @@ end
 ---distinguish them structurally that this cares about).
 ---Every function a `class` body declares, named `Class.method`.
 ---
----Closes the first of the three gaps `docs/ROADMAP/IDEAS/MULTILANG.md`'s
----Phase 1 left open. That document calls it "the same Phase-0 owning-scope
----gap Python/Rust will also need" — and it is, for *Python and Rust*. It is
+---Closes the first of the three gaps Phase 1 left open. It was called "the
+---same Phase-0 owning-scope gap Python/Rust will also need" — and it is, for
+---*Python and Rust*. It is
 ---not one here, because this language already has an answer the map uses
 ---everywhere else: Lua records `function M.foo()` as a function named
 ---`M.foo`, flat, hanging off the module. A JS method recorded as

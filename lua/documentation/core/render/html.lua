@@ -62,8 +62,7 @@ local CSS = [[
    eyeballed: `grep -oE "font-size:[0-9.]+px"` found half-integer pairs
    less than a pixel apart (`11px`/`11.5px`, `12px`/`12.5px`…) with no
    distinguishing use — real signal the scale accreted through ordinary
-   editing rather than being designed, exactly as
-   docs/ROADMAP/V1_EXTENSION/IMPLEMENTATION_PLAN.md's Phase 4 named and
+   editing rather than being designed, exactly as Phase 4 named and
    deliberately deferred pending visual verification. Verified this time
    by counting which of each pair was already used more: every merge
    moved the *less*-used value onto the *more*-used one, so the majority
@@ -1830,7 +1829,7 @@ local JS = [[
     // explicitly", anything else is a second snapshot name.
     tsnap: null, tsnapb: null,
     // Which persisted runtime-analysis.loaded snapshot the Loaded panel
-    // reads (docs/ROADMAP.md §5.4). `null` means "none selected yet" —
+    // reads. `null` means "none selected yet" —
     // unlike Telemetry there is no live aggregate to fall back to here
     // (see drawAnalysisLoaded's own header for why), so a picker with
     // nothing chosen shows a prompt rather than data.
@@ -6440,7 +6439,7 @@ local JS = [[
 
   // ---------------------------------------------------------------------
   // Analysis -> Loaded: the runtime-analysis.loaded persisted-snapshot join,
-  // docs/ROADMAP.md §5.4 — "cold viewing" of a loaded-vs-declared diff taken
+  // "cold viewing" of a loaded-vs-declared diff taken
   // in a process that is not this one.
   //
   // Unlike Telemetry, there is no "live aggregate" fallback here: a loaded
@@ -8560,9 +8559,8 @@ local JS = [[
     // right and answers nothing.
     if(!entry.origin && gl.reference && gl.reference.url){
       // The one link, per language, that this feature is allowed to depend
-      // on nothing for: every sentence above it is already the answer. See
-      // `docs/ROADMAP/IDEAS/ReferenceTab.md` on why there is one base URL
-      // rather than one URL per keyword.
+      // on nothing for: every sentence above it is already the answer. There
+      // is one base URL rather than one URL per keyword.
       h += '<div class="kw-ref"><a href="' + esc(gl.reference.url + (entry.anchor || "")) +
         '" target="_blank" rel="noreferrer noopener">' + esc(gl.reference.label) + ' &#8599;</a></div>';
     }

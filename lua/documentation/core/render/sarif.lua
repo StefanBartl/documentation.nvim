@@ -8,8 +8,8 @@
 ---
 --- ## The line number this cannot give
 ---
---- `docs/ROADMAP/IDEAS/IDEAS.md` §6.1 says "the findings already have file,
---- line, severity and message". Three of those four are true.
+--- The idea backlog said "the findings already have file, line, severity and
+--- message". Three of those four are true.
 --- `Documentation.Finding` carries `severity`, `check`, `node` and
 --- `message` — and **no line**. `docs/PIPELINE.md` already records the
 --- consequence for diagnostics ("lands on the buffer's first line exactly

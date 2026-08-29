@@ -49,28 +49,7 @@ arrived with.
 | [`docs/FEATURE_LOG.md`](FEATURE_LOG.md) | The decision record: what shipped, which commit, and why it was built that way. |
 | [`FEATURES/`](FEATURES/README.md) | This plugin's own `docs/FEATURES/` catalog — the user-facing half, and the Features tab's first real test. Deliberately a representative sample, not full coverage. |
 | **[`docmap-desktop/docs/PLAN.md`](https://github.com/StefanBartl/docmap-desktop/blob/main/docs/PLAN.md)** | **The queue — and it is not in this repository.** Since 2026-08-20 there is one plan for all three (`documentation.nvim`, `docmap-desktop`, `runtime-analysis.nvim`), because the same task used to appear in five places in three different states. Quick wins, medium, large. |
-| [`ROADMAP/ROADMAP.md`](ROADMAP/ROADMAP.md) | Where this plugin is going, in prose. Direction, not schedule. |
-| [`ROADMAP/WORKPLAN.md`](ROADMAP/WORKPLAN.md) | The record of how the language work was derived — including the parts that rested on a wrong assumption. Not a queue. |
-| [`ROADMAP/IDEAS/`](ROADMAP/IDEAS/IDEAS.md) | The costed analyses — *why* each item is shaped the way it is, and what argues against it. See below. |
 | [`CHECKLIST/architecture.md`](CHECKLIST/architecture.md) | This tree's own hand-verified facts, each cited and dated. |
-
-### The costed analyses (`ROADMAP/IDEAS/`)
-
-Each of these costs one idea honestly and stops there, which is the point of
-the folder — an estimate written before anything is built is worth more than
-one reconstructed afterwards.
-
-| Document | Subject |
-|---|---|
-| [`MULTILANG.md`](ROADMAP/IDEAS/MULTILANG.md) | Every language backend: what each cost, the contract answers it had to give, and the measurements against real repositories that changed several designs. The reference table is [`LANGUAGES.md`](LANGUAGES.md); this is the record. |
-| [`PORTABILITY.md`](ROADMAP/IDEAS/PORTABILITY.md) | Mapping a project that is not a Neovim plugin — and what a Neovim-free port would actually cost. |
-| [`I18N.md`](ROADMAP/IDEAS/I18N.md) | The other language axis: translating what this tool *says*, not what it reads. |
-| [`DESKTOP_WEBAPP.md`](ROADMAP/IDEAS/DESKTOP_WEBAPP.md) | A desktop/web version — costed, then partly built. |
-| [`ReferenceTab.md`](ROADMAP/IDEAS/ReferenceTab.md) | A Lua syntax and LuaCATS crib sheet as its own tab, and why one link per language beats several hundred that rot independently. |
-| [`FeaturesSubTabs.md`](ROADMAP/IDEAS/FeaturesSubTabs.md) | One sub-tab per theme file in the Features tab, so `core.md` leads and the rest is opened on demand. Cost is one function; the decision to make first is how it relates to `Tab: true`. |
-| [`IDEAS.md`](ROADMAP/IDEAS/IDEAS.md) | The idea backlog itself. |
-| [`IMPLEMENTATION_PLAN.md`](ROADMAP/IDEAS/IMPLEMENTATION_PLAN.md) | The V1 extension plan across the analyses above. |
-| [`IDEAS_IMPLEMENTATION_PLAN.md`](ROADMAP/IDEAS/IDEAS_IMPLEMENTATION_PLAN.md) | `IDEAS.md`'s backlog scored by effort, benefit and quick wins. Different scope from the file above it, deliberately. |
 
 ## Generated, not written
 
@@ -78,9 +57,3 @@ one reconstructed afterwards.
 |---|---|
 | [`map/`](map/overview.md) | This repository's own map — [`index.html`](map/index.html), [`overview.md`](map/overview.md), `module_map.json`. Regenerate with `:DocMap` or `scripts/gen_map.lua`; a docs change makes it stale. |
 | [`BINDINGS.md`](BINDINGS.md) | Listed above, repeated here because editing it by hand is the mistake it is easiest to make. |
-
-## Historical
-
-| Document | What |
-|---|---|
-| [`docs/ROADMAP/O2_NAMING_RESEARCH.md`](ROADMAP/O2_NAMING_RESEARCH.md) | Prep for the extraction out of `lib.nvim`. Not an open item — kept so a similar naming exercise is not repeated from scratch. |

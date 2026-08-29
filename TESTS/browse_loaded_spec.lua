@@ -1,6 +1,5 @@
 -- TESTS/browse_loaded_spec.lua — the Loaded-vs-declared mode in
--- documentation.editor.browse.view, joined against runtime-analysis.nvim's
--- own docs/ROADMAP.md §5.3.
+-- documentation.editor.browse.view, joined against runtime-analysis.nvim.
 --
 -- Its own file, not a block in docmap_browse_spec.lua: that file already
 -- sits near Lua's 200-local-per-function ceiling — the same rationale

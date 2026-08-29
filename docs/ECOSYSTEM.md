@@ -41,18 +41,14 @@
 > **Status (2026-08-11): steps 1–8 of §8's sequencing have all shipped.**
 > Only step 9 (full-file previews / a browser request runner / a Runtime tab
 > under `serve`) is still open, and it is gated on the serve tier. This
-> document is therefore a **decision record**, not a backlog — which is why
-> it lives here in `docs/ROADMAP/FEATURES/` alongside
-> [`FEATURES.md`](FEATURE_LOG.md) (the same genre: why something was built the
-> way it was) rather than in `docs/ROADMAP/V1_EXTENSION/`, where its
-> presence made ~half that folder look like pending work when it is not.
+> document is therefore a **decision record**, not a backlog — the same genre
+> as [`FEATURE_LOG.md`](FEATURE_LOG.md): why something was built the way it was.
 > Its original header — "architectural concept, agreed. Nothing here is
 > implemented" — was true when written and is preserved below for the
 > record; per-step "Done" markers in §8 are the current truth.
 >
-> Earlier paths: `docs/ECOSYSTEM.md`, then
-> `docs/ROADMAP/V1_EXTENSION/ECOSYSTEM.md`. Prose references to either in
-> dated entries elsewhere mean this file.
+> Earlier path: `docs/ECOSYSTEM.md`. Prose references to it in dated entries
+> elsewhere mean this file.
 
 **Original status line, as written:** *architectural concept, agreed.
 Nothing here is implemented.*
@@ -63,10 +59,8 @@ with it: *is a separate plugin worth it, what form should it take, and could
 documentation.nvim gain a tab that appears when it is installed?*
 
 This answers **where each thing belongs and why**, not how to build it. A
-per-step implementation concept follows separately, in
-`docs/ROADMAP/ECOSYSTEM.md`, the same split `docs/ROADMAP/MULTILANG.md`/
-`docs/ROADMAP/IDEAS/MULTILANG.md` already use (cost analysis in
-`docs/ROADMAP/`, task breakdown in `docs/ROADMAP/IDEAS/`).
+per-step implementation concept follows separately, keeping cost analysis and
+task breakdown apart the same way the language work does.
 
 **Decisions taken (§4–§8):** the plugin is worth it, named
 **`runtime-analysis.nvim`** and already created; it is a **Neovim plugin**,
@@ -128,7 +122,7 @@ feature in the list lands on one side or the other of each.
 
 ### Seam A — static vs. runtime
 
-`docs/ROADMAP/telemetry-documentation-bridge.md` already names it:
+The telemetry-documentation bridge already names it:
 documentation.nvim knows what **exists and is documented**; telemetry knows
 what **actually ran**. Its whole argument is that neither can produce the
 other's evidence, and that crossing them is where the value is.
@@ -623,8 +617,7 @@ Ordered so each step is independently useful and nothing is a big-bang.
    label, so the gap was the params/returns/prose behind it, not the
    signature itself. `fnAnnotationHTML` is now shared between the detail
    pane and the popup, and that refactor was verified output-identical
-   across all 56 nodes with functions rather than assumed. See
-   `docs/ROADMAP/FEATURES.md`.
+   across all 56 nodes with functions rather than assumed.
 2. ~~**Docs corpus scan + reference index + `doc-references-missing`.** The
    largest genuinely-new static capability, and the one carrying the stated
    motive.~~ **Data layer done (2026-08-03)** — `core/docs.lua`, `ir.docs`,
@@ -632,8 +625,7 @@ Ordered so each step is independently useful and nothing is a big-bang.
    (`opts.docs_heuristic` mirrors `opts.calls_heuristic`) after a first real
    run showed the bare-name path matching `write`/`open`/`scan`/`esc`. Four
    false-positive classes were found and excluded by running it against this
-   repository rather than against fixtures; see
-   `docs/ROADMAP/FEATURES.md`. **UI done (2026-08-03)** — a marker beside any
+   repository rather than against fixtures. **UI done (2026-08-03)** — a marker beside any
    entity the prose mentions, rendered only where references exist, reusing
    the annotation popup's card rather than adding a second floating element.
    **Docs-only overview done (2026-08-03)** — an eighth Analysis panel over
@@ -669,8 +661,7 @@ Ordered so each step is independently useful and nothing is a big-bang.
    Fastify/Koa all share the identical syntax. **File-based routing
    (Next.js/SvelteKit/Nuxt/Remix) remains not attempted** — it belongs in a
    Hierarchy view per the reasoning already in §3.1, a materially different
-   piece of work, not a follow-up to this one. See
-   `docs/ROADMAP/FEATURES.md`.
+   piece of work, not a follow-up to this one.
 
 **Then in runtime-analysis.nvim:**
 
@@ -703,7 +694,7 @@ Ordered so each step is independently useful and nothing is a big-bang.
    and `check.lua`→lua-language-server. Opens a pre-filled request buffer
    rather than sending immediately — a route's path is relative and may
    have unfilled `:param`s, genuinely nothing static analysis could send
-   correctly on its own. See `docs/ROADMAP/FEATURES.md`.
+   correctly on its own.
 7. ~~**Telemetry moves** into runtime-analysis.nvim, `wrap_lib()` staying in
    lib.nvim as a thin caller.~~ **Done (2026-08-03)** — all 13 files (2915
    lines) moved verbatim into `runtime-analysis.telemetry`, registered as
@@ -847,8 +838,7 @@ property that makes this order safe to commit to now.
   merits, so the fourth plugin only starts costing once there is a reason
   for it to exist.
 - **`core/plugins.lua` passed nine hand-written fixtures and then produced
-  235 false positives against one real config** (`docs/ROADMAP/IDEAS/
-  MULTILANG.md`'s own Considerations section). Every recognizer proposed here — endpoints
+  235 false positives against one real config**. Every recognizer proposed here — endpoints
   especially — carries that risk profile. Real trees, not fixtures.
 - **Every framework-syntax claim above is unverified.** No Express, FastAPI
   or axum tree has been parsed here. Verify at implementation time, the way

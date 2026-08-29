@@ -9,10 +9,9 @@
 --- question *about* the tags: which ones exist, what each means, where a
 --- reader can look one up. Three separate pieces of work wanted exactly that
 --- answer and were each costed with their own copy of it —
---- `ROADMAP/IDEAS/ReferenceTab.md`'s tag panel and its lookup layer's third
---- kind, and `IDEAS_IMPLEMENTATION_PLAN.md` §2.1's annotation-adoption panel,
---- which that document rates as the highest-value panel idea in the backlog
---- and gates on this exact refactor. Building it once is cheaper than any of
+--- the reference tab.s tag panel and its lookup layer.s third kind, and the
+--- annotation-adoption panel, rated the highest-value panel idea in the
+--- backlog and gated on this exact refactor. Building it once is cheaper than any of
 --- the three estimates assumed in isolation; building it three times is the
 --- duplication this repository warns about everywhere else.
 ---

@@ -27,8 +27,7 @@
 --- would collect it out of string literals, and a map that reports a
 --- to-do that is really a log message is worse than one that misses it.
 ---
---- See `docs/ROADMAP/IDEAS/MULTILANG.md` for the backend contract this
---- extends, and `@types/init.lua` for `Documentation.MarkerNote`.
+--- See `@types/init.lua` for `Documentation.MarkerNote`.
 
 local M = {}
 

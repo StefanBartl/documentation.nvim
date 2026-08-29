@@ -1,7 +1,6 @@
 ---@module 'documentation.core.telemetry_join'
---- The static x runtime join — ECOSYSTEM.md step 8, `docs/ROADMAP/
---- telemetry-documentation-bridge.md` (in the `lib.nvim` repo) for the full
---- design. This tree's own static analysis (`check.used_keys`) knows which
+--- The static x runtime join — ECOSYSTEM.md step 8. This tree.s own static
+--- analysis (`check.used_keys`) knows which
 --- functions have a *caller documentation.nvim can see*; `runtime-analysis.
 --- telemetry` knows which functions were *actually entered*. Neither answers
 --- the other's blind spot alone: a callback bound as a value, or dynamic
@@ -346,9 +345,8 @@ function M.untested_hot(ir, data)
 end
 
 ---Two aggregate numbers crossing "documented" (`doccoverage.is_documented`)
----against "actually called" (this join) — the two lines `docs/ROADMAP/
----telemetry-documentation-bridge.md` (lib.nvim) names as the most
----immediately useful reading of the whole join: a maintenance-cost set, and
+---against "actually called" (this join) — the two most immediately useful
+---readings of the whole join: a maintenance-cost set, and
 ---a documentation backlog prioritized by evidence of real use rather than
 ---alphabetically. `@internal` functions are excluded, the same scope
 ---`doccoverage.summary` already uses — a published-API question, not an

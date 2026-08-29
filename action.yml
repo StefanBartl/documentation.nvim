@@ -1,4 +1,4 @@
-# A GitHub Action for the `--check` gate (docs/ROADMAP/IDEAS/IDEAS.md §6.2).
+# A GitHub Action for the `--check` gate.
 #
 # `docs/REUSE.md` documents the "copy two files and edit five lines" path,
 # which is the right answer for a repository that wants its own layer rules

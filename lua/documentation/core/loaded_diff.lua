@@ -1,7 +1,6 @@
 ---@module 'documentation.core.loaded_diff'
---- Diff loaded-vs-declared — `runtime-analysis.nvim`'s own docs/ROADMAP.md
---- §5.3, "the sharpest form of the static x runtime join" that document
---- names: this tree's own scan knows every function the source
+--- Diff loaded-vs-declared with `runtime-analysis.nvim` — the sharpest form
+--- of the static x runtime join: this tree.s own scan knows every function the source
 --- *declares*; `runtime-analysis.loaded` knows what is actually on a
 --- module's table in *this* Neovim process, right now. The difference in
 --- either direction is a real finding — declared but never loaded (dead
@@ -99,8 +98,8 @@ function M.prefix(opts)
 end
 
 ---@internal
----Shared by `M.rows` (live) and `M.rows_from_snapshot` (persisted,
----docs/ROADMAP.md §5.4): everything past "how do I get a module's present
+---Shared by `M.rows` (live) and `M.rows_from_snapshot` (persisted):
+---everything past "how do I get a module's present
 ---fields" is identical between the two, so this is the one place that
 ---logic exists.
 ---@param ir Documentation.IR
@@ -168,7 +167,7 @@ function M.rows(ir)
 end
 
 ---The same diff, against a persisted snapshot instead of the live
----`package.loaded` — docs/ROADMAP.md §5.4, "cold viewing": a snapshot
+---`package.loaded` — "cold viewing": a snapshot
 ---taken in one process (or hours/days earlier in this one), read here
 ---without needing that process to still be running. `snapshot.modules` is
 ---already exactly the `module_id -> {field -> true}` shape `M.rows`'s own

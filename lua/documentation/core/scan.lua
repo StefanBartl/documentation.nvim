@@ -313,8 +313,7 @@ function M.scan(opts)
   -- repository can hold two languages in two places (`lua/` beside `src/`,
   -- or C's `src/` beside `include/`), and a single starting directory means
   -- the walk never *sees* the other one -- not skips it, never visits it,
-  -- and says nothing about it either. See `docs/ROADMAP/IDEAS/MULTILANG.md`
-  -- Stage 1 for the measurement that forced this.
+  -- and says nothing about it either. A measurement forced this.
   local sources = {}
   for _, entry in ipairs(type(opts.source) == "table" and opts.source or { opts.source or "lua" }) do
     sources[#sources + 1] = chomp(slash(entry))
@@ -433,8 +432,7 @@ function M.scan(opts)
 
     -- The first registered backend whose `module_file` exists here owns this
     -- directory. Only Lua is registered today (`core/lang/lua.lua`), so this
-    -- is exactly the `init.lua` check it replaces — see
-    -- `docs/ROADMAP/IDEAS/MULTILANG.md` Phase 0 for why the walk asks the registry
+    -- is exactly the `init.lua` check it replaces. The walk asks the registry
     -- instead of assuming there is only ever one answer.
     local module_backend, module_abs
     for _, backend in ipairs(lang_registry.all()) do

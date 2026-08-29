@@ -205,8 +205,8 @@ return function(H)
     end
   end
 
-  -- Endpoint coverage join (runtime-analysis.nvim's own docs/ROADMAP.md
-  -- §6.2): pure logic first, no plugin needed.
+  -- Endpoint coverage join with runtime-analysis.nvim: pure logic first,
+  -- no plugin needed.
   do
     local coverage = require("documentation.core.endpoint_coverage")
 

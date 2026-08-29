@@ -4,10 +4,9 @@
 # this script is running on, and stage both under $OUT_DIR ready to attach
 # to a GitHub Release.
 #
-# This is not a new recipe -- it is docs/ROADMAP/V1_EXTENSION/PORTABILITY.md's
-# "Step 6" turned into a script, because that step proved every command by
-# hand under WSL/Arch first. Anything below that looks unexplained is
-# explained there in more depth; comments here are the parts specific to
+# This is not a new recipe -- it is the portability "Step 6" turned into a
+# script, because that step proved every command by hand under WSL/Arch first.
+# Comments here are the parts specific to
 # running this unattended in CI rather than by hand.
 #
 #   TRIPLE=x86_64-unknown-linux-gnu EXE_EXT= scripts/build_engine_release.sh

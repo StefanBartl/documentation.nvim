@@ -317,8 +317,8 @@ not installed, or installed but no session is currently attached.
 
 ## Loaded panel — cold viewing of a loaded-vs-declared snapshot
 
-`:DocBrowse loaded`'s live diff (docs/ROADMAP.md §5.3 on the
-runtime-analysis.nvim side) only ever answers "what does *this* editor
+`:DocBrowse loaded`.s live diff (on the runtime-analysis.nvim side) only ever
+answers "what does *this* editor
 session's `package.loaded` disagree with" — a browser tab, running in a
 different process, has no live `package.loaded` of its own to read. The
 Analysis → **Loaded** panel is the cold counterpart: it reads a *named,

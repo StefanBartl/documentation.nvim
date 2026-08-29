@@ -15,8 +15,7 @@ the UI question (filter-tab vs. label-tab) with a third option grounded in
 what this codebase already has.
 
 **Dependency, stated up front:** none of this is buildable today. It needs a
-JS/TS scanner backend, which [`MULTILANG.md`](ROADMAP/IDEAS/MULTILANG.md) costs out and
-does not schedule. This document is layer 2, sequenced strictly after that
+JS/TS scanner backend, costed out but not scheduled. This document is layer 2, sequenced strictly after that
 layer 1 — a roadmap note for *if*, not a proposal to start now.
 
 > **Update (2026-08-03): that dependency is satisfied.** `core/lang/ecma.lua`

@@ -1,6 +1,5 @@
 -- TESTS/check_overload_credit_spec.lua — `core/check.lua`'s
--- `check_undocumented_params` crediting `@overload`-only signatures
--- (docs/ROADMAP.md, now docs/ROADMAP/FEATURES.md once shipped).
+-- `check_undocumented_params` crediting `@overload`-only signatures.
 --
 -- Its own file, not a block in docmap_spec.lua: that file already sits
 -- near Lua's 200-local-per-function ceiling — the same rationale

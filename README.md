@@ -291,8 +291,8 @@ field is set.
 Measured costs, so a tenth language is an estimate rather than a guess:
 roughly 230–430 lines of backend, 120–200 of spec, one grammar, and half a
 day — most of it spent deciding the contract answers rather than writing
-extraction. [`docs/ROADMAP/IDEAS/MULTILANG.md`](docs/ROADMAP/IDEAS/MULTILANG.md)
-records each one, including the three designs that a scan of somebody
+extraction. The per-language record covers each one, including the three
+designs that a scan of somebody
 else's repository changed and a fixture would not have.
 
 ## Installation
@@ -766,8 +766,7 @@ verify tool) are in [docs/MCP.md](docs/MCP.md).
 [`docmap-desktop`](https://github.com/StefanBartl/docmap-desktop) is a small
 Tauri app that hosts generated maps for several projects side by side, for
 anyone reading them who is not sitting in Neovim. It runs this plugin's
-standalone binary (see [PORTABILITY.md](docs/ROADMAP/IDEAS/PORTABILITY.md))
-as a subprocess and serves the page over a real `http://127.0.0.1` origin,
+standalone binary as a subprocess and serves the page over a real `http://127.0.0.1` origin,
 so the Telemetry and Loaded panels below work the same way they do in the
 editor — real data when [`runtime-analysis.nvim`](https://github.com/StefanBartl/runtime-analysis.nvim)
 has collected any, an honest "no host" message otherwise, never a blank
@@ -813,14 +812,10 @@ grouped by the question you arrived with. The table below is the short list.
 | [docs/CALL_HIERARCHY.md](docs/CALL_HIERARCHY.md) | Incoming/outgoing calls in Neovim, alongside LuaLS (which has none): setup, keymaps, and how to tell an unattached client from a function with no callers. |
 | [docs/HOSTING.md](docs/HOSTING.md) | Embedding the map in your own program: the `--capabilities` handshake, the `--api=<route>` answers, `?theme=`, and the page's two-way message channel. |
 | [docs/MCP.md](docs/MCP.md) | The MCP server: exposing the module tree, require graph, call graph and drift findings to a coding agent as tools. |
-| [docs/ROADMAP/IDEAS/PORTABILITY.md](docs/ROADMAP/IDEAS/PORTABILITY.md) | Mapping a Lua project that is not a Neovim plugin — and what a Neovim-free port would actually cost. |
-| [docs/ROADMAP/IDEAS/MULTILANG.md](docs/ROADMAP/IDEAS/MULTILANG.md) | Every language backend: what each one cost, the contract answers it had to give, and the measurements against real repositories — every one of which changed something. The per-language reference table is [docs/LANGUAGES.md](docs/LANGUAGES.md). |
-| [docs/ROADMAP/IDEAS/I18N.md](docs/ROADMAP/IDEAS/I18N.md) | The other language axis: translating what this tool says, not what it reads. Which surfaces cost what, the four rules decided up front, and what each locale needs beyond a catalog. |
 | [docs/FRAMEWORK_CONVENTIONS.md](docs/FRAMEWORK_CONVENTIONS.md) | The layer above language support — recognizing one ecosystem's structural convention (lazy.nvim specs today; Next.js-style file routing and React hooks costed as the web-ecosystem case). |
 | [docs/FEATURES/ECOSYSTEM.md](docs/ECOSYSTEM.md) | **Architectural concept**, agreed, nothing implemented: where docs cross-references, API-endpoint inventory, hover previews and an API request runner each belong — and why the runtime half is its own plugin (`runtime-analysis.nvim`), a Neovim plugin rather than a binary, meeting this one in the editor rather than in the committed artifact. |
 | [docs/ANNOTATION_TAGS.md](docs/ANNOTATION_TAGS.md) | **Annotating your own plugin**: what each tag buys you here, the minimum viable set, and which custom tags would be worth adding. |
 | [docs/ANNOTATIONS.md](docs/ANNOTATIONS.md) | The inventory — which LuaCATS tags this tree actually uses, counted. |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Running the specs, the linters and the map locally. |
-| [docs/ROADMAP/](docs/ROADMAP/) | [FEATURES.md](docs/FEATURE_LOG.md) — what shipped and why it was built that way. [ROADMAP.md](docs/ROADMAP/ROADMAP.md) — what is open, and what was considered and turned down (with the condition that would reopen it). |
 | [lua/documentation/editor/browse/README.md](lua/documentation/editor/browse/README.md) | The editor-side browser in detail. |
 | `:help documentation.nvim` | The same, in Vim help format. |

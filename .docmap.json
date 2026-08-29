@@ -8,7 +8,7 @@
     {
       "from": "documentation.core",
       "to": "documentation.editor",
-      "why": "the pipeline has to stay runnable without an editor — see docs/ROADMAP/PORTABILITY.md"
+      "why": "the pipeline has to stay runnable without an editor"
     },
     {
       "from": "documentation.core",
@@ -18,7 +18,7 @@
     {
       "from": "documentation.core",
       "to": "documentation.core.lang",
-      "why": "language backends are reached through core/lang_registry.lua, never directly — see docs/ROADMAP/MULTILANG.md"
+      "why": "language backends are reached through core/lang_registry.lua, never directly"
     }
   ]
 }

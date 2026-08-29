@@ -69,7 +69,7 @@
 --- convention so that a checker can stay quiet. This is known to bite
 --- release notes and migration guides; the honest workaround is to write
 --- about a removed name without putting it in backticks. Found the moment
---- this shipped: `docs/ROADMAP/FEATURES.md`'s own entry for this feature
+--- this shipped: the feature log entry for this feature
 --- tripped it, quoting the very reference the check had just caught.
 
 local M = {}

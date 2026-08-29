@@ -5,8 +5,8 @@
 -- docmap_browse_spec.lua sets for a missing prerequisite (there, this
 -- repository's own committed map; here, a parser CI does not install yet).
 -- The extraction itself was verified against real parses of real JS/TS/TSX
--- files during development (see docs/ROADMAP/IDEAS/MULTILANG.md and the commit
--- this file landed in) with grammars built from source for that purpose;
+-- files during development (see the commit this file landed in) with
+-- grammars built from source for that purpose;
 -- this spec runs the same assertions whenever the parser happens to be
 -- available, and says plainly why it is empty when it is not.
 

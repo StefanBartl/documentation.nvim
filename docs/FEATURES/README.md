@@ -18,7 +18,7 @@ reference.
 > sitting here until 2026-08-26 and produced 72 phantom entries between them:
 > the decision record (now [`../FEATURE_LOG.md`](../FEATURE_LOG.md)), the
 > ecosystem architecture essay ([`../ECOSYSTEM.md`](../ECOSYSTEM.md)) and the
-> naming survey ([`../ROADMAP/O2_NAMING_RESEARCH.md`](../ROADMAP/O2_NAMING_RESEARCH.md)).
+> naming survey.
 > Long-form prose about features belongs beside this folder, not in it.
 
 ## Files

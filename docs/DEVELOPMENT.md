@@ -246,8 +246,8 @@ to ignore the check.)
 
 so `:DocMap check` — and therefore CI — fails if a core module ever requires
 an editor one. That is the whole reason the directories exist: the pipeline
-has to stay runnable with no editor around it (see
-[PORTABILITY.md](ROADMAP/IDEAS/PORTABILITY.md)), and nothing but a check keeps a boundary
+has to stay runnable with no editor around it, and nothing but a check keeps a
+boundary
 like that from quietly rotting. Declaring the rule immediately found one real
 violation — `tagfiles.lua` reached into `command.lua` for `find_node`, a
 lookup that touches nothing but the IR, now `core/find.lua`.
@@ -257,7 +257,7 @@ point of the core existing. `init.lua` sits outside the rule and reaches both,
 which is what a facade is for.
 
 **A third rule, added with `core/lang_registry.lua`**
-(`docs/ROADMAP/MULTILANG.md`'s Phase 0): `{ from = "documentation.core", to =
+(Phase 0 of the language work): `{ from = "documentation.core", to =
 "documentation.core.lang" }`. `scan.lua`'s walk used to hardcode `"%.lua$"`,
 `"init.lua"` and a direct call into `functions.lua` — every one of those is a
 fact about Lua, not about how a walk works. The registry is the seam;
@@ -290,8 +290,7 @@ Six such requires exist today, all of them earning their keep by wrapping a
 real Neovim API rather than a language feature: `fs.read` (cli, tagfiles),
 `fs.mkdirp` (init, luals), `fs.collect_recursive` (coverage) and
 `cross.uv.spawn_capture` (luals). Every one of them would need replacing in a
-standalone build anyway, and each already appears in
-[PORTABILITY.md](ROADMAP/IDEAS/PORTABILITY.md)'s count.
+standalone build anyway, and each already appears in the portability count.
 
 What that rules out is the tempting direction: replacing small pure-Lua
 helpers in `core/` with `lib.nvim.*` calls. That trades five lines of Lua for

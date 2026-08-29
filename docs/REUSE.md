@@ -46,8 +46,7 @@ Mapping a project that is **not** a Neovim plugin works the same way and
 needs nothing extra — `nvim --headless -l` is being used as a Lua interpreter
 that happens to ship parsers. The only precondition is a grammar for the
 language on the runtimepath, which for anything Neovim ships is already true.
-See [PORTABILITY.md](ROADMAP/IDEAS/PORTABILITY.md), which also costs out what
-dropping the Neovim dependency entirely would take.
+Dropping the Neovim dependency entirely has been costed out separately.
 
 ## Before either: `.docmap.json`
 

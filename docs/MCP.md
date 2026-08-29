@@ -5,8 +5,7 @@ exposes this repository's module map to a coding agent — the module tree, the
 require graph, the call graph, and the documentation-drift findings, as tools
 the agent can call instead of grepping.
 
-Shipped 2026-08-11 as Phase 1 of
-[`docs/ROADMAP/IDEAS/IMPLEMENTATION_PLAN.md`](ROADMAP/IDEAS/IMPLEMENTATION_PLAN.md).
+Shipped 2026-08-11 as Phase 1 of the V1 extension plan.
 
 ## Running it
 
@@ -85,8 +84,7 @@ a person editing Markdown — see
 *is* the parent process, and the trust boundary is the one the operating
 system already draws around a subprocess. That is why this was the cheap
 protocol to build first — it sidesteps every question the hosted-web-app idea
-drowns in (see
-[`DESKTOP_WEBAPP.md`](ROADMAP/IDEAS/DESKTOP_WEBAPP.md)). It also means
+drowns in. It also means
 one absolute rule: **stdout carries the protocol and nothing else**, one JSON
 object per line, no framing headers (that is LSP; MCP delimits by newline). A
 stray `print()` anywhere in the process corrupts the stream, which is why

@@ -1,6 +1,6 @@
 ---@module 'standalone.docmap'
---- Neovim-free CLI entry point — the MVP scoped in `docs/ROADMAP/FEATURES.md`
---- ("standalone CLI, parser-less MVP"): the module tree, require graph and
+--- Neovim-free CLI entry point — the "standalone CLI, parser-less MVP":
+--- the module tree, require graph and
 --- every check/renderer that does not need per-function facts, running under
 --- plain `lua`/`luajit`, no Neovim process anywhere. Deliberately mirrors
 --- `scripts/gen_map.lua` (same `ensure()` dependency search, same

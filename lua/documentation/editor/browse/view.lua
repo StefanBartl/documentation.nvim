@@ -416,8 +416,8 @@ end
 ---the static page's Analysis panel and `:DocMap endpoints`'s quickfix list —
 ---no new extraction here, only a third reader of the same field.
 ---
----Enriched with the static x runtime join (`runtime-analysis.nvim`'s own
----docs/ROADMAP.md §6.2) when that plugin is installed and this project has
+---Enriched with the static x runtime join (`runtime-analysis.nvim`) when that
+---plugin is installed and this project has
 ---request history: a leading `○` marks a declared route history has never
 ---matched — a real, actionable "this is dead weight or untested", the
 ---same reading the `telemetry` mode's own `○` gives a cold function.
@@ -476,8 +476,7 @@ end
 ---Static x runtime join — ECOSYSTEM.md step 8. Every function `check.
 ---used_keys(ir)` and `runtime-analysis.telemetry`'s join together have an
 ---opinion about, one row per function, badge-prefixed by which of the four
----cells `docs/ROADMAP/telemetry-documentation-bridge.md` (lib.nvim) names it
----falls in:
+---cells it falls in:
 ---
 ---  ✕  high-confidence dead — no static caller *and* never called
 ---  !  dead-function false positive — telemetry proves it alive; static
@@ -571,8 +570,7 @@ local function telemetry_entries(ir, st)
   return out
 end
 
----Diff loaded-vs-declared — `runtime-analysis.nvim`'s own docs/ROADMAP.md
----§5.3. One row per discrepancy `documentation.core.loaded_diff` finds:
+---Diff loaded-vs-declared with `runtime-analysis.nvim`. One row per discrepancy `documentation.core.loaded_diff` finds:
 ---`✕` a declared, exported function `package.loaded` does not have right
 ---now (dead file, or genuinely lazy — this session simply never required
 ---it); `!` the reverse, a function-valued key present on the module table
@@ -1033,7 +1031,7 @@ function M.detail(ir, st, entry)
     out[#out + 1] = "Handler: " .. (spec.handler or "(inline — no name to show)")
     out[#out + 1] = spec.documented and "Documented" or "Not documented"
 
-    -- docs/ROADMAP.md §6.2 (runtime-analysis.nvim) — `endpoint_sends` is
+    -- runtime-analysis.nvim — `endpoint_sends` is
     -- `nil` when no history data was available at all (plugin absent, or
     -- nothing recorded for this project yet), an empty list when history
     -- exists but never matched this route, and a real list otherwise. The

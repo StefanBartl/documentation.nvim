@@ -1,6 +1,6 @@
 ---@module 'documentation.core.endpoint_coverage'
---- The static x runtime join for routes — `runtime-analysis.nvim`'s own
---- `docs/ROADMAP.md` §6.2. This tree's own static analysis
+--- The static x runtime join for routes, with `runtime-analysis.nvim`.
+--- This tree.s own static analysis
 --- (`core/endpoints.lua`) knows every route the source declares;
 --- `runtime-analysis.history` knows which ones were actually sent, per
 --- project. "Three of your eleven routes have never been exercised" is a

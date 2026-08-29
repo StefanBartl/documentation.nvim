@@ -9,7 +9,7 @@
 --- and more reliable than `@internal`, because nobody can be wrong about it.
 ---
 --- **And the language with the least to check, which was predicted and is
---- worth confirming.** `docs/ROADMAP/IDEAS/MULTILANG.md` costed Go as the
+--- worth confirming.** The multi-language survey costed Go as the
 --- "worst fit" of the five it analysed: godoc has *no tag vocabulary at
 --- all*. There is no `@param`, no `@returns`, no `@throws` — a doc comment is
 --- the plain comment block above a declaration and nothing more. So this is

@@ -19,8 +19,8 @@
 ---
 --- ## The per-entry anchors, and how they were checked
 ---
---- `reference.url` is one base URL, and `docs/ROADMAP/IDEAS/ReferenceTab.md`
---- explains the rule: one link per language that can rot, rather than
+--- `reference.url` is one base URL, and the rule behind it is: one link per
+--- language that can rot, rather than
 --- several hundred that can rot independently. The per-entry anchors that
 --- rule permits were left empty until 2026-08-20, for a stated reason — the
 --- 5.1 manual's anchors had not been verified, and a reference panel full of
@@ -194,7 +194,7 @@ M.keywords = {
 ---whole 5.1 manual would be mostly entries nobody hovers, and every one of
 ---them a line to keep true.
 ---
----`docs/ROADMAP/IDEAS/IDEAS.md`'s note that "`calls_external` already knows
+---The note that "`calls_external` already knows
 ---which ones a tree actually uses" turned out not to hold: that field tracks
 ---*required modules*, and `table.concat` is a global, not a require. The
 ---counts above came from reading the source instead.

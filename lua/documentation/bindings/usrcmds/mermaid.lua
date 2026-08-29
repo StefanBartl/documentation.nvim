@@ -3,7 +3,7 @@
 ---
 --- The renderer has existed since `overview.md` needed a graph GitHub would
 --- draw without running JavaScript; what was missing was any way to ask for
---- it on its own. `docs/ROADMAP/IDEAS/IDEAS.md` §6.4 is that gap, and it is
+--- it on its own. That was the gap, and it is
 --- one command, not a feature: nothing here computes anything
 --- `core/render/mermaid.lua` did not already.
 ---

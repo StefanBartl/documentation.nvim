@@ -234,7 +234,7 @@ end
 --- Deliberately the **parser-less** build, needing only `lfs` and `dkjson`
 --- rather than a `lua-tree-sitter` rock and a compiled grammar. The full
 --- parity comparison (byte-identical to a Neovim run) needs both and is a
---- local gate instead — see `docs/ROADMAP/V1_EXTENSION/PORTABILITY.md`. Its
+--- local gate instead. Its
 --- published rock has two packaging defects, and a gate that is red before
 --- anyone touches anything gets switched off the same day, which is exactly
 --- the advice `docs/REUSE.md` gives about extra checks.

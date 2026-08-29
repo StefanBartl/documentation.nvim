@@ -124,9 +124,7 @@ exactly why the join auto-suppresses a `dead-function` finding once
 telemetry proves the function alive — but the reverse direction (a
 function telemetry has *not yet* proven alive) still needs a human
 glance before deleting anything, because "not called in this window" is
-never the same claim as "dead". See `runtime-analysis.nvim`'s own
-`docs/ROADMAP/personal/runtime-analysis/CHECKLIST.md` (personal, not in
-this repo) for the fuller interpretation framework, if you have it.
+never the same claim as "dead".
 
 Same shape applies to the **Endpoints** mode's own `○` badge (a
 declared route runtime-analysis.nvim's request history has never sent) —

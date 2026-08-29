@@ -10,7 +10,7 @@
 -- that day, both invisible locally. Local green meant "four gates and a
 -- shrug".
 --
--- `ROADMAP.md` listed three possible answers. This is the third and the only
+-- Three answers were possible. This is the third and the only
 -- one that catches the *next* one before CI does, because it needs neither
 -- PUC Lua nor the `lua_tree_sitter` rock: it reads what `core/` calls out of
 -- a real parse, and asks the shim itself what it provides.
