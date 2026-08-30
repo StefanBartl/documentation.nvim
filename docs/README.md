@@ -46,6 +46,7 @@ arrived with.
 
 | Document | Answers |
 |---|---|
+| [`ECOSYSTEM.md`](ECOSYSTEM.md) | **The architecture document for the whole ecosystem — and it *is* in this repository, though it describes four.** Where docs, static analysis and runtime each belong, and why `runtime-analysis.nvim` is a separate plugin. `lib.nvim`, `runtime-analysis.nvim` and `mdview.nvim` link here rather than keeping a copy. |
 | [`docs/FEATURE_LOG.md`](FEATURE_LOG.md) | The decision record: what shipped, which commit, and why it was built that way. |
 | [`FEATURES/`](FEATURES/README.md) | This plugin's own `docs/FEATURES/` catalog — the user-facing half, and the Features tab's first real test. Deliberately a representative sample, not full coverage. |
 | **[`docmap-desktop/docs/PLAN.md`](https://github.com/StefanBartl/docmap-desktop/blob/main/docs/PLAN.md)** | **The queue — and it is not in this repository.** Since 2026-08-20 there is one plan for all three (`documentation.nvim`, `docmap-desktop`, `runtime-analysis.nvim`), because the same task used to appear in five places in three different states. Quick wins, medium, large. |

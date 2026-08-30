@@ -1,5 +1,29 @@
 # Ecosystem architecture — where docs, static analysis and runtime each belong
 
+> **This is the one architecture document for the whole ecosystem, and it
+> lives here.** It describes four pieces and only one of them is this
+> repository, so the other three link to this file rather than keeping a copy:
+> [`lib.nvim`](https://github.com/StefanBartl/lib.nvim),
+> [`runtime-analysis.nvim`](https://github.com/StefanBartl/runtime-analysis.nvim)
+> and [`mdview.nvim`](https://github.com/StefanBartl/mdview.nvim). Same pattern
+> as the queue in
+> [`docmap-desktop/docs/PLAN.md`](https://github.com/StefanBartl/docmap-desktop/blob/main/docs/PLAN.md):
+> one source, several pointers, because the alternative is four copies in three
+> different states.
+>
+> Cite it from another repository as
+> `documentation.nvim/docs/ECOSYSTEM.md`, never as a bare `docs/ECOSYSTEM.md`
+> — that path resolves to nothing anywhere but here, and nothing in CI would
+> report it (`dead-readme-link` strips code spans by design and resolves links
+> only within one repository).
+
+> **A fifth piece arrived after this was written (2026-08-30).**
+> [`docmap-desktop`](https://github.com/StefanBartl/docmap-desktop) is a Tauri
+> app that runs this plugin's standalone binary and serves the same `/api/*`
+> routes over a real HTTP origin. It changes nothing in the seams below — it
+> is a second *host* for the artifact-and-serve tier §1's Seam B already
+> describes, which is why it needed no revision here and gets a note instead.
+
 ## Table of content
 
   - [Intro](#intro)
