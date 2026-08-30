@@ -48,6 +48,39 @@ local M = {}
 ---a search for `7`.
 M.RECENT_DAYS = 7
 
+---How a runtime column reads, or `""` when nobody measured this at all.
+---
+---**"in your sessions", never "unused".** Telemetry only ever sees this
+---machine. Something cold here may be the hot path for every other user of
+---the plugin, and a line saying "unused" would be a confident wrong answer in
+---exactly the place someone is deciding whether to delete something.
+---`runtime-analysis.nvim`'s `IDEAS.md` §1.1 states this limit as a requirement
+---on the render — so it lives here, beside the data whose meaning it is,
+---rather than in each render. `churn`'s ranking and `history`'s impact list
+---are both renders of the same three states and must not word them
+---differently.
+---
+---Three outputs, because there are three states and the middle one is the
+---point: nobody measured, ran but not lately, ran lately. `nil` and `0` are
+---kept apart here as everywhere else in this module — "no entry" means the
+---function was never wrapped or no longer resolves, which is not the same
+---claim as "wrapped, watched, never called".
+---@param calls integer|nil Total calls, or nil when there is no entry at all.
+---@param calls_recent integer|nil Calls inside `M.RECENT_DAYS`; treated as 0 when absent.
+---@return string # Leading-separator suffix, ready to append to a line.
+function M.session_note(calls, calls_recent)
+  if calls == nil then
+    return ""
+  end
+  if calls == 0 then
+    return "  · not called in your sessions"
+  end
+  if (calls_recent or 0) == 0 then
+    return ("  · %d calls, none in the last week (yours)"):format(calls)
+  end
+  return ("  · %d calls, %d this week (yours)"):format(calls, calls_recent)
+end
+
 ---Calls recorded for `key` in the last `M.RECENT_DAYS` calendar days.
 ---
 ---**Calendar days, from `data.days`' own `YYYY-MM-DD` keys, not a rolling

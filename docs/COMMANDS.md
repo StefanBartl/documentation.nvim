@@ -197,6 +197,30 @@ lower than the diff looks, but they are not findings. When a span had to be
 approximated (an artifact predating `line_end`), the summary says so out loud
 instead of implying precision it does not have.
 
+**Ranked by what actually ran, when this machine has telemetry.** Thirty
+touched functions are thirty equal rows, and "where do I start" is the one
+question that list does not answer. With `runtime-analysis.nvim` collecting,
+the function that ran three hundred times this week sits above the one nothing
+has reached in months, and each row carries its counts — a queue instead of a
+set. Ordered by the last week rather than by lifetime totals: the question here
+is "is this alive", and a path abandoned three weeks ago is exactly what a
+pre-commit reader wants sorted downward.
+
+**This is the opposite call from `:DocMap churn` below, deliberately.** That
+ranking refuses to let telemetry move a row, because it is a verdict *about the
+codebase* and a shared verdict must not depend on whose machine produced it.
+This list is not that: it is a private, one-shot answer about your own
+uncommitted work, read once and never compared with anyone. "Which of the
+things I just changed do I actually exercise" is a question about this machine
+by construction. The wording rule is shared — never *"unused"*, always *"in
+your sessions"* — and so is the rule that absence is not a zero: a function
+telemetry never matched carries no column at all rather than a nought.
+
+Without telemetry, without `runtime-analysis.nvim`, or with nothing recorded,
+the list is byte-identical to what it was before the column existed — order
+included, and with no notice about it. This is not a telemetry command, so the
+three causes stay quiet here; `:DocMap untested` is where they are named.
+
 ### `:DocMap churn [rev-range]`
 
 Modules that are both **frequently changed** and **complex** → quickfix list,

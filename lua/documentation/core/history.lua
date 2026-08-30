@@ -381,11 +381,92 @@ end
 ---`unattributed` files come last. They are still information (they explain
 ---why the count is lower than the diff looks), but they are not findings, so
 ---they must not push the actionable entries down.
+---Order the touched functions by what actually ran, most recent first.
+---
+---**The reason the impact list needed this at all**: without it, thirty
+---touched functions are thirty equal rows, and "where do I start" is a
+---question the list does not answer. With it, the function that ran three
+---hundred times this week sits above the one nothing has reached in months --
+---a queue instead of a set.
+---
+---**`calls_recent` first, `calls` second -- the opposite call from
+---`telemetry_join.untested_hot`, deliberately.** That list ranks on totals
+---because its question is "did this ever run without a test watching", which
+---is not a question about this week. This one's question is "is this alive",
+---and only recency answers it: a path abandoned three weeks ago is exactly
+---what a pre-commit reader wants sorted downward, and totals would keep it at
+---the top forever.
+---
+---**A function with no entry sinks, and that is not a claim about it.**
+---`telemetry_join` contributes no row for a function that was never wrapped or
+---no longer resolves, which is a different fact from "wrapped, watched, never
+---called" -- so absence orders last and renders no note, rather than rendering
+---a zero it cannot justify.
+---
+---**`churn` reaches the opposite conclusion from the same data, and both are
+---right.** That ranking refuses to let telemetry move a row, because it is a
+---verdict *about the codebase* -- "which modules are refactoring risks" -- and
+---a shared verdict must not depend on whose machine produced it; two
+---developers would get two orders and neither would be wrong. This list is not
+---that. It is a private, one-shot answer about *your own uncommitted work*,
+---read once before a commit and never compared with anyone. "Which of the
+---things I just changed do I actually exercise" is a question about this
+---machine by construction, so machine-local evidence is the only thing that
+---could order it. The two must not be harmonised: `churn` gets a column,
+---`impact` gets a queue.
+---
+---Returns a new array; `impact.touched` belongs to the caller and two renders
+---of one analysis must not depend on which ran first. With no `reach` at all
+---the input order is preserved exactly, which is what keeps this off the
+---no-telemetry path entirely.
+---@param touched Documentation.History.Touched[]
+---@param reach table<string, Documentation.TelemetryJoin.Row>|nil Keyed `"<node>#<fn>"`, as `telemetry_join.by_key` returns it. nil leaves the order alone.
+---@return Documentation.History.Touched[]
+function M.rank_touched(touched, reach)
+  local out = {}
+  for i, t in ipairs(touched) do
+    out[i] = t
+  end
+  if reach == nil then
+    return out
+  end
+
+  ---@param t Documentation.History.Touched
+  ---@return integer recent
+  ---@return integer total
+  local function weight(t)
+    local row = reach[t.node .. "#" .. t.fn]
+    if row == nil then
+      return -1, -1
+    end
+    return row.calls_recent or 0, row.calls or 0
+  end
+
+  table.sort(out, function(a, b)
+    local ar, at = weight(a)
+    local br, bt = weight(b)
+    if ar ~= br then
+      return ar > br
+    end
+    if at ~= bt then
+      return at > bt
+    end
+    -- The same tie-break `analyze` sorts by, so two runs over one recording
+    -- produce one order and a reader scanning downward sees a stable list.
+    if a.node ~= b.node then
+      return a.node < b.node
+    end
+    return a.fn < b.fn
+  end)
+  return out
+end
+
 ---@param impact Documentation.History.Impact
 ---@param ir Documentation.IR Resolves node ids to files and module names.
 ---@param root string Absolute repo root; quickfix wants absolute paths.
+---@param reach table<string, Documentation.TelemetryJoin.Row>|nil Runtime reach per touched function (`telemetry_join.by_key`). Absent -- no `runtime-analysis.nvim`, no namespace, nothing recorded -- and both the order and every line are byte-identical to what this produced before the column existed.
 ---@return { filename: string, lnum: integer, col: integer, text: string }[]
-function M.quickfix_items(impact, ir, root)
+function M.quickfix_items(impact, ir, root, reach)
   local items = {}
 
   ---@param id string
@@ -395,16 +476,21 @@ function M.quickfix_items(impact, ir, root)
     return root .. "/" .. ((n and n.source) or id)
   end
 
-  for _, t in ipairs(impact.touched) do
-    local callers = impact.callers[t.node .. "#" .. t.fn] or {}
+  local note = reach and require("documentation.core.telemetry_join").session_note or nil
+
+  for _, t in ipairs(M.rank_touched(impact.touched, reach)) do
+    local key = t.node .. "#" .. t.fn
+    local callers = impact.callers[key] or {}
+    local row = reach and reach[key] or nil
     items[#items + 1] = {
       filename = node_file(t.node),
       lnum = t.line or 1,
       col = 1,
-      text = ("changed: %s   (%d caller%s)"):format(
+      text = ("changed: %s   (%d caller%s)%s"):format(
         t.signature or t.fn,
         #callers,
-        #callers == 1 and "" or "s"
+        #callers == 1 and "" or "s",
+        note and note(row and row.calls or nil, row and row.calls_recent or nil) or ""
       ),
     }
     for _, c in ipairs(callers) do

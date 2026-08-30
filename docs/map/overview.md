@@ -143,6 +143,7 @@ flowchart LR
   nlua_documentation_core_check_lua --> nlua_documentation_core_docs_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_lang_registry_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_telemetry_join_lua
+  nlua_documentation_core_churn_lua --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_coverage_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_doccoverage_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_findings_lua
@@ -167,6 +168,7 @@ flowchart LR
   nlua_documentation_core_functions_lua --> nlua_documentation_core_snippet_lua
   nlua_documentation_core_functions_lua --> nlua_documentation_core_symbols_lua
   nlua_documentation_core_history_lua --> nlua_documentation_core_deps_lua
+  nlua_documentation_core_history_lua --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_core_lang --> nlua_documentation_core_endpoints_lua
   nlua_documentation_core_lang --> nlua_documentation_core_functions_lua
   nlua_documentation_core_lang --> nlua_documentation_core_lang_registry_lua

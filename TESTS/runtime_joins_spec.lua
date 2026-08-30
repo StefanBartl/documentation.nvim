@@ -1,7 +1,8 @@
--- TESTS/runtime_joins_spec.lua — the two crossings from
--- `runtime-analysis.nvim`'s `docs/IDEAS.md` §1.1 and §1.2:
--- `telemetry_join.by_node` feeding `churn.rank`'s third axis, and
--- `telemetry_join.untested_hot` producing the hot-and-untested list.
+-- TESTS/runtime_joins_spec.lua — the three crossings from
+-- `runtime-analysis.nvim`'s `docs/IDEAS.md` §1.1, §1.2 and §1.3:
+-- `telemetry_join.by_node` feeding `churn.rank`'s third axis,
+-- `telemetry_join.untested_hot` producing the hot-and-untested list, and
+-- `telemetry_join.by_key` weighting `history`'s impact list by runtime reach.
 --
 -- Hand-built `Data` tables throughout, the same way
 -- `browse_telemetry_spec.lua` does the half that needs no live instance:
@@ -27,6 +28,7 @@ return function(H)
   local eq, ok = H.eq, H.ok
   local churn = require("documentation.core.churn")
   local join = require("documentation.core.telemetry_join")
+  local history = require("documentation.core.history")
 
   ---Two modules: `hot` and `cold`, each with one documented function, both
   ---churning identically so only the runtime axis can tell them apart.
@@ -207,5 +209,144 @@ return function(H)
     eq(#a, 2, "untested_hot: both qualify")
     eq(a[1].id .. a[1].fn, b[1].id .. b[1].fn, "untested_hot: ties break the same way twice")
     eq(a[1].id, "cold.lua", "untested_hot: an equal-call tie breaks by node id")
+  end
+
+  -- ###################################################################
+  -- IDEAS.md §1.3 — `:DocMap impact` weighted by runtime reach.
+  --
+  -- What these protect, and each would break quietly:
+  --
+  --   1. **No telemetry changes nothing.** `:DocMap impact` runs in trees
+  --      with no runtime-analysis.nvim and in CI. If the column's absence
+  --      moved a single row or added a single character, the feature would
+  --      have made the base case worse to improve the enriched one.
+  --   2. **Recency ranks, not totals** — the opposite call from
+  --      `untested_hot`, and the two sit in one file precisely so nobody
+  --      "fixes" the inconsistency without reading why.
+  --   3. **Absence is not zero.** A function telemetry has no entry for
+  --      sinks, but renders no note: "never wrapped" is not "watched and
+  --      never called".
+
+  ---One impact result over the same two modules: both touched, so only the
+  ---runtime axis can order them.
+  ---@return Documentation.History.Impact
+  local function fake_impact()
+    return {
+      files = { "hot.lua", "cold.lua" },
+      touched = {
+        { node = "cold.lua", fn = "run", line = 1, signature = "cold.run()" },
+        { node = "hot.lua", fn = "run", line = 1, signature = "hot.run()" },
+      },
+      callers = {},
+      calling_modules = {},
+      impacted_modules = {},
+      unattributed = {},
+      approximate = false,
+    }
+  end
+
+  do
+    -- The base case, asserted as an identity rather than by inspection: with
+    -- no reach the render must be exactly what it was before this existed.
+    local ir, impact = fake_ir(), fake_impact()
+    local plain = history.quickfix_items(impact, ir, "/repo")
+
+    eq(#plain, 2, "impact: both touched functions are listed")
+    ok(
+      plain[1].text:find("cold.run()", 1, true) ~= nil,
+      "impact: without telemetry the input order stands (cold sorts first by node id)"
+    )
+    ok(
+      plain[1].text:find("calls", 1, true) == nil,
+      "impact: ... and no row grows a runtime column out of nothing"
+    )
+  end
+
+  do
+    -- The whole point: `hot.run` ran this week, `cold.run` has no entry, so
+    -- the queue puts the live one first even though `cold` sorts before `hot`
+    -- alphabetically.
+    local ir, impact = fake_ir(), fake_impact()
+    local reach = join.by_key(ir, fake_data(30))
+    local items = history.quickfix_items(impact, ir, "/repo", reach)
+
+    ok(
+      items[1].text:find("hot.run()", 1, true) ~= nil,
+      "impact: what ran this week outranks what did not"
+    )
+    ok(
+      items[1].text:find("this week (yours)", 1, true) ~= nil,
+      "impact: the evidence rides along, in the shared wording"
+    )
+  end
+
+  do
+    -- Recency, not totals. `hot.run` keeps a large lifetime count but an idle
+    -- week; `cold.run` is quiet forever. The ordering must still be stable and
+    -- the row must say "none in the last week" rather than implying death.
+    local ir, impact = fake_ir(), fake_impact()
+    local reach = join.by_key(ir, fake_data(0))
+    local items = history.quickfix_items(impact, ir, "/repo", reach)
+
+    ok(
+      items[1].text:find("none in the last week (yours)", 1, true) ~= nil,
+      "impact: a cold path says so, and never says 'unused'"
+    )
+  end
+
+  do
+    -- The measured zero, which the shared fixture does produce: telemetry
+    -- resolved `cold.run` and watched it call nothing. That is a verdict, and
+    -- it gets the words for one.
+    local ir, impact = fake_ir(), fake_impact()
+    local reach = join.by_key(ir, fake_data(30))
+    ok(reach["cold.lua#run"] ~= nil, "impact: telemetry did resolve cold.run")
+
+    local items = history.quickfix_items(impact, ir, "/repo", reach)
+    local cold = items[2]
+    ok(
+      cold.text:find("cold.run()", 1, true) ~= nil,
+      "impact: the measured-zero row sorts below the live one"
+    )
+    ok(
+      cold.text:find("not called in your sessions", 1, true) ~= nil,
+      "impact: ... and says so, since telemetry actually watched it"
+    )
+  end
+
+  do
+    -- Absence, which is the other thing entirely. Drop `cold.run` from the
+    -- recording: nothing wrapped it, so nothing can speak for it. It sinks,
+    -- and it renders bare -- a zero here would be a claim the data cannot
+    -- support.
+    local ir, impact = fake_ir(), fake_impact()
+    local data = fake_data(30)
+    data.functions["cold.run"] = nil
+    data.modules["cold.run"] = nil
+
+    local reach = join.by_key(ir, data)
+    ok(reach["cold.lua#run"] == nil, "impact: an unwrapped function has no entry at all")
+
+    local items = history.quickfix_items(impact, ir, "/repo", reach)
+    eq(items[2].text, "changed: cold.run()   (0 callers)", "impact: absence renders no verdict")
+  end
+
+  do
+    -- rank_touched hands back a new array. Two renders of one analysis must
+    -- not depend on which ran first.
+    local ir, impact = fake_ir(), fake_impact()
+    local first = impact.touched[1]
+    history.quickfix_items(impact, ir, "/repo", join.by_key(ir, fake_data(30)))
+    eq(impact.touched[1], first, "impact: ranking leaves the caller's table alone")
+  end
+
+  do
+    -- Determinism: a reader scans this list downward, and two runs over one
+    -- recording must not shuffle it.
+    local ir, impact = fake_ir(), fake_impact()
+    local reach = join.by_key(ir, fake_data(30))
+    local a = history.rank_touched(impact.touched, reach)
+    local b = history.rank_touched(impact.touched, reach)
+    eq(a[1].node, b[1].node, "impact: ties break the same way twice")
   end
 end

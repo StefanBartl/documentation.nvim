@@ -17,10 +17,51 @@
 --- The out_dir exclusion is not optional. Measured on one commit here, the full
 --- diff is 4.8 MB of which all but 27 KB is the regenerated map — without it
 --- this analyses mostly its own output.
+---
+--- ## The runtime column
+---
+--- With `runtime-analysis.nvim` collecting, the list is ordered by what
+--- actually ran and each row carries its counts. That is the difference
+--- between a set and a queue: thirty touched functions are thirty equal rows
+--- until something says which six of them anyone reached this week.
+---
+--- **Soft, and silent about it.** This is not a telemetry command. No
+--- namespace, no plugin, or nothing recorded produces no notice and no
+--- degraded output — the list is then byte-identical to what it was before the
+--- column existed, order included. `usercmds/untested.lua` says all three
+--- causes out loud because the user asked for telemetry there; here they would
+--- be an answer to a question nobody asked.
 
 local list = require("lib.nvim.ui.list")
 
 local M = {}
+
+---@internal
+--- Runtime reach for the touched functions, or nil when there is none to be
+--- had.
+---
+--- Deliberately swallows every reason: not installed, no namespace, nothing
+--- recorded, or a join that matched nothing all mean the same thing to the
+--- caller — render the list the way it has always been rendered.
+---@param cfg table A resolved `Documentation.Opts`.
+---@param ir Documentation.IR
+---@return table<string, Documentation.TelemetryJoin.Row>|nil
+local function runtime_reach(cfg, ir)
+  local ok, join = pcall(require, "documentation.core.telemetry_join")
+  if not ok then
+    return nil
+  end
+  local namespace = join.namespace(cfg)
+  if not namespace then
+    return nil
+  end
+  local data = join.load(namespace)
+  if not data then
+    return nil
+  end
+  local reach = join.by_key(ir, data)
+  return next(reach) ~= nil and reach or nil
+end
 
 ---@param ctx Documentation.Bindings.Ctx
 ---@param arg string Everything after "impact" — a revision, or "" for HEAD.
@@ -72,9 +113,10 @@ function M.run(ctx, arg)
   local ir = ctx.handle.ir()
   local history = require("documentation.core.history")
   local result = history.analyze(dproc.stdout, ir, before)
+  local reach = runtime_reach(ctx.cfg, ir)
 
   list.qf(
-    history.quickfix_items(result, ir, ctx.cfg.root),
+    history.quickfix_items(result, ir, ctx.cfg.root, reach),
     ("docmap impact: %s → working tree"):format(ref),
     { open = false }
   )
@@ -87,15 +129,31 @@ function M.run(ctx, arg)
       )
     )
   else
+    -- How many of the touched functions telemetry could speak for at all.
+    -- Without it the ranking would be read as a claim about every row, and
+    -- the rows it cannot speak for are at the bottom looking like cold code
+    -- rather than like unmeasured code. Counted rather than implied.
+    local measured = ""
+    if reach then
+      local n = 0
+      for _, t in ipairs(result.touched) do
+        if reach[t.node .. "#" .. t.fn] then
+          n = n + 1
+        end
+      end
+      measured = ("  ·  %d of them measured, ranked by your sessions"):format(n)
+    end
+
     ctx.notify.info(
-      ("%d function(s) touched · %d caller module(s) · %d impacted transitively%s"):format(
+      ("%d function(s) touched · %d caller module(s) · %d impacted transitively%s%s"):format(
         #result.touched,
         #result.calling_modules,
         #result.impacted_modules,
         -- Said out loud rather than implied: an approximated span means the
         -- attribution over-reaches into the gaps between functions, and a
         -- reader deserves to know which kind of answer this is.
-        result.approximate and "  (spans approximated — pre-line_end artifact)" or ""
+        result.approximate and "  (spans approximated — pre-line_end artifact)" or "",
+        measured
       )
     )
   end

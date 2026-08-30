@@ -171,28 +171,16 @@ end
 
 ---How an entry's runtime column reads, or "" when nobody measured it.
 ---
----**"in your sessions", never "unused".** Telemetry only ever sees this
----machine. A module that is cold here may be the hot path for every other
----user of the plugin, and a quickfix line saying "unused" would be a
----confident wrong answer in exactly the place someone is deciding whether to
----delete something. `runtime-analysis.nvim`'s `IDEAS.md` §1.1 states this
----limit as a requirement on the render, and this is the render.
----
----Three outputs, because there are three states and the middle one is the
----point: no data at all, ran but not lately, and ran lately.
+---The wording rule -- "in your sessions", never "unused" -- and the three
+---states live in `telemetry_join.session_note`, beside the data whose meaning
+---they are. This ranking is one of two renders of them; `history`'s impact
+---list is the other, and the two must not word the same three states
+---differently. Required lazily: both modules are `core/`, and an inline
+---require keeps this one loadable without pulling the join in.
 ---@param e Documentation.Churn.Entry
 ---@return string
 local function runtime_note(e)
-  if not e.calls then
-    return ""
-  end
-  if e.calls == 0 then
-    return "  · not called in your sessions"
-  end
-  if (e.calls_recent or 0) == 0 then
-    return ("  · %d calls, none in the last week (yours)"):format(e.calls)
-  end
-  return ("  · %d calls, %d this week (yours)"):format(e.calls, e.calls_recent)
+  return require("documentation.core.telemetry_join").session_note(e.calls, e.calls_recent)
 end
 
 ---Quickfix rows for a ranking, in order.
