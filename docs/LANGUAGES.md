@@ -19,6 +19,7 @@ memory.
 - [Grammars](#grammars)
 - [What a missing grammar costs](#what-a-missing-grammar-costs)
 - [Parity](#parity)
+- [Owning scope](#owning-scope)
 - [Running the language specs](#running-the-language-specs)
 - [Adding a backend](#adding-a-backend)
 
@@ -406,6 +407,85 @@ Both are regression-tested in `TESTS/markers_spec.lua`.
   declaration as public**. Not an error and not a degraded parse: a confident
   wrong answer about the one question that file exists to settle. The audit's
   own first run hit it.
+
+---
+
+## Owning scope
+
+`Documentation.FunctionInfo.owner` names the class, `impl` block, trait,
+receiver type or inline module a function is declared in, and `owner_kind`
+says which of those it is. Both are set at the record site, where the parse
+tree still exists — the same place the qualified `name` is built, from the
+same local.
+
+**The kind is the construct as the language names it**, not a normalised
+"type". Rust settled that: `Widget::new`, `Doer::go` and `inner::helper` are
+written identically and are an inherent method, a trait method and an inline
+module's function. `Documentation.ScopeKind` therefore has `impl`, `trait`
+and `module` as separate values, plus `receiver` for Go — which has no
+enclosing block at all, because the owner is written on each method.
+
+Where the construct differs from a class only in what the compiler generates
+around it, it is reported as `class`: a Java `record`, a Scala `case class`, a
+Dart `mixin`, a Swift `actor`. The field answers "what groups these members",
+and those group them exactly as a class does.
+
+### Which backends set one
+
+| Sets an owner | |
+|---|---|
+| `python` | `class` |
+| `rust` | `impl`, `trait`, `module` (`mod x { … }`) |
+| `js` / `ts` / `tsx` | `class` |
+| `go` | `receiver`, `interface` |
+| `java` | `class`, `interface`, `enum` — including constructors, whose `name` is deliberately *not* qualified |
+| `csharp` | `class`, `interface`, `struct`, `enum` |
+| `kotlin` | `class`, `interface`, `object`, `enum` — a companion object's members are the type's |
+| `swift` | `class`, `struct`, `enum`, `protocol`, `extension` |
+| `scala` | `class`, `trait`, `object` |
+| `php` | `class`, `interface`, `trait`, `enum` |
+| `ruby` | `class`, `module` — both nest, and both are reported as the nested path |
+| `dart` | `class`, `enum`, `extension` |
+| `elixir` | `module` — every function has one, and a `.ex` file routinely holds several `defmodule`s |
+| `cpp` | `class`, `struct`, from the enclosing body only |
+
+**C++ reads the body, never the name's own prefix.** An out-of-line
+`void Thing::go() {}` and a namespace-qualified `void A::f() {}` are written
+identically, and this backend cannot tell a type from a namespace at that
+point — so the qualified `name` stays what it was and no owner is invented
+for it. Every declaration in a header, which is where a C++ class's surface
+actually is, sits inside the body and is owned.
+
+### Which do not, and why
+
+**Three are language facts.** `lua`, `asm` and `erlang` have no construct to
+read: their functions live at file scope. Lua's dotted `function M.foo()` is
+the module table — the node itself — and reporting `M` as an owner would
+invent a scope in every Lua file in every tree. C reaches the same answer
+through `cfamily.lua`, which sets an owner from a class or struct body that C
+never has.
+
+**Three are gaps, and are gaps rather than facts.** Each would need walk
+plumbing the backend does not have today, and none could be verified against
+a real parse when this landed:
+
+- `haskell` — a `class` declaration's methods, and an `instance` body's.
+- `ocaml` — `module X = struct … end`. The walk descends into the binding
+  already; it carries no scope while it does.
+- `zig` — `const S = struct { … }`, which is how Zig writes a namespace. The
+  owner is the *binding's* name, not a node of the struct's own.
+
+### What a scope is not
+
+A node. A scope has no summary, no coverage, no edges and no id — a Rust
+`mod x { … }` grouped this way is still read as part of its file. That is the
+open half of `MULTILANG.md`'s Phase 0 ("one file, many modules"), unchanged.
+What the owner closes is attribution: members are attributed to the thing that
+owns them instead of lying beside their neighbours.
+
+The grouping itself is derived, not stored — `documentation.core.scopes` for
+Lua-side consumers, and the same grouping in JavaScript on the generated page.
+`module_map.json` carries `owner`/`owner_kind` and nothing built from them.
 
 ---
 

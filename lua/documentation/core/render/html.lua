@@ -226,6 +226,11 @@ main{grid-template-columns:minmax(300px,1.1fr) minmax(0,1.4fr);gap:0;align-items
 .empty{color:var(--muted);font-size:13px;font-style:italic}
 .fn{margin-bottom:14px;padding-bottom:12px;border-bottom:1px dashed var(--line)}
 .fn:last-child{border-bottom:0;padding-bottom:0;margin-bottom:0}
+.scope{margin:14px 0 0;padding-left:11px;border-left:2px solid var(--line)}
+.scope-head{font-family:var(--mono);font-size:12.5px;color:var(--ink);font-weight:600;
+  margin:0 0 8px;margin-left:-11px}
+.scope-head .bd{margin-right:6px}
+.scope-head .sdet{font-size:11.5px;color:var(--muted);font-weight:400}
 .fn-sig{font-family:var(--mono);font-size:12.5px;color:var(--ink);font-weight:600}
 .fn-badges{display:inline-flex;gap:4px;margin-left:8px;vertical-align:middle}
 .fn-desc{font-size:12.5px;color:var(--muted);margin:4px 0}
@@ -1498,6 +1503,27 @@ local JS = [[
   // and the Calls-view links, both of which only make sense in the detail
   // pane, where `callOut`/`callIn` counts and a stable per-function anchor
   // exist.
+  // The owning scope, read from `fn.owner`/`fn.owner_kind` rather than from
+  // the front of `fn.name`. That distinction is the whole of engine item M7:
+  // a Python `Class.helper` written at module scope and a `helper` written
+  // inside `class Class` have the identical qualified name, and only the
+  // field separates them. Grouped here rather than baked into the artifact —
+  // this is exactly the data the page already has, and a second copy in
+  // `module_map.json` is one more thing that can disagree with itself.
+  //
+  // Returns `[freeFunctions, scopes]`, source order preserved in both.
+  function groupByOwner(fns){
+    var free = [], scopes = [], byName = {};
+    (fns || []).forEach(function(fn){
+      if(!fn.owner || !fn.owner_kind){ free.push(fn); return; }
+      var sc = byName[fn.owner];
+      if(!sc){ sc = { name: fn.owner, kind: fn.owner_kind, functions: [] };
+        byName[fn.owner] = sc; scopes.push(sc); }
+      sc.functions.push(fn);
+    });
+    return { free: free, scopes: scopes };
+  }
+
   function fnAnnotationHTML(fn){
     var h = [];
     var badges = [];
@@ -2406,8 +2432,9 @@ local JS = [[
     }
 
     if(n.functions && n.functions.length){
-      h.push('<div class="sec">Functions ('+n.functions.length+')</div>');
-      n.functions.forEach(function(fn){
+      // One function, rendered the same wherever it sits — the grouping
+      // below decides *where*, never *how*.
+      function pushFn(fn){
         var key = fnKey(n.id, fn.name);
         h.push('<div class="fn" data-fn="'+esc(key)+'">');
         h.push(fnAnnotationHTML(fn));
@@ -2430,6 +2457,29 @@ local JS = [[
         }
         var godboltFn = godboltTrigger("fn", key);
         if(godboltFn) h.push('<div class="fn-desc fn-see">'+godboltFn+'</div>');
+        h.push('</div>');
+      }
+
+      var grouped = groupByOwner(n.functions);
+      // The count line says how many scopes only when there are any: a Lua
+      // or C module has none and would otherwise carry a permanent "in 0
+      // scopes" that is true and reads like something is missing.
+      h.push('<div class="sec">Functions ('+n.functions.length
+        + (grouped.scopes.length
+            ? ', ' + grouped.scopes.length + ' scope' + (grouped.scopes.length===1?'':'s')
+            : '')
+        + ')</div>');
+      // Free functions first, then each scope with its own members. Twelve
+      // sibling rows for three classes of four methods was the state this
+      // replaces.
+      grouped.free.forEach(pushFn);
+      grouped.scopes.forEach(function(sc){
+        h.push('<div class="scope"><div class="scope-head">'
+          + '<span class="bd sk-table">'+esc(sc.kind)+'</span>'
+          + esc(sc.name)
+          + ' <span class="sdet">'+sc.functions.length+' function'
+          + (sc.functions.length===1?'':'s')+'</span></div>');
+        sc.functions.forEach(pushFn);
         h.push('</div>');
       });
     }

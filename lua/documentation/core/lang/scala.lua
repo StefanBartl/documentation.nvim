@@ -379,7 +379,8 @@ function M.scan_file(path)
   ---@param node userdata `function_definition`
   ---@param owner string?
   ---@param inherited boolean?
-  local function record_function(node, owner, inherited)
+  ---@param owner_kind Documentation.ScopeKind? Which definition `owner` is. Passed down like `inherited`: the node kind is `record_type`'s to read, not this one's to rediscover from a parent walk.
+  local function record_function(node, owner, inherited, owner_kind)
     local name_node = child_of(node, "identifier") or child_of(node, "operator_identifier")
     if not name_node then
       return
@@ -399,6 +400,8 @@ function M.scan_file(path)
       returns = doc.returns,
       deprecated = doc.deprecated,
       internal = is_internal(node, src, inherited),
+      owner = owner,
+      owner_kind = owner and (owner_kind or "class") or nil,
       see = {},
       overload = {},
       todo = {},
@@ -453,6 +456,14 @@ function M.scan_file(path)
       inherited = false
     end
 
+    -- A `case class` is a class here for the same reason a Java record is:
+    -- it groups its members identically and differs in what the compiler
+    -- generates around them.
+    ---@type Documentation.ScopeKind
+    local owner_kind = kind == "trait_definition" and "trait"
+      or kind == "object_definition" and "object"
+      or "class"
+
     -- A class's constructor parameters are its fields, the shape Kotlin's
     -- primary constructor has — and in a `case class` they are the whole of
     -- the type's surface.
@@ -480,7 +491,7 @@ function M.scan_file(path)
       for member in body:iter_children() do
         local mk = member:type()
         if mk == "function_definition" or mk == "function_declaration" then
-          record_function(member, bare, inherited)
+          record_function(member, bare, inherited, owner_kind)
         elseif mk == "val_definition" or mk == "var_definition" then
           record_value(member, bare)
         end

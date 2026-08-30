@@ -412,6 +412,13 @@ function M.scan_file(path)
               -- `defp` is private, and `@doc false` is the author saying a
               -- public function is not part of the published surface.
               internal = name == "defp" or name == "defmacrop" or pending_hidden,
+              -- **Every Elixir function has an owner**, and this is the one
+              -- backend where that is the interesting fact rather than the
+              -- exception: a `.ex` file routinely holds several `defmodule`s,
+              -- so the owner is what separates them. The node is still the
+              -- file — see `core/scopes.lua` on what a scope is not.
+              owner = owner,
+              owner_kind = "module",
               see = {},
               overload = {},
               todo = {},

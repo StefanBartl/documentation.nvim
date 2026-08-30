@@ -422,7 +422,8 @@ function M.scan_file(path)
   ---@param node userdata
   ---@param owner string?
   ---@param inherited boolean?
-  local function record_function(node, owner, inherited)
+  ---@param owner_kind Documentation.ScopeKind? Which declaration `owner` is — read from the keyword by `record_type`, for the same reason `inherited` is passed rather than rediscovered.
+  local function record_function(node, owner, inherited, owner_kind)
     local name_node = child_of(node, "simple_identifier")
     if not name_node then
       return
@@ -441,6 +442,8 @@ function M.scan_file(path)
       params = doc.params,
       returns = doc.returns,
       internal = is_internal(node, src, inherited),
+      owner = owner,
+      owner_kind = owner and (owner_kind or "class") or nil,
       see = {},
       overload = {},
       todo = {},
@@ -517,6 +520,16 @@ function M.scan_file(path)
       inherited = false
     end
 
+    -- `actor` has no `Documentation.ScopeKind` of its own: it groups members
+    -- exactly as a class does and differs in concurrency, which is not what
+    -- this field is about.
+    ---@type Documentation.ScopeKind
+    local owner_kind = what == "protocol" and "protocol"
+      or what == "struct" and "struct"
+      or what == "enum" and "enum"
+      or what == "extension" and "extension"
+      or "class"
+
     local body = child_of(node, "class_body")
       or child_of(node, "protocol_body")
       or child_of(node, "enum_class_body")
@@ -524,7 +537,7 @@ function M.scan_file(path)
       for member in body:iter_children() do
         local mk = member:type()
         if mk == "function_declaration" or mk == "protocol_function_declaration" then
-          record_function(member, bare, inherited)
+          record_function(member, bare, inherited, owner_kind)
         elseif mk == "property_declaration" or mk == "protocol_property_declaration" then
           record_property(member, bare)
         end

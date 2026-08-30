@@ -999,6 +999,28 @@ never go through it — get their own cheap read. `stats.types` is the exception
 that `scan` cannot fill, since the class/alias count only exists once LuaLS
 enrichment ran, so `luals.merge` fills and rolls it up the same way.
 
+**Owning scope** (`fn.owner`, `fn.owner_kind`,
+[`scopes.lua`](../lua/documentation/core/scopes.lua)). A function records the
+class, `impl` block, trait, receiver type or inline module it is declared in,
+set by the backend at the point the parse tree still exists. The detail pane's
+Functions section groups on it: a Python file with three classes of four
+methods reads `Functions (12, 3 scopes)` with each class heading its own four
+instead of twelve sibling rows beside a class name that owns nothing.
+
+Not derivable from the name, which is why it is a field. `Class.helper`
+written at module scope and `helper` written inside `class Class` produce the
+identical `name`; Lua's `M.foo` is dotted because `M` is the module table, not
+an owner; Ruby writes `Class#method` and `Class.method`, PHP and Rust `::`.
+The grouping itself is derived rather than stored — `core/scopes.lua` for the
+Lua side, the same grouping in JavaScript on the page — the opposite call from
+`ir.duplicates`, which is serialised precisely because the page cannot
+recompute `fn.shape` without a parse tree. It can read `fn.owner`.
+
+A scope is not a node: no summary, no coverage, no edges, no id. A Rust
+`mod x { … }` grouped this way is still read as part of its file. See
+[`LANGUAGES.md`](LANGUAGES.md)'s *Owning scope* for which backends set it and
+which three do not and should.
+
 ## Call-graph scanning (`kind="call"` edges)
 
 [`calls.lua`](../lua/documentation/core/calls.lua) reuses the tree [`functions.lua`](../lua/documentation/core/functions.lua)

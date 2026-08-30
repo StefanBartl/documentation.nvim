@@ -295,6 +295,12 @@ function M.run(opts, argv)
       )
     )
   end
+  -- Silent for a tree whose languages have no owning construct, which is
+  -- most of the Lua ones this runs against — see `core/scopes.lua`.
+  local scope_line = require("documentation.core.scopes").summary(ir)
+  if scope_line then
+    io.stdout:write(scope_line .. "\n")
+  end
   local doccoverage = require("documentation.core.doccoverage")
   local documented, doc_total = doccoverage.summary(ir)
   if doc_total > 0 then

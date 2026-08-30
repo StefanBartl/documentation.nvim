@@ -266,8 +266,10 @@ end
 ---no `:lang()` of its own in this Neovim's treesitter API (only the parser
 ---that produced it does), so this is threaded down from `M.backend` rather
 ---than re-derived from `func_node:tree()`.
+---@param name_override string? The qualified name, when the caller knows one the node itself does not carry.
+---@param owner string? Owning class, for a `method_definition`.
 ---@return Documentation.FunctionInfo
-local function build_fn(name_node, func_node, stmt_node, src, lang, name_override)
+local function build_fn(name_node, func_node, stmt_node, src, lang, name_override, owner)
   local name = name_override or vim.treesitter.get_node_text(name_node, src)
   local params_node = func_node:field("parameters")[1]
   local params_text = params_node and vim.treesitter.get_node_text(params_node, src) or "()"
@@ -297,6 +299,11 @@ local function build_fn(name_node, func_node, stmt_node, src, lang, name_overrid
     shape = shape,
     shape_size = shape_size,
     internal = parsed.internal,
+    -- `class` is the only owning construct the ECMA family has — an object
+    -- literal's methods are values of a binding, not members of a type, and
+    -- `exports_object_functions` deliberately reads them as the module's own.
+    owner = owner,
+    owner_kind = owner and "class" or nil,
     see = {},
     overload = {},
     todo = {},
@@ -707,7 +714,8 @@ local function class_functions(stmt_node, src, lang)
           member,
           src,
           lang,
-          class_name .. "." .. vim.treesitter.get_node_text(name_node, src)
+          class_name .. "." .. vim.treesitter.get_node_text(name_node, src),
+          class_name
         )
         if fn then
           out[#out + 1] = fn

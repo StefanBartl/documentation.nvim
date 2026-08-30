@@ -421,7 +421,8 @@ function M.scan_file(path)
   ---and inner types are ordinary, so this is not the rare case it looks
   ---like.
   ---@param node userdata
-  ---@return string?
+  ---@return string? name
+  ---@return Documentation.ScopeKind? kind Which of the four declarations it was. A `record` is reported as a `class`: `Documentation.ScopeKind` names constructs that group methods differently, and a record groups them exactly as a class does.
   local function owner(node)
     local parent = node:parent()
     while parent do
@@ -433,11 +434,17 @@ function M.scan_file(path)
         or kind == "record_declaration"
       then
         local name = child_of(parent, "identifier")
-        return name and text_of(name, src) or nil
+        if not name then
+          return nil, nil
+        end
+        return text_of(name, src),
+          kind == "interface_declaration" and "interface"
+            or kind == "enum_declaration" and "enum"
+            or "class"
       end
       parent = parent:parent()
     end
-    return nil
+    return nil, nil
   end
 
   ---@param node userdata
@@ -449,7 +456,7 @@ function M.scan_file(path)
     local name = text_of(name_node, src)
     local params_node = child_of(node, "formal_parameters")
     local signature = name .. (params_node and text_of(params_node, src) or "()")
-    local qualified = owner(node)
+    local qualified, owner_kind = owner(node)
     local doc = doc_above(blocks, srow)
     local parsed = doc and parse_doc(doc)
       or { summary = "", body = "", params = {}, returns = {}, see = {}, todo = {} }
@@ -468,6 +475,11 @@ function M.scan_file(path)
       deprecated = parsed.deprecated,
       -- Four visibilities collapse to two; see this module's header.
       internal = not is_public(node, src),
+      -- Set for a constructor too, whose `name` above is deliberately *not*
+      -- qualified — which is the clearest case in any of these backends for
+      -- why the owner has to be its own field rather than a name prefix.
+      owner = qualified,
+      owner_kind = qualified and owner_kind or nil,
       see = parsed.see,
       overload = {},
       todo = parsed.todo,

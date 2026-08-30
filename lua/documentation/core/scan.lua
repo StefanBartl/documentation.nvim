@@ -35,7 +35,7 @@ local marker_scan = require("documentation.core.markers")
 ---the thing that actually decides whether two artifacts are comparable, so
 ---it is the honest answer to that question rather than a semver nobody
 ---bumps.
-M.SCHEMA = 5
+M.SCHEMA = 6
 
 ---Directories the walk never descends into, and the same list
 ---`core/lang/ecma.lua` consults when deciding whether a candidate directory

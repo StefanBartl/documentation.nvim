@@ -759,6 +759,11 @@ function M.scan_file(path)
       params = doc.params,
       returns = doc.returns,
       internal = is_internal(bare, scope),
+      -- The owner as a fact, beside the owner as a prefix of `name`. Python
+      -- has exactly one owning construct, so the kind is a constant here —
+      -- see `Documentation.ScopeKind` for why it is recorded anyway.
+      owner = owner,
+      owner_kind = owner and "class" or nil,
       see = {},
       overload = {},
       todo = {},

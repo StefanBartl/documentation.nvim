@@ -442,7 +442,8 @@ function M.scan_file(path)
   ---@param node userdata
   ---@param owner string?
   ---@param inherited boolean?
-  local function record_function(node, owner, inherited)
+  ---@param owner_kind Documentation.ScopeKind? Which declaration `owner` is, supplied by `record_type` alongside `inherited`.
+  local function record_function(node, owner, inherited, owner_kind)
     local name_node = child_of(node, "name")
     if not name_node then
       return
@@ -465,6 +466,8 @@ function M.scan_file(path)
       -- both: the keyword, and PHPDoc's own `@internal`. Either one is
       -- enough to keep a declaration out of the published surface.
       internal = is_internal(node, src, inherited) or doc.internal,
+      owner = owner,
+      owner_kind = owner and (owner_kind or "class") or nil,
       see = {},
       overload = {},
       todo = {},
@@ -498,10 +501,15 @@ function M.scan_file(path)
     -- class member's absent modifier already means public, so `inherited`
     -- only has to be supplied for the case where the keyword is forbidden.
     local inherited = kind == "interface_declaration" and false or nil
+    ---@type Documentation.ScopeKind
+    local owner_kind = kind == "interface_declaration" and "interface"
+      or kind == "trait_declaration" and "trait"
+      or kind == "enum_declaration" and "enum"
+      or "class"
     for member in body:iter_children() do
       local mk = member:type()
       if mk == "method_declaration" then
-        record_function(member, bare, inherited)
+        record_function(member, bare, inherited, owner_kind)
       elseif mk == "const_declaration" or mk == "property_declaration" then
         local doc_member = parse_doc(blocks[member:start() - 1])
         for element in member:iter_children() do

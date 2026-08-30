@@ -340,7 +340,8 @@ function M.scan_file(path)
   ---@param sig userdata `function_signature`
   ---@param owner string?
   ---@param row integer 0-based row the declaration starts on.
-  local function record_function(sig, owner, row)
+  ---@param owner_kind Documentation.ScopeKind? Which declaration `owner` is, from `record_type`.
+  local function record_function(sig, owner, row, owner_kind)
     local name_node = child_of(sig, "identifier")
     if not name_node then
       return
@@ -361,6 +362,8 @@ function M.scan_file(path)
       -- The member's own name decides, not its class's: a public class
       -- routinely holds `_helper`.
       internal = is_internal(bare),
+      owner = owner,
+      owner_kind = owner and (owner_kind or "class") or nil,
       see = {},
       overload = {},
       todo = {},
@@ -392,6 +395,12 @@ function M.scan_file(path)
     if not body then
       return
     end
+    -- A `mixin` is a class here: it groups members the same way, and what
+    -- makes it a mixin is how it is *used*, which is not this field.
+    ---@type Documentation.ScopeKind
+    local owner_kind = node:type() == "extension_declaration" and "extension"
+      or node:type() == "enum_declaration" and "enum"
+      or "class"
     -- **The row a member starts on is not always the row its doc sits above.**
     -- A `method_signature` wraps the `function_signature`, and the doc run
     -- ends one row above the *outer* node — so the outer row is what is
@@ -401,7 +410,7 @@ function M.scan_file(path)
       if mk == "method_signature" then
         local sig = child_of(member, "function_signature")
         if sig then
-          record_function(sig, bare, member:start())
+          record_function(sig, bare, member:start(), owner_kind)
         end
       elseif mk == "declaration" then
         -- **A `declaration` is three different things**, and reading it as
@@ -414,7 +423,7 @@ function M.scan_file(path)
         local inner_sig = child_of(member, "function_signature")
         local ctor = child_of(member, "constructor_signature")
         if inner_sig then
-          record_function(inner_sig, bare, member:start())
+          record_function(inner_sig, bare, member:start(), owner_kind)
           goto continue_member
         elseif ctor then
           local cname = child_of(ctor, "identifier")
@@ -436,6 +445,8 @@ function M.scan_file(path)
               params = {},
               returns = {},
               internal = is_internal(text_of(cname, src)),
+              owner = bare,
+              owner_kind = owner_kind,
               see = {},
               overload = {},
               todo = {},

@@ -201,6 +201,30 @@ return function(H)
   )
   eq(by["inner::nested"].summary, "Inside it.")
 
+  -- **The three owners Rust writes identically.** `Widget::new`,
+  -- `Doer::go` and `inner::nested` are the same shape of name and three
+  -- different things; the kind is what separates them, and this is the
+  -- language that made engine item M7 worth building.
+  eq(by["Widget::new"].owner, "Widget")
+  eq(by["Widget::new"].owner_kind, "impl", "the block groups these, not the struct")
+  eq(by["Doer::go"].owner, "Doer")
+  eq(by["Doer::go"].owner_kind, "trait")
+  eq(by["inner::nested"].owner, "inner")
+  eq(by["inner::nested"].owner_kind, "module", "the one Rust owner that is not a type")
+  eq(by["add"].owner, nil, "a free function has no owner")
+
+  local scopes = require("documentation.core.scopes")
+  local free, groups = scopes.split(fns)
+  eq(#groups, 3, "impl Widget, trait Doer, mod inner")
+  eq(#free, 2, "add and private are the file's own")
+  local kinds = {}
+  for _, sc in ipairs(groups) do
+    kinds[sc.name] = sc.kind
+  end
+  eq(kinds["Widget"], "impl")
+  eq(kinds["Doer"], "trait")
+  eq(kinds["inner"], "module")
+
   -- The doc comment sits above an attribute, which sits above the item.
   local sym = {}
   for _, s in ipairs(symbols) do

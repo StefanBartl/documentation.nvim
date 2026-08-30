@@ -494,7 +494,9 @@ function M.backend(name, grammar, extensions, roots)
     ---@param node userdata the declaration or definition
     ---@param decl userdata the `function_declarator` inside it
     ---@param internal boolean
-    local function record(node, decl, internal)
+    ---@param owner string? Enclosing class or struct, when the member is written inside its body.
+    ---@param owner_kind Documentation.ScopeKind? `class` or `struct`, from the keyword.
+    local function record(node, decl, internal, owner, owner_kind)
       local fname = declared_name(decl, src)
       if not fname then
         return
@@ -516,6 +518,15 @@ function M.backend(name, grammar, extensions, roots)
         returns = parsed.returns,
         deprecated = parsed.deprecated,
         internal = internal,
+        -- **Only the enclosing body's owner, never the name's own prefix.**
+        -- An out-of-line `void Thing::go() {}` and a namespace-qualified
+        -- `void A::f() {}` are written identically, and this backend has no
+        -- way to tell a type from a namespace at that point — so the
+        -- qualified `name` stays exactly what it was and no owner is
+        -- invented for it. In-body members, which is every declaration in a
+        -- header, are owned.
+        owner = owner,
+        owner_kind = owner and owner_kind or nil,
         see = parsed.see,
         overload = {},
         todo = parsed.todo,
@@ -577,6 +588,13 @@ function M.backend(name, grammar, extensions, roots)
     ---because there is nothing on the member node itself to look up.
     local access = nil
 
+    ---The class or struct currently being walked into, tracked exactly as
+    ---`access` is and for the same reason: a member declaration carries no
+    ---trace of the body it sits in.
+    local owner = nil
+    ---@type Documentation.ScopeKind?
+    local owner_kind = nil
+
     local function walk(node)
       local kind = node:type()
 
@@ -602,7 +620,13 @@ function M.backend(name, grammar, extensions, roots)
           decl = decl or function_declarator(child)
         end
         if decl then
-          record(node, decl, is_static(node, src) or access == "private" or access == "protected")
+          record(
+            node,
+            decl,
+            is_static(node, src) or access == "private" or access == "protected",
+            owner,
+            owner_kind
+          )
         end
         -- A definition's body holds statements, not declarations worth
         -- reporting; walking into it would find a function-pointer local
@@ -660,7 +684,13 @@ function M.backend(name, grammar, extensions, roots)
         end
         if decl then
           if header_file then
-            record(node, decl, is_static(node, src) or access == "private" or access == "protected")
+            record(
+              node,
+              decl,
+              is_static(node, src) or access == "private" or access == "protected",
+              owner,
+              owner_kind
+            )
           end
           -- A prototype is a function either way, and a function is never
           -- also a symbol -- the same line `core/symbols.lua` draws when it
@@ -690,12 +720,18 @@ function M.backend(name, grammar, extensions, roots)
         end
         return
       elseif kind == "class_specifier" or kind == "struct_specifier" then
-        local outer = access
+        local outer, outer_owner, outer_kind = access, owner, owner_kind
         access = kind == "class_specifier" and "private" or "public"
+        -- Saved and restored the same way `access` already is, and for the
+        -- same reason: C++ nests these, and an inner class must not leave
+        -- its name behind for the members declared after it.
+        local name_node = child_of(node, "type_identifier")
+        owner = name_node and text_of(name_node, src) or owner
+        owner_kind = kind == "class_specifier" and "class" or "struct"
         for child in node:iter_children() do
           walk(child)
         end
-        access = outer
+        access, owner, owner_kind = outer, outer_owner, outer_kind
         return
       elseif kind == "access_specifier" then
         access = text_of(node, src):match("^(%a+)")

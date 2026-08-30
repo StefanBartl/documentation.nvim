@@ -493,7 +493,8 @@ function M.scan_file(path)
   ---@param node userdata
   ---@param scope string? Enclosing inline module or type, for a qualified name.
   ---@param inherited boolean? The enclosing trait's visibility, when inside one.
-  local function record_function(node, scope, inherited)
+  ---@param kind Documentation.ScopeKind? What `scope` is, when there is one. Rust is the language that most needs the distinction kept: `x::helper`, `Widget::new` and `Doer::go` are written identically and are an inline module's function, an inherent method and a trait method.
+  local function record_function(node, scope, inherited, kind)
     local name_node = child_of(node, "identifier")
     if not name_node then
       return
@@ -512,6 +513,8 @@ function M.scan_file(path)
       params = {},
       returns = {},
       internal = is_internal(node, src, inherited),
+      owner = kind and scope or nil,
+      owner_kind = scope and kind or nil,
       see = {},
       overload = {},
       todo = {},
@@ -543,7 +546,7 @@ function M.scan_file(path)
       local trait_internal = is_internal(node, src)
       for member in body:iter_children() do
         if member:type() == "function_signature_item" or member:type() == "function_item" then
-          record_function(member, bare, trait_internal)
+          record_function(member, bare, trait_internal, "trait")
         end
       end
     end
@@ -567,7 +570,10 @@ function M.scan_file(path)
           end
         end
       elseif kind == "function_item" then
-        record_function(child, scope)
+        -- At file top level `scope` is nil and this is a free function; inside
+        -- `mod x { … }` it is the inline module path, which is the one owning
+        -- scope in this language that is not a type.
+        record_function(child, scope, nil, scope and "module" or nil)
       elseif
         kind == "struct_item"
         or kind == "enum_item"
@@ -586,7 +592,9 @@ function M.scan_file(path)
         if body then
           for member in body:iter_children() do
             if member:type() == "function_item" then
-              record_function(member, owner)
+              -- `impl` rather than the type's own `struct`/`enum` kind: the
+              -- block is what groups these, and one type can have several.
+              record_function(member, owner, nil, "impl")
             end
           end
         end

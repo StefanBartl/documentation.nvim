@@ -873,6 +873,76 @@ enough (the same shape Lua already has) that Phase 1 does not require
 them. Recorded as deferred-with-reason in `MULTILANG.md` itself, not
 silently skipped.
 
+## Owning scope as an IR field, schema 6 (2026-08-30)
+
+The Phase-0 item `MULTILANG.md` opened and left open twice, and the last one
+of that phase: **a function now records what owns it**, as
+`Documentation.FunctionInfo.owner` plus a `Documentation.ScopeKind` beside
+it, and the generated page shows a class with its methods under it instead of
+its methods lying beside their neighbours.
+
+**The reason it needed a field rather than a better string.** Every backend
+that has an owner already knew it and spent it on the display name —
+`Class.method`, `Widget::new`, `Doer::go`. That name is right and was never
+the whole fact, because it cannot be read backwards:
+
+- `Class.helper` written at module scope and `helper` written inside
+  `class Class` produce the identical `name`. Answering "which methods does
+  this class have" by prefix match gets the first one wrong, silently.
+- Lua's own `function M.foo()` is dotted because `M` is the module table. A
+  prefix match over a mixed tree groups by punctuation, not by structure —
+  and would invent a scope called `M` in every Lua file ever scanned.
+- Ruby writes `Class#method` and `Class.method`, PHP and Rust write `::`. A
+  consumer matching prefixes needs all four separators to ask one question.
+
+`TESTS/scopes_spec.lua` asserts exactly those three, because they are the
+cases the cheap alternative gets wrong and the only reason the field exists.
+
+**The kind is the language's own construct, not a normalised "type".** Rust
+made that call: `Widget::new`, `Doer::go` and `inner::helper` are written
+identically and are an inherent method, a trait method and an inline module's
+function. Flattening all three to "class" would throw away the one thing a
+reader of that file is looking for. So `impl`, `trait` and `module` are all
+kinds, and so are `receiver` (Go, which has no enclosing block at all —
+the owner is written on each method) and `protocol`, `extension`, `object`.
+
+**Derived, never serialised.** `Documentation.ScopeInfo` is grouping, not
+data: `core/scopes.lua` produces it for Lua-side consumers and the page does
+the same grouping in JavaScript from the same two fields. This is the
+opposite call from `ir.duplicates`, which *is* serialised — and that entry
+states its own reason, which does not apply here: a page has no parse tree to
+recompute `fn.shape` with, and it has `fn.owner` right there.
+
+**What a scope is not: a node.** A Rust `mod x { … }` grouped this way is
+still read as part of its file — no summary, no coverage, no edges, no id of
+its own. That is the honest state of Phase 0's *other* half, "one file, many
+modules", which stays open on the same terms it has had since 2026-08-20.
+What closed is attribution.
+
+**Fourteen of the twenty backend files set an owner, six do not, and the
+difference between a language fact and a gap is stated rather than left to be
+inferred.** Lua, assembly and Erlang have nothing to set: their functions live
+at file scope, and Lua's dotted `M.foo` is the module table, not an owner. C
+is the same and reaches it differently — `cfamily.lua` sets an owner from a
+class or struct body, which C never has. The three real gaps are Haskell's
+`class`/`instance`, OCaml's `module X = struct … end` and Zig's
+`const S = struct { … }`; each needs walk plumbing that does not exist yet,
+none could be verified against a real parse on the machine this was built on,
+and all three are named as gaps in [`LANGUAGES.md`](LANGUAGES.md) rather than
+left looking like language facts.
+
+**Verified against real parses of the two languages the item was about.**
+Python and Rust grammars were on hand, so `lang_python_spec.lua` and
+`lang_rust_spec.lua` assert owner and kind from real trees, and a scratch
+polyglot repository was generated and read back through the actual page: a
+Python file with two classes renders `Functions (6, 2 scopes)` with three
+methods under `class Widget` and two under `class Gadget`, and the Rust file
+renders `impl Widget`, `trait Doer` and `module inner` as three groups with
+`top()` free above them. The other twelve backends are mechanical additions
+at record sites where `owner` was already a live local, and — except `ecma`
+and `go`, which CI builds grammars for — are as unexercised as they already
+were.
+
 ## `core/lang/ecma.lua` — JavaScript, TypeScript and TSX as real backends (2026-08-03)
 
 Phase 1 of the language work: the first real (non-Lua) language

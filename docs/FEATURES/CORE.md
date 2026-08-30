@@ -387,3 +387,40 @@ without a live session.
   [BINDINGS.md](../BINDINGS.md#user-commands))
 - **Tests:** `TESTS/bindings_spec.lua`
 - **Docs:** [`docs/COMMANDS.md`](../COMMANDS.md) "`:DocMap bindings`" section.
+
+## Owning scope — a class with its methods under it
+
+A function records what owns it: `Documentation.FunctionInfo.owner` (the
+class, `impl` block, trait, receiver type or inline module it is declared in)
+and `owner_kind` (which of those it is). Fourteen of the twenty backend files
+set it; the rest have no such construct to read, and the three that do and
+still do not are named as gaps in [`LANGUAGES.md`](../LANGUAGES.md).
+
+The visible effect is in the detail pane. A Python file with three classes of
+four methods used to be twelve sibling entries beside a class name that owned
+nothing; it now reads `Functions (12, 3 scopes)` with each class heading its
+own four. A Rust file separates `impl Widget`, `trait Doer` and
+`mod inner { … }` — three groups whose names are written identically and
+which are three different things.
+
+**Why a field and not a prefix match on the name.** `Class.helper` written at
+module scope and `helper` written inside `class Class` produce the identical
+`name`; Lua's own `M.foo` is dotted because `M` is the module table; Ruby
+writes `Class#method` and `Class.method`, PHP and Rust `::`. Grouping by
+punctuation gets all three wrong, and `TESTS/scopes_spec.lua` asserts exactly
+those cases.
+
+**Derived, never serialised.** `module_map.json` carries the two fields and
+nothing built from them: the grouping is `core/scopes.lua` for Lua-side
+consumers and the same grouping in JavaScript on the page. A scope is not a
+node — no summary, no coverage, no edges, no id.
+
+- **Module:** `core/scopes.lua` (`M.group`, `M.split`, `M.all`, `M.summary`),
+  the fourteen `core/lang/*.lua` backends that set the fields,
+  `core/render/html.lua` (`groupByOwner`)
+- **Config:** none — always available, and silent for a language with no
+  owning construct.
+- **Artifact:** `Documentation.FunctionInfo.owner`/`owner_kind`, schema 6
+- **Tests:** `TESTS/scopes_spec.lua`, plus owner assertions in
+  `TESTS/lang_python_spec.lua` and `TESTS/lang_rust_spec.lua`
+- **Docs:** [`docs/LANGUAGES.md`](../LANGUAGES.md) "Owning scope" section.

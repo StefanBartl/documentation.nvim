@@ -408,7 +408,8 @@ function M.scan_file(path)
   ---@param node userdata `method` or `singleton_method`
   ---@param owner string?
   ---@param internal boolean Current positional visibility.
-  local function record_method(node, owner, internal)
+  ---@param owner_kind Documentation.ScopeKind? `class` or `module` — Ruby's two owning constructs, both of which can hold methods and both of which nest.
+  local function record_method(node, owner, internal, owner_kind)
     local name_node = child_of(node, "identifier")
       or child_of(node, "constant")
       or child_of(node, "operator")
@@ -435,6 +436,8 @@ function M.scan_file(path)
       -- affects instance methods only, which is a Ruby subtlety worth
       -- getting right rather than approximating.
       internal = (not singleton and internal) or doc.internal,
+      owner = owner,
+      owner_kind = owner and (owner_kind or "class") or nil,
       see = {},
       overload = {},
       todo = {},
@@ -482,7 +485,8 @@ function M.scan_file(path)
 
   ---@param body userdata `body_statement`
   ---@param owner string? Enclosing module/class path.
-  local function walk_body(body, owner)
+  ---@param owner_kind Documentation.ScopeKind? What `owner` was declared as.
+  local function walk_body(body, owner, owner_kind)
     -- **Positional visibility, tracked while walking.** `private` is a call
     -- that changes the default for everything after it; there is nothing on
     -- a definition to read. The same answer C++'s access specifier needed.
@@ -499,7 +503,7 @@ function M.scan_file(path)
           internal = false
         end
       elseif kind == "method" or kind == "singleton_method" then
-        record_method(child, owner, internal)
+        record_method(child, owner, internal, owner_kind)
       elseif kind == "class" or kind == "module" then
         local name_node = child_of(child, "constant") or child_of(child, "scope_resolution")
         if name_node then
@@ -515,7 +519,7 @@ function M.scan_file(path)
           }
           local inner = child_of(child, "body_statement")
           if inner then
-            walk_body(inner, nested)
+            walk_body(inner, nested, kind == "module" and "module" or "class")
           end
         end
       elseif kind == "assignment" then
@@ -607,7 +611,7 @@ function M.scan_file(path)
           }
           local inner = child_of(child, "body_statement")
           if inner then
-            walk_body(inner, nested)
+            walk_body(inner, nested, kind == "module" and "module" or "class")
           end
         end
       elseif kind == "call" then
@@ -616,6 +620,9 @@ function M.scan_file(path)
           requires[#requires + 1] = { module = target, line = child:start() + 1 }
         end
       elseif kind == "method" or kind == "singleton_method" then
+        -- `owner` is nil at true file scope, so a script's bare `def` stays a
+        -- free function; `walk_top` is re-entered with one only from inside a
+        -- construct that already supplied its kind.
         record_method(child, owner, false)
       end
     end

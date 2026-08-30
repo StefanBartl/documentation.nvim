@@ -265,6 +265,37 @@
 ---@field params Documentation.ParamInfo[] Parsed from inside the parens. `desc` is always `""` — a `fun()` type literal carries no per-parameter prose, only `name: type`. `optional` and `name` behave as they do on `Documentation.ParamInfo`.
 ---@field returns Documentation.ReturnInfo[] Parsed from after the parens. `name`/`desc` are always nil/`""` for the same reason as `params`.
 
+---What a `Documentation.FunctionInfo.owner` *is*. Deliberately the construct
+---as the language names it rather than a normalised "type": an `impl` block
+---and a `class` group methods for different reasons, and flattening both to
+---"class" would throw away the one thing the reader of a Rust file is looking
+---for. `receiver` is Go's, which has no block at all — the owner is written
+---on each method instead.
+---@alias Documentation.ScopeKind
+---| "class"     # Python `class`, ECMA `class`, PHP/Java/Kotlin/Scala/Swift/Dart/C# classes.
+---| "interface" # Java/C#/PHP/Kotlin interfaces, and Go's `interface` method sets.
+---| "trait"     # Rust `trait`, PHP `trait`, Scala `trait`.
+---| "impl"      # Rust `impl Type` and `impl Trait for Type`.
+---| "struct"    # C#/Swift `struct`, and Rust's inherent members when written as one.
+---| "enum"      # Java/C#/Swift/Kotlin `enum` bodies that declare methods.
+---| "object"    # Kotlin `object`/`companion object`, Scala `object`, Ruby singleton classes.
+---| "extension" # Swift `extension`, Kotlin extension receivers, C# extension classes.
+---| "protocol"  # Swift `protocol`.
+---| "receiver"  # A Go method's receiver type — an owner with no enclosing block.
+---| "module"    # An inline module: Rust `mod x { … }`, Elixir `defmodule`, Ruby `module`.
+---| "namespace" # C++ `namespace` and the C-family `A::B` qualification it produces.
+
+---One owning scope of a node's source file, with the functions it owns.
+---Derived by `documentation.core.scopes` from `Documentation.FunctionInfo.owner`
+---— **not** a serialised IR field, because it is exactly the grouping of data
+---the artifact already carries and a second copy would be one more thing that
+---can disagree with itself. Consumers that want the grouping call for it; the
+---page does the same grouping in JavaScript, from the same field.
+---@class Documentation.ScopeInfo
+---@field name string The owner's name, as `Documentation.FunctionInfo.owner` carries it.
+---@field kind Documentation.ScopeKind
+---@field functions Documentation.FunctionInfo[] The scope's own functions, in the order the scan found them. Never empty — a scope exists here because a function named it.
+
 ---A single documented function, extracted via `documentation.core.functions`
 ---(a `vim.treesitter` query, not `lua-language-server --doc` — see that
 ---module's header for why). Attached to whichever node owns the file it's
@@ -295,6 +326,8 @@
 ---@field test string[] `@test` entries, one per occurrence.
 ---@field example string? `@example` block text, if any.
 ---@field since string? `@since` text, if any.
+---@field owner string? Name of the scope that owns this function — the class, `impl` block, trait, receiver type or inline module it is declared inside, written exactly as it appears at the front of `name`. `nil` for a free function, and `nil` throughout a language that has no such construct (Lua, C, assembly, Erlang). This is the fact behind the qualified name rather than a second copy of it: `Class.helper` at module scope and `helper` inside `Class` produce the same `name`, and only this field tells them apart. Absent throughout an artifact of schema < 6, where a consumer sees every function as unowned — which is the same shape a Lua or C tree has and therefore degrades into a flat list rather than into an error.
+---@field owner_kind Documentation.ScopeKind? What the owner is. Set and unset together with `owner` — never one without the other.
 ---@field is_hook boolean? True when this function's name matches React's own hook convention (`^use[A-Z]`, the same signal `eslint-plugin-react-hooks` relies on) — set by `core/lang/ecma.lua`, `nil` for languages with no such convention (Lua never sets it).
 ---@field snippet string? This function's own source, bounded to `core/snippet.lua`'s `MAX_LINES` — the embeddable tier of `docs/ECOSYSTEM.md` §3.5's hover preview. `nil` for an empty/invalid span, a real absence rather than an empty string standing in for one.
 ---@field snippet_omitted integer Lines cut off past the cap; `0` when the whole function fit.

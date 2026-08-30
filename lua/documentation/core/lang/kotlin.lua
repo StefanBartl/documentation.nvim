@@ -399,7 +399,8 @@ function M.scan_file(path)
   ---@param node userdata `function_declaration`
   ---@param owner string?
   ---@param inherited boolean?
-  local function record_function(node, owner, inherited)
+  ---@param owner_kind Documentation.ScopeKind? Which declaration `owner` is. Kotlin parses all four as `class_declaration`, so `record_type` reads the keyword and passes it on rather than having this rediscover it.
+  local function record_function(node, owner, inherited, owner_kind)
     local name_node = child_of(node, "simple_identifier")
     if not name_node then
       return
@@ -423,6 +424,8 @@ function M.scan_file(path)
       returns = doc.returns,
       deprecated = doc.deprecated,
       internal = internal,
+      owner = owner,
+      owner_kind = owner and (owner_kind or "class") or nil,
       see = {},
       overload = {},
       todo = {},
@@ -485,12 +488,18 @@ function M.scan_file(path)
     -- the default.
     local inherited = what == "interface" and false or nil
 
+    ---@type Documentation.ScopeKind
+    local owner_kind = what == "interface" and "interface"
+      or what == "object" and "object"
+      or what == "enum" and "enum"
+      or "class"
+
     local body = child_of(node, "class_body") or child_of(node, "enum_class_body")
     if body then
       for member in body:iter_children() do
         local mk = member:type()
         if mk == "function_declaration" then
-          record_function(member, bare, inherited)
+          record_function(member, bare, inherited, owner_kind)
         elseif mk == "property_declaration" then
           record_property(member, bare)
         elseif mk == "companion_object" then
@@ -500,7 +509,10 @@ function M.scan_file(path)
           if cbody then
             for cm in cbody:iter_children() do
               if cm:type() == "function_declaration" then
-                record_function(cm, bare, nil)
+                -- Still the type's own scope, not the companion's: `bare` is
+                -- what the call site writes, and a second scope named after a
+                -- keyword would group members nobody looks for separately.
+                record_function(cm, bare, nil, owner_kind)
               elseif cm:type() == "property_declaration" then
                 record_property(cm, bare)
               end

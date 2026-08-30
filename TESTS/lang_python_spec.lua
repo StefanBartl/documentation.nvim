@@ -149,6 +149,24 @@ return function(H)
   eq(by["Thing.__init__"].signature, "Thing.__init__()")
   eq(#by["Thing.go"].params, 1, "and the documented parameters match what is declared")
 
+  -- **The owner as a field, not as a prefix of the name.** The whole of
+  -- engine item M7 rests on this being separable: `Thing.go` written at
+  -- module scope and `go` written inside `class Thing` produce the identical
+  -- `name`, so a string-prefix match cannot tell a method from a function
+  -- that happens to be dotted.
+  eq(by["Thing.go"].owner, "Thing", "a method knows what owns it")
+  eq(by["Thing.go"].owner_kind, "class", "Python's only owning construct")
+  eq(by["add"].owner, nil, "a module-level function has no owner")
+  eq(by["add"].owner_kind, nil, "and no kind either — the two are set together")
+
+  local scopes = require("documentation.core.scopes")
+  local free, groups = scopes.split(fns)
+  eq(#groups, 1, "one class in this file, one scope")
+  eq(groups[1].name, "Thing")
+  eq(groups[1].kind, "class")
+  eq(#groups[1].functions, 3, "__init__, go and _helper")
+  eq(#free, 3, "add, _kept and dropped belong to the module")
+
   eq(by["add"].signature, "add(x, y)")
   eq(#by["add"].params, 2)
   eq(by["add"].params[1].name, "x")

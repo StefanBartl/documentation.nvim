@@ -505,6 +505,14 @@ function M.scan_file(path)
         params = doc.params,
         returns = doc.returns,
         internal = is_internal(mods, owner_kind),
+        owner = owner,
+        -- `owner_kind` here is the treesitter node kind, which is what
+        -- `is_internal` needs; `Documentation.ScopeKind` is the reader's
+        -- vocabulary. A `record` groups members exactly as a class does.
+        owner_kind = owner_kind == "interface_declaration" and "interface"
+          or owner_kind == "struct_declaration" and "struct"
+          or owner_kind == "enum_declaration" and "enum"
+          or "class",
         see = {},
         overload = {},
         todo = {},

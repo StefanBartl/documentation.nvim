@@ -544,6 +544,12 @@ function M.scan_file(path)
           -- The method's own name decides, not its receiver's: an exported
           -- type routinely carries unexported methods.
           internal = is_internal(bare, in_test),
+          -- `receiver`, not `struct`: Go has no block that encloses a type's
+          -- methods, and the receiver is written on each one — which is also
+          -- why a type's methods can be spread over several files and this is
+          -- a per-file grouping like every other backend's.
+          owner = owner,
+          owner_kind = owner and "receiver" or nil,
           see = {},
           overload = {},
           todo = {},
@@ -603,6 +609,8 @@ function M.scan_file(path)
                       params = {},
                       returns = {},
                       internal = is_internal(bare, in_test),
+                      owner = type_name,
+                      owner_kind = "interface",
                       see = {},
                       overload = {},
                       todo = {},
