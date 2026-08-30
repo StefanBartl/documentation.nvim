@@ -111,6 +111,7 @@ flowchart LR
   nlua_documentation_bindings_usrcmds --> nlua_documentation_bindings_progress_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_config_DEFAULTS_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_annotate_lua
+  nlua_documentation_bindings_usrcmds --> nlua_documentation_core_calls_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_check_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_checklist_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_churn_lua

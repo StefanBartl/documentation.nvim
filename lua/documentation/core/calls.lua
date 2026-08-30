@@ -487,4 +487,117 @@ function M.build(ir, opts)
   return edges
 end
 
+---Shortest call chain from any function in one node to any function in
+---another, as the chain of `kind="call"` edges that makes it.
+---
+---**The sibling of `deps.path`, and the reason both exist.** That one walks
+---`require` edges and answers *what loads what*; this one walks `call` edges
+---and answers *what calls what*. They are two different chains between the
+---same two modules, and the second is usually the one a reader means when they
+---ask why A and B are connected -- but until now only the first had a
+---traversal, so the question was silently answered with the other one's answer.
+---
+---**Function-precise, because the edges are.** `deps.path` can only say "A
+---reaches B"; a call edge carries `from_fn` and `to_fn`, so this says *through
+---which functions*. The search therefore runs over `(node, fn)` pairs rather
+---than over nodes: it starts from every function declared in `from_id` and
+---stops at the first one it reaches inside `to_id`. Breadth-first, so the
+---chain is the shortest by hop count, and the edges come back rather than the
+---ids so the caller keeps `line` and `confidence` for every hop.
+---
+---**`confidence` is the caller's problem, deliberately not filtered here.**
+---`build` marks a hop `"heuristic"` when the callee was matched by bare name
+---rather than resolved exactly. Dropping those would hide real chains; keeping
+---them silently would present a guess as a fact. So they are traversed and
+---reported, and `M.chain_confidence` collapses a chain to the weakest hop in
+---it -- one heuristic hop makes the whole chain heuristic, because a chain is
+---only as certain as its least certain link.
+---
+---Direct recursion never enters the graph (`build` drops self-edges), so no
+---cycle guard beyond the visited set is needed.
+---@param ir Documentation.IR
+---@param from_id string
+---@param to_id string
+---@return Documentation.Edge[]|nil chain Empty when `from_id == to_id`, nil when no call path exists.
+function M.path(ir, from_id, to_id)
+  local from_node, to_node = ir.nodes[from_id], ir.nodes[to_id]
+  if not from_node or not to_node then
+    return nil
+  end
+  if from_id == to_id then
+    return {}
+  end
+
+  ---@type table<string, Documentation.Edge[]>
+  local outgoing = {}
+  for _, e in ipairs(ir.edges or {}) do
+    if e.kind == "call" and e.from_fn and e.to_fn then
+      local key = e.from .. "#" .. e.from_fn
+      local bucket = outgoing[key]
+      if not bucket then
+        bucket = {}
+        outgoing[key] = bucket
+      end
+      bucket[#bucket + 1] = e
+    end
+  end
+
+  local came_from, seen = {}, {}
+  ---@type string[]
+  local queue = {}
+
+  -- Every function of the starting module is a starting point: the question
+  -- is asked about modules, and "which of A's functions" is part of the
+  -- answer rather than of the question.
+  for _, fn in ipairs(from_node.functions or {}) do
+    local key = from_id .. "#" .. fn.name
+    if not seen[key] then
+      seen[key] = true
+      queue[#queue + 1] = key
+    end
+  end
+
+  local qi = 1
+  while qi <= #queue do
+    local cur = queue[qi]
+    qi = qi + 1
+    for _, e in ipairs(outgoing[cur] or {}) do
+      local next_key = e.to .. "#" .. e.to_fn
+      if not seen[next_key] then
+        seen[next_key] = true
+        came_from[next_key] = e
+        if e.to == to_id then
+          local chain, node = {}, next_key
+          while came_from[node] do
+            local edge = came_from[node]
+            table.insert(chain, 1, edge)
+            node = edge.from .. "#" .. edge.from_fn
+          end
+          return chain
+        end
+        queue[#queue + 1] = next_key
+      end
+    end
+  end
+
+  return nil
+end
+
+---How certain a whole chain is: the weakest hop in it.
+---
+---A chain is only as certain as its least certain link, so one heuristic hop
+---makes the whole chain heuristic. Reporting the majority, or the first hop,
+---would let a chain that rests on a guess read as resolved -- which is the one
+---way this answer could waste someone's afternoon.
+---@param chain Documentation.Edge[]
+---@return Documentation.Confidence
+function M.chain_confidence(chain)
+  for _, e in ipairs(chain) do
+    if e.confidence == "heuristic" then
+      return "heuristic"
+    end
+  end
+  return "exact"
+end
+
 return M

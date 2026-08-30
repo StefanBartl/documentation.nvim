@@ -124,11 +124,38 @@ namespaces are the aggregation points a dependency graph is most useful at.
 
 ### `:DocMap why <a> <b>`
 
-The shortest require path between two modules → **quickfix list**. Every hop
-*is* a location: the edge carries the line its `require` is written on, so each
-entry jumps straight to the line that creates that link. The summary says up
-front whether the path is load-time throughout or goes through a lazy require
-somewhere — usually the difference between "has to go" and "is fine".
+**Two chains between the same two modules**, both to the **quickfix list**.
+Every hop *is* a location: the edge carries the line its `require` or its call
+is written on, so each entry jumps straight to the line that creates that link.
+
+* **loads** — the shortest require path: *what pulls what in*. The summary says
+  up front whether it is load-time throughout or goes through a lazy require
+  somewhere, usually the difference between "has to go" and "is fine".
+* **calls** — the shortest call path, **function by function**
+  (`core.check#check_readme_links → core.docs#M.corpus`): *what actually
+  invokes what*. Precise where the require chain cannot be, because a `require`
+  edge only names two modules while a call edge names two functions.
+
+Both are reported because they are answers to two different questions, and the
+second is usually the one meant. Until it had a traversal of its own, "why are
+these connected" was silently answered with the require chain and nothing said
+so.
+
+**The interesting cases are the ones where the two disagree:**
+
+* **Loads but never calls** — `A` pulls `B` in and nothing along the way
+  invokes it. In the require graph alone that is indistinguishable from a live
+  dependency. Real in this repository: the top-level `documentation` module
+  requires `core.cli`, `core.diff` and both renderers without calling into any
+  of them.
+* **Calls without a require path** — the static dependency graph understates
+  the connection: a deferred or dynamically-built require `deps` could not
+  follow.
+
+A hop matched by bare name rather than resolved exactly is marked `~`, the same
+mark the Calls view uses for the same fact, and the summary calls the whole
+chain heuristic if any hop is — a chain is only as certain as its least certain
+link.
 
 ### `:DocMap dot <kind> [name]`
 
