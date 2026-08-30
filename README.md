@@ -823,3 +823,7 @@ grouped by the question you arrived with. The table below is the short list.
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Running the specs, the linters and the map locally. |
 | [lua/documentation/editor/browse/README.md](lua/documentation/editor/browse/README.md) | The editor-side browser in detail. |
 | `:help documentation.nvim` | The same, in Vim help format. |
+
+## License
+
+MIT — see [LICENSE](LICENSE).
