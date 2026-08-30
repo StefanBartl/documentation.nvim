@@ -262,6 +262,150 @@ local function check_doc_references(ir, findings)
   end
 end
 
+--- References to a *sibling repository's* files, checked against the checkouts
+--- `opts.external_repos` declares.
+---
+--- **The third shape, and the reason the other two cannot cover it.**
+--- `doc-references-missing` resolves *code identifiers* against the scanned
+--- repository's own module map; `dead-readme-link` resolves *markdown links*
+--- within one repository, after `strip_code` has deliberately removed every
+--- code span. Neither is wrong. But a citation of another repository's file is
+--- written as neither: it is a path, in a code span, naming a tree this
+--- repository does not contain.
+---
+--- Measured, not hypothetical. On 2026-08-30 `runtime-analysis.nvim` cited
+--- `docs/ECOSYSTEM.md` -- a path that exists only in `documentation.nvim` --
+--- **nine times**, twice in its README and six times in `lua/**` module
+--- headers. Every one was dead from the moment it was written, and nothing in
+--- this ecosystem could have reported it.
+---
+--- **A closed set, never a guess.** Only a path whose first segment is a
+--- declared sibling's `name` is considered at all, and that name has to be
+--- declared by hand in `external_repos`. So an ordinary relative path, a URL
+--- fragment or a prose slash cannot be mistaken for a broken sibling
+--- reference: the check has nothing to say about repositories nobody named.
+--- The same discipline `external_repos` already applies to module prefixes.
+---
+--- **Code spans are the point here, so `strip_code` is not applied.** All nine
+--- real cases were code spans; that is simply how a path is written in prose.
+--- `check_readme_links` keeps stripping them, because a *link* inside a code
+--- span is a quoted example rather than a claim -- two different questions
+--- about the same text, and folding them together would make one check louder
+--- than anyone asked for.
+---
+--- Silent when no sibling declares a `local_path`: without a checkout on disk
+--- there is nothing to resolve against, and `uv.fs_stat` is the only lookup
+--- this does -- no network, so `--check` stays offline and deterministic like
+--- every other stage.
+---@param ir Documentation.IR
+---@param findings Documentation.Finding[]
+---@param opts Documentation.Opts
+local function check_sibling_references(ir, findings, opts)
+  local root = opts.root:gsub("\\", "/"):gsub("/+$", "")
+
+  ---@type { name: string, root: string }[]
+  local siblings = {}
+  for _, entry in pairs(opts.external_repos or {}) do
+    if type(entry) == "table" and entry.name and entry.local_path then
+      local declared = entry.local_path:gsub("\\", "/"):gsub("/+$", "")
+      -- Relative against `opts.root`, so a committed `.docmap.json` can name
+      -- `../sibling` and stay true on every machine. An absolute path still
+      -- works and is what a one-off call passes; what must not happen is a
+      -- machine-specific absolute path being the only expressible form, since
+      -- this declaration is meant to be committed.
+      -- Joined, not normalised: `core/` may only call what the standalone
+      -- shim implements (TESTS/shim_contract_spec.lua), and `uv.fs_stat`
+      -- resolves `..` itself on every platform this runs on. The joined form
+      -- is never printed -- only stat'ed.
+      local abs = declared:match("^%a:/") or declared:sub(1, 1) == "/"
+      local base = abs and declared or (root .. "/" .. declared)
+      if uv.fs_stat(base) then
+        siblings[#siblings + 1] = { name = entry.name, root = base }
+      end
+    end
+  end
+  -- Nothing declared, or nothing checked out: silence, not a finding. On CI
+  -- there are no siblings on disk, and a warning there would say only that CI
+  -- is CI.
+  if #siblings == 0 then
+    return
+  end
+
+  -- Longest name first, so a repository whose name is a prefix of another's
+  -- cannot swallow it -- the same rule `tagfiles.match_prefix` applies to
+  -- module prefixes, for the same reason.
+  table.sort(siblings, function(a, b)
+    return #a.name > #b.name
+  end)
+
+  ---@param text string
+  ---@param where string Repo-relative file the text came from, for the finding.
+  ---@param node_id string|nil
+  local function scan(text, where, node_id)
+    if type(text) ~= "string" or text == "" then
+      return
+    end
+    -- URLs first, and this is not an optimisation. A GitHub blob link contains
+    -- the repository name followed by a path
+    -- (`github.com/StefanBartl/lib.nvim/blob/main/lua/…/init.lua`), so a
+    -- pattern looking for `<name>/<path>` finds one inside every such link and
+    -- reports it against a tree where `blob/main/…` was never going to exist.
+    -- Caught on this repository's own FEATURE_LOG.md the first time the check
+    -- ran. A URL is somebody else's namespace; only repo-relative paths are
+    -- claims about a checkout.
+    text = text:gsub("%a[%w+%-.]*://%S+", " ")
+
+    local seen = {}
+    -- Code spans and bare paths both, since a citation is written either way.
+    for candidate in text:gmatch("[%w%._%-]+/[%w%._%-/]+%.%a+") do
+      if not seen[candidate] then
+        seen[candidate] = true
+        for _, sib in ipairs(siblings) do
+          local rest = candidate:match("^" .. vim.pesc(sib.name) .. "/(.+)$")
+          if rest then
+            -- `<repo>/blob/<ref>/…` and `<repo>/tree/<ref>/…` are GitHub URL
+            -- paths written without their scheme, which is a normal way to
+            -- shorten a link in prose. They are not repo-relative paths, and
+            -- resolving them against a checkout looks for a `blob/` directory
+            -- that will never exist. Found on this repository's own
+            -- FEATURE_LOG.md, where the target file is real and the citation
+            -- was correct.
+            if not (rest:match("^blob/[^/]+/") or rest:match("^tree/[^/]+/")) then
+              if not uv.fs_stat(sib.root .. "/" .. rest) then
+                add(findings, "warn", "sibling-reference-missing", node_id, {
+                  file = where,
+                  target = candidate,
+                  repo = sib.name,
+                })
+              end
+            end
+            break
+          end
+        end
+      end
+    end
+  end
+
+  -- The markdown corpus and the module headers, because the nine real cases
+  -- were split across both and a check that saw only one half would have
+  -- reported two of them.
+  for _, rel in ipairs(require("documentation.core.docs").corpus(opts)) do
+    local fd = io.open(root .. "/" .. rel, "r")
+    if fd then
+      local content = fd:read("*a")
+      fd:close()
+      scan(content, rel, nil)
+    end
+  end
+  for _, id in ipairs(ir.order or {}) do
+    local node = ir.nodes[id]
+    if node then
+      scan(node.summary, node.source or id, id)
+      scan(node.body, node.source or id, id)
+    end
+  end
+end
+
 --- A malformed `docs/install.json`/`docs/INSTALL.md` entry — missing `bin`,
 --- empty `why`, no `pkg` map — fails validation in `lib.nvim.deps.spec`
 --- silently as far as this plugin is concerned: the entry is simply dropped
@@ -1846,6 +1990,7 @@ function M.run(ir, opts)
   check_readmes(ir, findings)
   check_readme_links(ir, findings, opts)
   check_doc_references(ir, findings)
+  check_sibling_references(ir, findings, opts)
   check_tools_spec(ir, findings)
   check_orphans(ir, findings)
   check_tag_requires(ir, findings)

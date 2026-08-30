@@ -159,7 +159,9 @@
             "properties": {
               "repo": { "type": "string" },
               "branch": { "type": "string" },
-              "lua_root": { "type": "string" }
+              "lua_root": { "type": "string" },
+              "name": { "type": "string" },
+              "local_path": { "type": "string" }
             }
           }
         ]

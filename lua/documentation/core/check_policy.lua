@@ -71,6 +71,7 @@ M.CODES = {
   ["param-name-mismatch"] = true,
   ["require-cycle"] = true,
   ["require-not-declared"] = true,
+  ["sibling-reference-missing"] = true,
   ["tag-file-unavailable"] = true,
   ["tag-require-missing"] = true,
   ["test-references-missing"] = true,

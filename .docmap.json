@@ -1,9 +1,7 @@
 {
   "$schema": "./docs/docmap.schema.json",
-
   "repo_url": "https://github.com/StefanBartl/documentation.nvim",
   "branch": "main",
-
   "layers": [
     {
       "from": "documentation.core",
@@ -20,5 +18,27 @@
       "to": "documentation.core.lang",
       "why": "language backends are reached through core/lang_registry.lua, never directly"
     }
-  ]
+  ],
+  "external_repos": {
+    "lib.nvim": {
+      "repo": "StefanBartl/lib.nvim",
+      "name": "lib.nvim",
+      "local_path": "../lib.nvim"
+    },
+    "runtime-analysis": {
+      "repo": "StefanBartl/runtime-analysis.nvim",
+      "name": "runtime-analysis.nvim",
+      "local_path": "../runtime-analysis.nvim"
+    },
+    "mdview": {
+      "repo": "StefanBartl/mdview.nvim",
+      "name": "mdview.nvim",
+      "local_path": "../mdview.nvim"
+    },
+    "docmap-desktop": {
+      "repo": "StefanBartl/docmap-desktop",
+      "name": "docmap-desktop",
+      "local_path": "../docmap-desktop"
+    }
+  }
 }

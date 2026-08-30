@@ -152,6 +152,7 @@ local specs = {
   "features_spec.lua",
   "calls_external_spec.lua",
   "call_path_spec.lua",
+  "sibling_references_spec.lua",
   "external_repos_spec.lua",
   "callhierarchy_spec.lua",
   "diagnostics_spec.lua",

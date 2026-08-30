@@ -62,6 +62,7 @@ return function(H)
     type = "RateLimits",
     documented = 1,
     actual = "width",
+    repo = "other.nvim",
   }
 
   -- ---------------------------------------------------------------------
