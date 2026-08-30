@@ -51,6 +51,7 @@ flowchart LR
   nlua_documentation_bindings_keymaps_lua["documentation.bindings.keymaps"]
   nlua_documentation_bindings_progress_lua["documentation.bindings.progress"]
   nlua_documentation_bindings_usrcmds["documentation.bindings.usrcmds"]
+  nlua_documentation_config_DEFAULTS_lua["documentation.config.DEFAULTS"]
   nlua_documentation_core_annotate_lua["documentation.core.annotate"]
   nlua_documentation_core_api_lua["documentation.core.api"]
   nlua_documentation_core_artifact_lua["documentation.core.artifact"]
@@ -107,6 +108,7 @@ flowchart LR
   nlua_documentation_bindings_docs_lua --> nlua_documentation_editor_browse
   nlua_documentation_bindings_progress_lua --> nlua_documentation_core_soft_require_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_bindings_progress_lua
+  nlua_documentation_bindings_usrcmds --> nlua_documentation_config_DEFAULTS_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_annotate_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_check_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_core_checklist_lua
@@ -204,6 +206,7 @@ flowchart LR
   nlua_documentation_editor_browse --> nlua_documentation_editor_command_lua
   nlua_documentation_editor_browse --> nlua_documentation_editor_registry_lua
   nlua_documentation_editor_browse --> nlua_documentation_integrations_menu_lua
+  nlua_documentation_editor_callhierarchy_lua --> nlua_documentation_config_DEFAULTS_lua
   nlua_documentation_editor_callhierarchy_lua --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_editor_command_lua --> nlua_documentation_bindings_usrcmds
   nlua_documentation_editor_command_lua --> nlua_documentation_core_find_lua
