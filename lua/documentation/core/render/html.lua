@@ -251,6 +251,17 @@ main{grid-template-columns:minmax(300px,1.1fr) minmax(0,1.4fr);gap:0;align-items
 .fn-snip-label .bd{text-transform:none;letter-spacing:0;margin-left:6px}
 .fn-snip{font-family:var(--mono);font-size:11.5px;white-space:pre-wrap;background:var(--accent-soft);
   border-radius:6px;padding:8px 10px;margin-top:4px;overflow-x:auto}
+/* An authored fenced block. Same shape again as `.fn-ex`/`.fn-snip` — a
+   reader should not have to learn three looks for "this is code" on one
+   page — and a distinct class only because the margins differ: this one
+   sits inside flowing prose with text above and below it, the other two
+   are the last thing in their card.
+   `pre` rather than `div`, so the block still reads as preformatted text
+   with JavaScript off and in whatever strips the page down (a reader mode,
+   a print stylesheet). The language rides on `data-lang` purely so it is
+   inspectable; nothing styles it. */
+.fence{font-family:var(--mono);font-size:11.5px;white-space:pre-wrap;background:var(--accent-soft);
+  border-radius:6px;padding:8px 10px;margin:8px 0;overflow-x:auto}
 /* Annotation popup — the same fn-* markup the detail pane renders, floated
    over whichever list the reader is scanning. Every list in this map shows a
    signature and nothing else; the params, returns and prose that were
@@ -1315,6 +1326,124 @@ local JS = [[
     return out;
   }
 
+  // Markdown info strings that are not the file extension the glossaries are
+  // keyed by. Only the ones that actually differ from a *declared* extension
+  // (`lang_registry.glossaries()` keys on `backend.extensions`), so this
+  // table stays a list of spelling differences rather than a second language
+  // registry that drifts from the first. An info string with no entry and no
+  // matching extension gets no decoration at all, which is the same honest
+  // degradation `snipBodyHTML` already applies to a backend that ships no
+  // glossary.
+  var FENCE_EXT = {
+    assembly: "asm", assembler: "asm",
+    "c#": "cs", csharp: "cs",
+    elixir: "ex",
+    erlang: "erl",
+    haskell: "hs",
+    kotlin: "kt",
+    ocaml: "ml",
+    python: "py",
+    ruby: "rb",
+    rust: "rs",
+    shell: "sh", bash: "sh", sh: "sh"
+  };
+
+  // One fenced block, rendered.
+  //
+  // The single place on this page that turns fenced source into markup. It is
+  // one place on purpose: the Features tab already split fences before this
+  // existed (`renderFeatureBody`), and a second renderer beside it would have
+  // given the same Lua two different looks on the same page, which is the
+  // failure `prose()`'s own comment warns about one screen up.
+  //
+  // Highlighting reuses `snipBodyHTML` — the tokenizer the source snippets
+  // already use — by handing it a synthetic path whose extension is the
+  // fence's language. Reusing it is the whole point: a `lua` fence and a Lua
+  // snippet then decorate identically, share the keyword card, and gain any
+  // future language for free the moment a backend declares it. A fence with
+  // no language, or one nothing knows, falls through to plain escaped text.
+  function fenceHTML(src, lang){
+    var info = (lang || "").toLowerCase();
+    var ext = FENCE_EXT[info] || info;
+    var path = ext ? ("fence." + ext) : "";
+    var body = (path && glossaryForPath(path)) ? snipBodyHTML(src, path) : esc(src);
+    return '<pre class="fence"' +
+      (info ? ' data-lang="' + esc(info) + '"' : '') +
+      (path ? ' data-path="' + esc(path) + '"' : '') +
+      '>' + body + '</pre>';
+  }
+
+  // Author prose that may run to several lines, with fenced blocks in it.
+  //
+  // `prose()` deliberately stops at inline code because a summary is one
+  // line; this is the other half it names. The split is line-based rather
+  // than a second alternation inside that regex, for exactly the reason
+  // stated there — both in one expression is how you get a renderer nobody
+  // can reason about. Here a fence marker owns its line, which is what makes
+  // the two rules independent: an inline span never starts a block, and a
+  // block never eats a span.
+  //
+  // Text outside the fences still goes through `prose()`, so a paragraph
+  // around a code block keeps its inline code.
+  function richText(s){
+    if(s === undefined || s === null) return "";
+    var text = String(s);
+    // Nothing to split and nothing to pay for: the overwhelming majority of
+    // prose in any tree has no fence in it at all.
+    if(text.indexOf("```") < 0) return prose(text);
+
+    var lines = text.split("\n"), out = [], buf = [];
+    var code = null, lang = "", openRaw = "";
+
+    function flushProse(){
+      if(!buf.length) return;
+      out.push(prose(buf.join("\n")));
+      buf = [];
+    }
+
+    for(var i = 0; i < lines.length; i++){
+      var line = lines[i];
+      if(code === null){
+        var open = /^\s*```+\s*([A-Za-z0-9_+#.-]*)\s*$/.exec(line);
+        if(open){
+          flushProse();
+          code = []; lang = open[1] || ""; openRaw = line;
+          continue;
+        }
+        buf.push(line);
+      } else if(/^\s*```+\s*$/.test(line)){
+        out.push(fenceHTML(code.join("\n"), lang));
+        code = null; lang = ""; openRaw = "";
+      } else {
+        code.push(line);
+      }
+    }
+
+    // An unclosed fence goes back exactly as written, opening line included.
+    // The same stance `prose()` takes on an unpaired backtick, for the same
+    // reason: half a block is a typo in the source, and swallowing it would
+    // hide the one thing the author needs to see.
+    if(code !== null){
+      buf.push(openRaw);
+      buf = buf.concat(code);
+    }
+    flushProse();
+    return out.join("");
+  }
+
+  // `@example` is code, not prose.
+  //
+  // Without a fence it stays exactly what it has always been — escaped and
+  // nothing else — because a backtick inside an example is a backtick, and
+  // running `prose()` over it would turn a shell command into markup. A fence
+  // is an author saying "this part is <language>", and only then does the
+  // block get what any other fence gets.
+  function exampleHTML(s){
+    if(s === undefined || s === null) return "";
+    var text = String(s);
+    return text.indexOf("```") < 0 ? esc(text) : richText(text);
+  }
+
   // The affordance that opens the annotation popup, for any list that shows
   // a function. `tabindex` because a keyboard reader must be able to reach
   // it; `aria-label` rather than `title` because a native tooltip would open
@@ -1623,7 +1752,7 @@ local JS = [[
       });
       h.push('<div class="fn-desc fn-see">See also: '+seeLinks.join(", ")+'</div>');
     }
-    if(fn.example){ h.push('<div class="fn-ex">'+esc(fn.example)+'</div>'); }
+    if(fn.example){ h.push('<div class="fn-ex">'+exampleHTML(fn.example)+'</div>'); }
     return h.join("");
   }
 
@@ -2362,7 +2491,12 @@ local JS = [[
     if(links.length) h.push('<div class="links">'+links.join("")+'</div>');
 
     if(n.summary || n.body){
-      h.push('<div class="prose">'+prose([n.summary, n.body].filter(Boolean).join("\n\n"))+'</div>');
+      // `richText`, not `prose`: a module's `@description` is the one author
+      // surface on this page that routinely runs to paragraphs, and a fenced
+      // usage example is what people put in it. Single-line summaries are
+      // unaffected — `richText` hands anything without a fence straight to
+      // `prose`.
+      h.push('<div class="prose">'+richText([n.summary, n.body].filter(Boolean).join("\n\n"))+'</div>');
     } else {
       h.push('<p class="empty">No description — this module has an @module tag but no prose.</p>');
     }
@@ -4515,13 +4649,22 @@ local JS = [[
 
       if(/^```/.test(trimmed)){
         flushPara(); flushList();
+        // The info string used to be matched and dropped: `/^```/` said "a
+        // fence starts here" and nothing captured the `lua` after it, so the
+        // one piece of information needed to highlight the block was thrown
+        // away one character before it was used.
+        var fenceLang = (/^```+\s*([A-Za-z0-9_+#.-]*)/.exec(trimmed) || [])[1] || "";
         var code = [];
         i++;
         while(i < lines.length && !/^```/.test(lines[i].replace(/^\s+|\s+$/g, ""))){
           code.push(lines[i]); i++;
         }
         i++; // skip the closing fence (or run off the end if one is missing)
-        out.push("<pre><code>" + esc(code.join("\n")) + "</code></pre>");
+        // Through the shared renderer rather than this function's own
+        // `<pre><code>`: the Features tab and a module's `@description` show
+        // the same languages, and two renderers would have given them two
+        // looks on one page.
+        out.push(fenceHTML(code.join("\n"), fenceLang));
         continue;
       }
 
@@ -8586,7 +8729,12 @@ local JS = [[
       return;
     }
 
-    var snip = el.closest && el.closest(".fn-snip");
+    // `[data-path]` rather than `.fn-snip`, which is what `snippetHTML`'s own
+    // comment already describes ("the path rides on the container ... and the
+    // lookup walks up to it"). Written as a class name it silently meant "and
+    // only snippets"; a keyword decorated inside a fenced block would have
+    // found no container, read no glossary, and shown nothing on click.
+    var snip = el.closest && el.closest("[data-path]");
     var gl = glossaryForPath(snip && snip.dataset.path);
     var table = el.dataset.kwkind === "std" ? (gl && gl.stdlib) : (gl && gl.keywords);
     var entry = table && Object.prototype.hasOwnProperty.call(table, el.dataset.kw)
