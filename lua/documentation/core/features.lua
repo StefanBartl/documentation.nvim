@@ -83,14 +83,14 @@ end
 ---One `- **Key:** value` bullet.
 ---@param line string Already right-trimmed.
 ---@return string|nil key
----@return string|nil value
+---@return string value Empty string when there is no key, and when the bullet has a key with nothing after the colon. Never nil, so a caller that checked `key` does not have to check this one too.
 local function match_bullet(line)
   -- The colon sits *inside* the bold markers (`**Key:**`), not after them
   -- (`**Key**:`) — confirmed against markdown.nvim's own real
   -- `docs/FEATURES/headings.md`, which is what this format is modelled on.
   local key, value = line:match("^%-%s*%*%*([^*:]+):%*%*%s*(.*)$")
   if not key then
-    return nil, nil
+    return nil, ""
   end
   return (key:match("^%s*(.-)%s*$")), (value:match("^%s*(.-)%s*$"))
 end

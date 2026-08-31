@@ -30,8 +30,8 @@ return function(H)
   -- directly: the field is `string|string[]`, and a spec that only compiles
   -- for the list case would stop type-checking the day someone passes a
   -- plain string.
-  local detected = type(opts.source) == "table" and table.concat(opts.source, " + ")
-    or tostring(opts.source)
+  local source = opts.source
+  local detected = type(source) == "table" and table.concat(source, " + ") or tostring(source)
   eq(detected, "lua/pgl + src", "polyglot: both source roots are detected, Lua's and the ECMA one")
 
   local ir = require("documentation.core.scan").scan(opts)

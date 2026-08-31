@@ -366,7 +366,9 @@ local function name_of(node, src)
   return id and text_of(id, src)
 end
 
----@param node TSNode `parameter_list`
+---@param node TSNode? `parameter_list`, or nil when the declaration has none --
+---`child_of` returns nil for a method written without a parameter list, and the
+---empty result below is the right answer for it.
 ---@param src string
 ---@return string[]
 local function param_names(node, src)

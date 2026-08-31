@@ -106,7 +106,8 @@ end
 ---@return string?
 local function returned_name(root, src)
   for i = root:named_child_count() - 1, 0, -1 do
-    local child = root:named_child(i)
+    -- `assert` rather than a guard: an index below the count names a child.
+    local child = assert(root:named_child(i))
     if child:type() == "return_statement" then
       local text = vim.treesitter.get_node_text(child, src)
       -- `return M` and `return setmetatable(M, {...})` are the same statement

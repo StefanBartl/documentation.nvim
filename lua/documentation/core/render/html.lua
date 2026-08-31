@@ -9719,7 +9719,9 @@ function M.render(ir, findings, opts)
     -- The measurement's own date, not the generation's: a reader looking at
     -- a slow-startup graph needs to know whether it predates the change they
     -- are here about.
-    local measured = graph.mtime and os.date("!%Y-%m-%d", graph.mtime) or nil
+    -- The cast is the format: `os.date` is typed `string|osdate`, and the
+    -- table only ever comes back for a `*t` format, which this is not.
+    local measured = graph.mtime and os.date("!%Y-%m-%d", graph.mtime) --[[@as string]] or nil
     startup_graph_html = ('<template id="startup-graph"%s>%s</template>'):format(
       measured and (' data-measured="' .. esc(measured) .. '"') or "",
       graph.svg

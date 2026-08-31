@@ -350,20 +350,16 @@ local function extract_requires(stmt_node, src)
       -- carries one identifier, or two for `other as renamed`), a bare
       -- `identifier` for a default import, or a `namespace_import` for
       -- `* as ns`.
-      for i = 0, stmt_node:child_count() - 1 do
-        local clause = stmt_node:child(i)
+      for clause in stmt_node:iter_children() do
         if clause:type() == "import_clause" then
-          for j = 0, clause:child_count() - 1 do
-            local part = clause:child(j)
-
+          for part in clause:iter_children() do
             if part:type() == "named_imports" then
-              for k = 0, part:child_count() - 1 do
-                local spec = part:child(k)
+              for spec in part:iter_children() do
                 if spec:type() == "import_specifier" then
                   local ids = {}
-                  for m = 0, spec:child_count() - 1 do
-                    if spec:child(m):type() == "identifier" then
-                      ids[#ids + 1] = vim.treesitter.get_node_text(spec:child(m), src)
+                  for id in spec:iter_children() do
+                    if id:type() == "identifier" then
+                      ids[#ids + 1] = vim.treesitter.get_node_text(id, src)
                     end
                   end
                   -- One identifier: the exported name is also the local one.
@@ -380,9 +376,9 @@ local function extract_requires(stmt_node, src)
               -- precisely what `alias` means everywhere else in this
               -- pipeline -- so it costs nothing to support, and `calls.lua`
               -- already knows how to resolve `ns.thing()` through it.
-              for m = 0, part:child_count() - 1 do
-                if part:child(m):type() == "identifier" then
-                  req.alias = vim.treesitter.get_node_text(part:child(m), src)
+              for id in part:iter_children() do
+                if id:type() == "identifier" then
+                  req.alias = vim.treesitter.get_node_text(id, src)
                 end
               end
             end
@@ -405,8 +401,7 @@ local function extract_requires(stmt_node, src)
   -- rare enough that only the first declarator being read is an accepted,
   -- narrow gap here, not a silent wrong answer (the second simply does not
   -- appear, the same way an unreadable plugin-spec entry does not).
-  for i = 0, stmt_node:child_count() - 1 do
-    local child = stmt_node:child(i)
+  for child in stmt_node:iter_children() do
     if child:type() == "variable_declarator" then
       local value = child:field("value")[1]
       if value and value:type() == "call_expression" then
@@ -519,7 +514,10 @@ local function extract_symbols(stmt_node, unwrapped, src)
   end
 
   for i = 0, unwrapped:named_child_count() - 1 do
-    local decl = unwrapped:named_child(i)
+    -- `assert` rather than a guard: an index below the count names a child,
+    -- and `named_children()` -- which would carry that in its type -- is a
+    -- Neovim convenience the standalone build's binding does not have.
+    local decl = assert(unwrapped:named_child(i))
     if decl:type() == "variable_declarator" then
       local name_node = decl:field("name")[1]
       local value_node = decl:field("value")[1]
@@ -826,8 +824,7 @@ local function as_function(stmt_node, src, lang)
   end
 
   if node:type() == "lexical_declaration" or node:type() == "variable_declaration" then
-    for i = 0, node:child_count() - 1 do
-      local child = node:child(i)
+    for child in node:iter_children() do
       if child:type() == "variable_declarator" then
         local value = child:field("value")[1]
         if
@@ -851,8 +848,7 @@ end
 ---@return Documentation.FunctionInfo[], Documentation.RawRequire[], Documentation.SymbolInfo[]
 local function walk(root, src, lang)
   local functions, requires, symbols = {}, {}, {}
-  for i = 0, root:child_count() - 1 do
-    local stmt = root:child(i)
+  for stmt in root:iter_children() do
     local fn = as_function(stmt, src, lang)
     if fn then
       functions[#functions + 1] = fn
@@ -1022,7 +1018,9 @@ function M.backend(name, lang, extensions, module_file)
       local src = fd:read("*a")
       fd:close()
       local ok, parser = pcall(vim.treesitter.get_string_parser, src, lang)
-      if not ok then
+      -- `not parser` is for the type rather than the runtime: `pcall` hands
+      -- back the error message as its second value.
+      if not ok or not parser then
         return { module = nil, summary = "", body = "", tags = {} }
       end
       local ok_parse, trees = pcall(function()
@@ -1047,7 +1045,7 @@ function M.backend(name, lang, extensions, module_file)
       local lines = #src == 0 and 0 or (newlines + (src:sub(-1) == "\n" and 0 or 1))
 
       local ok, parser = pcall(vim.treesitter.get_string_parser, src, lang)
-      if not ok then
+      if not ok or not parser then
         return {}, {}, {}, {}, {}, {}, lines, {}
       end
       local ok_parse, trees = pcall(function()

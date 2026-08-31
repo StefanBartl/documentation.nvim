@@ -1,3 +1,7 @@
+-- Each case installs its own `generate_all.run` stub over the same field --
+-- that is what a test double is, not a second definition competing with the
+-- first.
+---@diagnostic disable: duplicate-set-field
 -- TESTS/usrcmds_generate_all_spec.lua — bindings.usrcmds.generate_all and
 -- the opts.generate_all wiring in bindings.usrcmds itself.
 --

@@ -799,7 +799,10 @@ local function check_one_test_file(findings, root, path, idx, surface_of)
   fd:close()
 
   local ok_parser, parser = pcall(vim.treesitter.get_string_parser, src, "lua")
-  if not ok_parser then
+  -- `not parser` is for the type rather than the runtime: `pcall` hands back
+  -- the error message as its second value, so the parser stays nil-able until
+  -- both halves are checked.
+  if not ok_parser or not parser then
     return
   end
   local ok_parse, trees = pcall(function()
@@ -1111,13 +1114,6 @@ function M.require_cycles(ir)
   return components
 end
 
---- A cycle among load-time requires is the one that actually breaks: two
---- modules that require each other at the top of the file get a
---- half-initialised table on the second one in, and the failure reads as
---- anything but a cycle. Reported at `warn`, so `--check` does not go red over
---- a deliberate one.
----@param ir Documentation.IR
----@param findings Documentation.Finding[]
 ---Two places registering the same binding, where the second silently wins.
 ---
 ---The one check in this file that is meaningless for a plugin and valuable
@@ -1465,6 +1461,13 @@ local function check_consumer_requires(ir, findings, opts)
   end
 end
 
+--- A cycle among load-time requires is the one that actually breaks: two
+--- modules that require each other at the top of the file get a
+--- half-initialised table on the second one in, and the failure reads as
+--- anything but a cycle. Reported at `warn`, so `--check` does not go red over
+--- a deliberate one.
+---@param ir Documentation.IR
+---@param findings Documentation.Finding[]
 local function check_require_cycles(ir, findings)
   for _, component in ipairs(M.require_cycles(ir)) do
     local names = {}

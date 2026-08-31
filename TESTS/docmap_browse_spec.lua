@@ -1,4 +1,8 @@
 ---@diagnostic disable: missing-fields
+-- Several cases install their own `store.path` stub over the same field, one
+-- per case: that is what a test double is, not a second definition competing
+-- with the first.
+---@diagnostic disable: duplicate-set-field
 -- The fixtures below carry only the fields the unit under test reads; a full
 -- IR, node, finding or entry per case would be noise, not coverage.
 -- TESTS/docmap_browse_spec.lua — documentation.editor.browse

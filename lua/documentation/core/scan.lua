@@ -315,7 +315,15 @@ function M.scan(opts)
   -- the walk never *sees* the other one -- not skips it, never visits it,
   -- and says nothing about it either. A measurement forced this.
   local sources = {}
-  for _, entry in ipairs(type(opts.source) == "table" and opts.source or { opts.source or "lua" }) do
+  local declared = opts.source
+  ---@type string[]
+  local declared_list
+  if type(declared) == "table" then
+    declared_list = declared
+  else
+    declared_list = { declared or "lua" }
+  end
+  for _, entry in ipairs(declared_list) do
     sources[#sources + 1] = chomp(slash(entry))
   end
   local types_dir = opts.types_dir or "@types"

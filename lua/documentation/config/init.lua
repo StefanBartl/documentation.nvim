@@ -105,7 +105,12 @@ M.KNOWN_OPTS_KEYS = {
 ---Found by the standalone build, which runs a full scan through code the
 ---specs never reach. Every consumer now goes through here, so the next shape
 ---change has one place to update rather than nine.
----@param opts Documentation.Opts
+---Takes any options table that carries a `source`: the map's own
+---`Documentation.Opts`, the browser's, or a resolved `Documentation.Config`.
+---Structural on purpose -- this reads that one field and nothing else, and
+---naming a single class here is what made three of the callers below pass
+---something that "was not that class" while being exactly right.
+---@param opts { source?: string|string[] }?
 ---@return string[] Always at least one entry.
 function M.sources(opts)
   local src = opts and opts.source

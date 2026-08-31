@@ -498,7 +498,9 @@ function M.scan_file(path)
   local lines = #src == 0 and 0 or (newlines + (src:sub(-1) == "\n" and 0 or 1))
 
   local ok, parser = pcall(vim.treesitter.get_string_parser, src, "lua")
-  if not ok then
+  -- `not parser` is for the type rather than the runtime: `pcall` hands back
+  -- the error message as its second value.
+  if not ok or not parser then
     return {}, {}, requires, {}, {}, {}, lines, {}
   end
   local ok_parse, trees = pcall(function()

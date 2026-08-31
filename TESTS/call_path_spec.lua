@@ -2,6 +2,10 @@
 -- a fixture read, a uv handle -- this file must crash and name it. The nil
 -- guards LuaLS asks for below would hide the very failure it exists to report.
 ---@diagnostic disable: need-check-nil
+-- The chains built inline below carry only `confidence`: the rule under test
+-- is how the weakest hop colours the whole chain, and a full `Documentation.Edge`
+-- per hop would say nothing more about it.
+---@diagnostic disable: missing-fields
 -- TESTS/call_path_spec.lua — `core/calls.lua`'s `path` and
 -- `chain_confidence`: the call-graph traversal behind `:DocMap why`'s second
 -- chain.
@@ -128,7 +132,7 @@ return function(H)
     -- Every hop here resolves through a bound alias, which `calls.lua`'s
     -- header lists as an exact shape. If this ever reports "heuristic", the
     -- resolution weakened and the chain's certainty claim went with it.
-    local chain = calls.path(ir, "lua/c/top", "lua/c/leaf")
+    local chain = assert(calls.path(ir, "lua/c/top", "lua/c/leaf"))
     eq(calls.chain_confidence(chain), "exact", "chain_confidence: all hops resolved exactly")
   end
 

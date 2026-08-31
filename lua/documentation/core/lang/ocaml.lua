@@ -190,7 +190,8 @@ end
 ---license banner is `(*` and never `(**`.
 ---@param root TSNode
 ---@param src string
----@return table<integer, string>
+---@return table<integer, string> above Keyed by the row the comment *ends* on: the block that sits above a declaration.
+---@return table<integer, string> below Keyed by the row it starts on: the trailing form, where the comment follows what it documents.
 local function doc_blocks(root, src)
   local above, below = {}, {}
   local function walk(node)

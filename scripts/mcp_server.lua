@@ -51,6 +51,7 @@ ensure("documentation.mcp", "documentation.nvim")
 -- messages to stderr, but `vim.notify` is a public hook any module on the
 -- runtimepath may have replaced, so pinning it here is cheap insurance
 -- against one stray write corrupting every subsequent client parse.
+---@diagnostic disable-next-line: duplicate-set-field
 vim.notify = function(msg, _, _)
   io.stderr:write(tostring(msg), "\n")
 end

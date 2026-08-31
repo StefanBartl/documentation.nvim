@@ -107,7 +107,7 @@ function M.scan_full(opts)
   -- LuaLS-enrichment fields, which stay nil when never run) is not itself a
   -- signal — checking `next(opts.tag_files or {})` is what a caller wanting
   -- to know "was this configured" should do.
-  timing.measure(t, "tagfiles", function()
+  timing.stage(t, "tagfiles", function()
     require("documentation.core.tagfiles").resolve(ir, opts)
   end)
 
@@ -116,21 +116,21 @@ function M.scan_full(opts)
   -- core/external_repos.lua's own header for why a local project's own map
   -- wins over a guessed GitHub URL for the same module. Same "always runs,
   -- no-op when unconfigured" shape as tagfiles.
-  timing.measure(t, "external_repos", function()
+  timing.stage(t, "external_repos", function()
     require("documentation.core.external_repos").resolve(ir, opts)
   end)
 
   -- Same reasoning: cheap, local, no reason to gate behind a flag. A
   -- missing opts.tests_dir just leaves every fn.tested false, same as a
   -- tree with no tag_files leaves every requires_external unresolved.
-  timing.measure(t, "coverage", function()
+  timing.stage(t, "coverage", function()
     require("documentation.core.coverage").resolve(ir, opts)
   end)
 
   -- Same reasoning again: `fn.documented` is what the Analysis tab's
   -- Documentation panel reads to build a per-module breakdown without
   -- reimplementing `doccoverage.is_documented` in JS.
-  timing.measure(t, "doccoverage", function()
+  timing.stage(t, "doccoverage", function()
     require("documentation.core.doccoverage").resolve(ir)
   end)
 
@@ -147,7 +147,7 @@ function M.scan_full(opts)
   -- doccoverage do — it is local, cheap, and a tree with no documentation
   -- files simply produces an empty corpus, which is a real answer rather
   -- than a missing one.
-  timing.measure(t, "docs", function()
+  timing.stage(t, "docs", function()
     require("documentation.core.docs").resolve_all(ir, opts)
   end)
 

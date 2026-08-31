@@ -57,6 +57,7 @@ return function(H)
     ir.nodes.a.module = "__browse_loaded_spec_fixture"
     local rows = loaded_diff.rows(ir)
     ok(rows ~= nil, "rows: runtime-analysis.loaded is installed in this checkout, so not nil")
+    ---@cast rows -nil
 
     local by_name = {}
     for _, row in ipairs(rows) do

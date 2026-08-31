@@ -101,4 +101,21 @@ function M.lines(t)
   return out
 end
 
+---Run `fn` under `name` for its effect alone.
+---
+---Same measurement as `measure`, without a value. Half the stages of a scan
+---mutate `ir` in place and return nothing, and `measure`'s `fun(): T` asks
+---each of them for a return value it does not have. Declaring the void shape
+---as an overload on `measure` was tried and measured: it makes *every*
+---caller's result nil-able, which trades five findings for thirteen.
+---@param t Documentation.Timing?
+---@param name string
+---@param fn fun()
+function M.stage(t, name, fn)
+  M.measure(t, name, function()
+    fn()
+    return nil
+  end)
+end
+
 return M

@@ -10,6 +10,7 @@
 --- the `:DocMap` subcommands) takes this, not `Documentation.Opts`.
 ---@class Documentation.Config : Documentation.Opts
 ---@field root string
+---@field git? fun(opts: table, args: string[]): string?, string? Host-supplied git runner, installed by whoever is hosting the scan: `core/api.lua`'s history routes call it, the editor points it at a `vim.system` wrapper and the standalone build at `io.popen`. Absent means "no git here", which those routes answer with rather than error on.
 
 ---@class Documentation.Opts
 ---@field root? string Absolute path to the repository root. Omitted in a `usrcmds.setup()` call, `:DocMap`/`:DocBrowse` resolve it **per invocation** from the current buffer's file (see `root_markers`); set it to pin every invocation to one tree, which is what a consuming plugin generating its own map wants.

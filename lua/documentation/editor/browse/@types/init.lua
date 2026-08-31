@@ -6,7 +6,7 @@
 ---existing docmap opts table straight through.
 ---@class Documentation.Browse.Opts
 ---@field root string Absolute path to the repository root.
----@field source? string Source directory relative to `root`, for the staleness check. Default "lua".
+---@field source? string|string[] Source directory or directories relative to `root`, for the staleness check. Default "lua". A list for the same reason `Documentation.Opts.source` takes one -- the browser forwards whatever the config holds, and `config.sources` is what reads it.
 ---@field lua_root? string Directory Lua module paths are relative to, used to resolve `center` against namespaces that declare no `@module`. Default "lua".
 ---@field out_dir? string Where the artifact lives, relative to `root`. Default "docs/map".
 ---@field live? boolean Install a watching `docmap.install()` handle instead of reading the artifact — costs a full scan up front, but the view then updates on write. Default false.
@@ -44,6 +44,7 @@
 ---| "quickfix"     # current list into the quickfix list
 ---| "impact"       # blast radius into the quickfix list
 ---| "open_page"    # open the generated HTML page
+---| "send_request" # endpoints: send a request to the route under the cursor (needs runtime-analysis.nvim)
 ---| "commit_diff"  # the opened commit's diff
 ---| "pin"          # pin / unpin the entry under the cursor
 ---| "unpin"        # unpin, in Trail
@@ -90,6 +91,7 @@
 ---@field pin_index integer? 1-based position in the trail, for `d`.
 ---@field detail string? One-line hint shown when the row has no richer detail.
 ---@field telemetry_row Documentation.TelemetryJoin.Row? The join row behind a `kind="telemetry"` entry — `nil` for a function `runtime-analysis.telemetry` has no data for, distinct from a row with `calls = 0`.
+---@field spec Documentation.EndpointSpec? The route behind a `kind="endpoint"` entry -- what the row renders (method, path, handler) and what `gs` sends. Carried on the entry so neither the detail pane nor the send path has to find the node again.
 ---@field endpoint_sends RA.History.Entry[]? The static x runtime join behind a `kind="endpoint"` entry with `runtime-analysis.nvim` — `nil` when no history data exists for this project at all, an empty list when history exists but never matched this route.
 ---@field loaded_diff_row Documentation.LoadedDiff.Row? The join row behind a `kind="loaded_diff"` entry with `runtime-analysis.nvim`.
 

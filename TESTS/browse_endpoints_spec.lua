@@ -68,8 +68,9 @@ return function(H)
     local ir = fake_ir()
     local entries = view.entries(ir, { mode = "endpoints" })
     eq(#entries, 2, "endpoints mode: every route across the tree, none missed")
-    eq(entries[1].spec.path, "/users", "endpoints mode: sorted by path first")
-    eq(entries[2].spec.path, "/users/:id", "endpoints mode: ... second one after")
+    local first, second = assert(entries[1].spec), assert(entries[2].spec)
+    eq(first.path, "/users", "endpoints mode: sorted by path first")
+    eq(second.path, "/users/:id", "endpoints mode: ... second one after")
     eq(entries[1].label, "POST    /users", "endpoints mode: label is METHOD + path")
     ok(entries[1].kind == "endpoint", 'endpoints mode: entry kind is "endpoint"')
   end
@@ -280,7 +281,8 @@ return function(H)
     local entries = view.entries(ir, { mode = "endpoints", opts = { root = "/fake/root" } })
     local by_path = {}
     for _, e in ipairs(entries) do
-      by_path[e.spec.path .. " " .. e.spec.method] = e
+      local spec = assert(e.spec)
+      by_path[spec.path .. " " .. spec.method] = e
     end
 
     local sent = by_path["/users/:id get"]

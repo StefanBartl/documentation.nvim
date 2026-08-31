@@ -66,6 +66,8 @@ return function(H)
   ok(tags.get("param") ~= nil, "tags: get() takes a bare name")
   ok(tags.get("@param") ~= nil, "tags: get() takes the written form too")
   eq(tags.get("raises"), nil, "tags: a tag this plugin does not read is absent, not invented")
+  -- Deliberately the wrong argument: what is under test is the refusal.
+  ---@diagnostic disable-next-line: param-type-mismatch
   eq(tags.get(nil), nil, "tags: a nil lookup is nil, not an error")
 
   -- ---------------------------------------------------------------------
@@ -76,6 +78,7 @@ return function(H)
 
   local handlers_at = src:find("local HANDLERS = {", 1, true)
   ok(handlers_at ~= nil, "tags: the parser dispatches through a named table")
+  ---@cast handlers_at -nil
 
   -- Bounded to the table's own body, so an unrelated `foo = function` later
   -- in the file cannot be mistaken for a handler.

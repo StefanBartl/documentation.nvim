@@ -315,7 +315,7 @@ return function(H)
   end
 
   do
-    local line = protocol.dispatch(server, "{ this is not json")
+    local line = assert(protocol.dispatch(server, "{ this is not json"))
     local res = vim.json.decode(line)
     eq(res.error.code, -32700, "malformed line: -32700 parse error")
     eq(res.id, vim.NIL, "malformed line: a null id, since none could be read")
@@ -415,7 +415,7 @@ return function(H)
             params = { name = "docmap_checklist", arguments = args or vim.empty_dict() },
           })
         )
-        local decoded = vim.json.decode(res)
+        local decoded = vim.json.decode(assert(res))
         ok(decoded.result and not decoded.result.isError, "docmap_checklist: not isError")
         return vim.json.decode(decoded.result.content[1].text)
       end
@@ -432,6 +432,10 @@ return function(H)
         "docmap_checklist: default view is stale + unverified only, same as the usrcmd"
       )
 
+      -- The payload crossed the JSON-RPC boundary as text, so there is no
+      -- type to carry over into it; `table?` says that rather than letting
+      -- an untyped nil stand in for the decoded item.
+      ---@type table?
       local stale = nil
       for _, it in ipairs(default_view.items) do
         if it.state == "stale" then

@@ -131,7 +131,7 @@ function M.run(ctx)
     local spec, node = entry.spec, entry.node
     local key = collision_key(spec)
     local dup = key ~= nil and seen[key] > 1
-    if dup and not counted_dup[key] then
+    if key and dup and not counted_dup[key] then
       counted_dup[key] = true
       ndup = ndup + 1
     end

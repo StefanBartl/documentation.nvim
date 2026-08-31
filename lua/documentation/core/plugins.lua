@@ -361,6 +361,13 @@ local function parse_entry(node, src)
         elseif kind == "number" then
           spec[key] = number_value(value, src)
         elseif kind == "string" then
+          -- The union LuaLS infers for `spec[key]` comes from the accumulator
+          -- literal above -- integer, tables, booleans -- not from
+          -- `Documentation.PluginSpec`, which does declare `branch`,
+          -- `version`, `dir` and `url` as strings. Annotating the accumulator
+          -- as the class instead would demand a `repo` this loop is still
+          -- looking for.
+          ---@diagnostic disable-next-line: assign-type-mismatch
           spec[key] = string_value(value, src)
         elseif kind == "presence" then
           spec["has_" .. key] = true

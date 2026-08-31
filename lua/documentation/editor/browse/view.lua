@@ -1020,7 +1020,7 @@ function M.detail(ir, st, entry)
   end
 
   if entry.kind == "endpoint" then
-    local spec = entry.spec
+    local spec = assert(entry.spec)
     local out = {
       ("%s %s"):format(spec.method:upper(), spec.path),
       "",
@@ -1092,7 +1092,10 @@ function M.detail(ir, st, entry)
   end
 
   if entry.kind == "loaded_diff" then
-    local row = entry.loaded_diff_row
+    -- The row is built with the entry (see the list builder above), so this
+    -- states the invariant rather than inventing a rendering for an entry
+    -- that cannot occur.
+    local row = assert(entry.loaded_diff_row)
     local node = ir.nodes[entry.id]
     local mod = (node and node.module) or entry.id
     local out = { ("%s#%s"):format(mod, row.name), "" }

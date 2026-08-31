@@ -28,6 +28,7 @@ return function(H)
   -- ---------------------------------------------------------------------
   local gl = L.glossary_for("lua/documentation/init.lua")
   ok(gl ~= nil, "lookup: a .lua path finds the Lua glossary")
+  ---@cast gl -nil
   eq(L.glossary_for("README.md"), nil, "lookup: a language with no glossary is nil, not an error")
   eq(L.glossary_for(nil), nil, "lookup: no path, no glossary")
   eq(L.glossary_for("Makefile"), nil, "lookup: no extension, no glossary")
@@ -98,6 +99,7 @@ return function(H)
   -- the referenced manual, so it gets no reference line.
   -- ---------------------------------------------------------------------
   local k1, e1, kind1 = L.resolve("s:gsub", gl)
+  assert(k1 and e1 and kind1, "s:gsub resolves, or the card test below tests nothing")
   local card = L.card(k1, e1, kind1, gl)
   eq(card[1], "string.gsub", "card: titled with the key that matched, not the word typed")
   ok(card[2]:find("stdlib", 1, true) ~= nil, "card: the kind is on the second line")
@@ -107,6 +109,7 @@ return function(H)
   )
 
   local k2, e2, kind2 = L.resolve("vim.split", gl)
+  assert(k2 and e2 and kind2, "vim.split resolves, same reason")
   ok(e2.origin ~= nil, "card: vim.split carries an origin — it is not from the Lua manual")
   local card2 = L.card(k2, e2, kind2, gl)
   eq(

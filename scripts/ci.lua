@@ -169,13 +169,11 @@ function GATES.map()
   run({ "nvim", "--headless", "-l", "scripts/gen_map.lua", "--check" }, "map --check")
 end
 
----The first Lua 5.x interpreter on PATH that is not Neovim, or nil.
+---A PUC Lua that can actually run the standalone build, or nil.
 ---
 ---`lua5.4` before `lua` because Debian-family images ship both and the bare
 ---name is often 5.1; this gate wants the *other* Lua from the one Neovim
 ---embeds, which is the entire point of it existing.
----@return string?
----A PUC Lua that can actually run the standalone build, or nil.
 ---
 ---**Being on `$PATH` is not the question; being able to `require` the two
 ---rocks the build needs is.** A machine can easily have more than one PUC
@@ -188,7 +186,10 @@ end
 ---
 ---So each candidate is probed rather than assumed, and a machine with no
 ---usable interpreter takes the stated skip below instead of failing.
----@return string?
+---@return string? exe The first interpreter that loaded both rocks.
+---@return string[]? found Every PUC Lua on PATH, returned only when none of
+---them worked -- "none installed" and "one installed that cannot load the
+---rocks" are different problems, and the caller reports which it is.
 local function puc_lua()
   -- Which interpreters exist at all, kept apart from which of them work.
   -- "no PUC Lua here" and "a PUC Lua that cannot load the rocks" are

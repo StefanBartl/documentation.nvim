@@ -97,6 +97,8 @@ return function(H)
   -- ---------------------------------------------------------------------
 
   eq(
+    -- "warning" is not a severity -- the rejection is what is under test.
+    ---@diagnostic disable-next-line: assign-type-mismatch
     #policy.apply(input, { ["missing-summary"] = "warning" }),
     4,
     "apply: a misspelled severity ignores the line rather than dropping the check"
@@ -125,6 +127,7 @@ return function(H)
   ok(messages[1]:match("dead%-fn"), "validate: the warning names the code")
 
   messages = {}
+  ---@diagnostic disable-next-line: assign-type-mismatch
   policy.validate({ ["missing-summary"] = "loud" }, note)
   eq(#messages, 1, "validate: an unusable value warns")
   ok(messages[1]:match("loud"), "validate: the warning names the value")

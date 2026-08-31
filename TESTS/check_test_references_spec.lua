@@ -146,6 +146,7 @@ return function(H)
   -- answer for a healthy tree and no evidence at all that it works.
   local gone = in_file("gone_spec.lua")
   ok(gone ~= nil, "test-references-missing: fires on a spec naming a function that is gone")
+  ---@cast gone -nil
   eq(
     gone.severity,
     "warn",

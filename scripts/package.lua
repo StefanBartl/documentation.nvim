@@ -83,7 +83,9 @@ local self_dir = (debug.getinfo(1, "S").source:sub(2):match("(.*)[/\\]")) or "."
 local repo = (self_dir .. "/.."):gsub("\\", "/")
 
 local LUA_INCDIR = env("LUA_INCDIR", true)
-local LUA_LIBA = env("LUA_LIBA", true)
+-- `env(..., true)` exits when the variable is missing, so past this line it is
+-- a string rather than a `string?`.
+local LUA_LIBA = env("LUA_LIBA", true) --[[@as string]]
 local STATIC_LIBS = env("DOCMAP_STATIC_LIBS", true)
 local CC = os.getenv("CC")
 if not CC or CC == "" then

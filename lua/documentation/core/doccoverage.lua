@@ -171,7 +171,7 @@ end
 ---Grouped by `node.language`, the field the walk already stamps from whichever
 ---backend claimed the file. A namespace has none and contributes nothing,
 ---which is correct rather than convenient: it holds no functions to count.
----@param ir Documentation.IR
+---
 ---**Two counts, because the bar is not the same in every language.** Eight
 ---of the twenty-three backends declare `param_docs = false`, so a function
 ---there is documented once it has a summary; the other fifteen also require

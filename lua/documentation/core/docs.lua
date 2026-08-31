@@ -194,8 +194,8 @@ function M.build_index(ir)
   --    tree; the index should name that place.
   for _, id in ipairs(ir.order) do
     local node = ir.nodes[id]
-    if node.module then
-      local name = node.module
+    local name = node.module
+    if name then
       local owner = node.parent
       while true do
         local shorter = name:match("^(.*)%.[^.]+$")

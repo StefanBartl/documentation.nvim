@@ -201,20 +201,20 @@ end
 ---@param client uv.uv_tcp_t
 ---@param name string
 local function route_static(cfg, client, name)
-  name = M.safe_static_name(name)
-  if not name then
+  local safe = M.safe_static_name(name)
+  if not safe then
     return respond_error(client, 400, "bad path")
   end
 
-  local path = ("%s/%s/%s"):format(cfg.root, cfg.out_dir or "docs/map", name)
+  local path = ("%s/%s/%s"):format(cfg.root, cfg.out_dir or "docs/map", safe)
   local fd = io.open(path, "rb")
   if not fd then
-    return respond_error(client, 404, "not found: " .. name)
+    return respond_error(client, 404, "not found: " .. safe)
   end
   local body = fd:read("*a")
   fd:close()
 
-  local ext = name:match("%.(%w+)$") or ""
+  local ext = safe:match("%.(%w+)$") or ""
   local ctype = ({
     html = "text/html; charset=utf-8",
     json = "application/json",

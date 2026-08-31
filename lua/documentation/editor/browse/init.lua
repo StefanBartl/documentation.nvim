@@ -486,8 +486,8 @@ local function enter(st)
   -- be current — is the failure that makes bookmarks feel unreliable: the pin
   -- was "this module's incoming requires at depth 3", and arriving at its
   -- child list is not that place.
-  if e.pin then
-    local p = e.pin
+  local p = e.pin
+  if p then
     go(st, {
       mode = p.mode,
       id = p.id or st.id,
@@ -586,7 +586,11 @@ local function pin_current(st)
     notify.warn("external requires have no node to return to")
     return
   end
-  if not (e.id or e.sha) then
+  -- Bound to a local rather than checked in place: it is the value the label
+  -- falls back to below, and a check on `e.id or e.sha` does not narrow the
+  -- second read of the same expression.
+  local anchor = e.id or e.sha
+  if not anchor then
     return
   end
 
@@ -600,7 +604,7 @@ local function pin_current(st)
     depth = st.depth,
     source = e.source,
     line = e.line,
-    label = label ~= "" and label or (e.id or e.sha),
+    label = label ~= "" and label or anchor,
     detail = e.detail,
   })
 
@@ -911,7 +915,8 @@ local function send_request(st)
     return
   end
 
-  local spec = e.spec
+  -- Same invariant as the detail pane: an endpoints row carries its route.
+  local spec = assert(e.spec)
   M.close()
   runtime_analysis.open_request({
     ("%s %s"):format(spec.method:upper(), spec.path),
@@ -952,7 +957,11 @@ local function search(st)
       for i, c in ipairs(matches) do
         lines[i] = c.label
       end
-      picker.set_results(lines)
+      -- `kit.picker` can return nil (no surface), and the forward
+      -- declaration is nil until it does return -- so the callback checks.
+      if picker then
+        picker.set_results(lines)
+      end
     end,
     on_submit = function(idx)
       local hit = matches[idx]
@@ -1141,7 +1150,9 @@ local function lookup(st)
   end
 
   local key, entry, kind = lk.resolve(word, gl)
-  if not entry then
+  -- The three come back together or not at all, which no annotation can say:
+  -- checking `entry` alone leaves `key` and `kind` optional for the call below.
+  if not entry or not key or not kind then
     notify.info(("no glossary entry for `%s`"):format(word))
     return
   end
@@ -1393,13 +1404,14 @@ end
 ---@param mode string
 ---@return boolean
 local function applies_in(spec, mode)
-  if not spec.only then
+  local only = spec.only
+  if not only then
     return true
   end
-  if type(spec.only) == "string" then
-    return spec.only == mode
+  if type(only) == "string" then
+    return only == mode
   end
-  return vim.tbl_contains(spec.only, mode)
+  return vim.tbl_contains(only, mode)
 end
 
 ---Render the `?` cheatsheet for the current mode.

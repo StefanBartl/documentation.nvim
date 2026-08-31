@@ -73,6 +73,9 @@ local function probe(scan_root, argv)
   -- luacheck: push ignore os
   local real_exit = os.exit
   local exit_code
+  -- Replacing `os.exit` is the point of the probe: the scanned script exits
+  -- on its own, and this turns that into a value. Restored below.
+  ---@diagnostic disable-next-line: duplicate-set-field
   os.exit = function(code)
     exit_code = code
     error({ __bundle_exit = true }, 0)

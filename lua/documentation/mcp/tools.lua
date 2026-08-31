@@ -394,8 +394,9 @@ catalogue.docmap_checklist = {
     -- full history is the slow part of this tool, and an agent waiting on a
     -- tool call needs a ceiling more than it needs patience.
     local timeout = 120000
-    if type(handle.cfg) == "table" and type(handle.cfg.git_log_timeout_ms) == "number" then
-      timeout = handle.cfg.git_log_timeout_ms
+    local configured = type(handle.cfg) == "table" and handle.cfg.git_log_timeout_ms or nil
+    if type(configured) == "number" then
+      timeout = configured
     end
     local settled = vim.wait(timeout, function()
       return proc ~= nil

@@ -267,10 +267,11 @@ end
 ---Build the in-process client. `dispatchers` is accepted for signature
 ---compatibility with `vim.lsp.rpc.Client`; nothing here pushes an
 ---unsolicited notification (no diagnostics, no progress), so it is never
----called.
+---called. What it *returns* is a `vim.lsp.rpc.PublicClient` -- the four
+---methods `vim.lsp.start`'s `cmd` function has to hand back.
 ---@param handle Documentation.Handle
 ---@param namespace string? Telemetry namespace this root joins against, resolved by the caller from `opts` -- the handle carries no options, and `ir.meta.title` would silently ignore an explicit `opts.telemetry_namespace`.
----@return vim.lsp.rpc.Client
+---@return vim.lsp.rpc.PublicClient
 local function make_client(handle, namespace)
   local root = handle.root
   local closing = false

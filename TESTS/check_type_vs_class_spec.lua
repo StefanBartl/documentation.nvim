@@ -141,6 +141,7 @@ return function(H)
   -- for a top-level module.
   local bad = by_node("lua/t/bad")
   ok(bad ~= nil, "check.type-vs-class: fires for @type + real exported fields")
+  ---@cast bad -nil
   eq(
     bad.severity,
     "warn",

@@ -1,3 +1,6 @@
+-- The fixtures below carry only the fields `scopes.summary` reads; a full IR
+-- and a full node per case would be noise rather than coverage.
+---@diagnostic disable: missing-fields
 -- TESTS/scopes_spec.lua — documentation.core.scopes
 --
 -- No grammar needed, deliberately. The two backend specs that *do* need one

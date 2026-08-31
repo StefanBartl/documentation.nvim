@@ -116,6 +116,7 @@ return function(H)
   end
 
   local orphan = reported("T.Orphan")
+  ---@cast orphan -nil
   ok(orphan ~= nil, "orphaned-class-alias: fires for a type nothing references")
   eq(
     orphan.severity,

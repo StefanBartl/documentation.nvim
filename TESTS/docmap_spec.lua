@@ -1834,7 +1834,11 @@ return function(H)
   }) do
     eq(serve.safe_sha(bad), nil, ("docmap.serve: refuses %q"):format(bad))
   end
+  -- Both calls hand it the wrong type on purpose: refusing those is the
+  -- behaviour under test, so the mismatch is the point rather than a defect.
+  ---@diagnostic disable-next-line: param-type-mismatch
   eq(serve.safe_sha(nil), nil, "docmap.serve: refuses a nil path segment")
+  ---@diagnostic disable-next-line: param-type-mismatch
   eq(serve.safe_sha(42), nil, "docmap.serve: refuses a non-string")
 
   -- The other half of the server's security surface: the static route may
@@ -1862,7 +1866,9 @@ return function(H)
   }) do
     eq(serve.safe_static_name(bad), nil, ("docmap.serve: refuses static path %q"):format(bad))
   end
+  ---@diagnostic disable-next-line: param-type-mismatch
   eq(serve.safe_static_name(nil), nil, "docmap.serve: refuses a nil static path")
+  ---@diagnostic disable-next-line: param-type-mismatch
   eq(serve.safe_static_name(42), nil, "docmap.serve: refuses a non-string static path")
 
   -- Lifecycle. Bound to loopback on an OS-assigned port, idempotent both

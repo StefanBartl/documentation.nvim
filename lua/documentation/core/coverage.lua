@@ -33,7 +33,9 @@ local IDENT_QUERY = vim.treesitter.query.parse("lua", "(identifier) @id")
 ---@return table<string, boolean>
 local function mentioned_names(src)
   local ok, parser = pcall(vim.treesitter.get_string_parser, src, "lua")
-  if not ok then
+  -- `not parser` is for the type rather than the runtime: `pcall` hands back
+  -- the error message as its second value.
+  if not ok or not parser then
     return {}
   end
   local ok_parse, trees = pcall(function()
