@@ -166,6 +166,63 @@ function M.rows(ir)
   return diff(ir, loaded_mod.functions)
 end
 
+---Which modules of this tree a real session had actually loaded, from the
+---newest persisted snapshot.
+---
+---**A different question from `M.rows`**, and the reason it is here rather
+---than folded into it: `rows` compares *fields* — which exported functions
+---are on a module's table — while this answers only "was this module ever
+---`require()`d". That is the coarser fact, and it is the one a check can act
+---on: a module nobody statically requires but a real session loaded is not
+---unreferenced, whatever the reason the static scan missed the edge.
+---
+---**The newest snapshot, not the live process**, and that is deliberate
+---rather than convenient. `package.loaded` in the process running a check is
+---polluted by the check itself: `core/scan.lua` requires this tree's own
+---modules to read them, so a self-scan would find nearly everything "loaded"
+---and suppress every finding — evidence produced by the observation is not
+---evidence. A snapshot is taken on purpose, in a session someone was
+---actually working in (`:RA loaded snapshot <prefix>`), and means what it
+---says.
+---
+---No option names which snapshot: newest wins. A stale snapshot can only
+---*suppress* a finding that would otherwise appear, which is the direction
+---this ecosystem already chose for runtime evidence — see
+---`core/check.lua#check_orphans` and the `dead-function` join for the same
+---rule stated twice more.
+---@param opts Documentation.Opts
+---@return table<string, true>? loaded `nil` when there is no evidence at all
+---— `runtime-analysis.nvim` absent, no single root prefix, or no snapshot
+---ever taken. Distinct from an empty table, which cannot occur: a snapshot
+---is only written when something under the prefix was loaded.
+function M.loaded_modules(opts)
+  local prefix = M.prefix(opts)
+  if not prefix then
+    return nil
+  end
+
+  local loaded_mod = require("documentation.core.soft_require").probe("runtime-analysis.loaded")
+  if not loaded_mod then
+    return nil
+  end
+
+  local ok_list, list = pcall(loaded_mod.list_snapshots, prefix)
+  if not ok_list or type(list) ~= "table" or not list[1] then
+    return nil
+  end
+
+  local ok_load, snap = pcall(loaded_mod.load_snapshot, prefix, list[1].name)
+  if not ok_load or type(snap) ~= "table" or type(snap.modules) ~= "table" then
+    return nil
+  end
+
+  local out = {}
+  for module_id in pairs(snap.modules) do
+    out[module_id] = true
+  end
+  return out
+end
+
 ---The same diff, against a persisted snapshot instead of the live
 ---`package.loaded` — "cold viewing": a snapshot
 ---taken in one process (or hours/days earlier in this one), read here

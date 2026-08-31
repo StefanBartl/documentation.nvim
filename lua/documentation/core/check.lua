@@ -598,13 +598,28 @@ end
 --- view, at no I/O.
 ---@param ir Documentation.IR
 ---@param findings Documentation.Finding[]
-local function check_orphans(ir, findings)
+---@param opts Documentation.Opts
+local function check_orphans(ir, findings, opts)
+  -- The second place runtime evidence is allowed to *suppress* a finding,
+  -- after `dead-function`'s telemetry join. The case is the one this check
+  -- has always named in its own comment below: a module reached through an
+  -- aggregator's string map has no literal `require` anywhere, so no static
+  -- scan can see the edge, and `lib.nvim`'s aggregator is built entirely that
+  -- way. A session that actually loaded the module settles it.
+  --
+  -- Suppression only, never escalation — the line `PLAN.md` §7 draws and the
+  -- reason it holds: a warning that appears on one machine and not another is
+  -- worse than no warning. `nil` here (no snapshot, no runtime-analysis, no
+  -- single root prefix) means this check behaves exactly as it always has,
+  -- which is also CI's normal state.
+  local loaded = require("documentation.core.loaded_diff").loaded_modules(opts)
+
   for _, id in ipairs(ir.order) do
     local node = ir.nodes[id]
     if node.module and node.kind ~= "namespace" and id ~= ir.root then
       -- A module may legitimately be reached only through the aggregator's
       -- string map rather than a literal require, so this stays at `info`.
-      if #(node.required_by or {}) == 0 then
+      if #(node.required_by or {}) == 0 and not (loaded and loaded[node.module]) then
         add(findings, "info", "unreferenced-module", id, { module = node.module })
       end
     end
@@ -2081,7 +2096,7 @@ function M.run(ir, opts)
   check_doc_references(ir, findings)
   check_sibling_references(ir, findings, opts)
   check_tools_spec(ir, findings)
-  check_orphans(ir, findings)
+  check_orphans(ir, findings, opts)
   check_tag_requires(ir, findings)
   check_orphaned_types(ir, findings, opts)
   check_test_references(ir, findings, opts)
