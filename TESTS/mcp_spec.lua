@@ -1,3 +1,7 @@
+-- Test code: when something here comes back nil -- a `pcall(require, ...)`,
+-- a fixture read, a uv handle -- this file must crash and name it. The nil
+-- guards LuaLS asks for below would hide the very failure it exists to report.
+---@diagnostic disable: need-check-nil
 -- TESTS/mcp_spec.lua — `documentation.mcp.protocol` and `documentation.mcp.tools`,
 -- the MCP server's two halves that have nothing to do with stdio.
 --

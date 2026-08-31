@@ -1,3 +1,7 @@
+-- Test code: when something here comes back nil -- a `pcall(require, ...)`,
+-- a fixture read, a uv handle -- this file must crash and name it. The nil
+-- guards LuaLS asks for below would hide the very failure it exists to report.
+---@diagnostic disable: need-check-nil
 -- TESTS/lang_dart_spec.lua — documentation.core.lang.dart
 --
 -- Skips when the dart parser is not reachable; `DOCMAP_DART_PARSER` points at

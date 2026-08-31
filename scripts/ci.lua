@@ -1,3 +1,7 @@
+-- Test code: when something here comes back nil -- a `pcall(require, ...)`,
+-- a fixture read, a uv handle -- this file must crash and name it. The nil
+-- guards LuaLS asks for below would hide the very failure it exists to report.
+---@diagnostic disable: need-check-nil
 -- scripts/ci.lua — every gate CI runs, as Lua rather than as shell.
 --
 --   nvim --headless -l scripts/ci.lua              all five, stopping at the first failure

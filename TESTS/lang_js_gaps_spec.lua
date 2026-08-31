@@ -1,3 +1,7 @@
+-- Test code: when something here comes back nil -- a `pcall(require, ...)`,
+-- a fixture read, a uv handle -- this file must crash and name it. The nil
+-- guards LuaLS asks for below would hide the very failure it exists to report.
+---@diagnostic disable: need-check-nil
 -- TESTS/lang_js_gaps_spec.lua — the three shapes ecma.lua used to miss
 --
 -- MULTILANG.md's Phase 1 shipped with three gaps stated plainly rather than
