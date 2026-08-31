@@ -262,6 +262,14 @@ main{grid-template-columns:minmax(300px,1.1fr) minmax(0,1.4fr);gap:0;align-items
    inspectable; nothing styles it. */
 .fence{font-family:var(--mono);font-size:11.5px;white-space:pre-wrap;background:var(--accent-soft);
   border-radius:6px;padding:8px 10px;margin:8px 0;overflow-x:auto}
+/* The baked-in startup flamegraph. It scrolls horizontally rather than
+   scaling to fit: the graph is 1200px of deliberate arithmetic (width IS
+   time), and squeezing it into a narrower panel would make two frames of
+   different cost look the same width. The SVG carries its own light
+   background, so it stays legible in the dark theme as the card it is —
+   see core/startup_graph.lua for why it is embedded rather than fetched. */
+.startup-graph{margin-top:8px;overflow-x:auto;border:1px solid var(--line);border-radius:6px}
+.startup-graph svg{display:block}
 /* Annotation popup — the same fn-* markup the detail pane renders, floated
    over whichever list the reader is scanning. Every list in this map shows a
    signature and nothing else; the params, returns and prose that were
@@ -2165,6 +2173,7 @@ local JS = [[
         v === "duplicates" || v === "plugins" || v === "lazy" || v === "tools" || v === "hooks" ||
         v === "checklist" || v === "api" || v === "annotations" ||
         v === "docs" || v === "endpoints" || v === "telemetry" || v === "loaded" ||
+        v === "startup" ||
         v === "bindings") ? v : "test";
       // Snapshot names are whatever runtime-analysis.telemetry's own
       // sanitizer allowed through when saved — not re-validated here, the
@@ -4314,6 +4323,12 @@ local JS = [[
       "A loaded-versus-declared comparison from a saved runtime-analysis " +
       "snapshot. Needs `:DocMap serve` and a named snapshot — the difference " +
       "is a property of one live session, never of a live aggregate.",
+    "atool.startup":
+      "Where startup time went, as a flamegraph: width is total time, depth " +
+      "is require nesting. Measured by runtime-analysis.nvim and written by " +
+      "`:RATelemetry flamegraph`, then baked into this page — unlike " +
+      "Telemetry and Loaded it needs no `:DocMap serve`, because startup " +
+      "happens once per session rather than accumulating.",
     "atool.checklist":
       "Hand-verified facts, each cited to the file it was read off. The " +
       "ledger is baked into this page; the changed-since-verified verdict " +
@@ -6284,6 +6299,7 @@ local JS = [[
       state.atool === "docs" || state.atool === "endpoints" || state.atool === "telemetry" ||
       state.atool === "loaded" || state.atool === "checklist" ||
       state.atool === "api" || state.atool === "annotations" ||
+      state.atool === "startup" ||
       state.atool === "bindings")
       ? state.atool : "test";
 
@@ -6315,6 +6331,15 @@ local JS = [[
     // later does not fit it.
     if(atool === "checklist"){
       drawAnalysisChecklist();
+      return;
+    }
+    // Baked in like Checklist, not fetched like the two above it — see
+    // `core/startup_graph.lua` for why startup attribution is the one
+    // runtime measurement that belongs in a committed artifact. Its own
+    // path for a third reason on top of theirs: it inserts a *node* rather
+    // than a string, and the cache stores strings.
+    if(atool === "startup"){
+      drawAnalysisStartup();
       return;
     }
 
@@ -6748,6 +6773,49 @@ local JS = [[
     });
 
     return out.join("");
+  }
+
+  // ---------------------------------------------------------------------
+  // Analysis -> Startup: the flamegraph, already in this document.
+  //
+  // Nothing is built or fetched here. `core/startup_graph.lua` read the SVG
+  // `:RATelemetry flamegraph` wrote, refused it unless it was the shape a
+  // flamegraph has, and the document carries it inside
+  // `<template id="startup-graph">`. This clones that node into the panel.
+  //
+  // **A node, not a string, and that is the reason this is not a case in
+  // `renderAnalysis`.** Everything there returns HTML that reaches `#anbody`
+  // through `innerHTML`, which would parse this content a second time —
+  // once by the HTML parser at load, once by the assignment. Cloning a
+  // `<template>`'s content parses it exactly once, at load, from bytes Lua
+  // wrote after checking them. It also means a `<script>` could not run even
+  // if one got this far, which is worth keeping as a second line behind
+  // `startup_graph.is_safe` rather than instead of it.
+  // ---------------------------------------------------------------------
+  function drawAnalysisStartup(){
+    var host = document.getElementById("anbody");
+    var tpl = document.getElementById("startup-graph");
+
+    if(!tpl){
+      host.innerHTML = '<p class="ntext none">No startup flamegraph is baked ' +
+        'into this page. It comes from <code>runtime-analysis.nvim</code>: ' +
+        'measure a session (<code>telemetry.startup.autostart()</code> from ' +
+        'that plugin\'s own lazy.nvim <code>init</code> hook), run ' +
+        '<code>:RATelemetry flamegraph</code>, then regenerate the map.</p>';
+      return;
+    }
+
+    var when = tpl.dataset.measured ? " Measured " + tpl.dataset.measured + "." : "";
+    host.innerHTML = '<p class="nsub">Startup attribution from ' +
+      '<code>runtime-analysis.nvim</code>: width is total time, depth is ' +
+      'require nesting, one colour per module root.' + esc(when) +
+      ' Baked in at generation time — unlike Telemetry and Loaded this needs ' +
+      'no <code>:DocMap serve</code>.</p>';
+
+    var frame = document.createElement("div");
+    frame.className = "startup-graph";
+    frame.appendChild(document.importNode(tpl.content, true));
+    host.appendChild(frame);
   }
 
   function drawAnalysisChecklist(){
@@ -9637,6 +9705,27 @@ function M.render(ir, findings, opts)
   -- at all, which is what the page has always done.
   local baked_theme = (opts.theme == "light" or opts.theme == "dark") and opts.theme or nil
 
+  -- The startup flamegraph, read from disk and checked before it is allowed
+  -- into the document — see `core/startup_graph.lua` for why it is baked in
+  -- rather than fetched like Telemetry and Loaded, and why "checked" here
+  -- means refused rather than sanitised. Absent is the normal case (nobody
+  -- has measured, or runtime-analysis.nvim is not installed), and absent
+  -- means both the button and the template are simply not emitted.
+  local startup_graph_button, startup_graph_html = "", ""
+  local graph = require("documentation.core.startup_graph").load(opts)
+  if graph then
+    startup_graph_button = '<button class="anview-btn plugin-gated" data-atool="startup"'
+      .. ' data-explain="atool.startup">Startup</button>'
+    -- The measurement's own date, not the generation's: a reader looking at
+    -- a slow-startup graph needs to know whether it predates the change they
+    -- are here about.
+    local measured = graph.mtime and os.date("!%Y-%m-%d", graph.mtime) or nil
+    startup_graph_html = ('<template id="startup-graph"%s>%s</template>'):format(
+      measured and (' data-measured="' .. esc(measured) .. '"') or "",
+      graph.svg
+    )
+  end
+
   local nodes = {}
   for _, id in ipairs(ir.order) do
     nodes[#nodes + 1] = ir.nodes[id]
@@ -10040,6 +10129,14 @@ function M.render(ir, findings, opts)
     '<button class="anview-btn plugin-gated" data-atool="tools" data-explain="atool.tools">Tools</button>',
     '<button class="anview-btn plugin-gated" data-atool="telemetry" data-explain="atool.telemetry">Telemetry</button>',
     '<button class="anview-btn plugin-gated" data-atool="loaded" data-explain="atool.loaded">Loaded</button>',
+    -- `plugin-gated` like its two neighbours, and for the same reason — the
+    -- data comes from runtime-analysis.nvim — but it is the one of the three
+    -- that needs no server: see `core/startup_graph.lua` for why startup
+    -- attribution is the one runtime measurement worth baking in. Rendered
+    -- only when a graph was actually baked in: a toolbar entry that is
+    -- always there and usually empty teaches the reader to skip it, which
+    -- is the same reasoning `docTrigger` states for its own icon.
+    startup_graph_button,
     '<button class="anview-btn" data-atool="checklist" data-explain="atool.checklist">Checklist</button>',
     '<button class="anview-btn" data-atool="hooks" data-explain="atool.hooks">Hooks</button>',
     '<button class="anview-btn" data-atool="docs" data-explain="atool.docs">Docs</button>',
@@ -10054,6 +10151,13 @@ function M.render(ir, findings, opts)
     "<thead><tr><th>Severity</th><th>Check</th><th>Message</th></tr></thead><tbody>",
     table.concat(rows),
     "</tbody></table></div></details></div></div>",
+
+    -- The startup flamegraph, in a `<template>` so the browser parses it
+    -- once at load and the Startup panel can clone it without a second
+    -- pass through `innerHTML`. Emitted only when there is one; the panel
+    -- says what to run when there is not, and the button is hidden
+    -- entirely so nobody clicks into an empty tool.
+    startup_graph_html,
 
     '<div id="ctx" role="menu"></div>',
     '<div id="sigpop" class="sigpop" role="tooltip"></div>',

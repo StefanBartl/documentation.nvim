@@ -40,9 +40,16 @@ return function(H)
   for _ in src:gmatch('"<pre><code>"') do
     pre_code = pre_code + 1
   end
-  eq(pre_code, 0, "fence: nothing writes its own <pre><code> — every fence goes through fenceHTML")
+  eq(
+    pre_code,
+    0,
+    "fence: nothing writes its own <pre><code> — every fence goes through fenceHTML"
+  )
 
-  ok(src:find("function fenceHTML(src, lang){", 1, true) ~= nil, "fence: the page defines one fence renderer")
+  ok(
+    src:find("function fenceHTML(src, lang){", 1, true) ~= nil,
+    "fence: the page defines one fence renderer"
+  )
   ok(
     src:find('el.closest("[data-path]")', 1, true) ~= nil,
     "fence: the keyword card looks the language up by data-path, not by a container class — "
@@ -69,7 +76,9 @@ return function(H)
         depth = depth + 1
       elseif ch == "}" then
         depth = depth - 1
-        if depth == 0 then break end
+        if depth == 0 then
+          break
+        end
       end
       i = i + 1
     end
@@ -178,7 +187,8 @@ console.log(failed === 0 ? "FENCE_OK " + results.length : "FENCE_FAILED " + fail
   local stdout = result.stdout or ""
   ok(
     stdout:find("FENCE_OK", 1, true) ~= nil,
-    "fence: the renderer behaves — " .. vim.trim(stdout ~= "" and stdout or (result.stderr or "no output"))
+    "fence: the renderer behaves — "
+      .. vim.trim(stdout ~= "" and stdout or (result.stderr or "no output"))
   )
   pcall(os.remove, tmp)
 end

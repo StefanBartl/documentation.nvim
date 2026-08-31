@@ -119,6 +119,7 @@ local specs = {
   "resolve_relative_spec.lua",
   "markdown_links_spec.lua",
   "prose_render_spec.lua",
+  "startup_graph_spec.lua",
   "fence_render_spec.lua",
   "hierarchy_gestures_spec.lua",
   "explain_spec.lua",

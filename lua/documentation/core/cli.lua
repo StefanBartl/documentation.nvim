@@ -197,10 +197,23 @@ function M.run(opts, argv)
     end
 
     local read = require("lib.nvim.fs.read")
+    local startup_graph = require("documentation.core.startup_graph")
     local stale = {}
     for name, content in pairs(expected) do
       local path = root .. "/" .. opts.out_dir .. "/" .. name
-      if read(path) ~= content then
+      local actual = read(path)
+      -- The baked-in startup flamegraph is compared out of `index.html` on
+      -- both sides. It is machine-local and changes whenever somebody
+      -- measures, so leaving it in would make a repository that once baked
+      -- one in report itself stale forever — the same failure `action.yml`
+      -- documents for the standalone build, from the other direction. See
+      -- `core/startup_graph.lua#M.strip` for why this is what `--check`
+      -- means rather than an exception to it.
+      if name == "index.html" then
+        actual = actual and startup_graph.strip(actual) or actual
+        content = startup_graph.strip(content)
+      end
+      if actual ~= content then
         stale[#stale + 1] = opts.out_dir .. "/" .. name
       end
     end
