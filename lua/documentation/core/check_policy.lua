@@ -62,6 +62,7 @@ M.CODES = {
   ["dead-see-target"] = true,
   ["doc-references-missing"] = true,
   ["example-does-not-parse"] = true,
+  ["file-holds-many-modules"] = true,
   ["layer-violation"] = true,
   ["missing-module-tag"] = true,
   ["missing-readme"] = true,

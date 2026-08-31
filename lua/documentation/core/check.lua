@@ -18,6 +18,7 @@ local M = {}
 
 local uv = vim.uv
 local docs = require("documentation.core.docs")
+local scopes = require("documentation.core.scopes")
 
 ---Record a finding.
 ---
@@ -122,6 +123,93 @@ local function check_module_paths(ir, findings, opts)
           { file = node.source, declared = node.module, expected = want }
         )
       end
+    end
+  end
+end
+
+--- Whether a module scope is a test module rather than a published one.
+---
+--- Rust writes `#[cfg(test)] mod tests { … }` in the file it tests, and the
+--- book, `cargo new` and every crate in this ecosystem write it under that
+--- exact name. A test module is emphatically *not* a candidate for an
+--- identity of its own — it is the file's own tests, living where the thing
+--- it tests lives — so counting it would make the check fire on the one Rust
+--- shape that is not the defect.
+---
+--- Read off the last segment, because a scope name arrives qualified
+--- (`x::tests`, `Foo.Bar`) and the separator differs per language.
+--- `#[cfg(test)] mod helpers` is not caught by this and is reported; that
+--- form is rare, and there the finding is not even wrong.
+---@param name string A scope name as `Documentation.FunctionInfo.owner` carries it.
+---@return boolean
+local function is_test_module(name)
+  local last = name:match("([^.:]+)$") or name
+  return last == "test" or last == "tests"
+end
+
+--- One file, several module identities — and the map keys all of them on the
+--- file.
+---
+--- **What this reports is a limit of the map, not a defect in the tree.**
+--- `Documentation.Node` is keyed on a path: a Rust `mod x { … }` and the
+--- second `defmodule` in an Elixir file are grouped under their file by
+--- `core/scopes.lua` and have no id, no summary, no coverage and no edges of
+--- their own. Asking "how documented is module X" in such a tree gets the
+--- *file's* answer, silently — which is why this exists: to say so out loud
+--- instead of letting a consumer read an inherited number as X's own.
+---
+--- Making them real nodes is the open "one file, many modules" entry in
+--- `docmap-desktop/docs/PLAN.md`. It is an id-shape change reaching the
+--- walk, `stats`, every `id` and both artifact consumers, and nothing has
+--- asked the question yet. Reporting the case costs a loop over data the
+--- scan already produced, and it is the half that is useful today.
+---
+--- **`info`, not `warn`.** Rust and Elixir are written this way on purpose;
+--- there is nothing here for the author of the scanned tree to fix. Grading
+--- it a warning would paint a correct Elixir repository yellow forever — the
+--- same reason `missing-readme` is an `info`.
+---
+--- Counted through `core/scopes.lua` rather than over `fn.owner` directly:
+--- that module states itself as the single reader of `owner`/`owner_kind`,
+--- and a second grouping here is exactly the kind of thing this plugin
+--- exists to notice.
+---@param ir Documentation.IR
+---@param findings Documentation.Finding[]
+local function check_many_modules(ir, findings)
+  for _, id in ipairs(ir.order) do
+    local node = ir.nodes[id]
+    local free, groups = scopes.split(node.functions)
+
+    -- The file's own identity counts as one, and it has one whenever
+    -- anything in the file belongs to the file: a free function, or a
+    -- method of a class or `impl` block, which are owned but not by a
+    -- module.
+    local own = #free > 0
+    local names = {}
+    for _, scope in ipairs(groups) do
+      if scope.kind ~= "module" then
+        own = true
+      elseif not is_test_module(scope.name) then
+        names[#names + 1] = scope.name
+      end
+    end
+
+    if own then
+      -- Named, not "this file": the message lists identities, and the
+      -- file's own is one of them. `module` when it declared one — Elixir
+      -- fills it from `defmodule` — and the node name otherwise.
+      table.insert(names, 1, node.module or node.name)
+    end
+
+    -- Source order, the order `scopes.group` returns and the order a reader
+    -- opening the file will meet them in. Deterministic either way, which
+    -- `--check`'s byte comparison requires.
+    if #names > 1 then
+      add(findings, "info", "file-holds-many-modules", id, {
+        file = node.source or id,
+        count = #names,
+        modules = table.concat(names, ", "),
+      })
     end
   end
 end
@@ -1987,6 +2075,7 @@ function M.run(ir, opts)
   check_summaries(ir, findings)
   check_examples(ir, findings)
   check_module_paths(ir, findings, opts)
+  check_many_modules(ir, findings)
   check_readmes(ir, findings)
   check_readme_links(ir, findings, opts)
   check_doc_references(ir, findings)

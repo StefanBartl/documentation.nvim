@@ -59,6 +59,7 @@ M.CATALOG = {
   ["missing-module-tag"] = "{file} has no ---@module annotation",
   ["missing-summary"] = "{file} has no description line",
   ["module-path-mismatch"] = "{file} declares @module '{declared}' but lives at '{expected}'",
+  ["file-holds-many-modules"] = "{file} holds {count} module identities the map cannot separate: {modules}",
   ["missing-readme"] = "{path} has no README.md",
   ["dead-readme-link"] = "{file} links to '{target}' which does not exist",
   ["doc-references-missing"] = "{doc}:{line} references '{text}', but {module} has no '{missing}'",

@@ -63,6 +63,7 @@ return function(H)
     documented = 1,
     actual = "width",
     repo = "other.nvim",
+    modules = "a, b",
   }
 
   -- ---------------------------------------------------------------------

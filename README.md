@@ -782,11 +782,12 @@ panel.
 
 The rendered map is the visible half; the checks are the half that catches
 bugs. `missing-module-tag` and `module-path-mismatch` are errors;
-`missing-summary`, `dead-readme-link`, `dead-see-target`, `type-vs-class`,
-`doc-references-missing`, `test-references-missing`, `require-cycle`,
-`require-not-declared`, `tag-require-missing` and `layer-violation` are
-warnings; `missing-readme`, `unreferenced-module`, `orphaned-class-alias`,
-`tag-file-unavailable`, `undocumented-param`, `param-name-mismatch` and
+`missing-summary`, `dead-readme-link`, `sibling-reference-missing`,
+`dead-see-target`, `type-vs-class`, `doc-references-missing`,
+`test-references-missing`, `require-cycle`, `require-not-declared`,
+`tag-require-missing` and `layer-violation` are warnings; `missing-readme`,
+`unreferenced-module`, `orphaned-class-alias`, `tag-file-unavailable`,
+`undocumented-param`, `param-name-mismatch`, `file-holds-many-modules` and
 `dead-function` are informational.
 
 The last pair is the cross-repository one and needs `opts.tag_files` set —
