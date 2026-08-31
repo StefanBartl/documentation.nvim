@@ -76,7 +76,7 @@ end
 
 ---@param src string
 ---@param grammar string
----@return userdata?
+---@return TSNode?
 local function parse(src, grammar)
   local ok, parser = pcall(vim.treesitter.get_string_parser, src, grammar)
   if not ok or not parser then
@@ -91,7 +91,7 @@ local function parse(src, grammar)
   return trees[1]:root()
 end
 
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return string
 local function text_of(node, src)
@@ -100,9 +100,9 @@ local function text_of(node, src)
   return src:sub(sbyte + 1, ebyte)
 end
 
----@param node userdata
+---@param node TSNode
 ---@param kind string
----@return userdata?
+---@return TSNode?
 local function child_of(node, kind)
   for child in node:iter_children() do
     if child:type() == kind then
@@ -246,7 +246,7 @@ end
 ---`doxygen` records which blocks are Doxygen-style anyway, because the
 ---*file* header rule in `parse_header` still demands one: a license banner
 ---sits at the top of almost every C file and is a summary of nothing.
----@param root userdata
+---@param root TSNode
 ---@param src string
 ---@return table<integer, string> blocks
 ---@return table<integer, boolean> doxygen
@@ -324,8 +324,8 @@ end
 ---two of them. Anything that is not a declarator ends the search rather
 ---than being walked into, so a function *pointer parameter* does not turn
 ---its enclosing declaration into a function.
----@param node userdata
----@return userdata?
+---@param node TSNode
+---@return TSNode?
 local function function_declarator(node)
   local kind = node:type()
   if kind == "function_declarator" then
@@ -354,7 +354,7 @@ end
 ---(`Thing::go`), a `destructor_name` and an `operator_name`. All five are
 ---taken as written — `Thing::go` is already the qualified name, so nothing
 ---needs to be reconstructed from the enclosing scope.
----@param decl userdata
+---@param decl TSNode
 ---@param src string
 ---@return string?
 local function declared_name(decl, src)
@@ -377,7 +377,7 @@ end
 ---
 ---In C this is the whole visibility system: `static` at file scope means
 ---"this translation unit only", which is exactly what `internal` records.
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return boolean
 local function is_static(node, src)
@@ -491,8 +491,8 @@ function M.backend(name, grammar, extensions, roots)
     local blocks = doc_blocks(root, src)
     local fns, requires, symbols = {}, {}, {}
 
-    ---@param node userdata the declaration or definition
-    ---@param decl userdata the `function_declarator` inside it
+    ---@param node TSNode the declaration or definition
+    ---@param decl TSNode the `function_declarator` inside it
     ---@param internal boolean
     ---@param owner string? Enclosing class or struct, when the member is written inside its body.
     ---@param owner_kind Documentation.ScopeKind? `class` or `struct`, from the keyword.
@@ -546,8 +546,8 @@ function M.backend(name, grammar, extensions, roots)
     ---
     ---Stops at a `parameter_list`, which is what keeps
     ---`int (*compare)(int a, int b)` from being read as the parameter `a`.
-    ---@param node userdata
-    ---@return userdata?
+    ---@param node TSNode
+    ---@return TSNode?
     local function declared_var_name(node)
       for child in node:iter_children() do
         local kind = child:type()
@@ -565,8 +565,8 @@ function M.backend(name, grammar, extensions, roots)
     end
 
     ---Record one module-scope binding.
-    ---@param node userdata
-    ---@param name_node userdata
+    ---@param node TSNode
+    ---@param name_node TSNode
     ---@param kind Documentation.SymbolKind
     local function record_symbol(node, name_node, kind)
       local doc = doc_above(blocks, node:start())

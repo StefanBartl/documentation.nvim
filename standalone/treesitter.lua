@@ -74,6 +74,17 @@
 
 local M = {}
 
+---A node of the `lua-tree-sitter` binding. Not a `TSNode`: that is Neovim's
+---type, and this binding exposes the C API's surface instead -- byte offsets
+---rather than `start()`/`end_()`, which is one of the six gaps this file
+---translates. Declared here because bare `userdata` types as *no fields at
+---all*, so every call on such a value is reported. Only what this translator
+---calls on a node is listed; the two names installed on the binding's own
+---metatable above are reached through it, not through this class.
+---@class Documentation.Standalone.BindingNode
+---@field start_byte fun(self): integer
+---@field end_byte fun(self): integer
+
 ---Locate a grammar for `lang`, or nil.
 ---@param lang string
 ---@return string?
@@ -242,7 +253,7 @@ function M.build()
       if not index.field then
         ---Every child under `name`, not just the first — Neovim's semantics.
         ---@param name string
-        ---@return userdata[]
+        ---@return Documentation.Standalone.BindingNode[]
         function index:field(name)
           local out = {}
           for i = 0, self:child_count() - 1 do
@@ -258,7 +269,7 @@ function M.build()
         ---repository uses only the first value, but the second is emitted
         ---anyway: a shim that quietly narrows an API is how the *next* call
         ---site acquires a bug that looks like a scanner defect.
-        ---@return fun(): userdata?, string?
+        ---@return fun(): Documentation.Standalone.BindingNode?, string?
         function index:iter_children()
           local i, n = 0, self:child_count()
           return function()
@@ -298,8 +309,8 @@ function M.build()
   local Query = {}
   Query.__index = Query
 
-  ---@param node userdata
-  ---@return fun(): integer?, userdata?
+  ---@param node Documentation.Standalone.BindingNode
+  ---@return fun(): integer?, Documentation.Standalone.BindingNode?
   function Query:iter_captures(node)
     local cursor = ts.Query.Cursor.new(self._q, node)
     return function()
@@ -319,8 +330,8 @@ function M.build()
     end
   end
 
-  ---@param node userdata
-  ---@return fun(): integer?, table<integer, userdata[]>?
+  ---@param node Documentation.Standalone.BindingNode
+  ---@return fun(): integer?, table<integer, Documentation.Standalone.BindingNode[]>?
   function Query:iter_matches(node)
     local cursor = ts.Query.Cursor.new(self._q, node)
     return function()
@@ -375,7 +386,7 @@ function M.build()
       }
     end,
 
-    ---@param node userdata
+    ---@param node Documentation.Standalone.BindingNode
     ---@param src string
     ---@return string
     get_node_text = function(node, src)

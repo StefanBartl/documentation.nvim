@@ -132,7 +132,7 @@ local function read(path)
 end
 
 ---@param src string
----@return userdata?
+---@return TSNode?
 local function parse(src)
   local ok, parser = pcall(vim.treesitter.get_string_parser, src, M.grammar)
   if not ok or not parser then
@@ -147,7 +147,7 @@ local function parse(src)
   return trees[1]:root()
 end
 
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return string
 local function text_of(node, src)
@@ -156,9 +156,9 @@ local function text_of(node, src)
   return src:sub(sbyte + 1, ebyte)
 end
 
----@param node userdata
+---@param node TSNode
 ---@param kind string
----@return userdata?
+---@return TSNode?
 local function child_of(node, kind)
   for child in node:iter_children() do
     if child:type() == kind then
@@ -174,7 +174,7 @@ end
 ---That distinction is real here — DocC reads one and not the other — so
 ---unlike C, where the strict rule found nothing and had to be relaxed, it
 ---costs nothing to honour.
----@param root userdata
+---@param root TSNode
 ---@param src string
 ---@return table<integer, string[]>
 local function doc_runs(root, src)
@@ -302,7 +302,7 @@ end
 ---is the *default*, so a declaration with no modifier is module-only. That
 ---is a fourth answer to "what does an absent modifier mean", after C#'s
 ---private, Java's package-private and Kotlin's and PHP's public.
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@param inherited boolean? A protocol member's visibility, when inside one.
 ---@return boolean
@@ -341,7 +341,7 @@ end
 ---documents, so the label is the name — taking the internal one would make
 ---every two-name parameter in the language fail to match its own
 ---documentation.
----@param node userdata The declaration; parameters are its direct children.
+---@param node TSNode The declaration; parameters are its direct children.
 ---@param src string
 ---@return string[]
 local function param_names(node, src)
@@ -419,7 +419,7 @@ function M.scan_file(path)
   local runs = doc_runs(root, src)
   local fns, requires, symbols = {}, {}, {}
 
-  ---@param node userdata
+  ---@param node TSNode
   ---@param owner string?
   ---@param inherited boolean?
   ---@param owner_kind Documentation.ScopeKind? Which declaration `owner` is — read from the keyword by `record_type`, for the same reason `inherited` is passed rather than rediscovered.
@@ -452,7 +452,7 @@ function M.scan_file(path)
     }
   end
 
-  ---@param node userdata `property_declaration`
+  ---@param node TSNode `property_declaration`
   ---@param owner string?
   local function record_property(node, owner)
     local pattern = child_of(node, "value_binding_pattern") or node
@@ -477,7 +477,7 @@ function M.scan_file(path)
     }
   end
 
-  ---@param node userdata A type declaration.
+  ---@param node TSNode A type declaration.
   local function record_type(node)
     local name_node = child_of(node, "type_identifier")
     if not name_node then

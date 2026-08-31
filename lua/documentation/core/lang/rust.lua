@@ -148,7 +148,7 @@ local function read(path)
 end
 
 ---@param src string
----@return userdata?
+---@return TSNode?
 local function parse(src)
   local ok, parser = pcall(vim.treesitter.get_string_parser, src, M.grammar)
   if not ok or not parser then
@@ -163,7 +163,7 @@ local function parse(src)
   return trees[1]:root()
 end
 
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return string
 local function text_of(node, src)
@@ -172,9 +172,9 @@ local function text_of(node, src)
   return src:sub(sbyte + 1, ebyte)
 end
 
----@param node userdata
+---@param node TSNode
 ---@param kind string
----@return userdata?
+---@return TSNode?
 local function child_of(node, kind)
   for child in node:iter_children() do
     if child:type() == kind then
@@ -242,7 +242,7 @@ end
 ---rather than in the text: the parser hands back an
 ---`inner_doc_comment_marker` or an `outer_doc_comment_marker`, so this needs
 ---no pattern on the comment body at all.
----@param root userdata
+---@param root TSNode
 ---@param src string
 ---@return table<integer, string[]> outer
 ---@return string[] inner
@@ -319,7 +319,7 @@ end
 ---now Rust's trait. Each spells it differently and each means the same
 ---thing — *this declaration exists in order to be published* — which is
 ---worth noticing as a pattern rather than fixing three times by accident.
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@param inherited boolean? Visibility of the enclosing trait, when there is one.
 ---@return boolean
@@ -335,7 +335,7 @@ local function is_internal(node, src, inherited)
   return text_of(vis, src):gsub("%s+", "") ~= "pub"
 end
 
----@param node userdata? `parameters`
+---@param node TSNode? `parameters`
 ---@param src string
 ---@return string[]
 local function param_names(node, src)
@@ -490,7 +490,7 @@ function M.scan_file(path)
     return target ~= "" and target or nil
   end
 
-  ---@param node userdata
+  ---@param node TSNode
   ---@param scope string? Enclosing inline module or type, for a qualified name.
   ---@param inherited boolean? The enclosing trait's visibility, when inside one.
   ---@param kind Documentation.ScopeKind? What `scope` is, when there is one. Rust is the language that most needs the distinction kept: `x::helper`, `Widget::new` and `Doer::go` are written identically and are an inline module's function, an inherent method and a trait method.
@@ -523,7 +523,7 @@ function M.scan_file(path)
     }
   end
 
-  ---@param node userdata
+  ---@param node TSNode
   ---@param scope string?
   local function record_type(node, scope)
     local name_node = child_of(node, "type_identifier")
@@ -552,7 +552,7 @@ function M.scan_file(path)
     end
   end
 
-  ---@param node userdata Any item container.
+  ---@param node TSNode Any item container.
   ---@param scope string? Enclosing inline module path.
   local function walk(node, scope)
     for child in node:iter_children() do

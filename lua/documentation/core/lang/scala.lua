@@ -125,7 +125,7 @@ local function read(path)
 end
 
 ---@param src string
----@return userdata?
+---@return TSNode?
 local function parse(src)
   local ok, parser = pcall(vim.treesitter.get_string_parser, src, M.grammar)
   if not ok or not parser then
@@ -140,7 +140,7 @@ local function parse(src)
   return trees[1]:root()
 end
 
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return string
 local function text_of(node, src)
@@ -149,9 +149,9 @@ local function text_of(node, src)
   return src:sub(sbyte + 1, ebyte)
 end
 
----@param node userdata
+---@param node TSNode
 ---@param kind string
----@return userdata?
+---@return TSNode?
 local function child_of(node, kind)
   for child in node:iter_children() do
     if child:type() == kind then
@@ -167,7 +167,7 @@ end
 ---every Scala project writes, so the strict rule costs nothing here — the
 ---same position PHP's and Kotlin's backends take, and the opposite of the
 ---one C had to be given.
----@param root userdata
+---@param root TSNode
 ---@param src string
 ---@return table<integer, string>
 local function doc_blocks(root, src)
@@ -268,7 +268,7 @@ end
 ---keyword at all**, so asking for one would report every codebase as
 ---unpublished — the mistake C# taught this tool to fear, in a language where
 ---the keyword does not even exist.
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@param inherited boolean? A trait member's visibility, when inside one.
 ---@return boolean
@@ -291,7 +291,7 @@ local function is_internal(node, src, inherited)
   return text:match("%f[%w]private%f[%W]") ~= nil or text:match("%f[%w]protected%f[%W]") ~= nil
 end
 
----@param node userdata The definition; its parameter list is a child.
+---@param node TSNode The definition; its parameter list is a child.
 ---@param src string
 ---@return string[]
 local function param_names(node, src)
@@ -376,7 +376,7 @@ function M.scan_file(path)
   local blocks = doc_blocks(root, src)
   local fns, requires, symbols = {}, {}, {}
 
-  ---@param node userdata `function_definition`
+  ---@param node TSNode `function_definition`
   ---@param owner string?
   ---@param inherited boolean?
   ---@param owner_kind Documentation.ScopeKind? Which definition `owner` is. Passed down like `inherited`: the node kind is `record_type`'s to read, not this one's to rediscover from a parent walk.
@@ -410,7 +410,7 @@ function M.scan_file(path)
     }
   end
 
-  ---@param node userdata `val_definition` / `var_definition`
+  ---@param node TSNode `val_definition` / `var_definition`
   ---@param owner string?
   local function record_value(node, owner)
     local id = child_of(node, "identifier")
@@ -428,7 +428,7 @@ function M.scan_file(path)
     }
   end
 
-  ---@param node userdata A type definition.
+  ---@param node TSNode A type definition.
   local function record_type(node)
     local name_node = child_of(node, "identifier") or child_of(node, "type_identifier")
     if not name_node then

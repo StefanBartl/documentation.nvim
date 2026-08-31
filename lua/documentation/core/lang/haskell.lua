@@ -134,7 +134,7 @@ local function read(path)
 end
 
 ---@param src string
----@return userdata?
+---@return TSNode?
 local function parse(src)
   local ok, parser = pcall(vim.treesitter.get_string_parser, src, M.grammar)
   if not ok or not parser then
@@ -149,7 +149,7 @@ local function parse(src)
   return trees[1]:root()
 end
 
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return string
 local function text_of(node, src)
@@ -158,9 +158,9 @@ local function text_of(node, src)
   return src:sub(sbyte + 1, ebyte)
 end
 
----@param node userdata
+---@param node TSNode
 ---@param kind string
----@return userdata?
+---@return TSNode?
 local function child_of(node, kind)
   for child in node:iter_children() do
     if child:type() == kind then
@@ -175,7 +175,7 @@ end
 ---**The grammar does the telling-apart**, as Dart's does: `-- |` is a
 ---`haddock` node and `--` is a `comment`, so no pattern is needed to know
 ---which is documentation.
----@param root userdata
+---@param root TSNode
 ---@param src string
 ---@return table<integer, string[]>
 local function haddocks(root, src)
@@ -261,7 +261,7 @@ end
 ---
 ---`Widget(..)` exports a type and all its constructors, so the name is taken
 ---from the front of the entry rather than as the whole of it.
----@param root userdata
+---@param root TSNode
 ---@param src string
 ---@return table<string, boolean>? exported
 ---@return string? module

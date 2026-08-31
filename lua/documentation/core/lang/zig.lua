@@ -115,7 +115,7 @@ end
 ---Comments are the only thing this backend needs positionally: a doc block
 ---is *the run of `///` lines immediately above a declaration*, which cannot
 ---be answered from the declaration node alone.
----@param root userdata
+---@param root TSNode
 ---@param src string
 ---@return table<integer, string> doc  # `///` text by 0-based row
 ---@return string[] module_doc          # `//!` lines, in order
@@ -168,7 +168,7 @@ local function read(path)
 end
 
 ---@param src string
----@return userdata?, string?
+---@return TSNode?, string?
 local function parse(src)
   local ok, parser = pcall(vim.treesitter.get_string_parser, src, M.grammar)
   if not ok or not parser then
@@ -215,7 +215,7 @@ end
 ---Read off the node's own leading token rather than from its text: `pub`
 ---inside a doc comment or a string would otherwise make a private function
 ---look public.
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return boolean
 local function is_pub(node, src)

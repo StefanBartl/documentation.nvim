@@ -129,7 +129,7 @@ local function read(path)
 end
 
 ---@param src string
----@return userdata?
+---@return TSNode?
 local function parse(src)
   local ok, parser = pcall(vim.treesitter.get_string_parser, src, M.grammar)
   if not ok or not parser then
@@ -238,7 +238,7 @@ end
 ---
 ---Keyed by the *last* row rather than the first: what a block documents is
 ---the declaration under it, and only its end is a fixed distance away.
----@param root userdata
+---@param root TSNode
 ---@param src string
 ---@return table<integer, string>
 local function javadoc(root, src)
@@ -299,7 +299,7 @@ local function doc_above(blocks, row)
   return nil
 end
 
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return string
 local function text_of(node, src)
@@ -308,9 +308,9 @@ local function text_of(node, src)
   return src:sub(sbyte + 1, ebyte)
 end
 
----@param node userdata
+---@param node TSNode
 ---@param kind string
----@return userdata?
+---@return TSNode?
 local function child_of(node, kind)
   for child in node:iter_children() do
     if child:type() == kind then
@@ -325,7 +325,7 @@ end
 ---Read off the `modifiers` node rather than the declaration's text: a
 ---`private` method whose Javadoc happens to contain the word "public" must
 ---not count as published, and text matching cannot tell those apart.
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return boolean
 local function is_public(node, src)
@@ -420,7 +420,7 @@ function M.scan_file(path)
   ---two names rather than one repeated. Java allows several types per file
   ---and inner types are ordinary, so this is not the rare case it looks
   ---like.
-  ---@param node userdata
+  ---@param node TSNode
   ---@return string? name
   ---@return Documentation.ScopeKind? kind Which of the four declarations it was. A `record` is reported as a `class`: `Documentation.ScopeKind` names constructs that group methods differently, and a record groups them exactly as a class does.
   local function owner(node)
@@ -447,8 +447,8 @@ function M.scan_file(path)
     return nil, nil
   end
 
-  ---@param node userdata
-  ---@param name_node userdata
+  ---@param node TSNode
+  ---@param name_node TSNode
   ---@param is_ctor boolean
   local function record(node, name_node, is_ctor)
     local srow = node:start()

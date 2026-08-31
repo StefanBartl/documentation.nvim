@@ -384,7 +384,7 @@ end
 ---about the *table*, not about how the table was reached, so a wrapped call
 ---and a bare `return` must resolve it identically or the two paths would
 ---disagree about what a single-spec file contains.
----@param outer userdata The table constructor.
+---@param outer TSNode The table constructor.
 ---@param src string
 ---@param out Documentation.PluginSpec[]
 local function collect_specs(outer, src, out)
@@ -457,7 +457,7 @@ M.DEFAULT_WRAPPERS = {}
 ---
 ---`plugins.add` and `add` both resolve; `t[k](…)` does not, deliberately —
 ---a computed callee is not a name a reader could have declared.
----@param call userdata
+---@param call TSNode
 ---@param src string
 ---@return string?
 local function callee_name(call, src)
@@ -483,7 +483,7 @@ end
 ---this puts it after two `require`s and a comment banner, and a config could
 ---as easily put it inside an `if`. There is no position rule to lean on, so
 ---there is none pretended.
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@param out Documentation.PluginSpec[]
 local function walk_wrappers(node, src, out)

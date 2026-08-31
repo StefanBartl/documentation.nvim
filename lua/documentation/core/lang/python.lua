@@ -148,7 +148,7 @@ local function read(path)
 end
 
 ---@param src string
----@return userdata?
+---@return TSNode?
 local function parse(src)
   local ok, parser = pcall(vim.treesitter.get_string_parser, src, M.grammar)
   if not ok or not parser then
@@ -163,7 +163,7 @@ local function parse(src)
   return trees[1]:root()
 end
 
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return string
 local function text_of(node, src)
@@ -172,9 +172,9 @@ local function text_of(node, src)
   return src:sub(sbyte + 1, ebyte)
 end
 
----@param node userdata
+---@param node TSNode
 ---@param kind string
----@return userdata?
+---@return TSNode?
 local function child_of(node, kind)
   for child in node:iter_children() do
     if child:type() == kind then
@@ -236,7 +236,7 @@ end
 ---Python's own rule — the interpreter stores `__doc__` only when the first
 ---statement is a string literal — so reading it any other way would credit
 ---prose the language itself does not.
----@param body userdata The `block` node, or the `module` root.
+---@param body TSNode The `block` node, or the `module` root.
 ---@param src string
 ---@return string[]? lines
 local function docstring_of(body, src)
@@ -505,7 +505,7 @@ end
 ---and no docstring convention documents the receiver — so keeping it would
 ---make every method in every Python project report an undocumented
 ---parameter, forever, in a check that is right about every other language.
----@param node userdata?
+---@param node TSNode?
 ---@param src string
 ---@return string[]
 local function param_names(node, src)
@@ -570,7 +570,7 @@ local function is_internal(name, exported)
 end
 
 ---`__all__ = [...]`, as a set, or `nil` when the module declares none.
----@param root userdata
+---@param root TSNode
 ---@param src string
 ---@return table<string, boolean>?
 local function all_list(root, src)
@@ -637,7 +637,7 @@ end
 ---is defined against the file's own package, so `from . import x` really is
 ---`./x` and `from ..pkg import y` really is `../pkg`, which is the
 ---vocabulary `deps.resolve_relative` already speaks.
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return string[]
 local function import_targets(node, src)
@@ -715,7 +715,7 @@ function M.scan_file(path)
   local exported = all_list(root, src)
   local fns, requires, symbols = {}, {}, {}
 
-  ---@param node userdata `function_definition`
+  ---@param node TSNode `function_definition`
   ---@param owner string? Enclosing class name, for a qualified display name.
   local function record_function(node, owner)
     local name_node = child_of(node, "identifier")
@@ -776,8 +776,8 @@ function M.scan_file(path)
   ---function and a `@dataclass` is still a class. The decorator itself is
   ---not modelled — the IR has no field for it, and recording the name
   ---without its meaning would be a list nobody could act on.
-  ---@param node userdata
-  ---@return userdata
+  ---@param node TSNode
+  ---@return TSNode
   local function undecorate(node)
     if node:type() ~= "decorated_definition" then
       return node

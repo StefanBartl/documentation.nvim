@@ -131,7 +131,7 @@ local function read(path)
 end
 
 ---@param src string
----@return userdata?
+---@return TSNode?
 local function parse(src)
   local ok, parser = pcall(vim.treesitter.get_string_parser, src, M.grammar)
   if not ok or not parser then
@@ -146,7 +146,7 @@ local function parse(src)
   return trees[1]:root()
 end
 
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return string
 local function text_of(node, src)
@@ -155,9 +155,9 @@ local function text_of(node, src)
   return src:sub(sbyte + 1, ebyte)
 end
 
----@param node userdata
+---@param node TSNode
 ---@param kind string
----@return userdata?
+---@return TSNode?
 local function child_of(node, kind)
   for child in node:iter_children() do
     if child:type() == kind then
@@ -173,7 +173,7 @@ end
 ---what every Kotlin project writes, and a `//` line above a declaration is a
 ---note rather than documentation — the same position PHP's PHPDoc rule
 ---takes, and the opposite of the one C had to be given.
----@param root userdata
+---@param root TSNode
 ---@param src string
 ---@return table<integer, string>
 local function doc_blocks(root, src)
@@ -272,7 +272,7 @@ end
 ---`internal` means "this compilation module" and collapses into
 ---not-published for the reason Java's `protected` and Rust's `pub(crate)` do:
 ---from outside, it answers like private.
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return boolean
 local function is_internal(node, src)
@@ -286,7 +286,7 @@ local function is_internal(node, src)
     or text:match("%f[%w]internal%f[%W]") ~= nil
 end
 
----@param node userdata? `function_value_parameters`
+---@param node TSNode? `function_value_parameters`
 ---@param src string
 ---@return string[]
 local function param_names(node, src)
@@ -306,7 +306,7 @@ local function param_names(node, src)
 end
 
 ---The `package a.b` this file declares, or `nil`.
----@param root userdata
+---@param root TSNode
 ---@param src string
 ---@return string?
 local function package_of(root, src)
@@ -396,7 +396,7 @@ function M.scan_file(path)
   local blocks = doc_blocks(root, src)
   local fns, requires, symbols = {}, {}, {}
 
-  ---@param node userdata `function_declaration`
+  ---@param node TSNode `function_declaration`
   ---@param owner string?
   ---@param inherited boolean?
   ---@param owner_kind Documentation.ScopeKind? Which declaration `owner` is. Kotlin parses all four as `class_declaration`, so `record_type` reads the keyword and passes it on rather than having this rediscover it.
@@ -434,7 +434,7 @@ function M.scan_file(path)
     }
   end
 
-  ---@param node userdata `property_declaration`
+  ---@param node TSNode `property_declaration`
   ---@param owner string?
   local function record_property(node, owner)
     local decl = child_of(node, "variable_declaration")
@@ -455,7 +455,7 @@ function M.scan_file(path)
     }
   end
 
-  ---@param node userdata A type declaration.
+  ---@param node TSNode A type declaration.
   local function record_type(node)
     local name_node = child_of(node, "type_identifier")
     if not name_node then

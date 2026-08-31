@@ -147,7 +147,7 @@ end
 
 ---@param src string
 ---@param lang string
----@return userdata?
+---@return TSNode?
 local function parse(src, lang)
   local ok, parser = pcall(vim.treesitter.get_string_parser, src, lang)
   if not ok or not parser then
@@ -162,7 +162,7 @@ local function parse(src, lang)
   return trees[1]:root()
 end
 
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return string
 local function text_of(node, src)
@@ -171,9 +171,9 @@ local function text_of(node, src)
   return src:sub(sbyte + 1, ebyte)
 end
 
----@param node userdata
+---@param node TSNode
 ---@param kind string
----@return userdata?
+---@return TSNode?
 local function child_of(node, kind)
   for child in node:iter_children() do
     if child:type() == kind then
@@ -188,7 +188,7 @@ end
 ---`(*` is a plain comment and `(**` is documentation — ocamldoc's own rule,
 ---and one worth honouring strictly because OCaml projects follow it: a
 ---license banner is `(*` and never `(**`.
----@param root userdata
+---@param root TSNode
 ---@param src string
 ---@return table<integer, string>
 local function doc_blocks(root, src)
@@ -439,7 +439,7 @@ function M.scan_file(path)
   ---Above wins when both exist, and the trailing block must start on the row
   ---immediately after the declaration ends — so a block separated by a blank
   ---line belongs to whatever follows it, not to what came before.
-  ---@param node userdata
+  ---@param node TSNode
   ---@return string
   local function doc_above(node)
     return blocks[node:start() - 1] or trailing[node:end_() + 1] or ""

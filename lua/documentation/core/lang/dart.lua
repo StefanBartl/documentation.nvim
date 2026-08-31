@@ -129,7 +129,7 @@ local function read(path)
 end
 
 ---@param src string
----@return userdata?
+---@return TSNode?
 local function parse(src)
   local ok, parser = pcall(vim.treesitter.get_string_parser, src, M.grammar)
   if not ok or not parser then
@@ -144,7 +144,7 @@ local function parse(src)
   return trees[1]:root()
 end
 
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return string
 local function text_of(node, src)
@@ -153,9 +153,9 @@ local function text_of(node, src)
   return src:sub(sbyte + 1, ebyte)
 end
 
----@param node userdata
+---@param node TSNode
 ---@param kind string
----@return userdata?
+---@return TSNode?
 local function child_of(node, kind)
   for child in node:iter_children() do
     if child:type() == kind then
@@ -171,7 +171,7 @@ end
 ---node type here, distinct from `comment`, so this needs no pattern to know
 ---which comments are documentation — the only backend of the eighteen where
 ---that is true.
----@param root userdata
+---@param root TSNode
 ---@param src string
 ---@return table<integer, string[]>
 local function doc_runs(root, src)
@@ -230,7 +230,7 @@ local function is_internal(name)
   return name:sub(1, 1) == "_"
 end
 
----@param node userdata? `formal_parameter_list`
+---@param node TSNode? `formal_parameter_list`
 ---@param src string
 ---@return string[]
 local function param_names(node, src)
@@ -337,7 +337,7 @@ function M.scan_file(path)
   local split = require("documentation.core.scan").split_summary
   local fns, requires, symbols = {}, {}, {}
 
-  ---@param sig userdata `function_signature`
+  ---@param sig TSNode `function_signature`
   ---@param owner string?
   ---@param row integer 0-based row the declaration starts on.
   ---@param owner_kind Documentation.ScopeKind? Which declaration `owner` is, from `record_type`.
@@ -372,7 +372,7 @@ function M.scan_file(path)
     }
   end
 
-  ---@param node userdata `class_definition` and friends.
+  ---@param node TSNode `class_definition` and friends.
   local function record_type(node)
     local name_node = child_of(node, "identifier")
     if not name_node then

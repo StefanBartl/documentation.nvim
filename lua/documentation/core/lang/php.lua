@@ -153,7 +153,7 @@ local function read(path)
 end
 
 ---@param src string
----@return userdata?
+---@return TSNode?
 local function parse(src)
   local ok, parser = pcall(vim.treesitter.get_string_parser, src, M.grammar)
   if not ok or not parser then
@@ -168,7 +168,7 @@ local function parse(src)
   return trees[1]:root()
 end
 
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return string
 local function text_of(node, src)
@@ -177,9 +177,9 @@ local function text_of(node, src)
   return src:sub(sbyte + 1, ebyte)
 end
 
----@param node userdata
+---@param node TSNode
 ---@param kind string
----@return userdata?
+---@return TSNode?
 local function child_of(node, kind)
   for child in node:iter_children() do
     if child:type() == kind then
@@ -196,7 +196,7 @@ end
 ---really does have a universal convention: PHPDoc has tooling behind it
 ---(IDEs, static analysers, generators), `/**` is what every project writes,
 ---and a `//` line above a method is a note rather than documentation.
----@param root userdata
+---@param root TSNode
 ---@param src string
 ---@return table<integer, string>
 local function doc_blocks(root, src)
@@ -312,7 +312,7 @@ end
 ---`inherited` covers the construct four languages have now needed it for: an
 ---interface member is public and cannot be declared otherwise — writing
 ---`private` there is a fatal error in PHP, not merely unconventional.
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@param inherited boolean? The enclosing type's visibility, when inside an interface.
 ---@return boolean
@@ -328,7 +328,7 @@ local function is_internal(node, src, inherited)
   return word == "private" or word == "protected"
 end
 
----@param node userdata? `formal_parameters`
+---@param node TSNode? `formal_parameters`
 ---@param src string
 ---@return string[]
 local function param_names(node, src)
@@ -439,7 +439,7 @@ function M.scan_file(path)
   local blocks = doc_blocks(root, src)
   local fns, requires, symbols = {}, {}, {}
 
-  ---@param node userdata
+  ---@param node TSNode
   ---@param owner string?
   ---@param inherited boolean?
   ---@param owner_kind Documentation.ScopeKind? Which declaration `owner` is, supplied by `record_type` alongside `inherited`.
@@ -476,7 +476,7 @@ function M.scan_file(path)
     }
   end
 
-  ---@param node userdata A type declaration.
+  ---@param node TSNode A type declaration.
   local function record_type(node)
     local name_node = child_of(node, "name")
     if not name_node then

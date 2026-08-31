@@ -154,7 +154,7 @@ local function read(path)
 end
 
 ---@param src string
----@return userdata?
+---@return TSNode?
 local function parse(src)
   local ok, parser = pcall(vim.treesitter.get_string_parser, src, M.grammar)
   if not ok or not parser then
@@ -169,7 +169,7 @@ local function parse(src)
   return trees[1]:root()
 end
 
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return string
 local function text_of(node, src)
@@ -178,9 +178,9 @@ local function text_of(node, src)
   return src:sub(sbyte + 1, ebyte)
 end
 
----@param node userdata
+---@param node TSNode
 ---@param kind string
----@return userdata?
+---@return TSNode?
 local function child_of(node, kind)
   for child in node:iter_children() do
     if child:type() == kind then
@@ -201,7 +201,7 @@ end
 ---extracts `///` and ignores `//` — so unlike C, where a plain comment above
 ---a declaration had to be accepted because real code writes nothing else,
 ---there is a real convention here and reading only it costs nothing.
----@param root userdata
+---@param root TSNode
 ---@param src string
 ---@return table<integer, string[]>
 local function doc_blocks(root, src)
@@ -316,7 +316,7 @@ local function parse_doc(lines)
 end
 
 ---The modifiers on a declaration node, as a set.
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return table<string, boolean>
 local function modifiers(node, src)
@@ -358,7 +358,7 @@ local function is_internal(mods, owner_kind)
 end
 
 ---The declaration node's own name.
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return string?
 local function name_of(node, src)
@@ -366,7 +366,7 @@ local function name_of(node, src)
   return id and text_of(id, src)
 end
 
----@param node userdata `parameter_list`
+---@param node TSNode `parameter_list`
 ---@param src string
 ---@return string[]
 local function param_names(node, src)
@@ -390,10 +390,10 @@ end
 ---Both spellings: `namespace A.B;` (file-scoped, the modern default) and
 ---`namespace A.B { … }` (block). The first is looked for first because it is
 ---what a new file gets.
----@param root userdata
+---@param root TSNode
 ---@param src string
 ---@return string?
----@return userdata? body The node whose children hold the types.
+---@return TSNode? body The node whose children hold the types.
 local function namespace_of(root, src)
   for child in root:iter_children() do
     local kind = child:type()
@@ -480,7 +480,7 @@ function M.scan_file(path)
   local blocks = doc_blocks(root, src)
   local fns, requires, symbols = {}, {}, {}
 
-  ---@param node userdata A member declaration.
+  ---@param node TSNode A member declaration.
   ---@param owner string The declaring type's name.
   ---@param owner_kind string The declaring type's node kind, which decides
   ---what an absent access modifier means.
@@ -561,7 +561,7 @@ function M.scan_file(path)
     end
   end
 
-  ---@param node userdata A type declaration.
+  ---@param node TSNode A type declaration.
   local function record_type(node)
     local bare = name_of(node, src)
     if not bare then

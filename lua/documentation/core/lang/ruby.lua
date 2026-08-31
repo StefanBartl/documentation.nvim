@@ -140,7 +140,7 @@ local function read(path)
 end
 
 ---@param src string
----@return userdata?
+---@return TSNode?
 local function parse(src)
   local ok, parser = pcall(vim.treesitter.get_string_parser, src, M.grammar)
   if not ok or not parser then
@@ -155,7 +155,7 @@ local function parse(src)
   return trees[1]:root()
 end
 
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return string
 local function text_of(node, src)
@@ -164,9 +164,9 @@ local function text_of(node, src)
   return src:sub(sbyte + 1, ebyte)
 end
 
----@param node userdata
+---@param node TSNode
 ---@param kind string
----@return userdata?
+---@return TSNode?
 local function child_of(node, kind)
   for child in node:iter_children() do
     if child:type() == kind then
@@ -186,7 +186,7 @@ end
 ---`# frozen_string_literal: true` and `# rubocop:disable` are magic comments
 ---and tool directives that sit exactly where documentation sits; they are
 ---dropped for the reason Go's `//go:build` is.
----@param root userdata
+---@param root TSNode
 ---@param src string
 ---@return table<integer, string[]>
 local function comment_runs(root, src)
@@ -300,7 +300,7 @@ local function doc_above(runs, row)
   }
 end
 
----@param node userdata? `method_parameters`
+---@param node TSNode? `method_parameters`
 ---@param src string
 ---@return string[]
 local function param_names(node, src)
@@ -405,7 +405,7 @@ function M.scan_file(path)
   -- can reach back and change it — a shape no other language here has.
   local by_name = {}
 
-  ---@param node userdata `method` or `singleton_method`
+  ---@param node TSNode `method` or `singleton_method`
   ---@param owner string?
   ---@param internal boolean Current positional visibility.
   ---@param owner_kind Documentation.ScopeKind? `class` or `module` — Ruby's two owning constructs, both of which can hold methods and both of which nest.
@@ -455,7 +455,7 @@ function M.scan_file(path)
   ---gems and on how the process was started; `require_relative 'helpers'`
   ---names a file beside this one, which is exactly what
   ---`deps.resolve_relative` can follow.
-  ---@param node userdata `call`
+  ---@param node TSNode `call`
   ---@return string?
   local function require_target(node)
     local fn = child_of(node, "identifier")
@@ -483,7 +483,7 @@ function M.scan_file(path)
     return target
   end
 
-  ---@param body userdata `body_statement`
+  ---@param body TSNode `body_statement`
   ---@param owner string? Enclosing module/class path.
   ---@param owner_kind Documentation.ScopeKind? What `owner` was declared as.
   local function walk_body(body, owner, owner_kind)

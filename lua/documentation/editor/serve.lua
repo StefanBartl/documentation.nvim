@@ -53,7 +53,7 @@ local uv = vim.uv
 ---the only owner of — the alternative (a handle the caller stores) would put
 ---lifecycle management on every call site for a thing there is only ever one
 ---of per editor session.
----@type { server: userdata, port: integer, cfg: table, clients: table<userdata, boolean>, augroup: integer? }|nil
+---@type { server: uv.uv_tcp_t, port: integer, cfg: table, clients: table<uv.uv_tcp_t, boolean>, augroup: integer? }|nil
 local current = nil
 
 ---Two paths name the same repository when they normalise the same.
@@ -83,7 +83,7 @@ end
 ---Write one response and close. `Connection: close` on purpose: keep-alive
 ---would need a state machine per socket to know where one request ends and
 ---the next begins, and this serves a handful of requests per session.
----@param client userdata
+---@param client uv.uv_tcp_t
 ---@param code integer
 ---@param content_type string
 ---@param body string
@@ -109,7 +109,7 @@ local function respond(client, code, content_type, body)
   end)
 end
 
----@param client userdata
+---@param client uv.uv_tcp_t
 ---@param code integer
 ---@param message string
 local function respond_error(client, code, message)
@@ -151,7 +151,7 @@ M.safe_sha = require("documentation.core.api").safe_sha
 ---what is genuinely this transport's: the socket, the status code, the
 ---encoding, and the one thing only Neovim can supply — `git` via
 ---`vim.system`.
----@param client userdata
+---@param client uv.uv_tcp_t
 ---@param name string A `core.api` route name, or `commit/<sha>`.
 ---@param cfg table
 ---@param query string|nil Raw query string, `?`-prefixed.
@@ -198,7 +198,7 @@ end
 
 ---Serve a file out of `out_dir`.
 ---@param cfg table
----@param client userdata
+---@param client uv.uv_tcp_t
 ---@param name string
 local function route_static(cfg, client, name)
   name = M.safe_static_name(name)
@@ -229,7 +229,7 @@ end
 
 ---Dispatch one parsed request. Runs on the main loop (see the module header).
 ---@param cfg table
----@param client userdata
+---@param client uv.uv_tcp_t
 ---@param method string
 ---@param target string
 local function handle(cfg, client, method, target)
@@ -272,7 +272,7 @@ local function handle(cfg, client, method, target)
 end
 
 ---@param cfg table
----@param client userdata
+---@param client uv.uv_tcp_t
 local function on_connection(cfg, client)
   local buf = ""
   client:read_start(function(err, chunk)

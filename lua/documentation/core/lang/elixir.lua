@@ -132,7 +132,7 @@ local function read(path)
 end
 
 ---@param src string
----@return userdata?
+---@return TSNode?
 local function parse(src)
   local ok, parser = pcall(vim.treesitter.get_string_parser, src, M.grammar)
   if not ok or not parser then
@@ -147,7 +147,7 @@ local function parse(src)
   return trees[1]:root()
 end
 
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return string
 local function text_of(node, src)
@@ -156,9 +156,9 @@ local function text_of(node, src)
   return src:sub(sbyte + 1, ebyte)
 end
 
----@param node userdata
+---@param node TSNode
 ---@param kind string
----@return userdata?
+---@return TSNode?
 local function child_of(node, kind)
   for child in node:iter_children() do
     if child:type() == kind then
@@ -169,7 +169,7 @@ local function child_of(node, kind)
 end
 
 ---The head identifier of a `call`, or `nil`.
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return string?
 local function call_name(node, src)
@@ -182,7 +182,7 @@ end
 
 ---An attribute's name and its argument text, for a `unary_operator` holding
 ---`@name value`.
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return string? name
 ---@return string? value
@@ -249,7 +249,7 @@ local function doc_text(value)
 end
 
 ---The name a `def`/`defp` head declares, and its parameter names.
----@param call userdata The `def`/`defp` call.
+---@param call TSNode The `def`/`defp` call.
 ---@param src string
 ---@return string? name
 ---@return string[] params
@@ -367,7 +367,7 @@ function M.scan_file(path)
   local split = require("documentation.core.scan").split_summary
   local fns, requires, symbols = {}, {}, {}
 
-  ---@param body userdata `do_block`
+  ---@param body TSNode `do_block`
   ---@param owner string
   local function walk_module(body, owner)
     -- **`@doc` applies to the next definition**, so it is carried forward

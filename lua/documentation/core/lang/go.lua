@@ -132,7 +132,7 @@ local function read(path)
 end
 
 ---@param src string
----@return userdata?
+---@return TSNode?
 local function parse(src)
   local ok, parser = pcall(vim.treesitter.get_string_parser, src, M.grammar)
   if not ok or not parser then
@@ -147,7 +147,7 @@ local function parse(src)
   return trees[1]:root()
 end
 
----@param node userdata
+---@param node TSNode
 ---@param src string
 ---@return string
 local function text_of(node, src)
@@ -156,9 +156,9 @@ local function text_of(node, src)
   return src:sub(sbyte + 1, ebyte)
 end
 
----@param node userdata
+---@param node TSNode
 ---@param kind string
----@return userdata?
+---@return TSNode?
 local function child_of(node, kind)
   for child in node:iter_children() do
     if child:type() == kind then
@@ -180,7 +180,7 @@ end
 ---more cheaply: a commented-out declaration would still be attached to the
 ---next one down, but Go's formatter and its unused-import error make
 ---commented-out code far rarer than in C.
----@param root userdata
+---@param root TSNode
 ---@param src string
 ---@return table<integer, string[]>
 local function comment_runs(root, src)
@@ -287,7 +287,7 @@ end
 ---`x, y int` is one `parameter_declaration` with two identifiers, so the
 ---names are collected per declaration rather than one per child — a shape
 ---no other language here has.
----@param node userdata?
+---@param node TSNode?
 ---@param src string
 ---@return string[]
 local function param_names(node, src)
@@ -387,7 +387,7 @@ M.call_scope = "package"
 ---already takes that position for the require edge; the call edge takes it
 ---for the same reason. The callee text is emitted regardless, so the day the
 ---module line is read, nothing here changes.
----@param root userdata
+---@param root TSNode
 ---@param src string
 ---@param ranges { name: string, srow: integer, erow: integer }[] 0-based rows.
 ---@return Documentation.RawCall[]
@@ -443,7 +443,7 @@ function M.scan_file(path)
   local in_test = path:match("_test%.go$") ~= nil
 
   ---The receiver type of a method, without its pointer star.
-  ---@param node userdata
+  ---@param node TSNode
   ---@return string?
   local function receiver_type(node)
     local list = child_of(node, "parameter_list")
@@ -475,7 +475,7 @@ function M.scan_file(path)
     return nil
   end
 
-  ---@param spec userdata `import_spec`
+  ---@param spec TSNode `import_spec`
   local function record_import(spec)
     local lit = child_of(spec, "interpreted_string_literal") or child_of(spec, "raw_string_literal")
     if not lit then
