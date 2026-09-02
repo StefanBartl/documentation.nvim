@@ -629,6 +629,13 @@ end
 ---@param opts Documentation.Opts?
 ---@return Documentation.Handle
 function M.setup(opts)
+  -- Tell hover.nvim what a dotted module name under the cursor is, out of the
+  -- map this plugin already writes. Soft: without hover.nvim it does nothing,
+  -- and hover.nvim never names this plugin -- the contribution goes through
+  -- its registry. `hover = false` in the spec turns it off.
+  if not opts or opts.hover ~= false then
+    require("documentation.hover").setup()
+  end
   return require("documentation.bindings.usrcmds").setup(opts)
 end
 

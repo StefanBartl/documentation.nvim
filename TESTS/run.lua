@@ -118,6 +118,7 @@ local specs = {
   "polyglot_fixture_spec.lua",
   "resolve_relative_spec.lua",
   "markdown_links_spec.lua",
+  "hover_spec.lua",
   "prose_render_spec.lua",
   "startup_graph_spec.lua",
   "fence_render_spec.lua",

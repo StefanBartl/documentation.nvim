@@ -30,6 +30,10 @@ local DEFAULTS = {
   command_name = "DocMap",
   browse_command_name = "DocBrowse",
   progress_style = "auto",
+  -- Register a position preview with hover.nvim, so resting the cursor on a
+  -- dotted module name says what that module is -- read out of the map this
+  -- plugin writes, with no scan at runtime. A no-op without hover.nvim.
+  hover = true,
   -- Ceiling for a `git log` over the repository's full history, in ms —
   -- `:DocMap churn`, the checklist's history pass and the MCP tool all bound
   -- themselves by it. Two minutes is generous for most repositories and tight
