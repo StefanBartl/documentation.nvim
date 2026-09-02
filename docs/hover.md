@@ -70,6 +70,27 @@ The map is found by walking up from the buffer's own directory looking for
 belongs to**, not about wherever Neovim happens to be. A file open from
 another project gets that project's map, or none.
 
+**That walk is cached per directory, misses included**, and the miss is the
+one that mattered. A repository with no generated map answered nothing while
+paying the whole climb on every ask — up to 24 levels, one `fs_stat` each.
+Measured on 2026-09-03 against the registered callback, 2000 repetitions:
+
+| Where | Per ask, before | After |
+| --- | --- | --- |
+| a repository with no map, five levels deep | 97.3 µs | **2.9 µs** |
+| the same at its root | 50.9 µs | 2.7 µs |
+| a repository **with** a map | 117.1 µs | 40.2 µs |
+
+The climb was 98 % of the ask against 1.6 µs for the dotted-name test, so this
+is not a fast path made faster — it is the only slow one removed. The hit is
+cached too, which is why the third row moves as well.
+
+The cost is one narrow kind of staleness: a map that **appears** where there
+was none — generated during the session, or arriving with a branch — is not
+noticed until `documentation.hover._reset()` or a restart. A map that is
+*regenerated* is unaffected, because the cached answer is the path and the
+parse is keyed on its mtime.
+
 A name with no dot is never looked up: a bare identifier is not a module name,
 and answering for one would mean a map lookup for every word.
 

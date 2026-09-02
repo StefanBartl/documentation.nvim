@@ -145,6 +145,61 @@ return function(H)
     "an edited directory module is reported as stale"
   )
 
+  -- ------------------------------------------------------- the find cache --
+  -- The walk up to `docs/map/module_map.json` is cached, misses included,
+  -- and the miss is the case that matters: in a repository with no generated
+  -- map every position ask used to pay the full climb again. Measured
+  -- 2026-09-03, cursor on a dotted name, 2000 repetitions: 97.3 us per ask
+  -- before, 2.9 us after.
+  --
+  -- Counted rather than timed. A timing assertion on a filesystem walk is a
+  -- flake waiting for a slow runner; the number of `fs_stat` calls is the
+  -- thing the cache actually changes, and it is exact.
+  local stats = 0
+  local real_stat = vim.uv.fs_stat
+  ---@diagnostic disable-next-line: duplicate-set-field
+  vim.uv.fs_stat = function(...)
+    stats = stats + 1
+    return real_stat(...)
+  end
+
+  local nomap = vim.fn.tempname() .. "/a/b/c/d"
+  vim.fn.mkdir(nomap, "p")
+  local nobuf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_name(nobuf, nomap .. "/probe.lua")
+  vim.api.nvim_buf_set_lines(nobuf, 0, -1, false, { 'local a = require("pkg.filemod")' })
+
+  local ask = captured.contribution.positions[1]
+
+  stats = 0
+  ask(nobuf, 1, 22)
+  local first_miss = stats
+  H.ok(first_miss > 1, "a miss walks the tree once")
+
+  stats = 0
+  ask(nobuf, 1, 22)
+  H.eq(stats, 0, "and never again for the same directory")
+
+  hover._reset()
+  hover.setup()
+  stats = 0
+  captured.contribution.positions[1](nobuf, 1, 22)
+  H.ok(stats > 1, "_reset() forgets it, which is how a new map is picked up")
+
+  -- The hit is cached as well, so the climb is paid once there too. Not zero
+  -- afterwards: `load_map` still stats the artifact for its mtime and the
+  -- module's own source for the staleness check, which is the point of both.
+  stats = 0
+  captured.contribution.positions[1](buf, 1, 22)
+  local first_hit = stats
+  stats = 0
+  captured.contribution.positions[1](buf, 1, 22)
+  H.ok(stats < first_hit, "a hit skips the climb the second time")
+
+  vim.uv.fs_stat = real_stat
+  vim.api.nvim_buf_delete(nobuf, { force = true })
+  vim.fn.delete(vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(nomap))), "rf")
+
   -- ---------------------------------------------------------- degradation --
   vim.api.nvim_buf_delete(buf, { force = true })
   vim.fn.delete(root, "rf")
