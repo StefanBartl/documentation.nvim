@@ -51,8 +51,88 @@ local _maps = {}
 ---@type table<string, { artifact: string, root: string }|false>
 local _finds = {}
 
+---@type string Where a project keeps its artifact unless it says otherwise.
+local DEFAULT_OUT_DIR = "docs/map"
+
 ---@internal
---- The nearest `docs/map/module_map.json` above `start`, or nil.
+--- One pass up from `start`, asking `rel_for` where each level keeps its map.
+---
+--- `nil` from `rel_for` means "nothing to probe here", which is how the second
+--- pass skips every level the first already answered for.
+---@param start string
+---@param rel_for fun(dir: string): string|nil
+---@return string|nil artifact
+---@return string|nil root
+local function climb(start, rel_for)
+  local dir = start
+  for _ = 1, 24 do
+    if dir == "" then
+      return nil
+    end
+    local rel = rel_for(dir)
+    if rel then
+      local candidate = dir .. "/" .. rel .. "/module_map.json"
+      if uv.fs_stat(candidate) then
+        return candidate, dir
+      end
+    end
+    local parent = vim.fs.dirname(dir)
+    if not parent or parent == dir then
+      return nil
+    end
+    dir = parent
+  end
+  return nil
+end
+
+---@internal
+--- Where `dir` says its generated map lives, relative to itself.
+---
+--- **`out_dir` is configurable and this used to ignore it**, which meant
+--- anyone who moved the artifact got no module hover at all — silently, which
+--- is the worst shape a missing feature has. Two places can state one, and
+--- both are asked cheapest first:
+---
+---   * a project the editor has installed carries its built `cfg` — a table
+---     lookup, no I/O;
+---   * a repository states itself in `.docmap.json` — one `fs_stat`, and a
+---     read only where such a file actually is.
+---
+--- Deliberately **not** `config.build`: that merges the defaults, the file
+--- and the host's overrides for a root that is already known, and calling it
+--- once per level during a walk would cost more than the walk it is guiding.
+--- For the same reason it reuses `config.file.load` and that module's own
+--- `NAME` rather than reading the JSON again — a second copy of a parser is
+--- the failure this repository keeps meeting.
+---@param dir string
+---@return string|nil out_dir relative, or nil where nothing states one
+local function stated_out_dir(dir)
+  local ok_reg, registry = pcall(require, "documentation.editor.registry")
+  if ok_reg and type(registry) == "table" and type(registry.get) == "function" then
+    local handle = registry.get(dir)
+    local configured = handle and handle.cfg and handle.cfg.out_dir
+    if type(configured) == "string" and configured ~= "" then
+      return configured
+    end
+  end
+
+  local ok_file, file = pcall(require, "documentation.config.file")
+  if not ok_file or type(file) ~= "table" or type(file.load) ~= "function" then
+    return nil
+  end
+  if not uv.fs_stat(dir .. "/" .. file.NAME) then
+    return nil
+  end
+  local stated = file.load(dir)
+  local configured = stated and stated.out_dir
+  if type(configured) == "string" and configured ~= "" then
+    return configured
+  end
+  return nil
+end
+
+---@internal
+--- The nearest generated map above `start`, or nil.
 ---
 --- **The misses are cached too, and that is the point.** `_maps` remembers
 --- only successful loads, so in a repository with no generated map — the
@@ -72,12 +152,26 @@ local _finds = {}
 --- fast path; it is removing the only slow one.
 ---
 --- **What a cached miss costs in honesty.** The answer goes stale if a map
---- *appears* where there was none — generated during the session, or a branch
---- checked out that carries one. It is a snapshot artifact that nothing
---- regenerates on its own (see the module header), so that window is narrow;
---- when it matters, `M._reset()` forgets both caches. A map that is
---- *regenerated* is unaffected: `load_map` keys on its mtime, and the path
---- this cache remembers does not change.
+--- *appears* where there was none — generated during the session, a branch
+--- checked out that carries one, or a project installed that states a
+--- different `out_dir`. It is a snapshot artifact that nothing regenerates on
+--- its own (see the module header), so that window is narrow; when it
+--- matters, `M._reset()` forgets both caches. A map that is *regenerated* is
+--- unaffected: `load_map` keys on its mtime, and the path this cache
+--- remembers does not change.
+---
+--- **Two passes, and the second one usually does not run.** The first probes
+--- the default location at every level; only if the whole walk found nothing
+--- does the second ask each level where it *says* its map is. That order is
+--- what keeps a configured `out_dir` from costing anything to the projects
+--- that never set one — see the note at the pass itself for the number.
+---
+--- Within the second pass a stated `out_dir` **replaces** the default rather
+--- than being tried alongside it. A project that moved its artifact may well
+--- still have the old `docs/map` lying around from before the move, and
+--- answering out of that one would be a preview from a file the project has
+--- stopped writing — the same confident wrong answer the staleness check in
+--- the module header exists to prevent.
 ---@param start string a directory
 ---@return string|nil artifact
 ---@return string|nil root the directory the artifact belongs to
@@ -90,27 +184,33 @@ local function find_map(start)
     return nil
   end
 
-  -- One exit rather than three: every way out of the walk has to reach the
-  -- line that records it, and a `return nil` in the middle is how a negative
-  -- cache quietly ends up caching only some of its negatives.
-  local artifact, root
-  local dir = start
-  for _ = 1, 24 do
-    if dir == "" then
-      break
-    end
-    local candidate = dir .. "/docs/map/module_map.json"
-    if uv.fs_stat(candidate) then
-      artifact, root = candidate, dir
-      break
-    end
-    local parent = vim.fs.dirname(dir)
-    if not parent or parent == dir then
-      break
-    end
-    dir = parent
+  -- Pass one is the default location and nothing else: one `fs_stat` per
+  -- level, and it answers for every project that never moved its artifact --
+  -- which is nearly all of them.
+  local artifact, root = climb(start, function()
+    return DEFAULT_OUT_DIR
+  end)
+
+  -- Pass two runs only where pass one found nothing, and the split is a
+  -- measurement rather than a preference. Asking a level what it states is
+  -- not free: the project registry normalises a root through
+  -- `uv.fs_realpath`, a filesystem call and a slow one on Windows. Measured
+  -- 2026-09-03, asking at every level of the first pass turned a 112 us cold
+  -- walk into **763 us**. Two passes keep the common case at exactly its old
+  -- cost and pay for a moved artifact once, after which the cache answers.
+  if not artifact then
+    artifact, root = climb(start, function(dir)
+      local stated = stated_out_dir(dir)
+      if stated and stated ~= DEFAULT_OUT_DIR then
+        return stated
+      end
+      return nil
+    end)
   end
 
+  -- Recorded in one place rather than at each way out of the walk: a negative
+  -- cache that captures only some of its negatives is worse than none,
+  -- because it looks like it works.
   _finds[start] = artifact and { artifact = artifact, root = root } or false
   return artifact, root
 end

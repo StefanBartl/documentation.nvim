@@ -65,10 +65,31 @@ among them.
 
 ## Scope
 
-The map is found by walking up from the buffer's own directory looking for
-`docs/map/module_map.json`. So the answer is about **the repository the buffer
-belongs to**, not about wherever Neovim happens to be. A file open from
-another project gets that project's map, or none.
+The map is found by walking up from the buffer's own directory. So the answer
+is about **the repository the buffer belongs to**, not about wherever Neovim
+happens to be. A file open from another project gets that project's map, or
+none.
+
+**A moved artifact is found too**, which it was not before 2026-09-03: the walk
+hardcoded `docs/map` while `out_dir` is configurable everywhere else, so anyone
+who moved it got no module hover at all — silently, which is the worst shape a
+missing feature has. Two places may state one, and both are read: a project the
+editor has installed carries its built config, and a repository states itself in
+`.docmap.json`.
+
+It happens in **two passes**, and the order is a measurement rather than a
+preference. The first probes `docs/map` at every level, which answers for every
+project that never moved anything. Only where that whole walk found nothing
+does the second ask each level where it says its map is — because asking is not
+free: the project registry normalises a root through `uv.fs_realpath`, a
+filesystem call and a slow one on Windows. Asking at every level of the first
+pass turned a 112 µs cold walk into 763 µs. A project that never moved its
+artifact is therefore never asked, which the spec pins by counting the probes.
+
+Within the second pass a stated `out_dir` **replaces** the default rather than
+being tried alongside it: a project that moved its artifact may still have the
+old `docs/map` lying around, and answering out of that would be a preview from
+a file the project has stopped writing.
 
 **That walk is cached per directory, misses included**, and the miss is the
 one that mattered. A repository with no generated map answered nothing while

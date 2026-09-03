@@ -200,6 +200,76 @@ return function(H)
   vim.api.nvim_buf_delete(nobuf, { force = true })
   vim.fn.delete(vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(nomap))), "rf")
 
+  -- ------------------------------------------------------------- out_dir --
+  -- `out_dir` is configurable and the walk used to hardcode `docs/map`, so
+  -- anyone who moved the artifact got no module hover at all -- silently,
+  -- which is the worst shape a missing feature has.
+  --
+  -- The second property is the one that keeps that fix from costing anything:
+  -- asking a level where it keeps its map is *not* free (the project registry
+  -- normalises a root through `uv.fs_realpath`), so it happens in a second
+  -- pass that runs only where the default found nothing. A project that never
+  -- moved its artifact must therefore never be asked at all.
+  local moved = vim.fn.tempname()
+  vim.fn.mkdir(moved .. "/doc/gen", "p")
+  vim.fn.mkdir(moved .. "/lua/pkg", "p")
+  vim.fn.writefile({ "-- moved module" }, moved .. "/lua/pkg/movedmod.lua")
+  vim.fn.writefile({ vim.json.encode({ out_dir = "doc/gen" }) }, moved .. "/.docmap.json")
+  vim.fn.writefile({
+    vim.json.encode({
+      nodes = {
+        {
+          module = "pkg.movedmod",
+          summary = "A module in a project that moved its map.",
+          path = "lua/pkg/movedmod.lua",
+          functions = {},
+          requires = {},
+          required_by = {},
+        },
+      },
+    }),
+  }, moved .. "/doc/gen/module_map.json")
+  local moved_now = os.time()
+  vim.uv.fs_utime(moved .. "/lua/pkg/movedmod.lua", moved_now - 100, moved_now - 100)
+  vim.uv.fs_utime(moved .. "/doc/gen/module_map.json", moved_now, moved_now)
+
+  local movedbuf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_name(movedbuf, moved .. "/lua/pkg/probe.lua")
+  vim.api.nvim_buf_set_lines(movedbuf, 0, -1, false, { 'local a = require("pkg.movedmod")' })
+
+  hover._reset()
+  hover.setup()
+  local moved_answer = captured.contribution.positions[1](movedbuf, 1, 22)
+  H.ok(type(moved_answer) == "table", "a project that states out_dir is found")
+  H.eq(moved_answer.title, "pkg.movedmod", "out of the map it actually writes")
+
+  -- And the default case never asks. Counted at the probe rather than at
+  -- `config.file.load`: the load only happens where a `.docmap.json` exists,
+  -- so counting *it* would pass even if every level were being asked --
+  -- measured, by sabotaging the two passes into one and watching this
+  -- assertion stay green.
+  local probes = 0
+  local real_stat2 = vim.uv.fs_stat
+  ---@diagnostic disable-next-line: duplicate-set-field
+  vim.uv.fs_stat = function(path, ...)
+    if type(path) == "string" and path:sub(-12) == ".docmap.json" then
+      probes = probes + 1
+    end
+    return real_stat2(path, ...)
+  end
+
+  hover._reset()
+  hover.setup()
+  H.ok(
+    type(captured.contribution.positions[1](buf, 1, 22)) == "table",
+    "the default location still answers"
+  )
+  H.eq(probes, 0, "and a project that never moved its map is never asked where it is")
+
+  vim.uv.fs_stat = real_stat2
+  vim.api.nvim_buf_delete(movedbuf, { force = true })
+  vim.fn.delete(moved, "rf")
+
   -- ---------------------------------------------------------- degradation --
   vim.api.nvim_buf_delete(buf, { force = true })
   vim.fn.delete(root, "rf")
