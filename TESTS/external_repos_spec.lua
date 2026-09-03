@@ -122,6 +122,64 @@ return function(H)
     )
   end
 
+  -- The declared checkout is not on this machine *at all* — a CI runner's
+  -- normal state for a repository whose siblings live beside it locally.
+  --
+  -- The link falls back to the flat shape, and that fallback is the trap this
+  -- assertion exists to hold still: it is not a worse answer, it is a
+  -- *different* one, and the artifact carrying it is byte-compared. A machine
+  -- without the checkout therefore fails `--check` on a tree nobody touched,
+  -- which is what this repository's own `map` gate did for five days. See
+  -- `core/external_repos.lua`'s header, and the step in
+  -- `.github/workflows/ci.yml` that puts the checkout where the declaration
+  -- says it is.
+  do
+    local root = H.tmpfile("_extrepo_no_checkout")
+    local ir = scan_requiring(root, { "plenary.async" })
+    external_repos.resolve(ir, {
+      root = root,
+      external_repos = {
+        plenary = { repo = "nvim-lua/plenary.nvim", local_path = root .. "/not_checked_out" },
+      },
+    })
+    eq(
+      ir.tag_links["plenary.async"].html,
+      "https://github.com/nvim-lua/plenary.nvim/blob/main/lua/plenary/async.lua",
+      "resolve: a declared checkout that is not on this machine falls back to the flat shape"
+    )
+  end
+
+  -- A *relative* `local_path` is resolved against `opts.root` — the form a
+  -- committed `.docmap.json` has to use, since an absolute one names one
+  -- person's disk.
+  --
+  -- Sabotage-proof by construction rather than by assertion: the suite runs
+  -- from the repository root, so a `../<name>` resolved against the process
+  -- working directory (which is what this module did before `checkout_dir`
+  -- existed) lands beside *this* repository, finds nothing, and returns the
+  -- flat shape the assertion below rejects.
+  do
+    local root = H.tmpfile("_extrepo_rel_root")
+    local checkout = H.tmpfile("_extrepo_rel_checkout")
+    write(checkout, "lua/plenary/async/init.lua", { "return {}" })
+
+    local ir = scan_requiring(root, { "plenary.async" })
+    external_repos.resolve(ir, {
+      root = root,
+      external_repos = {
+        plenary = {
+          repo = "nvim-lua/plenary.nvim",
+          local_path = "../" .. vim.fn.fnamemodify(checkout, ":t"),
+        },
+      },
+    })
+    eq(
+      ir.tag_links["plenary.async"].html,
+      "https://github.com/nvim-lua/plenary.nvim/blob/main/lua/plenary/async/init.lua",
+      "resolve: a relative local_path is resolved against opts.root, not the process cwd"
+    )
+  end
+
   -- Longest, dot-bounded prefix wins — same rule as tagfiles.match_prefix,
   -- verified independently here since the implementation duplicates it
   -- rather than sharing it (different value shapes).

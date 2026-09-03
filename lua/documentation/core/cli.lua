@@ -65,6 +65,51 @@ local function write_sarif(path, ir, findings, opts)
   io.stdout:write("wrote " .. path .. "\n")
 end
 
+---The byte offset at which two strings first differ, or `nil` when they are
+---equal.
+---
+---Chunked rather than byte-at-a-time: an artifact here is ~1.7 MB, and only
+---the one chunk that already compared unequal is walked byte by byte.
+---@param a string
+---@param b string
+---@return integer?
+local function first_difference(a, b)
+  local shared = math.min(#a, #b)
+  local i = 1
+  while i <= shared do
+    local j = math.min(i + 4095, shared)
+    if a:sub(i, j) ~= b:sub(i, j) then
+      for k = i, j do
+        if a:byte(k) ~= b:byte(k) then
+          return k
+        end
+      end
+    end
+    i = j + 1
+  end
+  if #a ~= #b then
+    return shared + 1
+  end
+  return nil
+end
+
+---A one-line, printable window around byte `at`.
+---
+---Control characters are escaped rather than printed: these artifacts are one
+---enormous line of HTML or JSON in places and several thousand short ones in
+---others, and a raw excerpt would either wrap the terminal or say nothing.
+---@param s string
+---@param at integer
+---@return string
+local function excerpt(s, at)
+  local text = s:sub(math.max(1, at - 30), math.min(#s, at + 90))
+  return (
+    text:gsub("%c", function(c)
+      return ({ ["\n"] = "\\n", ["\r"] = "\\r", ["\t"] = "\\t" })[c] or "."
+    end)
+  )
+end
+
 ---Every backend name this build knows, sorted — the "Known:" half of the
 ---unknown-language warning. Read off `lang_registry.report()` rather than a
 ---list here, so a twenty-fourth backend needs no edit in this file and the
@@ -214,16 +259,46 @@ function M.run(opts, argv)
         content = startup_graph.strip(content)
       end
       if actual ~= content then
-        stale[#stale + 1] = opts.out_dir .. "/" .. name
+        stale[#stale + 1] = {
+          file = opts.out_dir .. "/" .. name,
+          committed = actual,
+          generated = content,
+        }
       end
     end
-    table.sort(stale)
+    table.sort(stale, function(a, b)
+      return a.file < b.file
+    end)
 
     if #stale > 0 then
+      -- **Where, not just whether.** A byte-compare that reports only "stale"
+      -- is undebuggable the moment the difference is not the obvious one:
+      -- this repository's own `map` gate was red for five days on a tree that
+      -- regenerating could not fix, because the two sides differed in 100
+      -- bytes nobody could see from the failing machine (see
+      -- `core/external_repos.lua`'s header for what they were). The first
+      -- differing offset plus a window either side names that class of bug in
+      -- the log itself, and costs nothing on a green run.
       io.stderr:write("Module map is stale:\n")
       for _, s in ipairs(stale) do
-        io.stderr:write("  " .. s .. "\n")
+        io.stderr:write("  " .. s.file .. "\n")
+        if not s.committed then
+          io.stderr:write("    not committed at all — the file is missing\n")
+        else
+          local at = first_difference(s.committed, s.generated) or (#s.committed + 1)
+          io.stderr:write(
+            ("    committed %d B, generated %d B, first difference at byte %d\n"):format(
+              #s.committed,
+              #s.generated,
+              at
+            )
+          )
+          io.stderr:write("      committed: " .. excerpt(s.committed, at) .. "\n")
+          io.stderr:write("      generated: " .. excerpt(s.generated, at) .. "\n")
+        end
       end
+      -- Offsets into `index.html` are offsets into the *stripped* text, since
+      -- that is what both sides were compared as.
       io.stderr:write(
         "\nRun :DocMap (or nvim --headless -l scripts/gen_map.lua) and commit the result.\n\n"
       )

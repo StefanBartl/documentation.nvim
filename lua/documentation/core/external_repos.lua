@@ -51,6 +51,28 @@
 --- or the caller does not want to name one), the flat shape is assumed,
 --- unverified — still better than the inert grey box it replaces even when
 --- wrong, since the reader is one click from the repo's own file browser.
+---
+--- **What that verification costs, and the rule it implies.** The resolved
+--- shape goes into the committed artifact, so the artifact carries knowledge
+--- that came from a checkout *beside* the tree rather than from the tree —
+--- and `--check` byte-compares. A machine without that checkout therefore
+--- does not produce a worse map, it produces a **different** one, and the
+--- gate reports the tree as stale for something the tree never said.
+---
+--- Not hypothetical: it is what the `map` job did from `66c429f`
+--- (2026-08-31) until `.github/workflows/ci.yml` grew the step that puts
+--- `../lib.nvim` where `.docmap.json` says it is. Five days red on both
+--- `index.html` and `module_map.json`, and regenerating the map could not
+--- fix it, because the difference was never in the tree. Measured rather
+--- than argued: the same tree scanned with and without the sibling checkout
+--- differs in exactly 100 bytes, all of them `/init.lua` against `.lua` in
+--- `tag_links` — 20 of this repository's 23 external links.
+---
+--- **So wherever `--check` runs, the checkouts `local_path` declares have to
+--- be there too.** A host that cannot arrange that should not declare
+--- `local_path` at all: the unverified flat shape is wrong more often, but
+--- it is wrong the same way on every machine, which is what a byte-compared
+--- artifact needs.
 
 local M = {}
 
@@ -99,22 +121,60 @@ local function is_file(path)
   return ok and st ~= nil and st.type == "file"
 end
 
+---`cfg.local_path` as a path `uv.fs_stat` can be handed: absolute as given,
+---relative resolved against `opts.root`.
+---
+---Relative is the form a *committed* `.docmap.json` has to use — `../lib.nvim`
+---stays true on every machine, an absolute one names one person's disk. Until
+---this function existed the relative form was stat'ed exactly as written, so
+---it resolved against the **process working directory** instead, and passed
+---only because every caller so far happens to run from the repository root.
+---`check.lua#check_sibling_references` resolves the same field against
+---`opts.root` and always did; this is that idiom, not a second one.
+---
+---Joined, not normalised: `core/` may only call what the standalone shim
+---implements (TESTS/shim_contract_spec.lua), and `uv.fs_stat` resolves `..`
+---itself on every platform this runs on. The joined form is never printed,
+---only stat'ed.
+---@param cfg Documentation.ExternalRepo
+---@param root string? `opts.root`; absent, only an absolute `local_path` is usable
+---@return string? dir Absent when the declaration cannot be resolved from here
+local function checkout_dir(cfg, root)
+  if not cfg.local_path then
+    return nil
+  end
+  local declared = cfg.local_path:gsub("\\", "/"):gsub("/+$", "")
+  if declared:match("^%a:/") or declared:sub(1, 1) == "/" then
+    return declared
+  end
+  if not root then
+    return nil
+  end
+  return (root:gsub("\\", "/"):gsub("/+$", "")) .. "/" .. declared
+end
+
 ---The module's path relative to `lua_root`, flat-shape first: `a.b` ->
 ---`a/b.lua`, checked against `cfg.local_path` when one was given, falling
 ---back to the directory shape `a/b/init.lua`, falling back to the flat
 ---shape unverified when neither checkout path resolves (no `local_path`,
----or the module genuinely isn't there — a stale declaration, or a
----dynamically required path this scan's own `deps.lua` would equally not
----have resolved).
+---the declared checkout is not on this machine, or the module genuinely
+---isn't there — a stale declaration, or a dynamically required path this
+---scan's own `deps.lua` would equally not have resolved).
+---
+---The second of those is the one with teeth: it is not a worse answer but a
+---*different* one, and the artifact is byte-compared. See this module's
+---header.
 ---@param mod string
 ---@param cfg Documentation.ExternalRepo
+---@param root string?
 ---@return string
-local function module_path(mod, cfg)
+local function module_path(mod, cfg, root)
   local flat = (mod:gsub("%.", "/")) .. ".lua"
-  if not cfg.local_path then
+  local dir = checkout_dir(cfg, root)
+  if not dir then
     return flat
   end
-  local base = (cfg.local_path:gsub("\\", "/"):gsub("/+$", "")) .. "/" .. cfg.lua_root .. "/"
+  local base = dir .. "/" .. cfg.lua_root .. "/"
   if is_file(base .. flat) then
     return flat
   end
@@ -128,8 +188,9 @@ end
 ---Build the blob URL for `mod` inside `cfg.repo`.
 ---@param mod string
 ---@param cfg Documentation.ExternalRepo
+---@param root string? `opts.root`, for a relative `cfg.local_path`
 ---@return string
-local function blob_url(mod, cfg)
+local function blob_url(mod, cfg, root)
   return "https://github.com/"
     .. cfg.repo
     .. "/blob/"
@@ -137,7 +198,7 @@ local function blob_url(mod, cfg)
     .. "/"
     .. cfg.lua_root
     .. "/"
-    .. module_path(mod, cfg)
+    .. module_path(mod, cfg, root)
 end
 
 ---Extend `ir.tag_links` with a GitHub link for every `requires_external`
@@ -166,7 +227,7 @@ function M.resolve(ir, opts)
       local prefix, entry = match_prefix(mod, external_repos)
       if prefix and entry then
         local cfg = normalize(entry)
-        ir.tag_links[mod] = { title = mod, html = blob_url(mod, cfg) }
+        ir.tag_links[mod] = { title = mod, html = blob_url(mod, cfg, opts.root) }
       end
     end
   end

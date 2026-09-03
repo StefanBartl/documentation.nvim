@@ -123,6 +123,27 @@ jobs:
         with:
           repository: StefanBartl/lib.nvim
           path: .deps/lib.nvim
+      # `.docmap.json` declares lib.nvim's checkout at `../lib.nvim`, and the
+      # committed artifact was resolved against it: 20 of this repository's 23
+      # external links carry the directory shape (`…/autocmd/init.lua`), which
+      # is knowable only by looking at a real checkout — without one,
+      # `core/external_repos.lua` falls back to the flat `…/autocmd.lua`. A
+      # runner that cannot see the checkout therefore generates a *different*
+      # artifact and `--check` calls this repository stale for something the
+      # tree never said.
+      #
+      # That is not a hypothetical this step guards against, it is what this
+      # job did: red from 66c429f (2026-08-31) to here, on both index.html and
+      # module_map.json, and regenerating the map could not fix it. The two
+      # sides differ in exactly 100 bytes, all of them `/init.lua` against
+      # `.lua`.
+      #
+      # A symlink, not a second clone: `actions/checkout` refuses a path
+      # outside the workspace, and the `.deps` copy above already exists for
+      # `require`. The cost is that a layout change in lib.nvim can turn this
+      # job red without a commit here — which is the honest signal, because
+      # those links are dead from that moment on.
+      - run: ln -s "$PWD/.deps/lib.nvim" ../lib.nvim
       - uses: rhysd/action-setup-vim@v1
         with:
           neovim: true
