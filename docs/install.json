@@ -1,0 +1,16 @@
+{
+  "tools": [
+    {
+      "bin": "lua-language-server",
+      "required": false,
+      "why": "Enables the opt-in `luals` enrichment pass: `lua-language-server --doc` output is merged into the IR, adding `@class`/`@alias`/`@field` detail and type-reference edges that the plain source scan cannot see. Off by default (a full-tree run costs real seconds), so this is only worth installing if you turn `luals = true` on.",
+      "pkg": {
+        "apt": "lua-language-server",
+        "dnf": "lua-language-server",
+        "pacman": "lua-language-server",
+        "brew": "lua-language-server",
+        "scoop": "lua-language-server"
+      }
+    }
+  ]
+}

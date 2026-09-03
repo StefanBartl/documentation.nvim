@@ -636,6 +636,18 @@ function M.setup(opts)
   if not opts or opts.hover ~= false then
     require("documentation.hover").setup()
   end
+
+  -- Report the declared external tools (docs/install.json) once, ever, on
+  -- the first setup after installation. pcall'd because an older lib.nvim
+  -- without lib.nvim.deps must not break setup() over an informational
+  -- popup; `:Lib deps show documentation.nvim` stays available either way.
+  -- Turn it off with `vim.g.lib_nvim_deps_disable_first_run` (or the
+  -- per-plugin `vim.g.lib_nvim_deps_disabled_plugins`).
+  local ok_deps, deps = pcall(require, "lib.nvim.deps")
+  if ok_deps then
+    deps.show_once("documentation.nvim")
+  end
+
   return require("documentation.bindings.usrcmds").setup(opts)
 end
 
