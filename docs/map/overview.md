@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**5 modules** · 7 namespaces · 126 helper files
+**5 modules** · 7 namespaces · 127 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -266,8 +266,8 @@ No errors or warnings.
 
 | Check | Message |
 |---|---|
+| `dead-function` | M._reset is marked @internal and nothing in the tree calls it |
 | `missing-readme` | lua/documentation/mcp has no README.md |
-| `undocumented-param` | check_require_cycles has 2 parameter(s) but only 0 @param line(s) |
 | `undocumented-param` | M.rank has 4 parameter(s) but only 3 @param line(s) |
 | `undocumented-param` | complexity has 3 parameter(s) but only 2 @param line(s) |
 | `unreferenced-module` | documentation.bindings.docs is required by no other file in the tree |

@@ -115,6 +115,19 @@ parse is keyed on its mtime.
 A name with no dot is never looked up: a bare identifier is not a module name,
 and answering for one would mean a map lookup for every word.
 
+## You are no longer alone on this token
+
+insights.nvim registers a position preview for a dotted name too, and answers
+a different question about it: this plugin says **what the module is**, that
+one says **who imports it**. Both are right, and the cursor is in one place.
+
+hover.nvim steps between them — `<M-n>`, or `:Hover next` — so the second
+answer is a page rather than a casualty. Before that existed (hover.nvim
+`ac0a372`), `position_at` returned the *first* answer and the other plugin was
+invisible, decided by load order. Nothing here changed for it: the contract is
+still "answer or decline", and declining is what puts the next plugin on
+screen.
+
 ## Soft in both directions
 
 - **Without hover.nvim**, `setup()` looks for `hover.registry`, does not find
