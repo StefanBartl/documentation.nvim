@@ -2,7 +2,7 @@
 
 A ledger of what's been built, why it was built that way, and (where known)
 the commit it shipped in. For *how to use* any of this, see
-[`docs/PIPELINE.md`](PIPELINE.md) — this file is the decision record, not a
+[`docs/pipeline.md`](pipeline.md) — this file is the decision record, not a
 usage manual, so it stays short per feature: the interesting trade-off, not
 the full narrative. Full history (verification steps, exact test counts, etc.)
 lives in git log, not here.
@@ -928,7 +928,7 @@ class or struct body, which C never has. The three real gaps are Haskell's
 `class`/`instance`, OCaml's `module X = struct … end` and Zig's
 `const S = struct { … }`; each needs walk plumbing that does not exist yet,
 none could be verified against a real parse on the machine this was built on,
-and all three are named as gaps in [`LANGUAGES.md`](LANGUAGES.md) rather than
+and all three are named as gaps in [`languages.md`](languages.md) rather than
 left looking like language facts.
 
 **Verified against real parses of the two languages the item was about.**
@@ -983,7 +983,7 @@ own verified node names (`ternary_expression`, `switch_case`; no
 `if_statement`). React hooks are recognized by the same `^use[A-Z]` naming
 convention `eslint-plugin-react-hooks` itself relies on (`is_hook`),
 carried on `Documentation.FunctionInfo` alongside a real field rather than
-inferred at the panel layer — `docs/FRAMEWORK_CONVENTIONS.md`'s own
+inferred at the panel layer — `docs/framework_conventions.md`'s own
 conclusion that a *map* of hooks, not rules-of-hooks linting ESLint
 already owns, is the underserved half.
 
@@ -1034,7 +1034,7 @@ surface `is_hook` (already computed, unread by anything) as its own
 Analysis panel, the same shape `renderAnalysisPlugins` already gave
 `n.plugins` — data that already sits on the serialized IR, no new Lua
 extraction, no git, nothing to wait on. Closes the loop on
-`docs/FRAMEWORK_CONVENTIONS.md`'s own conclusion that a *map* of hooks,
+`docs/framework_conventions.md`'s own conclusion that a *map* of hooks,
 not rules-of-hooks linting, is the underserved half of React support —
 and on this session's original ask for a concrete, demoable example
 built on the new backend.
@@ -1308,7 +1308,7 @@ binding a bare name directly into scope) and class-method owning-scope
 
 ## The annotation popup (2026-08-03)
 
-Step 1 of [`docs/ECOSYSTEM.md`](ECOSYSTEM.md)'s sequencing, and chosen to
+Step 1 of [`docs/ecosystem.md`](ecosystem.md)'s sequencing, and chosen to
 be first for a specific reason: **it needed no new extraction at all.** Every
 list in this map — Index, Notes, Complexity, Duplicates, Hooks — showed a
 function as its signature and nothing else, while the params, returns,
@@ -1366,7 +1366,7 @@ keyboard focus, and resolves to the right annotation.
 
 ## The documentation corpus — `core/docs.lua` (2026-08-03)
 
-Step 2 of [`docs/ECOSYSTEM.md`](ECOSYSTEM.md), and the largest genuinely
+Step 2 of [`docs/ecosystem.md`](ecosystem.md), and the largest genuinely
 new *extraction* since the JS/TS backend. Everything else in this plugin
 reads source — annotations sitting next to the code they describe. This reads
 the other half: the `.md` files that describe the same tree from outside.
@@ -1429,7 +1429,7 @@ qualified and every one real.** Smaller and trustworthy beats larger and
 noisy, which is the same trade `calls_heuristic` already makes.
 
 The one surviving finding was genuine, and it was in a document written
-earlier the same day: `docs/ECOSYSTEM.md` illustrated qualified references
+earlier the same day: `docs/ecosystem.md` illustrated qualified references
 with a `scan_full` qualified onto `documentation.core.scan`, when
 `scan_full` lives in `documentation` itself. The check found a real error in
 the design document proposing the check. Fixed in the same commit.
@@ -1491,9 +1491,9 @@ had no `parent` links, so it had been exercising a fallback path rather than
 the real one. A fixture that cannot fail the way production fails is not a
 test of production.
 
-## The Docs Analysis panel — closing out ECOSYSTEM.md step 2 (2026-08-03)
+## The Docs Analysis panel — closing out ecosystem.md step 2 (2026-08-03)
 
-The one item step 2 left open: `docs/ECOSYSTEM.md` §3.4 predicted "docs-only
+The one item step 2 left open: `docs/ecosystem.md` §3.4 predicted "docs-only
 overview/filter" would be cheap once the corpus scan existed — no new
 extraction, just the existing sort/filter plumbing over data `core/docs.lua`
 already collects. That prediction held exactly: an eighth Analysis panel
@@ -1522,13 +1522,13 @@ and `#atool=docs` survives a reload — the same `parseState` whitelist this
 session already had to fix once for `duplicates`/`plugins`; `docs` was added
 to it in the same edit rather than left to go stale again.
 
-This closes `docs/ECOSYSTEM.md`'s step 2 completely. Next up per its own
+This closes `docs/ecosystem.md`'s step 2 completely. Next up per its own
 sequencing: step 3 (bounded snippet previews) and step 4 (the API endpoint
 inventory).
 
-## Bounded snippet previews — ECOSYSTEM.md step 3 (2026-08-03)
+## Bounded snippet previews — ecosystem.md step 3 (2026-08-03)
 
-`docs/ECOSYSTEM.md` §3.5 split hover previews into three tiers by cost:
+`docs/ecosystem.md` §3.5 split hover previews into three tiers by cost:
 signature (already free, shipped as the annotation popup), a bounded snippet
 around a known line (this entry), and a full file (needs `serve`, explicitly
 out of scope). This is the second tier: every function's own body, capped,
@@ -1570,7 +1570,7 @@ regenerated artifact grew from 797KB to 1031KB (`index.html`, +29%) and from
 430KB to 662KB (`module_map.json`, +54%). Bounded and proportional to the
 number of functions, as §3.5 predicted — but a real cost, not the "no new
 extraction, basically free" character step 2's docs-only overview genuinely
-had. `docs/ECOSYSTEM.md`'s own step 3 entry now states this plainly rather
+had. `docs/ecosystem.md`'s own step 3 entry now states this plainly rather
 than calling the feature cheaper than it measured.
 
 Explicitly not attempted: a snippet at an arbitrary `path:line:col` — a call
@@ -1589,9 +1589,9 @@ regression test (`TESTS/snippet_spec.lua`) checks `core/snippet.lua` directly
 over-the-cap, and an invalid/inverted span — plus an end-to-end check that
 `functions.lua` actually calls it during a real scan.
 
-## API endpoint inventory — call-based routing, ECOSYSTEM.md step 4 (2026-08-03)
+## API endpoint inventory — call-based routing, ecosystem.md step 4 (2026-08-03)
 
-`docs/ECOSYSTEM.md` §3.1's own conclusion: call-based routing (Express/
+`docs/ecosystem.md` §3.1's own conclusion: call-based routing (Express/
 Fastify/Koa) is flat and belongs in an Analysis panel, structurally
 identical to Plugins or Hooks; file-based routing (Next.js/SvelteKit/Nuxt/
 Remix) has real parent-directory structure worth preserving and belongs in
@@ -1599,7 +1599,7 @@ a Hierarchy view instead — a materially different piece of work, not
 attempted here. This entry is the first half only.
 
 **`core/endpoints.lua` is new**, a layer-2 convention recognizer in
-`FRAMEWORK_CONVENTIONS.md`'s own vocabulary — the same shape
+`framework_conventions.md`'s own vocabulary — the same shape
 `core/plugins.lua` already is for lazy.nvim specs, just for JS/TS's routing
 convention instead. Recognizes `IDENTIFIER.METHOD("/path", ...handler)`
 where METHOD is a lowercase HTTP verb or `all`, verified against a real
@@ -1620,13 +1620,13 @@ when the shape matched but no known package was imported. **The accepted
 risk, stated rather than hidden:** nothing checks what the receiver
 identifier is bound to — a cache or router-like object whose own
 `.get(path, handler)`-shaped method happens to match would false-positive.
-Not verified against a real Express application; `docs/ECOSYSTEM.md`'s own
+Not verified against a real Express application; `docs/ecosystem.md`'s own
 stated limit ("every framework-syntax claim above is unverified") applies
 here too.
 
 **Widened a shared contract carefully, not casually.** `endpoints` is a new,
 seventh value in every language backend's `scan_file` return — alongside
-`plugins`, not folded into it, since `docs/ECOSYSTEM.md` explicitly treats
+`plugins`, not folded into it, since `docs/ecosystem.md` explicitly treats
 them as two separate per-node fields. Touched `Documentation.LangBackend`'s
 type, both backends (`functions.lua` returns `{}` unconditionally — no Lua
 equivalent convention — `core/lang/ecma.lua` calls the new recognizer), and
@@ -1663,19 +1663,19 @@ correct columns, sort, filter, row click-through to Tree, the handler
 trigger opening the real popup, and the empty state on this repository's
 own map (which has no JS/Express code at all).
 
-Left genuinely open: file-based routing (the other half of ECOSYSTEM.md's
+Left genuinely open: file-based routing (the other half of ecosystem.md's
 own step 4, a Hierarchy view, not an Analysis panel — different enough
 work to be its own future entry), and — same caveat every recognizer in
 this document carries — no real-world Express/Fastify/Koa application has
 been run through this yet, only hand-written fixtures.
 
-## "Send a request" — an Endpoints mode in `:DocBrowse`, ECOSYSTEM.md step 6 (2026-08-03)
+## "Send a request" — an Endpoints mode in `:DocBrowse`, ecosystem.md step 6 (2026-08-03)
 
-`docs/ECOSYSTEM.md`'s own step 6, worded as "documentation.nvim's endpoint
+`docs/ecosystem.md`'s own step 6, worded as "documentation.nvim's endpoint
 panel gains 'send a request'" — but *panel* meant the static HTML page's
 Analysis tab (step 4's own delivery), and a browser page cannot
 `pcall(require, "runtime-analysis")` a Neovim plugin. That is not a small
-gap, it is the whole reason `docs/ECOSYSTEM.md` §7 already argues the
+gap, it is the whole reason `docs/ecosystem.md` §7 already argues the
 static × runtime join belongs **in the editor**, not baked into a
 committed, byte-compared artifact. So step 6 is a new **Endpoints mode in
 `:DocBrowse`** instead — the first new mode added since that browser's own
@@ -1694,7 +1694,7 @@ than centering on one node — `trail_entries` was the only existing
 precedent for that shape, and this mode follows it rather than inventing a
 second one.
 
-**`gs` is the soft dependency `docs/ECOSYSTEM.md` §7 calls for explicitly**,
+**`gs` is the soft dependency `docs/ecosystem.md` §7 calls for explicitly**,
 the same pattern already used twice in this ecosystem (`progress`→fidget,
 `check.lua`→lua-language-server): `pcall(require, "runtime-analysis")`
 inside the keymap's own handler, checked at call time rather than cached
@@ -1726,7 +1726,7 @@ still the pristine, unmodified `[No Name]` buffer, real Vim behavior the
 test's own assumption had not accounted for; fixed by asserting on the
 resulting buffer's content instead, which is the actual requirement.
 
-`docs/ECOSYSTEM.md`'s own step 8 (a future telemetry mode) called itself
+`docs/ecosystem.md`'s own step 8 (a future telemetry mode) called itself
 "Mode 7" before this session's own step 6 claimed position 7 in `MODES`
 for Endpoints instead — noted there so a future reader is not confused
 when telemetry lands as the 8th entry, not the 7th.
@@ -1747,7 +1747,7 @@ format was real and worth reading, not speculative.
 `lib.nvim.deps.spec.load` — deliberately **not** `spec.find`/`spec.plugins`,
 which search `runtimepath` and lazy.nvim's plugin registry for *other*
 plugins' manifests. That is the wrong shape here: `documentation.nvim` maps
-one repo per invocation (see `docs/COMMANDS.md` § "Which repository do they
+one repo per invocation (see `docs/commands.md` § "Which repository do they
 act on?"), never enumerates installed siblings, and `core/tools.lua` keeps
 that same scoping rather than reintroducing multi-repo discovery through
 the back door.
@@ -1844,8 +1844,8 @@ fresh page loads.
 The largest roadmap item this session: a canonical, mechanically-readable
 `docs/FEATURES/` folder format, plus a ninth top-level tab that renders it —
 `core/features.lua` (parser), `ir.features` (IR field), `drawFeatures()`
-(the tab itself), and [`docs/FEATURES_FORMAT.md`](FEATURES_FORMAT.md)
-(the field guide). See `docs/PIPELINE.md`'s own "Features tab" section for
+(the tab itself), and [`docs/features_format.md`](features_format.md)
+(the field guide). See `docs/pipeline.md`'s own "Features tab" section for
 the full design writeup; this entry is the decision record.
 
 **Design was not invented from a blank page.** Before writing anything, a
@@ -1874,7 +1874,7 @@ only ending the run on a blank line or a flush-left non-bullet line.
 
 **Dogfooded**: this repo's own [`docs/FEATURES/`](FEATURES) (a
 deliberately small, real sample — Compare marks, Hierarchy hide/dim, and
-the Plugins/Tools Analysis panels — not full coverage, `docs/PIPELINE.md`
+the Plugins/Tools Analysis panels — not full coverage, `docs/pipeline.md`
 stays the complete reference), verified rendering in a real browser against
 the generated `docs/map/index.html`: all four cards, their summaries, their
 metadata, and the `Module:`-bullet-to-Tree-tab link resolution (which
@@ -1941,7 +1941,7 @@ real checkout on disk (`uv.fs_stat`, not a network call — `scan_full()`/
 `--check` stay exactly as offline as `tag_files`'s own local-path resolution
 already is), verified correct against three real `lib.nvim` modules
 end-to-end afterward. Flagged explicitly in both the module header and
-`docs/PIPELINE.md`: `local_path` must not vary between where a repo is
+`docs/pipeline.md`: `local_path` must not vary between where a repo is
 regenerated and where its `--check` runs (CI, typically), or the resolved
 path shape becomes an irreproducible part of the committed artifact —
 exactly the failure mode `tag_files`'s own "local paths only" design
@@ -2024,7 +2024,7 @@ round-tripped through a manual `hashchange` dispatch, no console errors,
 Deps/Calls views unaffected by the shared edge-processing loop's
 extension. No new `TESTS/*_spec.lua` file — consistent with the
 established precedent that `html.lua`'s embedded client-side JS has no
-direct Lua test coverage anywhere in this project; `docs/PIPELINE.md`'s own
+direct Lua test coverage anywhere in this project; `docs/pipeline.md`'s own
 "Module Calls: weighted alternative to Calls" section is the design
 writeup this entry compresses.
 
@@ -2364,7 +2364,7 @@ page feature with icons, not an editor affordance).
 
 **No new IR field.** The link is built entirely client-side, lazily on
 click, from `fn.snippet` — already serialized for the existing
-hover-preview feature (bounded snippets, ECOSYSTEM.md step 3) and already
+hover-preview feature (bounded snippets, ecosystem.md step 3) and already
 bounded the same way. A truncated snippet produces a correctly-labelled
 but incomplete compile on Compiler Explorer's side, the same honesty the
 in-page preview already carries via its own `snippet_omitted` count, not
@@ -2443,7 +2443,7 @@ the *dotted* `@module` form instead. `M.rows`'s `ir.nodes[module_id]` was
 looking a file-path-keyed table up by a dotted string that was never one of
 its keys — every row silently failed to match, unconditionally, in every
 project using `auto()`/`wrap_loaded()`. This is not a rare edge case: it is
-the *common* case, and it meant `:DocBrowse telemetry` (ECOSYSTEM.md step
+the *common* case, and it meant `:DocBrowse telemetry` (ecosystem.md step
 8, shipped earlier) had been showing "no telemetry data" for every function
 regardless of real usage since the day it shipped, and
 `telemetry_join.doc_usage_summary` had always reported 0/0. Fixed by adding
@@ -3105,7 +3105,7 @@ that allowlist is for.
 on the `TAGS` refactor. The gate was the whole cost: with the catalogue in
 place, this panel is a count over it, and it shipped the day after.
 
-The argument for it is `docs/ANNOTATIONS.md` itself — this analysis done by
+The argument for it is `docs/annotations.md` itself — this analysis done by
 hand, for one repository, once. A plugin whose purpose is detecting drift
 shipping a hand-maintained inventory of its own tag usage is drift,
 structurally. The last recount of that document found `@nodiscard` had gone
@@ -3113,7 +3113,7 @@ structurally. The last recount of that document found `@nodiscard` had gone
 
 **Per function, not per occurrence.** Eleven hundred `@param` lines is a fact
 about typing effort; "95.6% of functions document a parameter" is a fact
-about the tree. Both are worth having, so `ANNOTATIONS.md` keeps its
+about the tree. Both are worth having, so `annotations.md` keeps its
 occurrence table and now says which measure it is — including that its counts
 contain prose *about* a tag, which is the mechanism behind the 112.
 

@@ -64,7 +64,7 @@ local state = nil
 
 -- "telemetry" is 8th, not 7th — the design that produced it calls it
 -- "Mode 7", written before "endpoints" above claimed position 7 in this
--- actual list; see ECOSYSTEM.md step 8 for that renumbering note.
+-- actual list; see ecosystem.md step 8 for that renumbering note.
 -- "loaded" (runtime-analysis.nvim) is 9th.
 local MODES = {
   "structure",

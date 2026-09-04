@@ -2,7 +2,7 @@
 
 Facts about this tree that a scanner cannot decide, each cited to the file it
 was read off and dated when a person last checked it. Not automated checks —
-see [`docs/CHECKLIST_FORMAT.md`](../CHECKLIST_FORMAT.md) for why the two are
+see [`docs/checklist_format.md`](../checklist_format.md) for why the two are
 different things, and `:DocMap checklist` for what has drifted since.
 
 ## Layering

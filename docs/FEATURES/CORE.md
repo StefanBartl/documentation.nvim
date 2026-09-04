@@ -36,7 +36,7 @@ over two browser windows.
 
 - **Module:** `core/render/html.lua` (`toggleMark`, `syncMarks`, `markTrigger`)
 - **Config:** none — always available, no `opts` key gates it.
-- **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Compare tab" section.
+- **Docs:** [`docs/pipeline.md`](../pipeline.md) "Compare tab" section.
 
 ## Hierarchy hide/dim
 
@@ -48,7 +48,7 @@ just persistent and per-box instead of transient.
 
 - **Module:** `core/render/html.lua` (`toggleHidden`, `syncHidden`, `buildMenu`)
 - **Config:** none.
-- **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Hide/dim" subsection under
+- **Docs:** [`docs/pipeline.md`](../pipeline.md) "Hide/dim" subsection under
   Hierarchy tab.
 
 ## Plugins Analysis panel
@@ -61,7 +61,7 @@ mostly `return { {...}, {...} }` with no function in sight.
 - **Module:** `core/plugins.lua` (`M.extract`)
 - **Usercmds:** `:DocMap plugins` (see
   [BINDINGS.md](../BINDINGS.md#user-commands))
-- **Docs:** [`docs/COMMANDS.md`](../COMMANDS.md) "`:DocMap plugins`" section.
+- **Docs:** [`docs/commands.md`](../commands.md) "`:DocMap plugins`" section.
 
 ## Tools Analysis panel
 
@@ -74,7 +74,7 @@ here" probe, since a static page has no host to ask.
 - **Module:** `core/tools.lua` (`M.resolve`)
 - **Usercmds:** `:DocMap tools` (see
   [BINDINGS.md](../BINDINGS.md#user-commands))
-- **Docs:** [`docs/COMMANDS.md`](../COMMANDS.md) "`:DocMap tools`" section.
+- **Docs:** [`docs/commands.md`](../commands.md) "`:DocMap tools`" section.
 
 ## Telemetry Analysis panel
 
@@ -97,7 +97,7 @@ on-demand `git` reads already established.
   been recorded yet, the same posture Tools takes toward a missing
   manifest. Needs `:DocMap serve` running (or `:DocMap open` while it
   runs); opened from `file://` it explains why rather than doing nothing.
-- **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Telemetry" and
+- **Docs:** [`docs/pipeline.md`](../pipeline.md) "Telemetry" and
   "Telemetry snapshot picker" sections.
 
 ## Plugin-gated badge
@@ -125,8 +125,8 @@ what that tab renders, for this repo.
   (`drawFeatures`)
 - **Config:** none — reads `docs/FEATURES/` (or `docs/features/`)
   automatically when present.
-- **Docs:** [`docs/FEATURES_FORMAT.md`](../FEATURES_FORMAT.md) (the format
-  this file follows), [`docs/PIPELINE.md`](../PIPELINE.md) "Features tab"
+- **Docs:** [`docs/features_format.md`](../features_format.md) (the format
+  this file follows), [`docs/pipeline.md`](../pipeline.md) "Features tab"
   section.
 
 ## Promoted feature tabs
@@ -145,8 +145,8 @@ rendering the bullet you are reading right now.
   `renderFeatureBody`)
 - **Config:** none — the `Tab: true` bullet is per-feature, not a global
   option.
-- **Docs:** [`docs/FEATURES_FORMAT.md`](../FEATURES_FORMAT.md) "Promoting a
-  feature to its own tab" section, [`docs/PIPELINE.md`](../PIPELINE.md)
+- **Docs:** [`docs/features_format.md`](../features_format.md) "Promoting a
+  feature to its own tab" section, [`docs/pipeline.md`](../pipeline.md)
   "Promoting a feature to its own tab" section.
 
 ## External call/plugin visibility
@@ -161,8 +161,8 @@ verified against a local checkout when you name one.
 - **Module:** `core/calls.lua` (`node.calls_external`), `core/external_repos.lua`
 - **Config:** `opts.external_repos` (module-prefix → `"owner/repo"` or a
   table with `branch`/`lua_root`/`local_path`).
-- **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "External call/plugin
-  visibility" section, [`docs/REUSE.md`](../REUSE.md) "GitHub links for
+- **Docs:** [`docs/pipeline.md`](../pipeline.md) "External call/plugin
+  visibility" section, [`docs/reuse.md`](../reuse.md) "GitHub links for
   third-party deps".
 
 ## Module Calls view
@@ -180,7 +180,7 @@ much". Same `+ external` toggle, direction and depth axes as Deps.
 - **Config:** none — call-graph resolution runs unconditionally in `scan()`
   (unlike Types/Inheritance, it needs no LuaLS `--full` pass), so this view
   is available on every generated map.
-- **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Module Calls: weighted
+- **Docs:** [`docs/pipeline.md`](../pipeline.md) "Module Calls: weighted
   alternative to Calls" section.
 
 ### Why weight, not just an edge
@@ -235,7 +235,7 @@ uninteresting clicks.
   `rootFrontier`, `maxRootDepth`, `layoutModulesFrom`)
 - **Config:** none — the slider's own `max` is measured off the real tree
   (`maxRootDepth()`), not a config value.
-- **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Hiding root levels
+- **Docs:** [`docs/pipeline.md`](../pipeline.md) "Hiding root levels
   (Modules view)" section.
 
 ## Call hierarchy in native LSP UI
@@ -257,7 +257,7 @@ any part of it.
   (`ensure_callhierarchy`)
 - **Config:** `opts.callhierarchy` (`install()` only, boolean, default
   `false`).
-- **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Call hierarchy in
+- **Docs:** [`docs/pipeline.md`](../pipeline.md) "Call hierarchy in
   native LSP UI" section.
 
 ## Findings as native diagnostics
@@ -276,7 +276,7 @@ drops them.
   (`ensure_diagnostics`)
 - **Config:** `opts.diagnostics` (`install()` only, boolean, default
   `false`).
-- **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Findings as native
+- **Docs:** [`docs/pipeline.md`](../pipeline.md) "Findings as native
   diagnostics" section.
 
 ## Compiler Explorer links (experimental)
@@ -295,7 +295,7 @@ with no project/multi-file mode the way CMake/C++ has.
 - **Config:** `opts.godbolt` (`generate()`/`scan_full()`, not
   `install()`-only — bakes into the generated page — boolean, default
   `false`).
-- **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Compiler Explorer
+- **Docs:** [`docs/pipeline.md`](../pipeline.md) "Compiler Explorer
   links, experimental" section.
 
 ## Live preview via mdview.nvim
@@ -312,7 +312,7 @@ not installed, or installed but no session is currently attached.
 - **Module:** `core/render/mdview.lua`, `editor/registry.lua`
   (`ensure_mdview`)
 - **Config:** `opts.mdview` (`install()` only, boolean, default `false`).
-- **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Live preview via
+- **Docs:** [`docs/pipeline.md`](../pipeline.md) "Live preview via
   mdview.nvim" section.
 
 ## Loaded panel — cold viewing of a loaded-vs-declared snapshot
@@ -330,7 +330,7 @@ to default to, so the panel prompts for a snapshot rather than guessing.
 
 - **Module:** `core/loaded_diff.lua` (`M.prefix`, `M.rows_from_snapshot`),
   `editor/serve.lua` (`route_loaded`, `route_loaded_snapshots`)
-- **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Loaded panel" section.
+- **Docs:** [`docs/pipeline.md`](../pipeline.md) "Loaded panel" section.
 
 ## Bindings extraction — keymaps, user commands, autocmds
 
@@ -386,7 +386,7 @@ without a live session.
 - **Usercmds:** `:DocMap bindings` (see
   [BINDINGS.md](../BINDINGS.md#user-commands))
 - **Tests:** `TESTS/bindings_spec.lua`
-- **Docs:** [`docs/COMMANDS.md`](../COMMANDS.md) "`:DocMap bindings`" section.
+- **Docs:** [`docs/commands.md`](../commands.md) "`:DocMap bindings`" section.
 
 ## Owning scope — a class with its methods under it
 
@@ -394,7 +394,7 @@ A function records what owns it: `Documentation.FunctionInfo.owner` (the
 class, `impl` block, trait, receiver type or inline module it is declared in)
 and `owner_kind` (which of those it is). Fourteen of the twenty backend files
 set it; the rest have no such construct to read, and the three that do and
-still do not are named as gaps in [`LANGUAGES.md`](../LANGUAGES.md).
+still do not are named as gaps in [`languages.md`](../languages.md).
 
 The visible effect is in the detail pane. A Python file with three classes of
 four methods used to be twelve sibling entries beside a class name that owned
@@ -423,4 +423,4 @@ node — no summary, no coverage, no edges, no id.
 - **Artifact:** `Documentation.FunctionInfo.owner`/`owner_kind`, schema 6
 - **Tests:** `TESTS/scopes_spec.lua`, plus owner assertions in
   `TESTS/lang_python_spec.lua` and `TESTS/lang_rust_spec.lua`
-- **Docs:** [`docs/LANGUAGES.md`](../LANGUAGES.md) "Owning scope" section.
+- **Docs:** [`docs/languages.md`](../languages.md) "Owning scope" section.

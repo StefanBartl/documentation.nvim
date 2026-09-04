@@ -12,7 +12,7 @@
 ---@field live? boolean Install a watching `docmap.install()` handle instead of reading the artifact — costs a full scan up front, but the view then updates on write. Default false.
 ---@field center? string Node id or `@module` path to open centered on. Default: the map's root.
 ---@field mode? Documentation.Browse.Mode Which list to open on. Default "structure".
----@field title? string Display name for the root node — the same field `Documentation.Opts.title` is, forwarded here because `telemetry` mode's join (ECOSYSTEM.md step 8) needs it as the default `runtime-analysis.telemetry` namespace. Not needed for anything else the browser does.
+---@field title? string Display name for the root node — the same field `Documentation.Opts.title` is, forwarded here because `telemetry` mode's join (ecosystem.md step 8) needs it as the default `runtime-analysis.telemetry` namespace. Not needed for anything else the browser does.
 ---@field telemetry_namespace? string Overrides `title` as the namespace `telemetry` mode joins against — see `Documentation.Opts.telemetry_namespace`'s own doc-comment for when the two genuinely differ.
 ---@field depth? integer Initial Deps walk depth. Default 2.
 ---@field theme? Lib.UI.Kit.ThemeArg Passed through to the kit layout.

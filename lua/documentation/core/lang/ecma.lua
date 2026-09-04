@@ -140,7 +140,7 @@ end
 ---naming rule the whole ecosystem already depends on (it is how
 ---`eslint-plugin-react-hooks` itself knows what to lint), so recognizing
 ---it is reading an existing contract, not inventing one. See
----`docs/FRAMEWORK_CONVENTIONS.md` on why a *map* of hooks is the
+---`docs/framework_conventions.md` on why a *map* of hooks is the
 ---underserved half of this and rule-checking is not attempted here.
 ---@param name string
 ---@return boolean
@@ -314,7 +314,7 @@ local function build_fn(name_node, func_node, stmt_node, src, lang, name_overrid
     tested = false,
     documented = false,
     is_hook = is_hook_name(name),
-    -- Bounded, embeddable tier of `docs/ECOSYSTEM.md` §3.5's hover preview
+    -- Bounded, embeddable tier of `docs/ecosystem.md` §3.5's hover preview
     -- — shared with the Lua backend via `core/snippet.lua` rather than
     -- reimplemented here, since the bounding rule is a policy decision,
     -- not a per-language fact.
@@ -1083,7 +1083,7 @@ function M.backend(name, lang, extensions, module_file)
         require("documentation.core.endpoints").extract(root, src, lang, functions, requires)
 
       -- Fifth slot (`plugins`) is Lua+lazy.nvim-specific, per the shared
-      -- `scan_file` contract — see `docs/FRAMEWORK_CONVENTIONS.md`.
+      -- `scan_file` contract — see `docs/framework_conventions.md`.
       return functions, calls, requires, symbols, {}, endpoints, lines, {}
     end,
   }

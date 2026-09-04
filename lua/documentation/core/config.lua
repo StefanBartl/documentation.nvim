@@ -7,7 +7,7 @@
 --- half and the command layer alike. A base every layer depends on is not part
 --- of any one of them.
 ---
---- Kept because it is a *published* entry point — `docs/REUSE.md` documents
+--- Kept because it is a *published* entry point — `docs/reuse.md` documents
 --- `require("documentation.core.config").build(root, {…})` as the way an
 --- embedding plugin pins its own layout, and silently breaking that to tidy a
 --- directory would be a poor trade. Re-exports the module itself, metatable

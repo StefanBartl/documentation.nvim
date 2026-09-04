@@ -25,7 +25,7 @@ because an override may have changed it.
 is read by the pipeline, by the editor half and by the command layer alike, so
 a base module every layer depends on is not part of any one of them.
 `documentation.core.config` remains as a deprecated alias, because
-[`docs/REUSE.md`](../../../docs/REUSE.md) published that path.
+[`docs/reuse.md`](../../../docs/reuse.md) published that path.
 
 ## Auto-detection is deliberately shallow
 

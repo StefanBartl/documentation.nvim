@@ -2,7 +2,7 @@
 
 A field guide for **documenting your own plugin's features** so
 `documentation.nvim` has something to build its Features tab from. Written
-the same way [`ANNOTATION_TAGS.md`](ANNOTATION_TAGS.md) documents `@module`/
+the same way [`annotation_tags.md`](annotation_tags.md) documents `@module`/
 `@param`/etc.: what the parser reads, what you get in return, and what
 happens if you leave a piece out.
 

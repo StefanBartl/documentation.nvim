@@ -1,4 +1,4 @@
--- TESTS/browse_telemetry_spec.lua — the static x runtime join, ECOSYSTEM.md
+-- TESTS/browse_telemetry_spec.lua — the static x runtime join, ecosystem.md
 -- step 8: `documentation.core.check.used_keys`, `documentation.core.
 -- telemetry_join`, the Telemetry mode in `documentation.editor.browse.view`,
 -- and dead-function suppression in `documentation.core.check`.

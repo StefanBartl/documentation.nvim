@@ -184,7 +184,7 @@ questions, and Neovim merges them.
 
 - [docs/WORKFLOW.md](WORKFLOW.md) — where this fits among the other day-to-day
   questions, and why `opts.diagnostics` pairs with it.
-- [docs/PIPELINE.md](PIPELINE.md) — how `core/calls.lua` resolves a call edge,
+- [docs/pipeline.md](pipeline.md) — how `core/calls.lua` resolves a call edge,
   and the four shapes it can and cannot see.
 - `lua/documentation/editor/callhierarchy.lua` — the client itself, including
   the one sharp edge in Neovim's in-process `cmd` shape (its methods are

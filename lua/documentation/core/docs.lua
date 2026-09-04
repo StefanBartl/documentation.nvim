@@ -79,7 +79,7 @@ local collect_recursive = require("lib.nvim.fs.collect_recursive")
 --- Longest stored context around a mention, and how many references are kept
 --- per entity before the rest become a count. Both are bounded because this
 --- ships in a byte-deterministic artifact that is already 750 KB — see
---- `docs/ECOSYSTEM.md` on why file contents are not embedded wholesale, and
+--- `docs/ecosystem.md` on why file contents are not embedded wholesale, and
 --- note that a function mentioned 200 times in one changelog does not need
 --- 200 rows to make its point.
 ---

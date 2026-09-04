@@ -84,7 +84,7 @@ local M = {}
 M.REFERENCE = {
   luals = "https://luals.github.io/wiki/annotations/",
   -- Deliberately none. These are described in this repository's own
-  -- `docs/ANNOTATION_TAGS.md`, which a generated page cannot link to
+  -- `docs/annotation_tags.md`, which a generated page cannot link to
   -- usefully from an arbitrary checkout.
   docmap = nil,
 }
@@ -94,7 +94,7 @@ M.REFERENCE = {
 ---**Recognised, not merely valid.** LuaCATS has more tags than this; what is
 ---here is what some part of this pipeline actually does something with, which
 ---is the only list that can be honest about what the map shows. `@raises`,
----`@stability` and the rest of `ANNOTATION_TAGS.md`'s "not implemented"
+---`@stability` and the rest of `annotation_tags.md`'s "not implemented"
 ---section are absent for that reason and belong here the day they are read.
 ---@type Documentation.Tags.Entry[]
 M.TAGS = {

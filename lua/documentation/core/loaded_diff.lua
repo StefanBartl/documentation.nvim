@@ -13,7 +13,7 @@
 --- plugin in the session running `:DocBrowse`/`:DocMap` sees nothing
 --- loaded at all, which must render as "not loaded in this session",
 --- never as "declared but dead" — the identical rule the telemetry join
---- (ECOSYSTEM.md step 8) already states for its own "no data" case.
+--- (ecosystem.md step 8) already states for its own "no data" case.
 ---
 --- **Scope, "record it, don't guess it".** Only `"<table>.<field>"`-shaped
 --- declared names (exactly one dot, e.g. `"M.foo"`) are compared — a

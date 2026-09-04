@@ -345,7 +345,7 @@ catalogue.docmap_checklist = {
     .. "writes `@verified` — an agent that could mark an item verified could mark its own work "
     .. "verified, so that path does not exist here; a human edits the Markdown by hand. Default "
     .. "view is stale + unverified, the same as `:DocMap checklist` with no argument. See "
-    .. "docs/CHECKLIST_FORMAT.md.",
+    .. "docs/checklist_format.md.",
   input_schema = {
     type = "object",
     properties = {
@@ -366,7 +366,7 @@ catalogue.docmap_checklist = {
     if not ledger then
       return result({
         available = false,
-        reason = "this repository has no checklist — see docs/CHECKLIST_FORMAT.md",
+        reason = "this repository has no checklist — see docs/checklist_format.md",
       })
     end
 

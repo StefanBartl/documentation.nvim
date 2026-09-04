@@ -1,6 +1,6 @@
 # Checks
 
-One drift check, not the full sixteen — [`docs/PIPELINE.md`](../PIPELINE.md)
+One drift check, not the full sixteen — [`docs/pipeline.md`](../pipeline.md)
 "Drift checks" is the complete reference table. This file covers the one
 check that started as its own roadmap item, because the defect class behind
 it is worth knowing about on its own, not just as a row in a table.
@@ -39,7 +39,7 @@ below so neither regresses silently.
 
 - **Module:** `core/check.lua` (`check_type_vs_class`)
 - **Config:** none — always on, `warn` severity.
-- **Docs:** [`docs/PIPELINE.md`](../PIPELINE.md) "Drift checks" table;
+- **Docs:** [`docs/pipeline.md`](../pipeline.md) "Drift checks" table;
   [`TESTS/check_type_vs_class_spec.lua`](../../TESTS/check_type_vs_class_spec.lua)
   for the fixture-driven test, including the `alias_gap`/`separate_owner`
   regression fixtures for the two gaps above.

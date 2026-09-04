@@ -438,7 +438,7 @@ function M.run(opts, argv)
       end
     end
   end
-  -- ECOSYSTEM.md step 8's two aggregate lines — silently absent, not zero,
+  -- ecosystem.md step 8's two aggregate lines — silently absent, not zero,
   -- when no telemetry data exists for this run: see telemetry_join.lua's own
   -- doc-comment for why "no data" and "zero" must never be the same message.
   local telemetry_summary = require("documentation.core.telemetry_join").doc_usage_summary(ir, opts)

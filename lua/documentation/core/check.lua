@@ -242,7 +242,7 @@ local resolve_relative_link = docs.resolve_link
 
 --- Blank out fenced code blocks and inline code spans, so link-shaped text
 --- inside an example (this repo's own `` `[text](url)` `` in
---- `FEATURES_FORMAT.md`, describing markdown link syntax rather than
+--- `features_format.md`, describing markdown link syntax rather than
 --- linking anywhere) is never mistaken for a real link. Mirrors
 --- `docs.code_spans`'s own fence/double-backtick handling, but blanks
 --- rather than extracts, and preserves line structure (irrelevant here,
@@ -362,7 +362,7 @@ end
 --- repository does not contain.
 ---
 --- Measured, not hypothetical. On 2026-08-30 `runtime-analysis.nvim` cited
---- `docs/ECOSYSTEM.md` -- a path that exists only in `documentation.nvim` --
+--- `docs/ecosystem.md` -- a path that exists only in `documentation.nvim` --
 --- **nine times**, twice in its README and six times in `lua/**` module
 --- headers. Every one was dead from the moment it was written, and nothing in
 --- this ecosystem could have reported it.
@@ -1984,7 +1984,7 @@ end
 ---gets a call edge no matter how public its name is). Exactly the definition
 ---`check_dead_functions` below is built around, extracted so a second
 ---consumer — `documentation.core.telemetry_join`'s static x runtime join,
----ECOSYSTEM.md step 8 — reads the identical "has a static caller" set rather
+---ecosystem.md step 8 — reads the identical "has a static caller" set rather
 ---than a second, potentially-drifting reimplementation of it. See that
 ---check's own doc-comment for the full reasoning behind each of the three
 ---signals folded in here.
@@ -2035,7 +2035,7 @@ end
 local function check_dead_functions(ir, findings, opts)
   local used = M.used_keys(ir)
 
-  -- ECOSYSTEM.md step 8: a runtime call is stronger evidence than this
+  -- ecosystem.md step 8: a runtime call is stronger evidence than this
   -- check's own static analysis can ever produce for the exact case it is
   -- weakest at — a callback bound as a value, or dynamic dispatch, both
   -- structurally invisible to a call-edge scan. `by_key` is `nil` whenever

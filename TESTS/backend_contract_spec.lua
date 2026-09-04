@@ -115,7 +115,7 @@ return function(H)
   -- Every backend has a parity fixture.
   --
   -- `scripts/parity.lua` measures the capability matrix in
-  -- `docs/LANGUAGES.md` by running each backend over one real file of its
+  -- `docs/languages.md` by running each backend over one real file of its
   -- own language. A backend with no fixture is reported as "no fixture" and
   -- **silently leaves a row out of the audit** -- the same failure mode as
   -- the missing comment token above, one level up: the table looks complete

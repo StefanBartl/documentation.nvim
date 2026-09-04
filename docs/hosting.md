@@ -64,7 +64,7 @@ binary with anything.
 | `schema` | The artifact schema this build writes. The release is rolling (`standalone-latest`), so there is no version number to report that would not be fiction; the schema is what actually decides whether two artifacts are comparable, and it is bumped deliberately. |
 | `build` | Commit, commit date, and whether the tree it was built from was clean. **Present only in a bundled binary** — `scripts/package.lua` writes it at bundle time and never into the source tree, so a run from a checkout answers `null` rather than claiming a provenance it does not have. |
 | `routes` | Every `/api/*` route name this build answers, read from `core/api.routes`. A route added there is advertised here without this being told. |
-| `languages` | One entry per backend: `name`, `grammar`, `grammar_loaded`, `calls`. See [`LANGUAGES.md`](LANGUAGES.md). |
+| `languages` | One entry per backend: `name`, `grammar`, `grammar_loaded`, `calls`. See [`languages.md`](languages.md). |
 
 **`languages` is what lets a host stop guessing why a map came back thin.**
 Pointed at a mostly-Python repository, an engine without the Python grammar

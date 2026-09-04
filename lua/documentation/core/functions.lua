@@ -633,7 +633,7 @@ function M.scan_file(path)
         -- checking everywhere it's read.
         tested = false,
         documented = false,
-        -- Bounded, embeddable tier of `docs/ECOSYSTEM.md` §3.5's hover
+        -- Bounded, embeddable tier of `docs/ecosystem.md` §3.5's hover
         -- preview: the function's own body, capped by `snippet.lua` —
         -- computed here for the same reason `complexity`/`shape` are:
         -- only this pass has the source text and the row span together.

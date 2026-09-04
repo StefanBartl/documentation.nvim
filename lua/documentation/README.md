@@ -4,7 +4,7 @@ The pipeline: scan → LuaLS enrichment (opt-in) → check → render.
 
 The design record for every stage — what it does, what it deliberately does
 not do, and the measurement behind each decision — is
-[`docs/PIPELINE.md`](../../docs/PIPELINE.md). It lives there rather than here
+[`docs/pipeline.md`](../../docs/pipeline.md). It lives there rather than here
 because it is the longest document in the repository and readers reach for it
 from the README, not from inside `lua/`.
 

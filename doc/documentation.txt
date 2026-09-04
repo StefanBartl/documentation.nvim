@@ -47,7 +47,7 @@ at a repository whose files carry `---@module` and it produces:
                                (Express/Fastify/Koa-shaped). The Features tab
                                reads a repo's own docs/FEATURES/ folder, when
                                it has one — see
-                               docs/FEATURES_FORMAT.md. Quicks and Compare
+                               docs/features_format.md. Quicks and Compare
                                have sections of their own below — see
                                |documentation-quicks| and
                                |documentation-compare|.
@@ -757,7 +757,7 @@ so `f` then `gq` sends a subset of a call graph to the |quickfix| list.
 `docs/map/index.html` is one self-contained file — no CDN, no build step — with
 nine tabs. Tree, Hierarchy, Notes, Index, History, Analysis and Features are
 covered where they come up elsewhere in this document (Features in
-docs/FEATURES_FORMAT.md and docs/PIPELINE.md — an index over a repo's own
+docs/features_format.md and docs/pipeline.md — an index over a repo's own
 docs/FEATURES/ folder, not documented tag-by-tag here the way a command is);
 the two below are worth their own words.
 
@@ -981,7 +981,7 @@ then work in Lua buffers under `source/`; Neovim has no default keymap for
 either, so bind them yourself. `:checkhealth documentation` reports whether
 the client is actually running — an unattached client and a function with
 no callers both produce an empty quickfix list. Setup, keymaps and the
-resolution limits: `docs/CALL_HIERARCHY.md` in the repository.
+resolution limits: `docs/call_hierarchy.md` in the repository.
 
                                                       *documentation.install()*
 install({opts})         A live |Documentation.Handle|: a scanned IR kept in
@@ -1102,14 +1102,14 @@ Five decisions worth knowing about:
 
 `scripts/mcp_server.lua` hardcodes only this repository's own layout; another
 plugin copies it and changes the options table at the bottom, the same
-arrangement `scripts/gen_map.lua` uses. See `docs/MCP.md` for client
+arrangement `scripts/gen_map.lua` uses. See `docs/mcp.md` for client
 configuration and the module layout.
 
 ==============================================================================
 11. REUSE IN YOUR OWN PLUGIN                                *documentation-reuse*
 
 Nothing here knows about any particular repository's layout. Two files to copy
-and five lines to edit — see `docs/REUSE.md` in the repository for the full
+and five lines to edit — see `docs/reuse.md` in the repository for the full
 walkthrough.
 
     1. `scripts/gen_map.lua`     copy verbatim; change only the options table
@@ -1192,9 +1192,9 @@ A `@types/` directory is an attribute of its module, not a sibling node: types
 belong to the thing they type, and promoting them doubles the tree for no
 navigational gain.
 
-Annotating your own plugin: `docs/ANNOTATION_TAGS.md` — what each tag feeds in
+Annotating your own plugin: `docs/annotation_tags.md` — what each tag feeds in
 the pipeline, a minimum-viable set to adopt first, and the tags worth adding
-that do not exist yet. `docs/ANNOTATIONS.md` is the counted inventory of what
+that do not exist yet. `docs/annotations.md` is the counted inventory of what
 this tree itself uses.
 
 ==============================================================================

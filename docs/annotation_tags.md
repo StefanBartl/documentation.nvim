@@ -4,7 +4,7 @@ A field guide for **annotating your own plugin** so `documentation.nvim` has
 something to work with. For each tag: which part of the pipeline consumes it,
 what you get in return, and what happens if you leave it out.
 
-The companion document [`ANNOTATIONS.md`](ANNOTATIONS.md) is the *inventory* —
+The companion document [`annotations.md`](annotations.md) is the *inventory* —
 which tags a particular tree happens to use, counted. This one is the
 *contract* — what the tool does with each tag. Read this before annotating,
 that one when auditing.
@@ -485,7 +485,7 @@ badge probably has not.
 
 ## See also
 
-- [`ANNOTATIONS.md`](ANNOTATIONS.md) — the inventory: which tags this tree uses, counted.
-- [`REUSE.md`](REUSE.md) — pointing the generator at your own plugin.
-- [`PIPELINE.md`](PIPELINE.md) — every stage and the reasoning behind it.
+- [`annotations.md`](annotations.md) — the inventory: which tags this tree uses, counted.
+- [`reuse.md`](reuse.md) — pointing the generator at your own plugin.
+- [`pipeline.md`](pipeline.md) — every stage and the reasoning behind it.
 - [LuaCATS annotation reference](https://luals.github.io/wiki/annotations/) — the upstream spec.

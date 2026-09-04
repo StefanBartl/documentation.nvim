@@ -12,7 +12,7 @@ count.
 This is a reference and a recommendation, not a mandate — nothing here means "go retrofit all ~250
 files." Adopt a tag when the concrete case for it comes up, not in bulk.
 
-> **Annotating your own plugin?** Read [`ANNOTATION_TAGS.md`](ANNOTATION_TAGS.md) instead. That one is
+> **Annotating your own plugin?** Read [`annotation_tags.md`](annotation_tags.md) instead. That one is
 > the *contract* — which part of the pipeline consumes each tag and what you get back. This one is the
 > *inventory* — what one particular tree happens to use, counted. Contract before annotating,
 > inventory when auditing.
@@ -45,7 +45,7 @@ made the drift visible and left it there — this is the fix.
 | `@module` | 125 | This repo's own "module path" convention — required on every file, checked by `docmap`'s `missing-module-tag`. **One per file, and there are 125 files**, which is the whole point of the check. |
 | `@class` | 87 | Structured types in `@types/` files |
 | `@alias` | 10 | Named unions / enum-shaped string literals |
-| `@raises` | 8 | Author-facing only, not evaluated by `documentation.nvim` — see [`ANNOTATION_TAGS.md` § `@raises`](ANNOTATION_TAGS.md#raises--an-author-facing-convention-not-evaluated-here). It was not in the table at all last time. |
+| `@raises` | 8 | Author-facing only, not evaluated by `documentation.nvim` — see [`annotation_tags.md` § `@raises`](annotation_tags.md#raises--an-author-facing-convention-not-evaluated-here). It was not in the table at all last time. |
 | `@meta` | 6 | Marks `@types/init.lua` files as pure-definition, non-executable |
 | `@generic` | 3 | Type-agnostic function signatures |
 | `@internal` | 2 | Part of the implementation, not the published surface. Sharpens every "is this used" question — `undocumented-param` skips it and the coverage number excludes it. |
@@ -79,7 +79,7 @@ say. Recorded so somebody can decide which it was.
   the change that added this line: parsed into a structured param/return list
   — the same shape the primary signature uses — badged on the function row
   and rendered as an "Also callable as" block in the detail pane. See
-  [`ANNOTATION_TAGS.md`](ANNOTATION_TAGS.md) for the full contract, including
+  [`annotation_tags.md`](annotation_tags.md) for the full contract, including
   the one piece still open (`undocumented-param` does not yet credit an
   overload-only parameter list).
 - **`@deprecated`** — no hits. `docmap`'s function scanner (see [`functions.lua`](../lua/documentation/core/functions.lua))

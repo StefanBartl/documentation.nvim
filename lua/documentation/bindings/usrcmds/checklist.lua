@@ -144,7 +144,7 @@ function M.run(ctx, arg)
   if not ledger then
     ctx.notify.info(
       "No checklist in this repository. Create docs/CHECKLIST/*.md (or docs/CHECKLIST.md) "
-        .. "— see docs/CHECKLIST_FORMAT.md."
+        .. "— see docs/checklist_format.md."
     )
     return
   end

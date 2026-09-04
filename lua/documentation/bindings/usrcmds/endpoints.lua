@@ -11,7 +11,7 @@
 --- See `core/endpoints.lua`'s header for what is and is not recognized —
 --- call-based routing (Express/Fastify/Koa-shaped) only; file-based routing
 --- (Next.js/SvelteKit/Nuxt/Remix) belongs in a Hierarchy view instead, per
---- `docs/ECOSYSTEM.md` §3.1, and is not what this lists.
+--- `docs/ecosystem.md` §3.1, and is not what this lists.
 
 local list = require("lib.nvim.ui.list")
 

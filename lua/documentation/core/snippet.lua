@@ -1,6 +1,6 @@
 ---@module 'documentation.core.snippet'
 --- Bounded source-code snippets: a function's own body, capped to a fixed
---- line count. `docs/ECOSYSTEM.md`'s §3.5 two-tier split for hover previews —
+--- line count. `docs/ecosystem.md`'s §3.5 two-tier split for hover previews —
 --- signature and a bounded snippet always available offline; a full file is
 --- an enhancement that needs `serve`. This is the second tier.
 ---
@@ -22,7 +22,7 @@ M.DEFAULT_MAX_LINES = 40
 
 ---Lines kept per function before the rest becomes a count — the same shape
 ---`docs.lua`'s `REFS_PER_ENTITY` caps a reference list, for the same reason:
----this ships in an artifact already measured at 750KB+ (`docs/ECOSYSTEM.md`
+---this ships in an artifact already measured at 750KB+ (`docs/ecosystem.md`
 ---§1), and one large function is not entitled to blow that up on its own.
 ---
 ---Overridable per scan via `opts.snippet_max_lines` — `core/scan.lua`'s

@@ -8,7 +8,7 @@
 --- among them was the clearest sign the two were not the same thing. See that
 --- module's header for the dispatch rule that replaced the chain.
 ---
---- Kept because both entries below are published: `docs/PIPELINE.md` documents
+--- Kept because both entries below are published: `docs/pipeline.md` documents
 --- `require("documentation.editor.command").setup()`, and `find_node` is called
 --- from `browse/init.lua` and from the specs.
 ---

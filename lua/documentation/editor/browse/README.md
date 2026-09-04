@@ -142,7 +142,7 @@ a send to it yet".
 
 ## Telemetry mode
 
-The static x runtime join — ECOSYSTEM.md step 8. One
+The static x runtime join — ecosystem.md step 8. One
 row per function this tree's own static analysis and a `runtime-analysis.
 telemetry` namespace (`opts.title` by default, `opts.telemetry_namespace`
 to override) both have an opinion about, badge-prefixed by which of four

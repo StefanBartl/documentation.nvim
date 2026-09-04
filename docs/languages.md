@@ -27,7 +27,7 @@ memory.
 
 ## The seam
 
-Every stage of [`PIPELINE.md`](PIPELINE.md) that touches a source file goes
+Every stage of [`pipeline.md`](pipeline.md) that touches a source file goes
 through one lookup: `lang_registry.for_file(filename)`. The walk in
 `core/scan.lua` asks "who scans this filename" and "what marks a directory as
 owning a module here" instead of assuming there is one answer, and the
@@ -56,7 +56,7 @@ registrations being removed, and `lang_registry.report()` deliberately
 ignores them — the capability handshake answers for the *build*, not for one
 project's preferences, and a host that saw a backend disappear from it would
 conclude the binary cannot read that language. See
-[`REUSE.md § Narrowing what gets read`](REUSE.md#narrowing-what-gets-read).
+[`reuse.md § Narrowing what gets read`](reuse.md#narrowing-what-gets-read).
 
 ---
 
@@ -118,6 +118,78 @@ them in prose and one of them states them wrong:
   the ECMA family's `index.{js,ts,tsx}`, Python's `__init__.py` and Rust's
   `mod.rs`. Everywhere else a directory is a namespace and every file is its
   own module.
+
+---
+
+## What documents a declaration, and what makes it public
+
+The table above is what each backend *is*; this one is what each language
+*means*. Both are needed: the first says which grammar and which comment
+syntax, the second says what a reader of the map is actually looking at.
+
+| Language | Extensions | What documents a declaration | What makes it public |
+|---|---|---|---|
+| **Lua** | `.lua` | LuaCATS `---` block, `@param`/`@return`/`@see` | anything without `@internal` |
+| **JavaScript** | `.js`, `.jsx` | JSDoc `/** … */` | anything without `@internal`/`@private` |
+| **TypeScript** | `.ts`, `.mts`, `.cts` | JSDoc | same |
+| **TSX** | `.tsx` | JSDoc | same |
+| **Python** | `.py`, `.pyi` | a docstring — the first *statement*, in reST, Google or NumPy style | not a leading `_`, unless `__all__` says otherwise |
+| **C#** | `.cs` | XML doc comments — `/// <summary>`, `<param name="x">` | `public`; an unmarked class member is private, an unmarked interface member is public |
+| **Go** | `.go` | the plain comment block above it — godoc has no tags at all | **capitalisation**, enforced by the compiler |
+| **Rust** | `.rs` | `///` above the declaration; rustdoc has no tags either | `pub`; `pub(crate)` and `pub(super)` are restricted, not published |
+| **PHP** | `.php` | PHPDoc `/** @param int $x … */` | not `private` and not `protected` — an unmarked method is **public** |
+| **Ruby** | `.rb` | the comment block above it — RDoc prose, with YARD tags read where present | `private`/`protected`, which are **positional statements** rather than modifiers |
+| **Kotlin** | `.kt`, `.kts` | KDoc `/** @param x … */`, plus `@property` | not `private`/`protected`/`internal` — an unmarked declaration is **public** |
+| **Swift** | `.swift` | `///` Markdown, where a parameter is a **bullet**: `- Parameter x:` | `open`/`public`; an unmarked declaration is `internal`, meaning module-only |
+| **Dart** | `.dart` | `///` Markdown prose; dartdoc has no per-parameter form | **a leading `_`**, which the compiler enforces rather than merely suggests |
+| **Scala** | `.scala`, `.sc` | Scaladoc `/** @param x … */`, plus `@tparam` | not `private`/`protected` — there is no `public` keyword to ask for |
+| **Haskell** | `.hs`, `.lhs` | Haddock `-- |` above the type signature | **the module's export list**, stated once in the header rather than per declaration |
+| **Elixir** | `.ex`, `.exs` | `@doc` — a module attribute the compiler stores, not a comment | `def` vs `defp`; `@doc false` is public-but-undocumented |
+| **Erlang** | `.erl`, `.hrl` | EDoc `%% @doc` above the spec or the function | `-export([f/2])` — an export list that names an **arity**, not just a name |
+| **OCaml** | `.ml`, `.mli` | ocamldoc `(** @param x … *)`, usually *below* the declaration | the sibling **`.mli` file** — an export list that lives in another file |
+| **Zig** | `.zig` | `///` above the declaration | `pub` |
+| **Java** | `.java` | Javadoc, with `@param`/`@return`/`@throws`/`@deprecated` parsed | `public` |
+| **C** | `.c`, `.h` | any comment directly above it, Doxygen or not | not `static` |
+| **C++** | `.cc`, `.cpp`, `.cxx`, `.hpp`, `.hh`, `.hxx` | same | not `static`, and not under `private:`/`protected:` |
+| **Assembly** | `.s`, `.asm`, `.nasm`, `.inc` | the comment above the label, or trailing it | `.globl` / `global` / `PUBLIC` |
+
+**The fourth column is worth reading as a spectrum**, because it is the one
+place these languages genuinely disagree rather than merely differing in
+syntax. Go is at one end: visibility is capitalisation, the compiler enforces
+it, and nobody can be wrong about it. Zig, Java, C#, C, C++ and assembly
+state it in a keyword, so the backend reads a fact. Lua and the ECMA family have no such keyword
+at the granularity this map needs, so they read an authoring convention —
+`@internal` — which is a claim the author made rather than one the compiler
+enforces. Both are honest; they are not the same strength of evidence, and
+a reader comparing two projects should know which they are looking at.
+
+C++'s access specifier is *positional* — everything after `private:` is
+private until the next one, `class` starts private and `struct` starts
+public — so it is tracked while walking rather than read off the member,
+because there is nothing on the member node to read.
+
+**What documents a *file*** differs the same way and is worth knowing,
+because it is what fills the map's summaries: Lua's `---@module` block,
+Zig's `//!`, a Javadoc block above `package`, a Doxygen-style header in C
+and C++ (deliberately strict, so a license banner never becomes a file
+summary), and in assembly the top comment block — with the same banner
+filter, reached by content because assembly has no punctuation to reach it
+by.
+
+**Three shapes of documentation convention now exist here, and it is worth
+knowing which one you are reading.** LuaCATS, JSDoc, Javadoc and Doxygen are
+*tag* formats. Python's docstrings are *prose with sections*. C#'s XML doc
+comments are *markup* — the only one that names a parameter by attribute
+rather than by position, and the only one this tool parses with patterns
+rather than a real parser, because a doc comment is a fragment and an XML
+parser would reject most real ones as malformed.
+
+**Python is the one language here whose documentation is not a comment.**
+A docstring is a string literal the interpreter keeps, so it is found by
+*position* — the first statement — rather than by adjacency, and a "TODO"
+inside one is prose the author published rather than a marker. Its style
+forks three ways (reST, Google, NumPy) and is detected per docstring, since
+one repository routinely mixes them.
 
 ---
 
@@ -548,9 +620,9 @@ code you did not write is not finished.**
   and the measurements that changed several designs. Also the languages that
   are *available* rather than scheduled, and the four decisions taken
   2026-08-20.
-- [`FRAMEWORK_CONVENTIONS.md`](FRAMEWORK_CONVENTIONS.md) — the layer *above*
+- [`framework_conventions.md`](framework_conventions.md) — the layer *above*
   this one. Plugin specs, route registrations and keymaps are ecosystem
   conventions, not language features, which is why `scan_file` returns them
   as separate tuple slots a backend may leave empty.
-- [`ANNOTATION_TAGS.md`](ANNOTATION_TAGS.md) — the Lua/LuaCATS half:
+- [`annotation_tags.md`](annotation_tags.md) — the Lua/LuaCATS half:
   annotating your own plugin so this tool has something to read.

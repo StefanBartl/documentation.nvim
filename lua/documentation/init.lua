@@ -165,7 +165,7 @@ function M.scan_full(opts)
   -- This repo's own docs/FEATURES/ folder, same posture as docs/tools above:
   -- one directory listing plus a handful of file reads, a repo with none
   -- simply leaves ir.features nil. See core/features.lua and
-  -- docs/FEATURES_FORMAT.md.
+  -- docs/features_format.md.
   ir.features = timing.measure(t, "features", function()
     return require("documentation.core.features").resolve(opts.root, opts.features_dir)
   end)

@@ -101,7 +101,7 @@ knowing by name before touching what they cover:
 | [`backend_contract_spec.lua`](../TESTS/backend_contract_spec.lua) | What every backend must keep, proved rather than asserted: a comment token is verified by *finding a marker*, `emits_calls` by running the backend over its own parity fixture. Also fails a backend with no parity fixture, so a twenty-fourth cannot drop out of the capability matrix silently. |
 | [`scan_scope_spec.lua`](../TESTS/scan_scope_spec.lua) | `opts.exclude` and `opts.languages` — including the reset discipline, which is the half that fails silently. |
 | [`docmap_browse_spec.lua`](../TESTS/docmap_browse_spec.lua) | `browse` — real floats, real buffers. |
-| `lang_*_spec.lua` | One per language backend. **Each skips when its grammar is absent**, which is the normal local state — see [`LANGUAGES.md § Running the language specs`](LANGUAGES.md#running-the-language-specs) for the `DOCMAP_<LANG>_PARSER` variable each one reads. |
+| `lang_*_spec.lua` | One per language backend. **Each skips when its grammar is absent**, which is the normal local state — see [`languages.md § Running the language specs`](languages.md#running-the-language-specs) for the `DOCMAP_<LANG>_PARSER` variable each one reads. |
 
 **A green run does not mean every backend was exercised.** Without grammars,
 the language specs report `ok` after their contract assertions and skip the
@@ -139,7 +139,7 @@ DOCMAP_TS_DIR=/path/to/grammars nvim --headless -u NONE -l scripts/parity.lua
 
 Runs every backend over its own fixture in `TESTS/fixtures/parity/` and
 prints what came back — the table in
-[`LANGUAGES.md § Parity`](LANGUAGES.md#parity), measured rather than written
+[`languages.md § Parity`](languages.md#parity), measured rather than written
 down. `--markdown` emits it ready to paste. A backend whose grammar is
 missing is reported as `?` throughout rather than as a row of blanks:
 "not measured" and "measured, absent" are different facts, and collapsing
@@ -330,4 +330,4 @@ reaches disk only through `M.path()`, which is a function on the module rather
 than a constant precisely so the spec can point the whole thing at a temp file
 instead of writing into the real `stdpath("state")` while the suite runs.
 
-Design reasoning for every stage: [PIPELINE.md](PIPELINE.md).
+Design reasoning for every stage: [pipeline.md](pipeline.md).

@@ -11,7 +11,7 @@
 --- The idea backlog said "the findings already have file, line, severity and
 --- message". Three of those four are true.
 --- `Documentation.Finding` carries `severity`, `check`, `node` and
---- `message` — and **no line**. `docs/PIPELINE.md` already records the
+--- `message` — and **no line**. `docs/pipeline.md` already records the
 --- consequence for diagnostics ("lands on the buffer's first line exactly
 --- the way an existing quickfix jump already does") and names adding a
 --- `line` field as its own separate step.
@@ -90,7 +90,7 @@ function M.render(ir, findings, opts)
       id = id,
       name = id,
       shortDescription = { text = id },
-      helpUri = "https://github.com/StefanBartl/documentation.nvim/blob/main/docs/PIPELINE.md",
+      helpUri = "https://github.com/StefanBartl/documentation.nvim/blob/main/docs/pipeline.md",
     }
   end
 

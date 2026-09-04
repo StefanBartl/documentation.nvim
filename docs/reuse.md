@@ -9,7 +9,7 @@ directory name, output directory — is an option with a default.
 The examples below are Lua because this is a Neovim plugin documenting
 itself. Nothing in the setup changes for another language: point `source` at
 the directory, and `lang_registry` picks the backend per file. Which
-languages, and what each one needs, is [`LANGUAGES.md`](LANGUAGES.md).
+languages, and what each one needs, is [`languages.md`](languages.md).
 
 Two ways in, depending on whether you want it in the editor or in CI.
 
@@ -153,7 +153,7 @@ Repeatable rather than comma-separated, because a directory can contain a
 comma and a backend name cannot.
 
 **`languages` is an allow list over the backends**, by their registered names
-— see [`LANGUAGES.md`](LANGUAGES.md) for the twenty-three. Omitting it, or
+— see [`languages.md`](languages.md) for the twenty-three. Omitting it, or
 passing an empty list, reads all of them; that is the reading that cannot
 lose data, since an empty selection nearly always means the caller had
 nothing to say. It also narrows **source detection**, not only the walk: a
@@ -389,7 +389,7 @@ require("documentation").generate({
 The link is a guess (`<lua_root>/<module, dots as slashes>.lua`) unless
 `local_path` names a real local checkout, in which case both the flat and
 `init.lua`-directory shape are checked against it — see
-[`docs/PIPELINE.md`](PIPELINE.md#external-callplugin-visibility-optsexternal_repos)
+[`docs/pipeline.md`](pipeline.md#external-callplugin-visibility-optsexternal_repos)
 for why a flat-only guess is wrong more often than you'd expect, and why a
 `local_path` whose location differs between where you regenerate and where
 `--check` runs breaks reproducibility. Each external box's tooltip also
@@ -437,7 +437,7 @@ first non-comment line, and it stops there. It does not parse the language.
 that sets `module_tag = true`, because a Lua module's canonical name cannot
 be recovered from its path; everywhere else the path *is* the identity, so
 `missing-module-tag` never fires and there is nothing to add to your files
-before mapping them. See [`LANGUAGES.md`](LANGUAGES.md).
+before mapping them. See [`languages.md`](languages.md).
 
 Function-level data (`node.functions`, the call graph, complexity) comes from
 `vim.treesitter` instead, and needs no annotation at all beyond the doc
@@ -448,7 +448,7 @@ unlocks the three structural checks and the coverage number, `@internal`
 makes that number describe your API rather than your helpers, `@see` gets
 cross-references with a check behind them. The full contract — which tag
 feeds which part of the pipeline, plus a minimum-viable set to adopt first —
-is in [ANNOTATION_TAGS.md](ANNOTATION_TAGS.md), written for LuaCATS; the
+is in [annotation_tags.md](annotation_tags.md), written for LuaCATS; the
 equivalent per language is whatever that language's own doc convention
 already spells, which each backend reads without configuration.
 
@@ -463,4 +463,4 @@ Structure is derived, not declared:
 A `@types/` directory (name configurable via `opts.types_dir`) is an
 **attribute** of its module, not a sibling node.
 
-For the reasoning behind all of the above, see [PIPELINE.md](PIPELINE.md).
+For the reasoning behind all of the above, see [pipeline.md](pipeline.md).

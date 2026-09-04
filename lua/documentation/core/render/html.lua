@@ -475,7 +475,7 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .feat-src a{font-size:10.5px;color:var(--muted);font-family:var(--mono);text-decoration:none;
   cursor:pointer}
 .feat-src a:hover{color:var(--accent);text-decoration:underline}
-/* A promoted feature's own tab (`Tab: true` — see docs/FEATURES_FORMAT.md).
+/* A promoted feature's own tab (`Tab: true` — see docs/features_format.md).
    Dynamically created, one `[id^="view-feature-"]` panel per promoted
    feature — `.view`/`.view.active` above already govern its visibility,
    nothing feature-tab-specific needed there. */
@@ -1298,7 +1298,7 @@ local JS = [[
   // spans. **Non-greedy and character-agnostic**, because the first attempt
   // was neither and got the one case it exists for wrong: `[^`]+` forbids
   // the very character the double-backtick form is for, so this tree's own
-  // "``\`[text](url)\``` in \`FEATURES_FORMAT.md\`" came out as `<code>`
+  // "``\`[text](url)\``` in \`features_format.md\`" came out as `<code>`
   // wrapped around the spaces between the ticks. Found by reading the
   // rendered DOM, not the regex.
   //
@@ -1919,7 +1919,7 @@ local JS = [[
   // pane's own click-through to source already answers one step away. The
   // popup is a different reading task — one function, inspected without
   // navigating — where the tradeoff runs the other way. See
-  // `docs/ECOSYSTEM.md` §3.5 for the "bounded snippet, embeddable tier"
+  // `docs/ecosystem.md` §3.5 for the "bounded snippet, embeddable tier"
   // this implements.
   function snippetHTML(fn, node){
     if(!fn.snippet) return "";
@@ -2296,7 +2296,7 @@ local JS = [[
   // session history, invisible outside it, and a `<button>` inside this
   // panel could not act on the embedding app regardless (a browser page
   // cannot reach into a Tauri window's own process — the same category
-  // error `docs/ECOSYSTEM.md` already names for the reverse direction).
+  // error `docs/ecosystem.md` already names for the reverse direction).
   // `postMessage` is the one channel that crosses the iframe boundary in
   // either direction.
   //
@@ -4000,7 +4000,7 @@ local JS = [[
 
   // =====================================================================
   // Features tab: this repo's own docs/FEATURES/, read by
-  // core/features.lua — see docs/FEATURES_FORMAT.md for the format.
+  // core/features.lua — see docs/features_format.md for the format.
   //
   // An index, not a Markdown viewer, the same shape the Plugins/Tools
   // Analysis panels already are: name, summary, metadata — never the full
@@ -4010,7 +4010,7 @@ local JS = [[
   //
   // A plain key/value list, not a table, because the metadata keys are not
   // fixed columns — one feature may carry Module/Keymaps/Config, another
-  // Module/Command/Autocmd, and `docs/FEATURES_FORMAT.md` deliberately
+  // Module/Command/Autocmd, and `docs/features_format.md` deliberately
   // never constrains the vocabulary (see that file's own header for why a
   // whitelist would reject real, working documentation).
   // =====================================================================
@@ -4060,7 +4060,7 @@ local JS = [[
     if(!feats){
       parts.push('<p class="ntext none">No <code>docs/FEATURES/</code> (or ' +
         '<code>docs/features/</code>) folder in this repo — see ' +
-        '<code>docs/FEATURES_FORMAT.md</code> for the convention this tab reads.</p>');
+        '<code>docs/features_format.md</code> for the convention this tab reads.</p>');
       parts.push("</div>");
       host.innerHTML = parts.join("");
       return;
@@ -4151,7 +4151,7 @@ local JS = [[
   // =====================================================================
   // Promoted features: a `- **Tab:** true` bullet gets a feature its own
   // top-level tab instead of a card in the Features catalog above — see
-  // docs/FEATURES_FORMAT.md "Promoting a feature to its own tab".
+  // docs/features_format.md "Promoting a feature to its own tab".
   // =====================================================================
 
   // Slugified once and cached, not recomputed per navigation: the tab
@@ -5223,7 +5223,7 @@ local JS = [[
   // can see, is named for that, and the sub-line states what it cannot.
   // Which annotation tags this tree actually uses, generated.
   //
-  // `docs/ANNOTATIONS.md` is this analysis done by hand, for one repository,
+  // `docs/annotations.md` is this analysis done by hand, for one repository,
   // once — which `IDEAS.md` §2.1 calls what it is: a plugin whose entire
   // purpose is detecting drift shipping a hand-maintained inventory of its
   // own tag usage is drift, structurally. The last time that document was
@@ -5959,7 +5959,7 @@ local JS = [[
   // recognizes these during the scan, the same shape `n.plugins` already
   // is. See that module's own header for what counts as a route
   // (Express/Fastify/Koa-shaped `app.get(path, handler)`) and what does
-  // not — `docs/ECOSYSTEM.md` §3.1 puts file-based routing
+  // not — `docs/ecosystem.md` §3.1 puts file-based routing
   // (Next.js/SvelteKit/Nuxt/Remix) in a Hierarchy view instead, not here.
   //
   // Sorted by path, ascending, by default — the same reasoning
@@ -6105,7 +6105,7 @@ local JS = [[
 
   // The documentation corpus itself (`ir.docs.files`) — every `.md` file
   // `core/docs.lua` scanned, with how many code-span mentions it made.
-  // ECOSYSTEM.md §3.4 calls this "cheap, once the corpus scan exists": no
+  // ecosystem.md §3.4 calls this "cheap, once the corpus scan exists": no
   // new extraction, just the same `anFilter`/`anSort`/`anHead` plumbing
   // every other panel already uses, over data `docs.lua` already collected.
   //
@@ -6715,7 +6715,7 @@ local JS = [[
     if(!led){
       return '<p class="ntext none">This repository has no checklist. Create ' +
         '<code>docs/CHECKLIST/*.md</code> (or <code>docs/CHECKLIST.md</code>) — ' +
-        'see <code>docs/CHECKLIST_FORMAT.md</code>.</p>';
+        'see <code>docs/checklist_format.md</code>.</p>';
     }
 
     var out = [];

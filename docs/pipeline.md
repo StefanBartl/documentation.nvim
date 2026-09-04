@@ -13,7 +13,7 @@ purpose, links, type relationships, and drift detection.
 source file reaches it through `core/lang_registry.lua`, never through a
 Lua-specific call — see [§ One walk, twenty-three
 backends](#one-walk-twenty-three-backends) for the seam, and
-[`LANGUAGES.md`](LANGUAGES.md) for the backend contract and the per-language
+[`languages.md`](languages.md) for the backend contract and the per-language
 table. Lua remains the running example throughout this document because it is
 the reference registration and the tree every measurement was taken against;
 where a stage is genuinely Lua-only, it says so.
@@ -776,7 +776,7 @@ else — module prefix, directory layout, types directory name — is an option.
 
 | Stage | Module | Produces |
 |---|---|---|
-| Dispatch | [`lang_registry.lua`](../lua/documentation/core/lang_registry.lua) | The backend that claims a filename, the capability handshake (`report()`), and the per-extension glossaries — see [`LANGUAGES.md`](LANGUAGES.md) |
+| Dispatch | [`lang_registry.lua`](../lua/documentation/core/lang_registry.lua) | The backend that claims a filename, the capability handshake (`report()`), and the per-extension glossaries — see [`languages.md`](languages.md) |
 | Scan | [`scan.lua`](../lua/documentation/core/scan.lua) | `Documentation.IR` — hierarchy, summaries, links |
 | Scan | [`functions.lua`](../lua/documentation/core/functions.lua) | `node.functions` — per-function docs via `vim.treesitter`, unconditional (no LuaLS needed) |
 | Scan | [`symbols.lua`](../lua/documentation/core/symbols.lua) | `node.symbols` — module-scope tables, constants and bindings |
@@ -944,7 +944,7 @@ the tag those all have to guess from the *shape* of the declared name —
 `M.compare` looks public, `node_set` looks private — which is a decent guess
 and only a guess.
 
-See [`docs/ANNOTATIONS.md`](ANNOTATIONS.md) for the full survey of which
+See [`docs/annotations.md`](annotations.md) for the full survey of which
 tags this repo already uses heavily, which real ones it doesn't (and why
 they'd be worth adopting), and where the two custom tags fit in.
 
@@ -1018,7 +1018,7 @@ recompute `fn.shape` without a parse tree. It can read `fn.owner`.
 
 A scope is not a node: no summary, no coverage, no edges, no id. A Rust
 `mod x { … }` grouped this way is still read as part of its file. See
-[`LANGUAGES.md`](LANGUAGES.md)'s *Owning scope* for which backends set it and
+[`languages.md`](languages.md)'s *Owning scope* for which backends set it and
 which three do not and should.
 
 ## Call-graph scanning (`kind="call"` edges)
@@ -1534,7 +1534,7 @@ feature is actually for. `opts.external_repos` is the only way in, the same
 ### Auto-derived test coverage (`fn.tested`)
 
 `@test` already existed as a manual tag (see
-[`docs/ANNOTATIONS.md`](ANNOTATIONS.md)) and has exactly zero real hits
+[`docs/annotations.md`](annotations.md)) and has exactly zero real hits
 in this tree — a doc-comment that duplicates what the actual spec file
 already says is a second source of truth, and second sources of truth
 drift. [`coverage.lua`](../lua/documentation/core/coverage.lua) measures instead: every function's
@@ -1657,7 +1657,7 @@ Doxygen's Deprecated / Todo / Bug / Test lists, as a third tab. Four
 aggregates over data the scan already has: `@deprecated` (a single string, the
 migration hint) plus the three repeatable note tags `@todo`/`@bug`/`@test`
 (one list entry per occurrence — see
-[`docs/ANNOTATIONS.md`](ANNOTATIONS.md)). Entries sort by module, then by
+[`docs/annotations.md`](annotations.md)). Entries sort by module, then by
 line, and clicking one jumps to that module in the Tree tab.
 
 One tab rather than Doxygen's four pages: in a given tree three of these tags
@@ -1724,7 +1724,7 @@ own furniture* below:
 
 - **Test coverage** — `fn.tested` (R2, [`coverage.lua`](../lua/documentation/core/coverage.lua))
 - **Documentation** — `fn.documented` (R4, [`doccoverage.lua`](../lua/documentation/core/doccoverage.lua))
-- **Annotations** — which tags this tree uses, counted per function against `core/tags.lua`'s catalogue. Generated, so unlike `docs/ANNOTATIONS.md` it cannot go stale
+- **Annotations** — which tags this tree uses, counted per function against `core/tags.lua`'s catalogue. Generated, so unlike `docs/annotations.md` it cannot go stale
 - **API surface** — every non-`internal` function, with its doc state and how many *other* modules of this tree call it. Computed in the page from `fn.internal`, `fn.documented` and the call edges already in the payload — no new field, no schema bump
 - **Dependencies** — `n.requires`/`n.required_by` (R6, fan-in/fan-out)
 - **Complexity** — `fn.complexity` (cyclomatic/McCabe, [`functions.lua`](../lua/documentation/core/functions.lua))
@@ -1788,7 +1788,7 @@ burying real fan-in leaders. Verified against this repo's own tree: highest
 fan-in is `lib.nvim.notify` (30), exactly the kind of foundational module
 this ranking exists to surface.
 
-**Annotations** is `docs/ANNOTATIONS.md` done by the tool instead of by a
+**Annotations** is `docs/annotations.md` done by the tool instead of by a
 person. A plugin whose purpose is detecting drift shipping a hand-maintained
 inventory of its own tag usage is drift, structurally — and the last recount
 of that document found `@nodiscard` had gone from 112 occurrences to zero
@@ -2121,7 +2121,7 @@ A repo's own `docs/FEATURES/` (or `docs/features/`) folder, when it has one
 — read by [`core/features.lua`](../lua/documentation/core/features.lua) into
 `ir.features`, rendered as an index: one card per `## Feature` section, its
 summary and whatever `- **Key:** value` metadata bullets the author wrote.
-The full field guide is [`docs/FEATURES_FORMAT.md`](FEATURES_FORMAT.md);
+The full field guide is [`docs/features_format.md`](features_format.md);
 this section is the *why*, that one is the *contract*.
 
 **Modelled on real data, not a format invented from scratch.** Before
@@ -2259,7 +2259,7 @@ are silent wherever `param_docs = false` — nine backends, from an assembly
 label that has no parameter list to Go, which has parameters and documents
 them nowhere. In both cases the reasoning is the same: **a check that reports
 the absence of something the language cannot have produces a wrong number,
-not a low one.** See [`LANGUAGES.md`](LANGUAGES.md) for which backend answers
+not a low one.** See [`languages.md`](languages.md) for which backend answers
 which.
 
 Generic checks (any annotated tree):
@@ -2271,7 +2271,7 @@ Generic checks (any annotated tree):
 | `missing-summary` | warn | `@module` present but no description line. |
 | `file-holds-many-modules` | info | One file carrying **several module identities** — a Rust `mod x { … }` beside the file's own surface, or the second `defmodule` in an Elixir file. `Documentation.Node` is keyed on a path, so all of them are grouped under the file by `core/scopes.lua` and none has an id, a summary, a coverage number or an edge of its own; asking "how documented is module X" in such a tree silently gets the *file's* answer. This reports that, which is the half that is useful today — making them real nodes is the open "one file, many modules" entry in `docmap-desktop/docs/PLAN.md`, an id-shape change reaching the walk, `stats`, every `id` and both artifact consumers. `info`, not `warn`: Rust and Elixir are written this way on purpose and there is nothing here for the scanned tree's author to fix — the same reason `missing-readme` is an `info`. A test module (`#[cfg(test)] mod tests`) is not an identity and is not counted; neither is a class, an `impl` block or a trait, which are owned but not by a module. Silent for every Lua tree, which has no owning module construct at all. |
 | `dead-readme-link` | warn | A relative link in a module README or any `docs/` file, pointing at nothing. |
-| `sibling-reference-missing` | warn | A path naming a **declared sibling repository** (`documentation.nvim/docs/ECOSYSTEM.md`) that does not exist in that repository's checkout. The third reference shape, and the two existing checks decline it for stated and correct reasons: `doc-references-missing` resolves *code identifiers* against the scanned repo's own module map, `dead-readme-link` resolves *markdown links* within one repo after `strip_code` has removed every code span. A cross-repository citation is none of those — it is a path, in a code span, naming a tree this repository does not contain. Measured: `runtime-analysis.nvim` carried **nine** dead `docs/ECOSYSTEM.md` citations in August 2026, every one dead from the moment it was written, and nothing could report them. Only a first segment matching a sibling's declared `name` is considered, so nothing is guessed; URLs and GitHub `blob/`/`tree/` paths are excluded by rule, both after false positives on this repository's own docs. Silent when no sibling declares a reachable `local_path` — on CI there is no checkout, and a warning there would say only that CI is CI. |
+| `sibling-reference-missing` | warn | A path naming a **declared sibling repository** (`documentation.nvim/docs/ecosystem.md`) that does not exist in that repository's checkout. The third reference shape, and the two existing checks decline it for stated and correct reasons: `doc-references-missing` resolves *code identifiers* against the scanned repo's own module map, `dead-readme-link` resolves *markdown links* within one repo after `strip_code` has removed every code span. A cross-repository citation is none of those — it is a path, in a code span, naming a tree this repository does not contain. Measured: `runtime-analysis.nvim` carried **nine** dead `docs/ecosystem.md` citations in August 2026, every one dead from the moment it was written, and nothing could report them. Only a first segment matching a sibling's declared `name` is considered, so nothing is guessed; URLs and GitHub `blob/`/`tree/` paths are excluded by rule, both after false positives on this repository's own docs. Silent when no sibling declares a reachable `local_path` — on CI there is no checkout, and a warning there would say only that CI is CI. |
 | `missing-readme` | info | Module without a README — should be a decision, not an accident. |
 | `consumer-require-missing` | warn | A project under `opts.consumers` requires a module under this library's namespace that this library does not declare — either that consumer is broken now, or its committed map predates a rename it has already followed. Both are named in the message. Inert unless `opts.consumers` is set. The opposite finding ("no consumer requires this module") is deliberately **not** a check: that number is a floor, not a fact, and stays a report — see `:DocMap consumers`. |
 | `example-does-not-parse` | warn | An `@example` block that is not valid Lua, tried first as a chunk and then as an expression so a fragment like `{ timeout = 5000 }` is not reported. No tree in this ecosystem uses `@example`, so this has never fired on real code — the false-positive question is settled against fixtures, not usage. |
@@ -2424,7 +2424,7 @@ anything itself. Bypass with `git commit --no-verify`.
 It stays local (`core.hooksPath`) rather than a versioned tool like `lefthook`
 on purpose: adopting it in another plugin should cost that plugin nothing more
 than copying one file, not a new dependency for every downstream consumer.
-[REUSE.md](REUSE.md) is exactly what to copy.
+[reuse.md](reuse.md) is exactly what to copy.
 
 ## Why this is its own plugin
 

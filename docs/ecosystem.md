@@ -12,7 +12,7 @@
 > different states.
 >
 > Cite it from another repository as
-> `documentation.nvim/docs/ECOSYSTEM.md`, never as a bare `docs/ECOSYSTEM.md`
+> `documentation.nvim/docs/ecosystem.md`, never as a bare `docs/ecosystem.md`
 > — that path resolves to nothing anywhere but here, and nothing in CI would
 > report it (`dead-readme-link` strips code spans by design and resolves links
 > only within one repository).
@@ -29,22 +29,22 @@
   - [Intro](#intro)
   - [Epistemic note](#epistemic-note)
   - [1. Two seams already exist. Everything sorts along them.](#1-two-seams-already-exist-everything-sorts-along-them)
-    - [Seam A — static vs. runtime](#seam-a-static-vs-runtime)
-    - [Seam B — artifact vs. serve](#seam-b-artifact-vs-serve)
+    - [Seam A — static vs. runtime](#seam-a--static-vs-runtime)
+    - [Seam B — artifact vs. serve](#seam-b--artifact-vs-serve)
   - [2. The feature list, sorted](#2-the-feature-list-sorted)
   - [3. Feature by feature](#3-feature-by-feature)
-    - [3.1 API endpoint inventory — static, documentation.nvim](#31-api-endpoint-inventory-static-documentationnvim)
-    - [3.2 API request runner — runtime, and the reason a new plugin is justified](#32-api-request-runner-runtime-and-the-reason-a-new-plugin-is-justified)
-    - [3.3 Docs cross-references — static, documentation.nvim, genuinely new data](#33-docs-cross-references-static-documentationnvim-genuinely-new-data)
-    - [3.4 Docs-only view / filter — cheap, once 3.3 exists](#34-docs-only-view-filter-cheap-once-33-exists)
-    - [3.5 Hover previews — three different features wearing one name](#35-hover-previews-three-different-features-wearing-one-name)
+    - [3.1 API endpoint inventory — static, documentation.nvim](#31-api-endpoint-inventory--static-documentationnvim)
+    - [3.2 API request runner — runtime, and the reason a new plugin is justified](#32-api-request-runner--runtime-and-the-reason-a-new-plugin-is-justified)
+    - [3.3 Docs cross-references — static, documentation.nvim, genuinely new data](#33-docs-cross-references--static-documentationnvim-genuinely-new-data)
+    - [3.4 Docs-only view / filter — cheap, once 3.3 exists](#34-docs-only-view--filter--cheap-once-33-exists)
+    - [3.5 Hover previews — three different features wearing one name](#35-hover-previews--three-different-features-wearing-one-name)
     - [3.6 Three more in the same spirit](#36-three-more-in-the-same-spirit)
   - [4. The plugin question, answered](#4-the-plugin-question-answered)
     - [What the numbers say](#what-the-numbers-say)
     - [The precedent is exact](#the-precedent-is-exact)
     - [The answer, and why it revises my earlier one](#the-answer-and-why-it-revises-my-earlier-one)
     - [The resulting ecosystem](#the-resulting-ecosystem)
-  - [5. Naming — settled](#5-naming-settled)
+  - [5. Naming — settled](#5-naming--settled)
   - [6. What runtime-analysis.nvim actually is](#6-what-runtime-analysisnvim-actually-is)
     - [One hard constraint decides most of it](#one-hard-constraint-decides-most-of-it)
     - [What a separate binary or app would actually buy](#what-a-separate-binary-or-app-would-actually-buy)
@@ -71,7 +71,7 @@
 > implemented" — was true when written and is preserved below for the
 > record; per-step "Done" markers in §8 are the current truth.
 >
-> Earlier path: `docs/ECOSYSTEM.md`. Prose references to it in dated entries
+> Earlier path: `docs/ecosystem.md`. Prose references to it in dated entries
 > elsewhere mean this file.
 
 **Original status line, as written:** *architectural concept, agreed.
@@ -98,7 +98,7 @@ before the new plugin's step 5.
 ## Epistemic note
 
 This repository's convention is that a design doc states what it verified and
-what it assumed. [`FRAMEWORK_CONVENTIONS.md`](FRAMEWORK_CONVENTIONS.md) flags
+what it assumed. [`framework_conventions.md`](framework_conventions.md) flags
 itself as entirely unverified for exactly this reason; this document is
 mixed, so here is the split.
 
@@ -131,7 +131,7 @@ mixed, so here is the split.
 
 **Not verified, and stated as assumption:** every claim below about a *web
 framework's* route syntax (Express, Fastify, FastAPI, axum, …). No such tree
-has been parsed here. `FRAMEWORK_CONVENTIONS.md` gives itself the same
+has been parsed here. `framework_conventions.md` gives itself the same
 caveat and it still applies — re-verify against a real parse at the point
 any recognizer is actually written.
 
@@ -192,7 +192,7 @@ That is the whole plugin question in one line, and section 4 returns to it.
 
 ### 3.1 API endpoint inventory — static, documentation.nvim
 
-This is a **layer-2 convention recognizer** in `FRAMEWORK_CONVENTIONS.md`'s
+This is a **layer-2 convention recognizer** in `framework_conventions.md`'s
 own vocabulary: a second pass over a parse tree the language backend already
 produced, looking for one ecosystem's structural idiom. `core/plugins.lua`
 (lazy.nvim specs) is the existing instance of exactly this shape.
@@ -201,7 +201,7 @@ It was blocked on a JS/TS backend when that document was written. **It is no
 longer blocked** — `core/lang/ecma.lua` ships functions, imports, calls and
 symbols for JS/TS/TSX.
 
-**A refinement of `FRAMEWORK_CONVENTIONS.md`, not a contradiction.** That
+**A refinement of `framework_conventions.md`, not a contradiction.** That
 document concluded "routes belong in Hierarchy, not Analysis," because a
 Next.js route's effective layout is the product of every ancestor
 directory's `layout.tsx` — nesting *is* the fact worth showing. That
@@ -676,7 +676,7 @@ Ordered so each step is independently useful and nothing is a big-bang.
    extension of this one.
 4. ~~**API endpoint inventory.** Call-based recognizer first (flat, an
    Analysis panel); file-based later (Hierarchy view, per
-   `FRAMEWORK_CONVENTIONS.md`).~~ **Call-based done (2026-08-03)** —
+   `framework_conventions.md`).~~ **Call-based done (2026-08-03)** —
    `core/endpoints.lua` recognizes `app.get("/path", handler)`-shaped
    registrations (Express/Fastify/Koa syntax), feeding a new `endpoints`
    field alongside `plugins`, a ninth Analysis panel, and `:DocMap
@@ -841,7 +841,7 @@ property that makes this order safe to commit to now.
   must be *no match*, not a low-confidence one. The precedent is
   `calls.lua`'s `opts.calls_heuristic` being **off by default** — a confident
   wrong edge is worse than a missing one.
-- **Do not build React hook lint rules**, per `FRAMEWORK_CONVENTIONS.md`'s
+- **Do not build React hook lint rules**, per `framework_conventions.md`'s
   existing conclusion — `eslint-plugin-react-hooks` already does that half
   well.
 - **Do not let runtime data into the committed artifact.** Not at generation

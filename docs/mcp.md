@@ -78,7 +78,7 @@ in `PROTOCOLS_AND_AGENTS.md`: an agent that could write `@verified` timestamps
 could mark its own work as verified, and the verifying actor and the verified
 actor must not be the same one without a human in between. The write path is
 a person editing Markdown — see
-[docs/CHECKLIST_FORMAT.md](CHECKLIST_FORMAT.md).
+[docs/checklist_format.md](checklist_format.md).
 
 **stdio, not a port.** With stdio there is nobody to authenticate: the client
 *is* the parent process, and the trust boundary is the one the operating

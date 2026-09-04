@@ -1,7 +1,7 @@
 # Workflow — getting real use out of documentation.nvim day to day
 
-Every feature here is documented on its own elsewhere (`docs/COMMANDS.md`,
-`docs/PIPELINE.md`, `docs/ANNOTATION_TAGS.md`, `docs/LANGUAGES.md`). This is
+Every feature here is documented on its own elsewhere (`docs/commands.md`,
+`docs/pipeline.md`, `docs/annotation_tags.md`, `docs/languages.md`). This is
 the different question: once several features exist, *how do they actually
 combine* into something worth reaching for regularly, rather than once
 after install and never again.
@@ -194,7 +194,7 @@ Neovim ships no default binding for incoming/outgoing calls, so nothing
 happens until you add one. That, plus how to tell an unattached client
 from a function that genuinely has no callers (the two look identical:
 an empty quickfix list), is in
-[docs/CALL_HIERARCHY.md](CALL_HIERARCHY.md).
+[docs/call_hierarchy.md](call_hierarchy.md).
 
 ## Trail is a session tool, not a bookmark you'll remember weeks later
 

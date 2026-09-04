@@ -77,7 +77,7 @@ function M.run(ctx, arg)
     list_width = browse.list_width,
     theme = browse.theme,
     depth = browse.depth,
-    -- `telemetry` mode's own join (ECOSYSTEM.md step 8) needs a namespace to
+    -- `telemetry` mode's own join (ecosystem.md step 8) needs a namespace to
     -- read `runtime-analysis.telemetry` data by — see `Documentation.Browse.
     -- Opts.title`'s own doc-comment for why this is the same `title` every
     -- other command already has, not a second thing to configure.

@@ -8,7 +8,7 @@
 ---
 --- Thin on purpose: everything that is not this repository's own layout lives
 --- in `documentation.core.cli`, so another plugin copies this file verbatim and
---- changes only the options table at the bottom. See docs/REUSE.md.
+--- changes only the options table at the bottom. See docs/reuse.md.
 
 local root = vim.uv.cwd():gsub("\\", "/"):gsub("/+$", "")
 vim.opt.runtimepath:prepend(root)
@@ -80,7 +80,7 @@ local opts = require("documentation.config").build(root, {
   -- rules to make up half the difference.
   --
   -- What stays here is what genuinely belongs to *this invocation*. See
-  -- `config/file.lua` for the split and docs/REUSE.md for what to copy.
+  -- `config/file.lua` for the split and docs/reuse.md for what to copy.
 })
 
 local code = require("documentation.core.cli").run(opts, _G.arg or {})

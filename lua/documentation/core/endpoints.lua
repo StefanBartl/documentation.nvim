@@ -1,7 +1,7 @@
 ---@module 'documentation.core.endpoints'
 --- Call-based route registrations — Express/Fastify/Koa-shaped
 --- `app.get(path, handler)` calls — recognized in an already-parsed JS/TS/TSX
---- tree. The "call-based routing" half of `docs/ECOSYSTEM.md` §3.1's split;
+--- tree. The "call-based routing" half of `docs/ecosystem.md` §3.1's split;
 --- file-based routing (Next.js/SvelteKit/Nuxt/Remix) is explicitly the other
 --- half and belongs in a Hierarchy view instead, not attempted here — a
 --- route's parent directory carries real structure there, and flattening it
@@ -21,7 +21,7 @@
 --- The accepted risk, stated rather than hidden: an unrelated object whose
 --- own `.get(path, handler)`-shaped method happens to match (a cache, a
 --- router-like abstraction) would false-positive — not verified against a
---- real Express application; `docs/ECOSYSTEM.md`'s own stated limit ("every
+--- real Express application; `docs/ecosystem.md`'s own stated limit ("every
 --- framework-syntax claim above is unverified") still applies here.
 ---
 --- `app.use(...)` is not recognized: `use` is not in the method set, since it

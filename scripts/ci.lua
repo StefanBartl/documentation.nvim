@@ -242,7 +242,7 @@ end
 --- local gate instead. Its
 --- published rock has two packaging defects, and a gate that is red before
 --- anyone touches anything gets switched off the same day, which is exactly
---- the advice `docs/REUSE.md` gives about extra checks.
+--- the advice `docs/reuse.md` gives about extra checks.
 ---
 --- Writes to a temporary directory, never `docs/map`: a gate that rewrites
 --- the artifact it is checking is not a gate.

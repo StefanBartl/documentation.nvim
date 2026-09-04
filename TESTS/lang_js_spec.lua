@@ -96,7 +96,7 @@ return function(H)
   eq(fns[4].name, "useCounter", "lang.js: hook found like any other function_declaration")
   ok(
     fns[4].is_hook,
-    "lang.js: ... and flagged as a hook by name alone (docs/FRAMEWORK_CONVENTIONS.md)"
+    "lang.js: ... and flagged as a hook by name alone (docs/framework_conventions.md)"
   )
 
   ok(fns[5].internal, "lang.js: @internal recognized the same as Lua's convention")

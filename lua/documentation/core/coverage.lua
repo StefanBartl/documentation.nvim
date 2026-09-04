@@ -1,6 +1,6 @@
 ---@module 'documentation.core.coverage'
 --- Auto-derived test coverage — R2 of the docmap roadmap. `@test` already
---- exists as a manual tag (see `docs/ANNOTATIONS.md`), and has exactly zero
+--- exists as a manual tag (see `docs/annotations.md`), and has exactly zero
 --- real hits in this tree: a doc-comment tag that duplicates what the actual
 --- test file already says is a second source of truth, and second sources
 --- of truth drift. This measures instead of asking anyone to remember.

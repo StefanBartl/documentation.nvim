@@ -3,7 +3,7 @@
 Reading and generating LuaCATS annotations — the plugin's other half besides
 scanning: not just "what is this tree", but "does the tree say what it means,
 and can the map fix it when it doesn't". See
-[`docs/ANNOTATION_TAGS.md`](../ANNOTATION_TAGS.md) for the full tag-by-tag
+[`docs/annotation_tags.md`](../annotation_tags.md) for the full tag-by-tag
 contract; this file covers the two capabilities that generate or resolve
 something, not just parse it.
 
@@ -11,7 +11,7 @@ something, not just parse it.
 
 For any file with no `---@module` header at all, scaffold one: `@module`
 derived from the file's own path, a `TODO` prose placeholder (not an invented
-`@brief`/`@desc` — `docs/ANNOTATION_TAGS.md` itself calls those a fallback,
+`@brief`/`@desc` — `docs/annotation_tags.md` itself calls those a fallback,
 "prefer plain prose"), and — when the file returns a table — a `---@class`
 block with one `---@field` per exported name. A field whose export already
 has its own `---@class` block gets **referenced**
@@ -25,7 +25,7 @@ Default is preview-only, in a scratch buffer — nothing is written until asked.
   `bindings/usrcmds/annotate.lua`
 - **Usercmds:** `:DocMap annotate [--write|--sidecar] [--dry-run]` (see
   [BINDINGS.md](../BINDINGS.md#user-commands))
-- **Docs:** [`docs/COMMANDS.md`](../COMMANDS.md) "`:DocMap annotate`" section.
+- **Docs:** [`docs/commands.md`](../commands.md) "`:DocMap annotate`" section.
 
 ## `@see` — validated, not just parsed
 

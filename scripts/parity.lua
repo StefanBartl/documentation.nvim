@@ -3,7 +3,7 @@
 -- The feature-parity audit asks for one row per contract capability, one column per language,
 -- and every empty cell either filled or given a written reason. This script
 -- produces the *cells*. The reasons are prose and live in
--- `docs/LANGUAGES.md`; a script cannot write them and should not pretend to.
+-- `docs/languages.md`; a script cannot write them and should not pretend to.
 --
 -- **Why a script and not a hand-written table.** The docs pass that preceded
 -- this one found two counts stated in prose that the code contradicted, both
@@ -17,7 +17,7 @@
 --
 --   DOCMAP_TS_DIR=C:/tools/docmap-grammars nvim --headless -u NONE -l scripts/parity.lua
 --
--- `--markdown` emits the table as Markdown for pasting into `docs/LANGUAGES.md`;
+-- `--markdown` emits the table as Markdown for pasting into `docs/languages.md`;
 -- the default is a fixed-width grid for reading in a terminal.
 --
 -- A backend whose grammar cannot be loaded is reported as `?` throughout

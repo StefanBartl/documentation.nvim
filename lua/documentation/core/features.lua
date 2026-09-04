@@ -2,7 +2,7 @@
 --- Reads a repo's own `docs/FEATURES/` folder into
 --- `Documentation.Features.Result` for the Features tab.
 ---
---- See `docs/FEATURES_FORMAT.md` for the full field guide this parser
+--- See `docs/features_format.md` for the full field guide this parser
 --- implements — a `##`-per-feature, `- **Key:** value`-metadata convention
 --- deliberately closest to `markdown.nvim`'s own real `docs/FEATURES/`, the
 --- one of three independently-invented shapes found across this user's

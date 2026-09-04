@@ -3,7 +3,7 @@
 --- root) — `nvim --headless -l scripts/action_run.lua [--check] [...]`.
 ---
 --- **Why this exists at all, given `scripts/gen_map.lua`.** `gen_map.lua` is
---- *this repository's own* entry point: `docs/REUSE.md` tells an adopter to
+--- *this repository's own* entry point: `docs/reuse.md` tells an adopter to
 --- copy it and edit the options table at the bottom, because that table is
 --- where a repository's own layout lives. The action's whole promise is that
 --- nothing has to be copied — so it needs the same file with the options
@@ -143,6 +143,6 @@ local opts = require("documentation.config").build(root, {
 -- functions, and `.docmap.json` is data that this action reads out of a
 -- repository it just cloned. A repository that wants its own checks has
 -- outgrown "adopt it in three lines" and should copy `scripts/gen_map.lua`
--- as `docs/REUSE.md` describes.
+-- as `docs/reuse.md` describes.
 local code = require("documentation.core.cli").run(opts, _G.arg or {})
 vim.cmd("cq " .. code)

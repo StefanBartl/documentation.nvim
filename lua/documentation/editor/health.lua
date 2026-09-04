@@ -290,7 +290,7 @@ function M.check()
   -- list is the only answer that cannot be wrong — an installed handle's
   -- `opts.callhierarchy` says what was *requested*, and the client attaches
   -- on `BufReadPost`, so a buffer opened before `setup()` ran has the
-  -- option set and no client. See docs/CALL_HIERARCHY.md.
+  -- option set and no client. See docs/call_hierarchy.md.
   local ch_clients = vim.lsp.get_clients({ name = "docmap-callhierarchy" })
   if #ch_clients > 0 then
     local buffers = 0
@@ -306,7 +306,7 @@ function M.check()
     h_info(
       "Call hierarchy (opts.callhierarchy) — not attached. Set it true in setup()/install(); "
         .. "the client attaches on BufReadPost to Lua buffers under source/, so an already-open "
-        .. "buffer needs :e. No external dependency. See docs/CALL_HIERARCHY.md."
+        .. "buffer needs :e. No external dependency. See docs/call_hierarchy.md."
     )
   end
 

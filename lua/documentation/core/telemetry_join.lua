@@ -1,5 +1,5 @@
 ---@module 'documentation.core.telemetry_join'
---- The static x runtime join — ECOSYSTEM.md step 8. This tree.s own static
+--- The static x runtime join — ecosystem.md step 8. This tree.s own static
 --- analysis (`check.used_keys`) knows which
 --- functions have a *caller documentation.nvim can see*; `runtime-analysis.
 --- telemetry` knows which functions were *actually entered*. Neither answers
@@ -144,7 +144,7 @@ end
 ---`"documentation.core.doccoverage"`). A plain `ir.nodes[module_id]` lookup
 ---never sees those — the two key spaces do not intersect — so every row
 ---from an auto-instrumented tree silently failed to match, unconditionally.
----This made `:DocBrowse telemetry` (ECOSYSTEM.md step 8) show "no telemetry
+---This made `:DocBrowse telemetry` (ecosystem.md step 8) show "no telemetry
 ---data" for every function regardless of real usage, and
 ---`M.doc_usage_summary` always report 0/0, on any project using `auto()`/
 ---`wrap_loaded()` — which is the common case, not an edge one.

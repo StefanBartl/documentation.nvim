@@ -162,7 +162,7 @@ jobs:
   # ordinary, reliable rocks, whereas the full-fidelity path needs
   # `lua-tree-sitter`, whose published rock has two packaging defects. Gating
   # `main` on that would be a check that goes red without anyone touching
-  # anything — see the advice this project gives adopters in `docs/REUSE.md`.
+  # anything — see the advice this project gives adopters in `docs/reuse.md`.
   # Full byte-parity
   # against a Neovim run stays a local gate.
   standalone:

@@ -473,7 +473,7 @@ local function endpoints_entries(ir, st)
   return out
 end
 
----Static x runtime join — ECOSYSTEM.md step 8. Every function `check.
+---Static x runtime join — ecosystem.md step 8. Every function `check.
 ---used_keys(ir)` and `runtime-analysis.telemetry`'s join together have an
 ---opinion about, one row per function, badge-prefixed by which of the four
 ---cells it falls in:
