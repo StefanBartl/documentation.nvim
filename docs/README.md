@@ -26,6 +26,7 @@ were lifted out of it into the pages below rather than kept in two places.
 | [`WORKFLOW.md`](WORKFLOW.md) | Day to day: which panel answers which question, how to read the Telemetry join's badges correctly, Trail vs filter vs fuzzy jump. The one document about *combining* features rather than describing them. |
 | [`BINDINGS.md`](BINDINGS.md) | Every key, user command and autocommand this plugin installs. **Generated** from the tables that drive the plugin — do not edit by hand. |
 | [`call_hierarchy.md`](call_hierarchy.md) | Incoming/outgoing calls in Neovim's native LSP UI, alongside LuaLS (which has none): setup, keymaps, and how to tell an unattached client from a function with no callers. |
+| [`hover.md`](hover.md) | Resting the cursor on a dotted module name and getting what that module is — read out of the `module_map.json` this plugin already writes, so the integration costs a lookup rather than a scan. |
 | [`EXAMPLES/`](EXAMPLES/README.md) | Runnable snippets for the parts of the API easier to read as code than as prose. |
 
 ## Pointing it at your own code
