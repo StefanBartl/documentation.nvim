@@ -143,7 +143,7 @@ syntax, the second says what a reader of the map is actually looking at.
 | **Swift** | `.swift` | `///` Markdown, where a parameter is a **bullet**: `- Parameter x:` | `open`/`public`; an unmarked declaration is `internal`, meaning module-only |
 | **Dart** | `.dart` | `///` Markdown prose; dartdoc has no per-parameter form | **a leading `_`**, which the compiler enforces rather than merely suggests |
 | **Scala** | `.scala`, `.sc` | Scaladoc `/** @param x … */`, plus `@tparam` | not `private`/`protected` — there is no `public` keyword to ask for |
-| **Haskell** | `.hs`, `.lhs` | Haddock `-- |` above the type signature | **the module's export list**, stated once in the header rather than per declaration |
+| **Haskell** | `.hs`, `.lhs` | Haddock `-- \|` above the type signature | **the module's export list**, stated once in the header rather than per declaration |
 | **Elixir** | `.ex`, `.exs` | `@doc` — a module attribute the compiler stores, not a comment | `def` vs `defp`; `@doc false` is public-but-undocumented |
 | **Erlang** | `.erl`, `.hrl` | EDoc `%% @doc` above the spec or the function | `-export([f/2])` — an export list that names an **arity**, not just a name |
 | **OCaml** | `.ml`, `.mli` | ocamldoc `(** @param x … *)`, usually *below* the declaration | the sibling **`.mli` file** — an export list that lives in another file |
