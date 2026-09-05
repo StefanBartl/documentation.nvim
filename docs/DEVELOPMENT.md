@@ -226,6 +226,17 @@ lua/documentation/
     registry.lua    install()/uninstall(), the watch
     serve.lua       the local map server
     health.lua      :checkhealth documentation
+
+  bindings/         keymaps.lua, usrcmds/, autocmds.lua, diagnostics.lua
+    autocmds.lua    a manifest, not a creation site -- checkhealth and
+                    docs/BINDINGS.md read it, but each autocmd is actually
+                    created by the editor/ module that owns its lifecycle
+                    (registry.lua's watch/callhierarchy/diagnostics hooks,
+                    browse's CursorMoved, trail_store's and serve's
+                    VimLeavePre). Deliberately not centralized: a shared
+                    creation site would have to reach into three modules'
+                    teardown paths for no benefit, since each hook is torn
+                    down (or not) by the module that installed it.
 ```
 
 **The `core`/`editor` split is enforced, not conventional.** `scripts/gen_map.lua`

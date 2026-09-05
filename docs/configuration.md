@@ -169,3 +169,15 @@ The mode-switch keys `1`…`6` are deliberately not rebindable: they are
 positional (`3` means "the third list") and are generated from the mode list,
 so renumbering them individually would desynchronise them from what the status
 line shows.
+
+**Digit-key collision with counts (found 2026-07-31).** `up`, `back`,
+`forward`, `depth_inc` and `depth_dec` all support a leading count
+(`vim.v.count1`), but Neovim resolves a leading digit as *that* mapped
+command immediately if one is bound for it — it does not accumulate into
+`vim.v.count1` first the way an unmapped digit would. Since `1`-`6` are
+themselves bound to switch the active list, `3-`/`3+`/`3<C-o>` actually fires
+"switch to list 3", then the action with count 1, not "move by 3" as the
+count support would otherwise suggest. Counts of `7` or higher (no colliding
+digit-key) reach the handler correctly, e.g. `9+` really does move depth by
+9. This is a structural property of the `1`-`6` bindings, not a bug in the
+count handling itself.
