@@ -34,7 +34,7 @@ function M.opener(cfg, notify, command_name)
     local serve = require("documentation.editor.serve")
     local info = serve.info()
     if info then
-      require("lib.nvim.fs.open.url.system_opener").open(info.url .. (hash or ""))
+      require("lib.nvim.cross.open_default")(info.url .. (hash or ""))
       return true
     end
 
@@ -44,7 +44,7 @@ function M.opener(cfg, notify, command_name)
     -- `index.html#tab=…` and fails silently. The plain no-fragment path stays
     -- a filesystem path, which is what it has always been.
     local url = hash and (vim.uri_from_fname(target) .. hash) or target
-    require("lib.nvim.fs.open.url.system_opener").open(url)
+    require("lib.nvim.cross.open_default")(url)
     return true
   end
 end

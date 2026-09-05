@@ -1338,12 +1338,10 @@ return function(H)
     -- `gO` hands the current position to the page: the fragment must carry
     -- the mode, the centered node and the direction that are on screen.
     local handed = nil
-    package.loaded["lib.nvim.fs.open.url.system_opener"] = {
-      open = function(url)
-        handed = url
-        return true
-      end,
-    }
+    package.loaded["lib.nvim.cross.open_default"] = function(url)
+      handed = url
+      return true
+    end
     browse.open({ root = root, center = "documentation" })
     vim.api.nvim_set_current_win((slot("documentation-browse-list")))
     press("2") -- deps
@@ -1355,7 +1353,7 @@ return function(H)
     ok((handed or ""):find("documentation", 1, true) ~= nil, "browse: and the centered node")
     ok((handed or ""):sub(1, 5) == "file:", "browse: as a file:// URL, so the fragment survives")
     browse.close()
-    package.loaded["lib.nvim.fs.open.url.system_opener"] = nil
+    package.loaded["lib.nvim.cross.open_default"] = nil
 
     -- `gd` on a function entry lands in its file at its declaration line.
     --

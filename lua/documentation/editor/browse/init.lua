@@ -883,7 +883,7 @@ local function open_in_browser(st)
     hash = hash .. "&fn=" .. vim.uri_encode(st.id .. "#" .. st.fn, "rfc2396")
   end
 
-  require("lib.nvim.fs.open.url.system_opener").open(vim.uri_from_fname(target) .. hash)
+  require("lib.nvim.cross.open_default")(vim.uri_from_fname(target) .. hash)
 end
 
 ---`gs` — send the selected route as a request via `runtime-analysis.nvim`,

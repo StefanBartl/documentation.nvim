@@ -62,7 +62,7 @@ local DEPS = {
   "lib.nvim.fs.mkdirp",
   "lib.nvim.fs.is_subpath",
   "lib.nvim.fs.collect_recursive",
-  "lib.nvim.fs.open.url.system_opener",
+  "lib.nvim.cross.open_default",
   "lib.nvim.cross.uv.spawn_capture",
 }
 

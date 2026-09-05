@@ -126,7 +126,7 @@ mixed, so here is the split.
   lib.nvim-specific coupling: `wrap_lib()` via `lib.strategies.control`.
 - documentation.nvim's own lib.nvim surface is `autocmd`, `fs.mkdirp`,
   `notify`, `usercmd`, `ui.kit`, `map`, `debounce`, `fs.read`,
-  `fs.collect_recursive`, `fs.is_subpath`, `fs.open.url.system_opener`,
+  `fs.collect_recursive`, `fs.is_subpath`, `cross.open_default`,
   `cross.uv.spawn_capture` — a superset of telemetry's.
 
 **Not verified, and stated as assumption:** every claim below about a *web
