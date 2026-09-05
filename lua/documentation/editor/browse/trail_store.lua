@@ -95,6 +95,79 @@ function M.path()
   return ((dir .. "/documentation.nvim/" .. FILE):gsub("\\", "/"))
 end
 
+---One pin, revalidated field by field, or nil.
+---
+---Container-shape checks alone (below) let a pin with the *wrong* field
+---types through unchanged — a hand-edited or partially-truncated
+---`current`/`saved` entry can decode as valid JSON while carrying, say, a
+---table where `mode` belongs. That reaches `trail.lua`'s `M.key`, which
+---`table.concat`s `pin.mode`/`.id`/`.fn`/`.sha` straight into a string and
+---raises on anything that is not one — turning "load a corrupted trail"
+---into "the next `p`/`d` on this root errors", exactly what this file's
+---malformed-input posture exists to prevent. So every field is checked here,
+---not only the containers around it, and a value of the wrong shape is
+---dropped rather than trusted raw.
+---
+---`mode` and `label` are the two fields `trail.lua` always sets, so a pin
+---missing either is not a pin this version ever wrote and is refused
+---wholesale rather than patched with a placeholder.
+---@param raw any
+---@return Documentation.Browse.Pin|nil
+local function sanitize_pin(raw)
+  if type(raw) ~= "table" or type(raw.mode) ~= "string" or type(raw.label) ~= "string" then
+    return nil
+  end
+  local function opt_string(v)
+    return type(v) == "string" and v or nil
+  end
+  local function opt_int(v)
+    return (type(v) == "number" and v == math.floor(v)) and v or nil
+  end
+  local dir = (raw.dir == "in" or raw.dir == "out") and raw.dir or nil
+  return {
+    mode = raw.mode,
+    label = raw.label,
+    id = opt_string(raw.id),
+    fn = opt_string(raw.fn),
+    sha = opt_string(raw.sha),
+    dir = dir,
+    depth = opt_int(raw.depth),
+    detail = opt_string(raw.detail),
+    source = opt_string(raw.source),
+    line = opt_int(raw.line),
+  }
+end
+
+---A cap on how many pins one list rehydrates.
+---
+---This is read once per session and the whole list is rendered every time
+---Trail mode opens; a file that grew without bound (a stuck writer, a hand
+---edit merging two exports) should degrade to "the newest kept" rather than
+---to an unresponsive `:DocBrowse`. 500 is generous against the "about four
+---places actually worth returning to" this module's own header describes as
+---the normal case.
+local MAX_PINS = 500
+
+---A pin list, revalidated and capped.
+---@param raw any
+---@return Documentation.Browse.Pin[]
+local function sanitize_list(raw)
+  local out = {}
+  if type(raw) ~= "table" then
+    return out
+  end
+  for _, item in ipairs(raw) do
+    local pin = sanitize_pin(item)
+    if pin then
+      out[#out + 1] = pin
+      if #out >= MAX_PINS then
+        break
+      end
+    end
+  end
+  return out
+end
+
 ---Coerce whatever was decoded into the shape the rest of this file assumes.
 ---
 ---Defensive on purpose: this file lives in the user's state directory, where
@@ -110,15 +183,16 @@ local function normalize(raw)
   end
   for root, entry in pairs(raw) do
     if type(root) == "string" and type(entry) == "table" then
-      local current = type(entry.current) == "table" and entry.current or {}
-      local saved = type(entry.saved) == "table" and entry.saved or {}
+      local current = sanitize_list(entry.current)
       -- `vim.json` decodes an empty JSON object as an empty Lua table, which
       -- is indistinguishable from an empty array — harmless here, since both
       -- iterate to nothing.
       local clean_saved = {}
-      for name, list in pairs(saved) do
-        if type(name) == "string" and type(list) == "table" then
-          clean_saved[name] = list
+      if type(entry.saved) == "table" then
+        for name, list in pairs(entry.saved) do
+          if type(name) == "string" then
+            clean_saved[name] = sanitize_list(list)
+          end
         end
       end
       out[root] = { current = current, saved = clean_saved }
