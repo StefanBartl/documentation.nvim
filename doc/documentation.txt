@@ -352,7 +352,7 @@ same name. `usercmd.create` defaults to `force = true`, so that collision is
 not an error; it silently overwrites one of them.
 
                                                              *documentation-keys*
-`keys` rebinds or disables the |:DocBrowse| keys. It is keyed by *action*
+`keys` rebinds or disables the |:DocBrowse| keys. It is keyed by action
 rather than by the default left-hand side, so a rebinding survives a change of
 defaults: >lua
 
@@ -501,7 +501,7 @@ key and then regretted.
                         own `/` builds.
 
                         The interaction the browser does not have: its `/`
-                        jumps *within* the browser and leaves you there, which
+                        jumps within the browser and leaves you there, which
                         is right for exploring. This one ends in the file, and
                         the browser never opens.
 
@@ -534,7 +534,7 @@ key and then regretted.
 :DocMap plugins         Every recognized lazy.nvim spec in the tree, into the
                         |quickfix| list, sorted by repo. Instant -- the specs
                         already sit on the live handle's IR, extracted during
-                        the scan. Exists for a Neovim *config* (as opposed to
+                        the scan. Exists for a Neovim config (as opposed to
                         a Neovim *plugin*), where lua/plugins/*.lua is mostly
                         `return { {...}, {...} }` with no function in sight,
                         invisible to every other command. Each row shows
@@ -824,7 +824,7 @@ id is stable and is what a threshold override is keyed by.
 ------------------------------------------------------------------------------
 6.2 COMPARE                                              *documentation-compare*
 
-Any function or module can be *marked* — the `+` beside the `ⓘ` annotation
+Any function or module can be marked — the `+` beside the `ⓘ` annotation
 trigger, present in every list that shows a function, and beside the module
 path in the Tree tab's detail pane. The Compare tab then shows everything
 marked, next to each other.
@@ -1058,7 +1058,7 @@ talks JSON-RPC over its stdin/stdout. Run interactively it looks like it has
 hung, because it is doing exactly what it should: waiting for a line.
 
 Nothing listens on a port and nothing authenticates, because with stdio there
-is nobody to authenticate: the client *is* the parent process, and the trust
+is nobody to authenticate: the client is the parent process, and the trust
 boundary is the one the operating system already draws around a subprocess.
 
 Nine tools, each a projection of a handle method:
