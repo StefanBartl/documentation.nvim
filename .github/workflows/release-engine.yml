@@ -64,6 +64,7 @@ jobs:
         with:
           repository: StefanBartl/lib.nvim
           path: .deps/lib.nvim
+          ref: ci-verified
       # runtime-analysis.nvim is soft (ensure_soft in standalone/docmap.lua
       # degrades to "no data" without it, never fails the build) but its
       # absence here is still a real fidelity gap, not just a missing
@@ -100,6 +101,7 @@ jobs:
         with:
           repository: StefanBartl/lib.nvim
           path: .deps/lib.nvim
+          ref: ci-verified
       # runtime-analysis.nvim is soft (ensure_soft in standalone/docmap.lua
       # degrades to "no data" without it, never fails the build) but its
       # absence here is still a real fidelity gap, not just a missing

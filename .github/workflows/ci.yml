@@ -68,6 +68,7 @@ jobs:
         with:
           repository: StefanBartl/lib.nvim
           path: .deps/lib.nvim
+          ref: ci-verified
       # Optional, unlike lib.nvim: `TESTS/browse_endpoints_spec.lua`'s `gs`
       # test already has a real, tested skip path for runtime-analysis.nvim
       # not being installed (this repository's own normal state). Checking
@@ -137,6 +138,7 @@ jobs:
         with:
           repository: StefanBartl/lib.nvim
           path: .deps/lib.nvim
+          ref: ci-verified
       # `.docmap.json` declares lib.nvim's checkout at `../lib.nvim`, and the
       # committed artifact was resolved against it: 20 of this repository's 23
       # external links carry the directory shape (`…/autocmd/init.lua`), which
@@ -203,6 +205,7 @@ jobs:
         with:
           repository: StefanBartl/lib.nvim
           path: .deps/lib.nvim
+          ref: ci-verified
       - uses: leafo/gh-actions-lua@v10
         with:
           luaVersion: "5.4"
