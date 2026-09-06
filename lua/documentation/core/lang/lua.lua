@@ -36,7 +36,7 @@ M.name = "lua"
 ---have to know the default to see the decision.
 M.module_tag = true
 
----This backend returns call sites, which nineteen of the twenty-three do
+---This backend returns call sites, which eighteen of the twenty-three do
 ---not. Declared so a host can tell "this project has no calls" from "this
 ---build has no call extraction here" — two facts that look identical on an
 ---empty panel. See `Documentation.LangBackend.emits_calls`.

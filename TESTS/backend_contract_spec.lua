@@ -192,7 +192,8 @@ return function(H)
       -- `DOCMAP_<LANG>_PARSER` honoured exactly as every language spec
       -- honours it, and for the same reason: without it, only the four
       -- grammars Neovim ships are reachable -- which is lua, js, ts and tsx,
-      -- the four backends that declare `emits_calls`. The check would then
+      -- four of the five backends that declare `emits_calls` (go is the
+      -- fifth, and ships no grammar with Neovim). The check would then
       -- only ever confirm the *true* direction and never catch a backend
       -- claiming a capability it does not have, which is the direction that
       -- would put a wrong sentence in front of a reader.

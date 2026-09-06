@@ -6,9 +6,9 @@
 --- library and a set of maps belonging to projects that depend on it, which
 --- of its modules does anyone actually require, and which does nobody.
 ---
---- This was rated "needs a real multi-repo case first" and left there. The case exists: 33 `.nvim` repositories
---- beside this one, ~30 with a committed map, one shared `lib.nvim` they
---- consume 9–25 modules of apiece.
+--- This was rated "needs a real multi-repo case first" and left there. The
+--- case exists: 33 `.nvim` repositories beside this one, ~30 with a committed
+--- map, one shared `lib.nvim` they consume 9–25 modules of apiece.
 ---
 --- ## The join, and why it needs no shared table
 ---

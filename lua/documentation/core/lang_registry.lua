@@ -216,9 +216,9 @@ end
 ---cached "missing" would survive the user pointing at the grammars
 ---directory, which is precisely the moment the answer is supposed to
 ---change.
----`calls` is what makes an empty panel explainable: nineteen of the
+---`calls` is what makes an empty panel explainable: eighteen of the
 ---twenty-three backends produce no call sites, so the Calls views render
----empty for a Go or Rust project and look exactly like a project with no
+---empty for a Rust or Python project and look exactly like a project with no
 ---calls in it. A host that can read this field can say which it is. See
 ---`Documentation.LangBackend.emits_calls`.
 ---@return { name: string, grammar: string?, grammar_loaded: boolean?, calls: boolean }[]

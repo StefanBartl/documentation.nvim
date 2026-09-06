@@ -986,9 +986,10 @@ function M.backend(name, lang, extensions, module_file)
     line_comments = { "//" },
     block_comments = { { "/*", "*/" } },
     module_tag = false,
-    -- The ECMA family is the other half of the four backends that produce
-    -- call edges. See `Documentation.LangBackend.emits_calls` for why a host
-    -- needs to be told rather than left to guess from an empty panel.
+    -- The ECMA family (js/ts/tsx) is three of the five backends that produce
+    -- call edges; lua and go are the other two. See
+    -- `Documentation.LangBackend.emits_calls` for why a host needs to be told
+    -- rather than left to guess from an empty panel.
     emits_calls = true,
     is_source = is_source,
     ---`nil` unless one of the conventional roots actually holds a file this

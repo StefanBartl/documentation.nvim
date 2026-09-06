@@ -57,7 +57,7 @@ return function(H)
   eq(by.zig.total, 1)
   eq(by.zig.documented, 1)
 
-  -- **Two counts, because the bar is not the same in every language.** Eight
+  -- **Two counts, because the bar is not the same in every language.** Nine
   -- of the twenty-three backends have no per-parameter convention, so a
   -- function there is documented once it has a summary. Reporting one
   -- percentage per language would put two different measures in one column.
