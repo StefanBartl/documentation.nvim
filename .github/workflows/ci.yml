@@ -11,6 +11,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Manual re-run: a swallowed dispatch is never backfilled, so without this
+  # the only way to gate an already-pushed commit is an empty commit on top.
+  workflow_dispatch:
 
 jobs:
   stylua:
