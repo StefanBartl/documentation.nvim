@@ -16,7 +16,7 @@ jobs:
   stylua:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # The one gate that does not go through `scripts/ci.sh`: this action is
       # the installer AND the runner, so there is no binary on PATH to hand
       # the script. `args` must therefore stay identical to what
@@ -30,7 +30,7 @@ jobs:
   luacheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # PUC Lua, not "luajit-2.1": that value fails with a 404 (LuaJIT stopped
       # publishing the 2.1 tarball this action downloads). Which interpreter
       # runs luacheck is independent of what it checks against — `std = "luajit"`
@@ -39,7 +39,7 @@ jobs:
         with:
           luaVersion: "5.4"
       - uses: leafo/gh-actions-luarocks@v4
-      - run: luarocks install luacheck
+      - run: luarocks install luacheck 1.2.0
       # `scripts/ci.sh` is itself a Neovim Lua script launched via `nvim -l`
       # (see scripts/ci.lua's own header) — that launcher requirement holds
       # for every gate, including this one, even though the luacheck gate's
@@ -56,12 +56,12 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # lib.nvim is a runtime dependency: notify, fs, ui.kit, usercmd, map,
       # debounce, autocmd. A headless `-l` run has no plugin manager, so CI
       # provides it the same way a local checkout does — see
       # TESTS/run.lua's `add_lib_nvim`.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: StefanBartl/lib.nvim
           path: .deps/lib.nvim
@@ -73,7 +73,7 @@ jobs:
       # works end to end" — `TESTS/run.lua` reads `RUNTIME_ANALYSIS_DIR` and
       # appends it to the rtp itself if set, the same way it already does
       # `DOCUMENTATION_TS_PARSERS_DIR` below.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: StefanBartl/runtime-analysis.nvim
           path: .deps/runtime-analysis.nvim
@@ -113,13 +113,24 @@ jobs:
 
   # The drift check this plugin exists to provide, run against its own tree.
   # The pre-commit hook is opt-in per clone (`git config core.hooksPath`), so
-  # without this job the committed map goes stale on main with nothing
-  # noticing. `--check` regenerates in memory and compares; it writes nothing.
+  # without this job the committed map goes stale on main with nothing noticing.
+  #
+  # Self-healing: on a PR the map is regenerated and any drift fails the job
+  # (the contributor is told to run gen_map.lua and commit). On a push to main
+  # the same drift is committed back automatically ([skip ci] so it does not
+  # loop) — a generated artifact that only ever fails the branch it lives on is
+  # a chore, not a gate.
   map:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+        with:
+          # A branch, not the default detached HEAD, so the self-heal push
+          # below has somewhere to land.
+          ref: ${{ github.head_ref || github.ref_name }}
+      - uses: actions/checkout@v5
         with:
           repository: StefanBartl/lib.nvim
           path: .deps/lib.nvim
@@ -148,7 +159,23 @@ jobs:
         with:
           neovim: true
           version: stable
-      - run: scripts/ci.sh map
+      - name: Regenerate the module map
+        run: nvim --headless -l scripts/gen_map.lua
+      - name: Verify (PR) or commit the regenerated map (push to main)
+        run: |
+          if git diff --quiet; then
+            echo "module map is up to date"
+            exit 0
+          fi
+          if [ "${{ github.event_name }}" != "push" ] || [ "${{ github.ref_name }}" != "main" ]; then
+            echo "::error::module map is stale — run 'nvim --headless -l scripts/gen_map.lua' and commit the result"
+            git --no-pager diff --stat
+            exit 1
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "docs(map): regenerate module map [skip ci]"
+          git push
 
   # The only job that runs this repository's code under a Lua that is *not*
   # LuaJIT, which is the entire reason it exists. Every other job runs inside
@@ -168,8 +195,8 @@ jobs:
   standalone:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
         with:
           repository: StefanBartl/lib.nvim
           path: .deps/lib.nvim

@@ -52,7 +52,7 @@ jobs:
     # built it.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # lib.nvim is a runtime dependency the bundle actually needs staged
       # -- same checkout ci.yml's own `tests`/`map`/`standalone` jobs
       # already use, at the same `.deps/lib.nvim` path
@@ -60,7 +60,7 @@ jobs:
       # first real run here (worked locally only because this developer's
       # own machine happens to have lib.nvim checked out as a sibling
       # directory, which a fresh CI checkout has no equivalent of).
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: StefanBartl/lib.nvim
           path: .deps/lib.nvim
@@ -74,7 +74,7 @@ jobs:
       # hits, where a local build with the checkout present has 1). Same
       # `.deps/<repo>` path ensure_soft already checks on its own, so no
       # extra env var is needed alongside this checkout.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: StefanBartl/runtime-analysis.nvim
           path: .deps/runtime-analysis.nvim
@@ -95,8 +95,8 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
         with:
           repository: StefanBartl/lib.nvim
           path: .deps/lib.nvim
@@ -110,7 +110,7 @@ jobs:
       # hits, where a local build with the checkout present has 1). Same
       # `.deps/<repo>` path ensure_soft already checks on its own, so no
       # extra env var is needed alongside this checkout.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: StefanBartl/runtime-analysis.nvim
           path: .deps/runtime-analysis.nvim
