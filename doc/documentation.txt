@@ -297,9 +297,11 @@ Two options that need a word of warning:
 `progress_style`
                 Indicator while a long |:DocMap| runs — `full`'s
                 `lua-language-server --doc` pass (tens of seconds on a
-                whole tree) and `churn`'s walk over the repository's
-                history. One of "auto" (default), "notify", "statusline",
-                "fidget", "float", "kit".
+                whole tree), `churn`'s walk over the repository's history,
+                and `annotate --write` when more than ten files are missing
+                `---@module` (it plans and writes them in chunks so the
+                editor never freezes). One of "auto" (default), "notify",
+                "statusline", "fidget", "float", "kit".
 
                 Provided by lib.nvim's `lib.nvim.progress`, and an
                 optional dependency: without lib.nvim the option is

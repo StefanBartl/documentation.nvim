@@ -10,8 +10,16 @@
 --- merging it in by hand.
 
 local list = require("lib.nvim.ui.list")
+local progress = require("documentation.bindings.progress")
 
 local M = {}
+
+--- Files planned/annotated per event-loop tick once the candidate set is
+--- larger than this. `annotate.plan` reads and parses each file and
+--- `annotate.apply` writes it, so a repo with dozens of files missing
+--- `---@module` is a multi-second freeze done in one loop. A smaller set is
+--- handled synchronously, exactly as before, with no indicator.
+local CHUNK = 10
 
 ---@param arg string
 ---@return "inline"|"sidecar"|nil write_mode `nil` means dry-run.
@@ -98,57 +106,133 @@ function M.run(ctx, arg)
 
   local root = ctx.cfg.root
   local lua_root = ctx.cfg.lua_root or "lua"
-  local plans = {}
-  for _, node in ipairs(candidates) do
-    local plan = annotate.plan(node, root, lua_root)
-    if plan then
-      plans[#plans + 1] = plan
-    end
-  end
-  table.sort(plans, function(a, b)
-    return a.path < b.path
-  end)
 
-  if write_mode == nil then
-    preview(plans)
+  -- One indicator for both phases (plan, then apply). Countable, so it also
+  -- renders a bar under the "statusline" style. nil when lib.nvim is absent.
+  local wide = #candidates > CHUNK
+  local handle = wide and progress.create(ctx, "planning annotations…", #candidates) or nil
+
+  ---Report the outcome and finish the indicator. Shared by every exit.
+  ---@param written string[]
+  ---@param failed string[]
+  local function report(written, failed)
+    for _, msg in ipairs(failed) do
+      ctx.notify.warn(msg)
+    end
+    if #written > 0 then
+      list.qf(
+        vim.tbl_map(function(path)
+          return { filename = root .. "/" .. path, lnum = 1, text = "annotated" }
+        end, written),
+        "docmap annotate"
+      )
+    end
+    if handle then
+      handle:finish(("%d file(s) annotated"):format(#written))
+    end
     ctx.notify.info(
-      ("%d file(s) missing ---@module — preview only. :DocMap annotate --write to apply, --sidecar for *.annot.lua files instead."):format(
-        #plans
+      ("%d file(s) annotated (%s)%s. Run :DocMap to refresh the map."):format(
+        #written,
+        write_mode == "sidecar" and "sidecar *.annot.lua" or "written in place",
+        #failed > 0 and (", %d failed"):format(#failed) or ""
       )
     )
+  end
+
+  ---Apply `plans` — chunked when `wide`, otherwise one pass.
+  ---@param plans table[]
+  local function apply_all(plans)
+    local written, failed = {}, {}
+    local function apply_one(p)
+      local ok, werr = annotate.apply(p, root, write_mode)
+      if ok then
+        written[#written + 1] = p.path
+      else
+        failed[#failed + 1] = ("%s: %s"):format(p.path, werr)
+      end
+    end
+
+    if not wide then
+      for _, p in ipairs(plans) do
+        apply_one(p)
+      end
+      report(written, failed)
+      return
+    end
+
+    local i = 0
+    local function step()
+      local last = math.min(i + CHUNK, #plans)
+      for j = i + 1, last do
+        apply_one(plans[j])
+      end
+      i = last
+      if handle then
+        handle:update({ text = "writing annotations…", current = i, total = #plans })
+      end
+      if i < #plans then
+        vim.schedule(step)
+        return
+      end
+      report(written, failed)
+    end
+    step()
+  end
+
+  ---Build every plan — chunked when `wide` — then branch into preview or apply.
+  local plans = {}
+  local function planned()
+    table.sort(plans, function(a, b)
+      return a.path < b.path
+    end)
+
+    if write_mode == nil then
+      if handle then
+        handle:finish(("%d file(s) missing ---@module"):format(#plans))
+      end
+      preview(plans)
+      ctx.notify.info(
+        ("%d file(s) missing ---@module — preview only. :DocMap annotate --write to apply, --sidecar for *.annot.lua files instead."):format(
+          #plans
+        )
+      )
+      return
+    end
+
+    apply_all(plans)
+  end
+
+  if not wide then
+    for _, node in ipairs(candidates) do
+      local plan = annotate.plan(node, root, lua_root)
+      if plan then
+        plans[#plans + 1] = plan
+      end
+    end
+    planned()
     return
   end
 
-  local written, failed = {}, {}
-  for _, p in ipairs(plans) do
-    local ok, werr = annotate.apply(p, root, write_mode)
-    if ok then
-      written[#written + 1] = p.path
-    else
-      failed[#failed + 1] = ("%s: %s"):format(p.path, werr)
+  local i = 0
+  local function step()
+    local last = math.min(i + CHUNK, #candidates)
+    for j = i + 1, last do
+      local plan = annotate.plan(candidates[j], root, lua_root)
+      if plan then
+        plans[#plans + 1] = plan
+      end
     end
+    i = last
+    if handle then
+      handle:update({ text = "planning annotations…", current = i, total = #candidates })
+    end
+    if i < #candidates then
+      vim.schedule(step)
+      return
+    end
+    planned()
   end
-
-  for _, msg in ipairs(failed) do
-    ctx.notify.warn(msg)
-  end
-
-  if #written > 0 then
-    list.qf(
-      vim.tbl_map(function(path)
-        return { filename = root .. "/" .. path, lnum = 1, text = "annotated" }
-      end, written),
-      "docmap annotate"
-    )
-  end
-
-  ctx.notify.info(
-    ("%d file(s) annotated (%s)%s. Run :DocMap to refresh the map."):format(
-      #written,
-      write_mode == "sidecar" and "sidecar *.annot.lua" or "written in place",
-      #failed > 0 and (", %d failed"):format(#failed) or ""
-    )
-  )
+  step()
 end
 
 return M

@@ -87,6 +87,11 @@ honest placeholder.
 `--write`/`--sidecar` open the quickfix list on every file touched, so the
 result is as easy to jump through and review as `check`'s own findings are.
 
+When more than ten files are missing `---@module`, planning and writing are
+chunked across event-loop ticks with the same `progress_style` indicator
+`full` and `churn` use — a whole-repo annotate never freezes the editor.
+A smaller run stays synchronous.
+
 ### `:DocMap full`
 
 `:DocMap` plus LuaLS enrichment — parsed `@class`/`@alias` detail, type-reference

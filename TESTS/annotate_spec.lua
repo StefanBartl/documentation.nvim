@@ -176,4 +176,52 @@ return function(H)
     written:find(original_tail, 1, true) ~= nil,
     "annotate.apply(inline): everything from `local M = {}` down is byte-for-byte unchanged"
   )
+
+  -- ── bindings :DocMap annotate --write over a wide candidate set ────────────
+  -- More than CHUNK (10) files missing ---@module: the command must plan and
+  -- write them in chunks across event-loop ticks (never one blocking loop)
+  -- and still annotate every one.
+  do
+    local wr = H.tmpfile("_annotate_wide")
+    local n = 15
+    for i = 1, n do
+      local abs = string.format("%s/lua/w/m%02d/init.lua", wr, i)
+      vim.fn.mkdir(vim.fn.fnamemodify(abs, ":h"), "p")
+      local fd = assert(io.open(abs, "wb"))
+      fd:write(table.concat({ "local M = {}", "function M.go() end", "return M" }, "\n"))
+      fd:close()
+    end
+
+    local wide_ir = scan.scan({ root = wr, source = "lua/w", lua_root = "lua" })
+    local done_msg
+    local ctx = {
+      cfg = { root = wr, lua_root = "lua", progress_style = "notify" },
+      notify = {
+        info = function(m)
+          done_msg = m
+        end,
+        warn = function() end,
+      },
+      handle = {
+        ir = function()
+          return wide_ir
+        end,
+      },
+    }
+
+    require("documentation.bindings.usrcmds.annotate").run(ctx, "--write")
+    local settled = vim.wait(5000, function()
+      return done_msg ~= nil
+    end)
+    ok(settled, "annotate --write (wide): the command settled")
+    ok(
+      done_msg and done_msg:find(("%d file(s) annotated"):format(n), 1, true) ~= nil,
+      "annotate --write (wide): every candidate was annotated"
+    )
+    local last = assert(dread(string.format("%s/lua/w/m%02d/init.lua", wr, n)))
+    ok(
+      last:find("---@module 'w.m%d+'") ~= nil,
+      "annotate --write (wide): the last file got its header on disk"
+    )
+  end
 end
