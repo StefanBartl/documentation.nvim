@@ -202,6 +202,14 @@ local function normalize(raw)
 end
 
 ---The whole store, read once per session.
+---
+---A decode failure on non-empty content is not the same situation as no file
+---existing at all: `M.flush` overwrites the *whole* file, so falling straight
+---through to an empty `db` here means the next pin made in *any* repository
+---silently replaces the corrupt file with a fresh one — taking every other
+---root's saved trails down with it, not just the one that happened to trigger
+---the write. The original bytes are backed up once, so "the file was briefly
+---unreadable" never turns into "the file's contents are gone with no trace".
 ---@return table
 local function load()
   if db then
@@ -213,7 +221,16 @@ local function load()
     return db
   end
   local ok, decoded = pcall(vim.json.decode, raw, { luanil = { object = true, array = true } })
-  db = ok and normalize(decoded) or {}
+  if not ok then
+    local fd = io.open(M.path() .. ".corrupt", "wb")
+    if fd then
+      fd:write(raw)
+      fd:close()
+    end
+    db = {}
+    return db
+  end
+  db = normalize(decoded)
   return db
 end
 

@@ -667,6 +667,25 @@ return function(H)
   eq(store.hydrate(sroot), 0, "store: a malformed file yields no pins rather than an error")
   eq(store.save_named(sroot, "x"), false, "store: and saving from an empty trail still refuses")
 
+  -- A decode failure must not silently turn into data loss the next time
+  -- anything writes: `flush` overwrites the whole file, so replacing `db`
+  -- with `{}` and leaving it at that would let the very next pin — in any
+  -- repository, not just this one — erase the corrupt file's original bytes
+  -- for good. The original content must survive somewhere findable.
+  trail.toggle(sroot, { mode = "structure", id = "lua/x/alpha", label = "alpha" })
+  eq(store.flush(), true, "store: a pin after a corrupt read still flushes")
+  local backup = io.open(bad .. ".corrupt", "rb")
+  ok(
+    backup ~= nil,
+    "store: the corrupt file's original bytes are backed up before being overwritten"
+  )
+  if backup then
+    local backed_up = backup:read("*a")
+    backup:close()
+    eq(backed_up, "{ this is not json", "store: and the backup holds exactly what was there")
+    os.remove(bad .. ".corrupt")
+  end
+
   -- The debounced write, driven the way a pin drives it and with NO explicit
   -- flush — which is the only way to observe it. `trail.on_change` fans out
   -- under `pcall` so a broken listener cannot break pinning, and that pcall
