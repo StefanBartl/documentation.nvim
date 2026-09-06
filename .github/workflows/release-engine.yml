@@ -79,6 +79,7 @@ jobs:
         with:
           repository: StefanBartl/runtime-analysis.nvim
           path: .deps/runtime-analysis.nvim
+          ref: ci-verified
       # tree-sitter CLI, the same way ci.yml's own `tests` job already
       # gets it for JS/TS/TSX -- not preinstalled on this image.
       - run: npm install -g tree-sitter-cli
@@ -116,6 +117,7 @@ jobs:
         with:
           repository: StefanBartl/runtime-analysis.nvim
           path: .deps/runtime-analysis.nvim
+          ref: ci-verified
       # A dedicated MSYS2/MinGW environment rather than whatever happens
       # to already be on this runner's PATH. Found the hard way on a dev
       # machine that also has Git for Windows installed: Lua's own `mingw`
