@@ -146,25 +146,29 @@ local function parse_body(lines, start_idx, end_idx)
 
     if state == "before" then
       if key then
-        meta[#meta + 1] = { key = key, value = value }
+        meta[#meta + 1] = { key = key, value = { value } }
         state = "in"
       elseif trimmed ~= "" then
         summary_parts[#summary_parts + 1] = trimmed
       end
     elseif state == "in" then
       if key then
-        meta[#meta + 1] = { key = key, value = value }
+        meta[#meta + 1] = { key = key, value = { value } }
       elseif trimmed == "" then
         state = "after"
         body_start_idx = i + 1
       elseif raw:match("^%s") then
         local last = meta[#meta]
-        last.value = last.value .. " " .. trimmed
+        last.value[#last.value + 1] = trimmed
       else
         state = "after"
         body_start_idx = i
       end
     end
+  end
+
+  for _, m in ipairs(meta) do
+    m.value = table.concat(m.value, " ")
   end
 
   return (#summary_parts > 0 and table.concat(summary_parts, " ") or nil), meta, body_start_idx

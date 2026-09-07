@@ -325,10 +325,11 @@ local function parse_rest(lines)
         -- the last space so a multi-word type stays with the type.
         local typ, name = head:match("^(.*)%s+([%w_]+)$")
         current = param(name or head, name and typ or nil, desc)
+        current.desc = { current.desc }
         params[#params + 1] = current
       end
     elseif line:match("^:returns?:") then
-      current = { type = "", desc = line:match("^:returns?:%s*(.*)$") or "" }
+      current = { type = "", desc = { line:match("^:returns?:%s*(.*)$") or "" } }
       returns[#returns + 1] = current
     elseif line:match("^:rtype:") then
       if returns[1] then
@@ -342,10 +343,16 @@ local function parse_rest(lines)
       -- becomes a doc format.
       current = nil
     elseif current and line:match("^%s") and line:match("%S") then
-      current.desc = current.desc .. " " .. line:gsub("^%s+", "")
+      current.desc[#current.desc + 1] = line:gsub("^%s+", "")
     elseif not current then
       prose[#prose + 1] = line
     end
+  end
+  for _, p in ipairs(params) do
+    p.desc = table.concat(p.desc, " ")
+  end
+  for _, r in ipairs(returns) do
+    r.desc = table.concat(r.desc, " ")
   end
   return params, returns, prose
 end
@@ -377,9 +384,10 @@ local function parse_google(lines)
       if head then
         local name, typ = head:match("^([%w_%*]+)%s*%(([^)]*)%)%s*$")
         current = param(name or head:gsub("%s+$", ""), typ, desc)
+        current.desc = { current.desc }
         params[#params + 1] = current
       elseif current then
-        current.desc = current.desc .. " " .. line:gsub("^%s+", "")
+        current.desc[#current.desc + 1] = line:gsub("^%s+", "")
       end
     elseif section == "returns" and line:match("^%s+%S") then
       local typ, desc = line:match("^%s+([%w_%.%[%]]+):%s*(.+)$")
@@ -400,6 +408,9 @@ local function parse_google(lines)
     elseif not section then
       prose[#prose + 1] = line
     end
+  end
+  for _, p in ipairs(params) do
+    p.desc = table.concat(p.desc, " ")
   end
   return params, returns, prose
 end

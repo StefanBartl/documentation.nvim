@@ -182,7 +182,7 @@ function M.parse(text, path)
   ---@type Documentation.Checklist.Item?
   local last_item
   -- Partial `<!-- ... ` comment, awaiting its closing `-->` on a later line.
-  ---@type string?
+  ---@type string[]?
   local pending
 
   for i, line in ipairs(lines) do
@@ -230,14 +230,14 @@ function M.parse(text, path)
         ---@type string?
         local logical = line
         if pending then
-          pending = pending .. " " .. trim(line)
+          pending[#pending + 1] = trim(line)
           if line:find("%-%->") then
-            logical, pending = pending, nil
+            logical, pending = table.concat(pending, " "), nil
           else
             logical = nil
           end
         elseif line:find("<!%-%-") and not line:find("%-%->") then
-          pending = trim(line)
+          pending = { trim(line) }
           logical = nil
         end
 
