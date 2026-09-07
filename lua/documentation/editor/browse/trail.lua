@@ -148,11 +148,20 @@ function M.remove_at(root, index)
 end
 
 ---Drop every pin for `root`.
+---
+---Mutates the existing array in place rather than swapping in a fresh one:
+---`M.list(root)` hands out that exact table (see its docstring on why), so a
+---caller sitting on a copy of the reference -- `st.pins` in `browse/init.lua`
+----- must see the clear, not keep rendering the pre-clear pins forever while
+---new ones silently pile up in a table nobody it holds points at anymore.
 ---@param root string
 ---@return integer removed
 function M.clear(root)
-  local n = M.count(root)
-  pins[root] = {}
+  local list = M.list(root)
+  local n = #list
+  for i = n, 1, -1 do
+    list[i] = nil
+  end
   changed(root)
   return n
 end
@@ -164,10 +173,19 @@ end
 ---schedule a save of what was just read. Harmless but circular, and the kind
 ---of loop that becomes a real bug the first time someone makes the save path
 ---do more than it does today.
+---
+---In place, same as `M.clear` and for the same reason: a fresh table here
+---would orphan whatever `st.pins` already points at.
 ---@param root string
 ---@param list Documentation.Browse.Pin[]
 function M.hydrate(root, list)
-  pins[root] = list or {}
+  local target = M.list(root)
+  for i = #target, 1, -1 do
+    target[i] = nil
+  end
+  for i, p in ipairs(list or {}) do
+    target[i] = p
+  end
 end
 
 ---Add every pin in `list` that is not already there.
