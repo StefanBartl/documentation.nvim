@@ -48,9 +48,14 @@ were lifted out of it into the pages below rather than kept in two places.
 | Document | Answers |
 |---|---|
 | [`pipeline.md`](pipeline.md) | **The document to read before changing anything.** Every stage, every design decision, and the measurement behind each one. |
-| [`DEVELOPMENT.md`](DEVELOPMENT.md) | Running the specs, the linters and the map locally. |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Ground rules, project layout, and how to add a language backend or a drift check. |
 | [`annotations.md`](annotations.md) | The inventory — which LuaCATS tags this tree actually uses, counted. |
+
+## Working on it
+
+| Document | Answers |
+|---|---|
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Ground rules, project layout, and how to add a language backend or a drift check. |
+| [`DEVELOPMENT.md`](DEVELOPMENT.md) | Running the specs, the linters and the map locally. |
 
 ## What shipped, what is open, what was turned down
 
