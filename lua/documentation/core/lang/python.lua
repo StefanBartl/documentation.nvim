@@ -315,6 +315,14 @@ end
 ---@return Documentation.ParamInfo[], Documentation.ReturnInfo[], string[]
 local function parse_rest(lines)
   local params, returns, prose = {}, {}, {}
+  -- Parallel to params/returns, by index -- keeps ParamInfo/ReturnInfo.desc
+  -- a plain string throughout instead of holding a table in it between
+  -- passes. `current_parts` always points at whichever of the two slots
+  -- `current` was just created into.
+  ---@type table<integer, string[]>
+  local params_parts, returns_parts = {}, {}
+  ---@type string[]?
+  local current_parts = nil
   local current = nil
   for _, line in ipairs(lines) do
     local body = line:match("^:param%s+(.+)$")
@@ -325,34 +333,37 @@ local function parse_rest(lines)
         -- the last space so a multi-word type stays with the type.
         local typ, name = head:match("^(.*)%s+([%w_]+)$")
         current = param(name or head, name and typ or nil, desc)
-        current.desc = { current.desc }
         params[#params + 1] = current
+        current_parts = { current.desc }
+        params_parts[#params] = current_parts
       end
     elseif line:match("^:returns?:") then
-      current = { type = "", desc = { line:match("^:returns?:%s*(.*)$") or "" } }
+      current = { type = "", desc = line:match("^:returns?:%s*(.*)$") or "" }
       returns[#returns + 1] = current
+      current_parts = { current.desc }
+      returns_parts[#returns] = current_parts
     elseif line:match("^:rtype:") then
       if returns[1] then
         returns[1].type = line:match("^:rtype:%s*(.*)$") or ""
       end
-      current = nil
+      current, current_parts = nil, nil
     elseif line:match("^:") then
       -- `:raises:`, `:type:` and the rest: recognised as tags so their text
       -- does not land in the prose, but not modelled — the IR has no field
       -- for them and inventing one per convention is how a doc parser
       -- becomes a doc format.
-      current = nil
-    elseif current and line:match("^%s") and line:match("%S") then
-      current.desc[#current.desc + 1] = line:gsub("^%s+", "")
+      current, current_parts = nil, nil
+    elseif current and current_parts and line:match("^%s") and line:match("%S") then
+      current_parts[#current_parts + 1] = line:gsub("^%s+", "")
     elseif not current then
       prose[#prose + 1] = line
     end
   end
-  for _, p in ipairs(params) do
-    p.desc = table.concat(p.desc, " ")
+  for i, p in ipairs(params) do
+    p.desc = table.concat(params_parts[i], " ")
   end
-  for _, r in ipairs(returns) do
-    r.desc = table.concat(r.desc, " ")
+  for i, r in ipairs(returns) do
+    r.desc = table.concat(returns_parts[i], " ")
   end
   return params, returns, prose
 end
@@ -363,6 +374,10 @@ end
 ---@return Documentation.ParamInfo[], Documentation.ReturnInfo[], string[]
 local function parse_google(lines)
   local params, returns, prose = {}, {}, {}
+  -- Parallel to params, by index -- see parse_rest's params_parts for why.
+  ---@type table<integer, string[]>
+  local params_parts = {}
+  local current_parts = nil
   local section, current = nil, nil
   for _, line in ipairs(lines) do
     local heading = line:match("^(%a[%w ]*):%s*$")
@@ -378,16 +393,17 @@ local function parse_google(lines)
         -- traceback list in the summary line.
         section = "skip"
       end
-      current = nil
+      current, current_parts = nil, nil
     elseif section == "params" and line:match("^%s+%S") then
       local head, desc = line:match("^%s+([^:]+):%s*(.*)$")
       if head then
         local name, typ = head:match("^([%w_%*]+)%s*%(([^)]*)%)%s*$")
         current = param(name or head:gsub("%s+$", ""), typ, desc)
-        current.desc = { current.desc }
         params[#params + 1] = current
-      elseif current then
-        current.desc[#current.desc + 1] = line:gsub("^%s+", "")
+        current_parts = { current.desc }
+        params_parts[#params] = current_parts
+      elseif current and current_parts then
+        current_parts[#current_parts + 1] = line:gsub("^%s+", "")
       end
     elseif section == "returns" and line:match("^%s+%S") then
       local typ, desc = line:match("^%s+([%w_%.%[%]]+):%s*(.+)$")
@@ -409,8 +425,8 @@ local function parse_google(lines)
       prose[#prose + 1] = line
     end
   end
-  for _, p in ipairs(params) do
-    p.desc = table.concat(p.desc, " ")
+  for i, p in ipairs(params) do
+    p.desc = table.concat(params_parts[i], " ")
   end
   return params, returns, prose
 end

@@ -134,6 +134,10 @@ local function parse_body(lines, start_idx, end_idx)
   local summary_parts = {}
   ---@type Documentation.Features.Meta[]
   local meta = {}
+  -- Parallel to `meta`, by index -- keeps Meta.value a plain string
+  -- throughout instead of holding a table in it between passes.
+  ---@type table<integer, string[]>
+  local value_parts = {}
   -- "before" the first bullet, "in" a contiguous bullet run, or "after" one
   -- that has ended — once "after", every remaining line is inert.
   local state = "before"
@@ -146,20 +150,22 @@ local function parse_body(lines, start_idx, end_idx)
 
     if state == "before" then
       if key then
-        meta[#meta + 1] = { key = key, value = { value } }
+        meta[#meta + 1] = { key = key, value = value }
+        value_parts[#meta] = { value }
         state = "in"
       elseif trimmed ~= "" then
         summary_parts[#summary_parts + 1] = trimmed
       end
     elseif state == "in" then
       if key then
-        meta[#meta + 1] = { key = key, value = { value } }
+        meta[#meta + 1] = { key = key, value = value }
+        value_parts[#meta] = { value }
       elseif trimmed == "" then
         state = "after"
         body_start_idx = i + 1
       elseif raw:match("^%s") then
-        local last = meta[#meta]
-        last.value[#last.value + 1] = trimmed
+        local parts = value_parts[#meta]
+        parts[#parts + 1] = trimmed
       else
         state = "after"
         body_start_idx = i
@@ -167,8 +173,8 @@ local function parse_body(lines, start_idx, end_idx)
     end
   end
 
-  for _, m in ipairs(meta) do
-    m.value = table.concat(m.value, " ")
+  for j, m in ipairs(meta) do
+    m.value = table.concat(value_parts[j], " ")
   end
 
   return (#summary_parts > 0 and table.concat(summary_parts, " ") or nil), meta, body_start_idx

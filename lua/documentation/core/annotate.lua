@@ -255,7 +255,11 @@ end
 ---docstring's "starting point, not a finished annotation" is for.
 ---@param plan Documentation.AnnotatePlan
 ---@param root string
----@param mode "inline"|"sidecar"
+---@param mode "inline"|"sidecar"|nil `nil` is never actually passed today
+--- (the one caller, bindings/usrcmds/annotate.lua, returns before this is
+--- reached when its own write_mode is nil) -- widened so the type matches
+--- what parse_flags's return type already promises the caller, instead of
+--- the caller needing a cast to narrow it back down.
 ---@return boolean ok
 ---@return string? err
 function M.apply(plan, root, mode)
