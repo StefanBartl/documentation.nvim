@@ -5,11 +5,8 @@ somebody already had: which languages this tool reads, what each one answers
 about itself, what a missing grammar costs, and what adding the twenty-fourth
 involves.
 
-The README's [`## Languages`](../README.md#languages) section is the
-narrative version — the shapes the languages fall into and what each one
-taught. This file is the *inventory*: every field of the contract, every
-backend's answer to it, taken from `core/lang_registry.lua` rather than from
-memory.
+This file is the *inventory*: every field of the contract, every backend's
+answer to it, taken from `core/lang_registry.lua` rather than from memory.
 
 ## Table of content
 

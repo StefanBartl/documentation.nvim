@@ -12,9 +12,13 @@ were lifted out of it into the pages below rather than kept in two places.
 
 | Document | Answers |
 |---|---|
+| [`requirements.md`](requirements.md) | Neovim version, `lib.nvim`, and what each optional integration buys you. |
 | [`installation.md`](installation.md) | Every plugin manager, why each needs a different lazy-loading shape, and the one setting that decides which repository a `:DocMap` acts on. |
+| [`quickstart.md`](quickstart.md) | The first thing to run after installing. |
+| [`what-you-get.md`](what-you-get.md) | The artifacts it writes, and how this repository's own published map shows what a consumer sees. |
 | [`configuration.md`](configuration.md) | Every option `setup()` takes, the `.docmap.json` a repository states about itself and which options it is refused, switching a check off or re-grading it, and rebinding the browser's keys by action. |
 | [`health.md`](health.md) | What `:checkhealth documentation` asks — and why the interesting half is the configuration a `:DocMap` would act on right now, not the dependency list. |
+| [`around-it.md`](around-it.md) | How this plugin's scope differs from its siblings in the collection. |
 
 ## Using it
 
@@ -27,6 +31,7 @@ were lifted out of it into the pages below rather than kept in two places.
 | [`BINDINGS.md`](BINDINGS.md) | Every key, user command and autocommand this plugin installs. **Generated** from the tables that drive the plugin — do not edit by hand. |
 | [`call_hierarchy.md`](call_hierarchy.md) | Incoming/outgoing calls in Neovim's native LSP UI, alongside LuaLS (which has none): setup, keymaps, and how to tell an unattached client from a function with no callers. |
 | [`hover.md`](hover.md) | Resting the cursor on a dotted module name and getting what that module is — read out of the `module_map.json` this plugin already writes, so the integration costs a lookup rather than a scan. |
+| [`integrations.md`](integrations.md) | The soft-dependency bridges — today, the context-menu entries for `nvzone/menu`. |
 | [`EXAMPLES/`](EXAMPLES/README.md) | Runnable snippets for the parts of the API easier to read as code than as prose. |
 
 ## Pointing it at your own code
