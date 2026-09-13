@@ -42,7 +42,7 @@ once, so pressing `<Tab>` never triggers a full scan.
 buffer-local to the `:DocBrowse` scratch buffer and set with `nowait`,
 so it can only ever shadow a key *inside* that buffer.
 
-Modes (`1`…`9`): structure, deps, calls, types, history, trail, endpoints, telemetry, loaded. These are positional and deliberately not
+Modes (`1`…`10`): structure, deps, calls, types, history, trail, endpoints, telemetry, loaded, rules. These are positional and deliberately not
 rebindable — see `Documentation.Browse.KeyAction`.
 
 | Keys | Action | Modes | Does |
