@@ -1,5 +1,5 @@
 ---@module 'documentation.bindings.usrcmds.browse'
---- `:DocBrowse [live] [history|trail|endpoints|telemetry|loaded|module]` —
+--- `:DocBrowse [live] [history|trail|endpoints|telemetry|loaded|rules|module]` —
 --- the same map, navigated inside the editor.
 ---
 --- Its own command rather than a `:DocMap browse` subcommand: `:DocMap` is a
@@ -30,15 +30,16 @@ function M.parse(rest)
     target = tail
     head, tail = target:match("^(%S+)%s*(.-)$")
   end
-  -- `history`, `trail`, `endpoints`, `telemetry` and `loaded` open straight
-  -- into their own list. None takes a module, so anything after them would
-  -- be meaningless.
+  -- `history`, `trail`, `endpoints`, `telemetry`, `loaded` and `rules` open
+  -- straight into their own list. None takes a module, so anything after
+  -- them would be meaningless.
   if
     head == "history"
     or head == "trail"
     or head == "endpoints"
     or head == "telemetry"
     or head == "loaded"
+    or head == "rules"
   then
     mode = head
     target = tail or ""
@@ -83,6 +84,10 @@ function M.run(ctx, arg)
     -- other command already has, not a second thing to configure.
     title = cfg.title,
     telemetry_namespace = cfg.telemetry_namespace,
+    -- `rules` mode's own join (`core/rules_join.lua`) needs a gate name to
+    -- read `rules.nvim` by — see `Documentation.Opts.rules_gate`'s own
+    -- doc-comment for why this has no derivable default.
+    rules_gate = cfg.rules_gate,
     live = parsed.live,
     -- The argument wins over the configured default, and `nil` from the
     -- parser is what lets it: `:DocBrowse history` says which list to open,

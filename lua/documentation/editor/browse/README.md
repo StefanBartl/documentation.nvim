@@ -9,6 +9,7 @@
 :DocBrowse history          " open on the commit list
 :DocBrowse endpoints        " open on the whole tree's route registrations
 :DocBrowse telemetry        " open on the static x runtime join
+:DocBrowse rules            " open on the rules.nvim gate list (needs opts.rules_gate)
 :DocBrowse live lib.nvim.fs
 ```
 
@@ -222,6 +223,38 @@ deliberately does not attempt. Soft dependency throughout: `core.soft_require.pr
 "runtime-analysis.loaded")`, a plain "no data" message when the plugin is
 absent, distinct from "no discrepancies" when it is present and genuinely
 found none.
+
+## Rules mode
+
+`rules.nvim`'s catalog for a configured gate, joined live — the
+`--format=json` consumer `rules.nvim`'s own BACKLOG.md sketched
+("documentation.nvim browser-tab integration"), wired as one more list the
+same way Endpoints/Telemetry/Loaded already are.
+
+Unlike Telemetry/Loaded, this is not a static x runtime join: `rules.nvim`
+needs a loaded ruleset and a live Neovim instance to evaluate its checks
+against the same repository this browser is already open in, so
+`documentation.core.rules_join` calls `rules.nvim`'s own
+`M.run_gate_json(gate_name, root)` directly rather than reading anything off
+disk — there is no artifact to go stale here.
+
+Set `opts.rules_gate` to the gate name (`setup({ gates = {...} })`'s key,
+e.g. `"review"`) — a fact about the checked repository's own `rules.nvim`
+config, not something this mode can guess the way `telemetry` mode falls
+back from `telemetry_namespace` to `title`. Unset, the mode says so rather
+than picking one.
+
+One row per rule, badged `✕` for `fail`/`error`, `○` for `waived`, blank for
+`manual`/`pass`, plus the same 🔴/🟡/🟢 severity icon `rules.report.buffer`
+already uses — sorted worst first so the rows worth acting on need no
+scrolling to reach. A `manual` rule (no automated `check`) is listed too,
+never silently dropped — `rules.nvim`'s whole design forbids a fake
+pass/fail, and this mode does not invent one either. `gd` jumps to the first
+finding's location when the rule has one, or is a no-op for a `manual`
+rule with nothing more specific to point at than its own source in the
+ruleset doc (shown as plain text in the detail pane instead). Soft
+dependency throughout: `core.soft_require.probe("rules")`, a plain message
+when `rules.nvim` is absent or the gate name does not resolve.
 
 ## Filtering a list
 

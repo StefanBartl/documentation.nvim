@@ -14,6 +14,7 @@
 ---@field mode? Documentation.Browse.Mode Which list to open on. Default "structure".
 ---@field title? string Display name for the root node — the same field `Documentation.Opts.title` is, forwarded here because `telemetry` mode's join (ecosystem.md step 8) needs it as the default `runtime-analysis.telemetry` namespace. Not needed for anything else the browser does.
 ---@field telemetry_namespace? string Overrides `title` as the namespace `telemetry` mode joins against — see `Documentation.Opts.telemetry_namespace`'s own doc-comment for when the two genuinely differ.
+---@field rules_gate? string The `rules.nvim` gate name (a `setup({ gates = {...} })` key in the checked repo's own config, e.g. "review") the `rules` mode joins against — see `Documentation.Opts.rules_gate`'s own doc-comment. No default: unlike `telemetry_namespace`, a gate name cannot be guessed from `title`.
 ---@field depth? integer Initial Deps walk depth. Default 2.
 ---@field theme? Lib.UI.Kit.ThemeArg Passed through to the kit layout.
 ---@field width? number Fraction of the editor the whole layout uses. Default 0.86.
@@ -70,12 +71,13 @@
 ---| "endpoints" # Call-based route registrations across the whole tree, not centered on any one node — see `core/endpoints.lua`.
 ---| "telemetry" # The static x runtime join against `runtime-analysis.telemetry` — not centered on any one node — see `core/telemetry_join.lua`.
 ---| "loaded"    # Diff loaded-vs-declared against `runtime-analysis.loaded` — not centered on any one node — see `core/loaded_diff.lua`.
+---| "rules"     # `rules.nvim`'s catalog for a configured gate — not centered on any one node — see `core/rules_join.lua`.
 
 ---One row of the list. Everything the row can *do* — navigate, open source,
 ---go into the quickfix list — is a field here rather than something re-derived
 ---from the rendered text, so the label stays purely presentational.
 ---@class Documentation.Browse.Entry
----@field kind "node"|"function"|"type"|"external"|"message"|"commit"|"endpoint"|"telemetry"|"loaded_diff"
+---@field kind "node"|"function"|"type"|"external"|"message"|"commit"|"endpoint"|"telemetry"|"loaded_diff"|"rules"
 ---@field sha string? Full commit hash, for `kind="commit"`.
 ---@field commit table? The `{ sha, short, author, date, subject }` record behind a `kind="commit"` row.
 ---@field callers Documentation.History.Caller[]? Direct callers of a touched function, in History mode — carried on the entry so the detail pane needs no second lookup against an IR that may not describe that revision.
@@ -94,6 +96,7 @@
 ---@field spec Documentation.EndpointSpec? The route behind a `kind="endpoint"` entry -- what the row renders (method, path, handler) and what `gs` sends. Carried on the entry so neither the detail pane nor the send path has to find the node again.
 ---@field endpoint_sends RA.History.Entry[]? The static x runtime join behind a `kind="endpoint"` entry with `runtime-analysis.nvim` — `nil` when no history data exists for this project at all, an empty list when history exists but never matched this route.
 ---@field loaded_diff_row Documentation.LoadedDiff.Row? The join row behind a `kind="loaded_diff"` entry with `runtime-analysis.nvim`.
+---@field rules_row Rules.Result? The `rules.nvim` result behind a `kind="rules"` entry — one rule's `{rule, status, findings, waiver_reason?}`, see `rules.nvim`'s own `lua/rules/engine/runner.lua`.
 
 ---@class Documentation.Browse
 ---@field open fun(opts: Documentation.Browse.Opts): boolean

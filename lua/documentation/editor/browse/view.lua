@@ -14,6 +14,7 @@
 --- live — needs a navigator over the same edges, not a drawing of them.
 
 local filter = require("documentation.editor.browse.filter")
+local source = require("documentation.editor.browse.source")
 
 local M = {}
 
@@ -629,6 +630,123 @@ local function loaded_entries(ir, _st)
   return out
 end
 
+---Severity icon — the same three glyphs `rules.report.buffer` (in
+---`rules.nvim` itself) already renders findings with, reused rather than
+---invented a second time for the same three values.
+local RULE_ICON = { critical = "🔴", recommended = "🟡", ["nice-to-have"] = "🟢" }
+
+---Root-relative form of an absolute path under `root`, or `nil` when it
+---isn't. `rules.nvim`'s `Rules.Finding.file` is always absolute (`fswalk.
+---files`'s own "absolute paths" contract); every other `entry.source` this
+---browser sets is root-relative, since `gd`'s `abs(st, rel)` in
+---`browse/init.lua` unconditionally prefixes root back on — feeding it an
+---already-absolute path would double it into a nonexistent one.
+---
+---`abs_path` is backslash-normalized before comparing, not just `root`:
+---measured against a real `rules.nvim` gate run on Windows, a finding's
+---`file` can come back genuinely mixed-separator (`C:\...\root/bad.lua`) —
+---`lib.nvim.fs.collect_recursive` joins its own `/`-separated relative
+---walk onto whatever `root` string the caller passed in verbatim, and a
+---root from `vim.fn.tempname()`/`vim.fn.getcwd()` on Windows is
+---backslash-separated. `source.norm_root` already normalizes `root` itself
+---the identical way for this exact reason.
+---@param root string
+---@param abs_path string
+---@return string?
+local function strip_root(root, abs_path)
+  local prefix = source.norm_root(root) .. "/"
+  local normalized = (abs_path or ""):gsub("\\", "/")
+  if normalized:sub(1, #prefix) == prefix then
+    return normalized:sub(#prefix + 1)
+  end
+  return nil
+end
+
+---`rules.nvim`'s catalog, joined against this project through a live gate
+---run (`documentation.core.rules_join`) — the `--format=json` consumer
+---`rules.nvim`'s own BACKLOG.md sketched, wired as one more list the same
+---way `telemetry`/`endpoints`/`loaded` are. Like those, spans the whole
+---tree rather than one node's neighborhood: a rule is a fact about the
+---repository as a whole, not centered on any one IR node.
+---
+---A `manual` rule (no automated `check`) is listed too, exactly as
+---`rules.report.buffer`'s own worklist section treats it — never a fake
+---pass/fail, the one thing that plugin's whole design forbids. Sorted worst
+---first (`fail`/`error`, then `waived`, then `manual`, then `pass`) so the
+---rows worth acting on are the ones on screen without scrolling.
+---@param _ir Documentation.IR Unused — like `loaded_entries`, this join reads `rules.nvim` directly, not anything centered on an IR node.
+---@param st table
+---@return Documentation.Browse.Entry[]
+local function rules_entries(_ir, st)
+  local rules_join = require("documentation.core.rules_join")
+  local gate_name = rules_join.gate(st.opts)
+  if not gate_name then
+    return {
+      { kind = "message", label = "(no rules gate configured — set opts.rules_gate)" },
+    }
+  end
+
+  local results = rules_join.load(gate_name, st.opts.root)
+  if not results then
+    return {
+      {
+        kind = "message",
+        label = ("(no rules data for gate %q — install/enable rules.nvim, or check the gate name)"):format(
+          gate_name
+        ),
+      },
+    }
+  end
+
+  local RANK = { fail = 1, error = 1, waived = 2, manual = 3, pass = 4 }
+  local out = {}
+  for _, res in ipairs(results) do
+    local icon = RULE_ICON[res.rule.severity] or "?"
+    local badge = (res.status == "fail" or res.status == "error") and "✕ "
+      or (res.status == "waived" and "○ " or "  ")
+
+    local rel, line
+    local first = res.findings[1]
+    if first then
+      rel, line = strip_root(st.opts.root, first.file), first.line
+    end
+
+    local detail
+    if res.status == "manual" then
+      detail = "no automated check — review by hand"
+    elseif res.status == "waived" then
+      detail = ("waived: %s"):format(res.waiver_reason)
+    elseif res.status == "error" then
+      detail = first and first.text or "check errored"
+    elseif res.status == "fail" then
+      detail = ("%d finding(s)"):format(#res.findings)
+    end
+
+    out[#out + 1] = {
+      kind = "rules",
+      rules_row = res,
+      source = rel,
+      line = line,
+      label = ("%s%s %-10s %s"):format(badge, icon, res.rule.id, res.status),
+      detail = detail,
+    }
+  end
+
+  if #out == 0 then
+    return { { kind = "message", label = "(no rules matched this gate)" } }
+  end
+
+  table.sort(out, function(a, b)
+    local ra = RANK[a.rules_row.status] or 5
+    local rb = RANK[b.rules_row.status] or 5
+    if ra ~= rb then
+      return ra < rb
+    end
+    return a.rules_row.rule.id < b.rules_row.rule.id
+  end)
+  return out
+end
+
 ---Build the list entries for the current state.
 ---@param ir Documentation.IR
 ---@param st table
@@ -650,6 +768,8 @@ function M.entries(ir, st)
     return telemetry_entries(ir, st)
   elseif st.mode == "loaded" then
     return loaded_entries(ir, st)
+  elseif st.mode == "rules" then
+    return rules_entries(ir, st)
   end
   return structure_entries(ir, st)
 end
@@ -1091,6 +1211,43 @@ function M.detail(ir, st, entry)
     return out
   end
 
+  if entry.kind == "rules" then
+    -- The row is built with the entry (see `rules_entries` above), so this
+    -- states the invariant rather than inventing a rendering for an entry
+    -- that cannot occur.
+    local res = assert(entry.rules_row)
+    local out = {
+      ("%s  [%s]"):format(res.rule.id, res.rule.severity),
+      ("status: %s"):format(res.status),
+      "",
+    }
+    if res.status == "manual" then
+      out[#out + 1] = "No automated check — review the rule's prose by hand."
+      out[#out + 1] = ("Source: %s:%d"):format(res.rule.source_file, res.rule.source_line)
+    elseif res.status == "waived" then
+      out[#out + 1] = ("Waived: %s"):format(res.waiver_reason)
+      out[#out + 1] = ("%d finding(s) suppressed"):format(#res.findings)
+    elseif res.status == "error" then
+      out[#out + 1] = "Check errored:"
+      out[#out + 1] = res.findings[1] and res.findings[1].text or "(no message)"
+    elseif res.status == "pass" then
+      out[#out + 1] = "Passed — no findings."
+    else
+      out[#out + 1] = ("%d finding(s):"):format(#res.findings)
+      for i, f in ipairs(res.findings) do
+        if i > 10 then
+          out[#out + 1] = ("  … and %d more"):format(#res.findings - 10)
+          break
+        end
+        out[#out + 1] = ("  %s:%d: %s"):format(f.file, f.line, f.text)
+      end
+    end
+    out[#out + 1] = ""
+    out[#out + 1] = entry.source and "gd source · gq quickfix"
+      or "gq quickfix (no source in this checkout to jump to)"
+    return out
+  end
+
   if entry.kind == "loaded_diff" then
     -- The row is built with the entry (see the list builder above), so this
     -- states the invariant rather than inventing a rendering for an entry
@@ -1238,6 +1395,27 @@ function M.status(ir, st)
       declared_only,
       loaded_only
     ) .. status_tail(st)
+  end
+
+  -- Rules, like Loaded/Telemetry/Endpoints, spans the whole tree — a
+  -- breadcrumb here would point at whatever happens to be centered,
+  -- unrelated to the gate result actually on screen.
+  if st.mode == "rules" then
+    local fail, manual, waived = 0, 0, 0
+    for _, e in ipairs(st.entries or {}) do
+      if e.kind == "rules" then
+        local status = e.rules_row.status
+        if status == "fail" or status == "error" then
+          fail = fail + 1
+        elseif status == "manual" then
+          manual = manual + 1
+        elseif status == "waived" then
+          waived = waived + 1
+        end
+      end
+    end
+    return ("%d fail, %d manual, %d waived   [rules]"):format(fail, manual, waived)
+      .. status_tail(st)
   end
 
   local bits = { M.breadcrumb(ir, st.id) }

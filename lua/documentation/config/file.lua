@@ -138,6 +138,7 @@ M.REPO_KEYS = {
   plugins = true,
   bindings = true,
   telemetry_namespace = true,
+  rules_gate = true,
 }
 
 ---Read `path` whole, or `nil`.

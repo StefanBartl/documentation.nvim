@@ -76,6 +76,7 @@ M.KNOWN_OPTS_KEYS = {
   pdf = true,
   telemetry_namespace = true,
   telemetry = true,
+  rules_gate = true,
   godbolt = true,
   plugins = true,
   bindings = true,

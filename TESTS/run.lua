@@ -69,6 +69,15 @@ if vim.env.RUNTIME_ANALYSIS_DIR and vim.fn.isdirectory(vim.env.RUNTIME_ANALYSIS_
   vim.opt.rtp:append(vim.env.RUNTIME_ANALYSIS_DIR)
 end
 
+-- Same shape again: `browse_rules_spec.lua`'s Rules-mode tests already have
+-- a real, tested skip path for the ordinary case of `rules.nvim` not being
+-- installed -- this only lets a real checkout upgrade the fixture-gate
+-- assertions from "the soft dependency degrades correctly" to "the soft
+-- dependency actually runs a real gate end to end."
+if vim.env.RULES_DIR and vim.fn.isdirectory(vim.env.RULES_DIR) == 1 then
+  vim.opt.rtp:append(vim.env.RULES_DIR)
+end
+
 local dir = debug.getinfo(1, "S").source:sub(2):match("(.*[/\\])") or "./"
 local H = dofile(dir .. "harness.lua")
 
@@ -130,6 +139,7 @@ local specs = {
   "bindings_spec.lua",
   "browse_endpoints_spec.lua",
   "browse_telemetry_spec.lua",
+  "browse_rules_spec.lua",
   "runtime_joins_spec.lua",
   "telemetry_self_spec.lua",
   "browse_loaded_spec.lua",

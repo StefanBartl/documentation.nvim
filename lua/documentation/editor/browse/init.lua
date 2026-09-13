@@ -20,8 +20,9 @@
 ---   :DocBrowse my.module  open centered on a module
 ---   :DocBrowse history    open on the commit list
 ---   :DocBrowse trail      open on the pinned positions
+---   :DocBrowse rules      open on the rules.nvim gate list (needs opts.rules_gate)
 ---
---- Keys: 1..6 modes · j/k move · <CR> descend · -/<BS> up · <C-o>/<C-i>
+--- Keys: 1..10 modes · j/k move · <CR> descend · -/<BS> up · <C-o>/<C-i>
 --- history · h/l direction · +/_ depth · p pin · d unpin, S/L/X save, load
 --- and forget a trail (all Trail) · gd source · gq quickfix · gI impact · gO
 --- open the page here · gD the opened commit's diff · f filter this list · /
@@ -65,7 +66,8 @@ local state = nil
 -- "telemetry" is 8th, not 7th — the design that produced it calls it
 -- "Mode 7", written before "endpoints" above claimed position 7 in this
 -- actual list; see ecosystem.md step 8 for that renumbering note.
--- "loaded" (runtime-analysis.nvim) is 9th.
+-- "loaded" (runtime-analysis.nvim) is 9th. "rules" (rules.nvim) is 10th —
+-- see `core/rules_join.lua` for the same soft-dependency shape.
 local MODES = {
   "structure",
   "deps",
@@ -76,6 +78,7 @@ local MODES = {
   "endpoints",
   "telemetry",
   "loaded",
+  "rules",
 }
 
 -- ── History mode: the git half ──────────────────────────────────────────────
