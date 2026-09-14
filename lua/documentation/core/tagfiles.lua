@@ -10,7 +10,7 @@
 --- template made docmap trivially reusable by another plugin, a tree of
 --- several small plugins all depending on `lib.nvim` and all generating
 --- their own map is now the normal case, not a hypothetical one. Every one
---- of those maps drew `lib.nvim.fs`, `lib.nvim.ui.kit`, etc. as a nameless
+--- of those maps drew `lib.nvim.fs`, `ui.kit`, etc. as a nameless
 --- grey box — this resolves it against `lib.nvim`'s own map instead.
 ---
 --- Local paths only, deliberately: `opts.tag_files` points at another

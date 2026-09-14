@@ -83,7 +83,7 @@
 ---@field width? number Fraction of the editor the whole layout uses. Default 0.86.
 ---@field height? number Fraction of the editor the whole layout uses. Default 0.86.
 ---@field list_width? number Fraction of the layout given to the list column. Default 0.38.
----@field theme? Lib.UI.Kit.ThemeArg Passed through to the kit layout.
+---@field theme? Ui.Kit.ThemeArg Passed through to the kit layout.
 ---@field depth? integer Initial Deps walk depth. Default 2.
 ---@field mode? Documentation.Browse.Mode Which list `:DocBrowse` opens on when the command names none. Default "structure". A mode given on the command line still wins.
 ---@field trail_write_ms? integer Debounce before the trail file is written, in ms. The dial between "a crash loses less" and "the disk is touched less"; raise it on a network home directory. Default 400.

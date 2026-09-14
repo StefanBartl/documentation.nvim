@@ -4,7 +4,7 @@
 --- documentation.nvim "owns" the `:DocBrowse` list buffer it creates, so
 --- this ships both the item builder (this file) and the mouse trigger
 --- (wired in `documentation.editor.browse`'s `bind(st)`, via
---- `lib.nvim.contextmenu.bind_buffer`). Entries mirror `st.keys` — the
+--- `ui.contextmenu.bind_buffer`). Entries mirror `st.keys` — the
 --- browse session's resolved key table, already reflecting any
 --- `opts.keys` overrides/disables — one-to-one, so right-click never
 --- offers anything the keyboard doesn't already provide.
@@ -16,7 +16,7 @@
 --- shows. Self-gating via `opts.menu` (default true, mirrors
 --- `opts.which_key`'s opt-out shape).
 
-local contextmenu = require("lib.nvim.contextmenu")
+local contextmenu = require("ui.contextmenu")
 
 local M = {}
 
@@ -41,7 +41,7 @@ end
 --- Returns an empty list when `st` is missing/malformed, so a trigger can
 --- call this unconditionally.
 ---@param st table browse session state, as bound in `browse/init.lua`'s `bind(st)` (`st.keys`, `st.mode`)
----@return Lib.ContextMenu.Item[]
+---@return Ui.ContextMenu.Item[]
 function M.items(st)
   if type(st) ~= "table" or type(st.keys) ~= "table" then
     return {}
@@ -68,7 +68,7 @@ end
 --- nothing to show.
 ---@param label? string
 ---@param st table
----@return Lib.ContextMenu.Item|nil
+---@return Ui.ContextMenu.Item|nil
 function M.submenu(label, st)
   return contextmenu.submenu(label or "  DocBrowse", M.items(st))
 end

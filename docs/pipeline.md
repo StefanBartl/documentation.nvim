@@ -42,7 +42,7 @@ Compare, Features, Quicks, Notes, History and Findings tabs) and
 :DocMap open               " open the generated HTML in the system browser
 :DocMap graph deps         " open the HTML on the dependency graph
 :DocMap graph calls lib.nvim.fs   " …or on one module's call graph
-:DocMap why lib.nvim.ui.kit lib.nvim.fs   " shortest require path between two
+:DocMap why ui.kit lib.nvim.fs   " shortest require path between two
 :DocMap dot deps           " the require graph as Graphviz DOT, in a buffer
 :DocMap diff HEAD~5        " what this branch changed about the tree's shape
 :DocMap impact             " …and where the changed lines radiate to -> quickfix
@@ -1437,7 +1437,7 @@ Doxygen's `TAGFILES` equivalent: since `docmap.cli`/the pre-commit hook
 template made docmap trivially reusable (see "Reusing docmap in another
 plugin" below), a tree of several small plugins all depending on `lib.nvim`
 and each generating its own map is the normal case, not a hypothetical one.
-Every one of those maps drew `lib.nvim.fs`, `lib.nvim.ui.kit`, etc. as a
+Every one of those maps drew `lib.nvim.fs`, `ui.kit`, etc. as a
 nameless, inert grey box in the Deps view's `+ external` toggle — a require
 that resolves to nothing *in that scan*, even though it resolves perfectly
 well inside `lib.nvim`'s own committed map.
@@ -2458,8 +2458,10 @@ library's own submodule:
   `opts.extra_checks` like any other. Nothing here has a repo-specific check
   any more.
 
-`lib.nvim` remains a **runtime dependency** — `notify`, `fs.*`, `ui.kit`,
-`usercmd`, `map`, `debounce`, `autocmd`, `cross.uv.spawn_capture`. Vendoring
+`lib.nvim` remains a **runtime dependency** — `notify`, `fs.*`,
+`usercmd`, `map`, `debounce`, `autocmd`, `cross.uv.spawn_capture` (`ui.kit`
+moved to the separate `ui.nvim`, a soft dependency only `:DocBrowse` needs).
+Vendoring
 those was considered and rejected: it buys a standalone plugin at the price of
 a second maintenance site for code that already exists, and every other plugin
 in this family already depends on lib.nvim.

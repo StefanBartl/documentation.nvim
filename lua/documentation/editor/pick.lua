@@ -179,7 +179,7 @@ function M.run(ctx)
   for i, item in ipairs(items) do
     labels[i] = item.text
   end
-  require("lib.nvim.ui.kit").select({
+  require("ui.kit").select({
     title = " " .. prompt .. " ",
     items = labels,
     respect_override = true,

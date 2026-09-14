@@ -440,7 +440,7 @@ what keeps the mode testable headlessly; see
 
 ## Layout
 
-Three [`ui.kit.layout`](https://github.com/StefanBartl/lib.nvim/blob/main/lua/lib/nvim/ui/kit/README.md) slots:
+Three [`ui.kit.layout`](https://github.com/StefanBartl/ui.nvim/blob/main/lua/ui/kit/README.md) slots:
 
 ```
 ┌─ list ───────────────┬─ detail ─────────────────┐

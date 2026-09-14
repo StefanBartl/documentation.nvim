@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      # lib.nvim is a runtime dependency: notify, fs, ui.kit, usercmd, map,
+      # lib.nvim is a runtime dependency: notify, fs, usercmd, map,
       # debounce, autocmd. A headless `-l` run has no plugin manager, so CI
       # provides it the same way a local checkout does — see
       # TESTS/run.lua's `add_lib_nvim`.
@@ -69,6 +69,15 @@ jobs:
           repository: StefanBartl/lib.nvim
           path: .deps/lib.nvim
           ref: ci-verified
+      # ui.nvim: editor/browse/init.lua requires ui.kit/ui.contextmenu
+      # unconditionally at module load (moved out of lib.nvim in the
+      # 2026-09 migration), and several specs require
+      # documentation.editor.browse/.pick directly — see TESTS/run.lua's
+      # `add_ui_nvim`.
+      - uses: actions/checkout@v5
+        with:
+          repository: StefanBartl/ui.nvim
+          path: .deps/ui.nvim
       # Optional, unlike lib.nvim: `TESTS/browse_endpoints_spec.lua`'s `gs`
       # test already has a real, tested skip path for runtime-analysis.nvim
       # not being installed (this repository's own normal state). Checking

@@ -9,7 +9,7 @@
 -- Make the repo importable whether invoked via -l (cwd) or luafile.
 vim.opt.rtp:append(vim.fn.getcwd())
 
--- lib.nvim is a runtime dependency (notify, fs, ui.kit, usercmd, …), so the
+-- lib.nvim is a runtime dependency (notify, fs, usercmd, …), so the
 -- specs cannot run without it on the rtp. Three ways it can be found, in
 -- descending order of explicitness — CI uses the first, a local checkout the
 -- second, an installed plugin manager the third (already on the rtp, so
@@ -46,6 +46,42 @@ local function add_lib_nvim()
 end
 
 add_lib_nvim()
+
+-- ui.nvim: editor/browse/init.lua requires ui.kit/ui.contextmenu
+-- unconditionally at module load (moved out of lib.nvim.ui.kit/
+-- lib.nvim.contextmenu in the 2026-09 migration), and several specs
+-- (browse_*_spec.lua, docmap_browse_spec.lua, pick_spec.lua) require
+-- documentation.editor.browse/.pick directly -- same candidate order as
+-- add_lib_nvim above.
+local function add_ui_nvim()
+  if pcall(require, "ui.kit") then
+    return
+  end
+  local candidates = {}
+  if vim.env.UI_NVIM_DIR and vim.env.UI_NVIM_DIR ~= "" then
+    candidates[#candidates + 1] = vim.env.UI_NVIM_DIR
+  end
+  candidates[#candidates + 1] = vim.fn.getcwd() .. "/.deps/ui.nvim"
+  candidates[#candidates + 1] = vim.fs.dirname(vim.fn.getcwd()) .. "/ui.nvim"
+  for _, dir in ipairs(candidates) do
+    if dir and vim.fn.isdirectory(dir) == 1 then
+      vim.opt.rtp:append(dir)
+      package.path = table.concat({
+        dir .. "/lua/?.lua",
+        dir .. "/lua/?/init.lua",
+        package.path,
+      }, ";")
+      if pcall(require, "ui.kit") then
+        return
+      end
+    end
+  end
+  io.stderr:write("TESTS/run.lua: ui.nvim not found.\n")
+  io.stderr:write("  Set UI_NVIM_DIR, or clone it to .deps/ui.nvim, or beside this repo.\n")
+  os.exit(1)
+end
+
+add_ui_nvim()
 
 -- Optional, unlike lib.nvim: `lang_js_spec.lua` already degrades to a stated
 -- skip when no javascript/typescript/tsx parser is on the rtp (true for a

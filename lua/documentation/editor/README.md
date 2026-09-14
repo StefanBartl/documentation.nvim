@@ -46,6 +46,6 @@ in `bindings/`:
 - **git** — the commit list and per-commit diffs in `browse` and `serve`; the
   `diff`/`impact`/`churn` commands' git half is in `bindings/usrcmds/`, and
   each calls a pure function in `core/` for the actual analysis.
-- **windows and buffers** — `browse/`, through `lib.nvim.ui.kit`.
+- **windows and buffers** — `browse/`, through `ui.kit`.
 - **sockets** — `serve.lua`, loopback only.
 - **user-visible messages** — `lib.nvim.notify`, never from `core/`.

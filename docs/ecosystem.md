@@ -256,7 +256,7 @@ Three facts decide this one, all verified:
 **The cheap first version is in-editor, not in the browser.** A Neovim split
 holding a request buffer and a response buffer has no CORS problem, needs no
 socket, no token, no new security posture — and `lib.nvim.net.curl` plus
-`lib.nvim.ui.kit` cover most of it. The browser version is strictly the more
+`ui.kit` cover most of it. The browser version is strictly the more
 expensive one and should follow, not lead.
 
 **Where it lives:** the runner *executes*; documentation.nvim *knows the
@@ -691,10 +691,10 @@ Ordered so each step is independently useful and nothing is a big-bang.
 
 5. ~~**The plugin's first feature: the in-editor request runner.** No
    browser, no server, no CORS. `lib.nvim.net.curl` for execution,
-   `lib.nvim.ui.kit` for the panes.~~ **Done (2026-08-03)** —
+   `ui.kit` for the panes.~~ **Done (2026-08-03)** —
    `runtime-analysis.nvim`'s `:RARequest`/`:RASend`, one request per buffer
    in the same shape VS Code's REST Client/IntelliJ's HTTP Client already
-   use. Not `lib.nvim.ui.kit`'s panes in the end: that toolkit's
+   use. Not `ui.kit`'s panes in the end: that toolkit's
    `viewer`/`surface` components are floats that close on focus loss,
    exactly wrong for an edit-send-glance-edit-again workflow — a plain
    persistent split, hand-written, fit the job this needed. Required

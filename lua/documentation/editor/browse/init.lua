@@ -39,9 +39,9 @@
 
 require("documentation.editor.browse.@types")
 
-local contextmenu = require("lib.nvim.contextmenu")
+local contextmenu = require("ui.contextmenu")
 local filter = require("documentation.editor.browse.filter")
-local kit = require("lib.nvim.ui.kit")
+local kit = require("ui.kit")
 local map = require("lib.nvim.bindings.keymap")
 -- Names the command, not the module path. `:DocBrowse` is what the reader
 -- typed; `documentation.editor.browse` is an implementation detail that grew
@@ -58,7 +58,7 @@ local list = require("lib.nvim.ui.list")
 local M = {}
 
 ---Single active browser, mirroring the chooser/confirm single-instance model
----in `lib.nvim.ui.kit`: two of these on screen at once would fight over the
+---in `ui.kit`: two of these on screen at once would fight over the
 ---same keys and the same "which window am I in" question.
 ---@type table|nil
 local state = nil

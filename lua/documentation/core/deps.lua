@@ -72,7 +72,7 @@ function M.extract_source(src)
     lnum = lnum + 1
 
     -- Comment lines are skipped, and this is not a nicety: usage examples in
-    -- module headers (`---   local kit = require("lib.nvim.ui.kit")`) are
+    -- module headers (`---   local kit = require("ui.kit")`) are
     -- everywhere in this tree, and counting them produced four confident
     -- require-cycle findings against modules that require nothing of the sort.
     -- A trailing comment on a real line is unaffected — only a line that

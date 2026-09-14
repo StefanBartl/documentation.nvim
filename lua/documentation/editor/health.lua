@@ -57,7 +57,7 @@ local DEPS = {
   "lib.nvim.bindings.usercmd",
   "lib.nvim.bindings.autocmd",
   "lib.nvim.debounce",
-  "lib.nvim.ui.kit",
+  "ui.kit",
   "lib.nvim.fs.read",
   "lib.nvim.fs.mkdirp",
   "lib.nvim.fs.is_subpath",

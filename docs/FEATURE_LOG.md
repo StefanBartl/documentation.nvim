@@ -3170,7 +3170,7 @@ card at all rather than an empty one.
 
 ## Right-click context menu on `:DocBrowse` (2026-08-24)
 
-Part of a cross-plugin push (`lib.nvim.contextmenu`, a new shared module for
+Part of a cross-plugin push (`ui.contextmenu`, a new shared module for
 building [nvzone/menu](https://github.com/nvzone/menu)-shaped entries and
 binding a `<RightMouse>` trigger) to give the personal-plugin ecosystem's
 buffer-owning UIs a mouse-driven alternative to their keyboard shortcuts,

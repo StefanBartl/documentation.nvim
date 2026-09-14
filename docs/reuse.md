@@ -349,7 +349,7 @@ before anyone touches anything gets switched off the same day.
 
 Doxygen's `TAGFILES` equivalent. A tree of small plugins that all depend on
 `lib.nvim` and each generate their own map is the normal case, and every one of
-those maps otherwise draws `lib.nvim.fs`, `lib.nvim.ui.kit` and friends as
+those maps otherwise draws `lib.nvim.fs`, `ui.kit` and friends as
 nameless inert grey boxes in the Deps view's `+ external` toggle.
 
 ```lua

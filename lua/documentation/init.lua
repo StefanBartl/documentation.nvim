@@ -227,7 +227,7 @@ function M.scan_full(opts)
 end
 
 --- The editor-side map navigator (`:DocBrowse`). Lazily required: it pulls in
---- `lib.nvim.ui.kit`, which nothing on the generate/check path needs.
+--- `ui.kit`, which nothing on the generate/check path needs.
 M.browse = setmetatable({}, {
   __index = function(_, k)
     return require("documentation.editor.browse")[k]

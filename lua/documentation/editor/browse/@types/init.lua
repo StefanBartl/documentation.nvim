@@ -16,7 +16,7 @@
 ---@field telemetry_namespace? string Overrides `title` as the namespace `telemetry` mode joins against — see `Documentation.Opts.telemetry_namespace`'s own doc-comment for when the two genuinely differ.
 ---@field rules_gate? string The `rules.nvim` gate name (a `setup({ gates = {...} })` key in the checked repo's own config, e.g. "review") the `rules` mode joins against — see `Documentation.Opts.rules_gate`'s own doc-comment. No default: unlike `telemetry_namespace`, a gate name cannot be guessed from `title`.
 ---@field depth? integer Initial Deps walk depth. Default 2.
----@field theme? Lib.UI.Kit.ThemeArg Passed through to the kit layout.
+---@field theme? Ui.Kit.ThemeArg Passed through to the kit layout.
 ---@field width? number Fraction of the editor the whole layout uses. Default 0.86.
 ---@field height? number Default 0.86.
 ---@field list_width? number Fraction of the layout given to the list column. Default 0.38.
