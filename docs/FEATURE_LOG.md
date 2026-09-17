@@ -3194,3 +3194,99 @@ install both degrade to an empty menu / a single notify, never an error.
   wiring)
 - **Config:** `opts.menu` (default `true`, same opt-out shape as
   `opts.which_key`)
+
+## The shim is compared to the editor, not just to a list of names (2026-09-17)
+
+`standalone/vim_shim.lua` polyfills the small `vim.*` surface the parser-less
+CLI build needs. Two halves of guarding it already existed:
+`TESTS/shim_contract_spec.lua` checks every `vim.*` path and method name
+`core/` calls against what the shim provides, and the CI summary stopped
+claiming "All 5 gates passed" when one of them had skipped. What neither could
+see is stated in one line: **a shim function that exists and behaves
+differently is invisible to a static contract.**
+
+**The idea that made this cheap: the shim is plain Lua, so Neovim can run it.**
+The contract spec had already proved the shim *loads* inside the editor —
+`_G.vim` unset for the duration, `lfs` and `dkjson` faked through
+`package.preload`. A thing that loads can be called, so the real `vim.*` and
+the shim are driven side by side in the `tests` gate that always runs, rather
+than behind the `standalone` gate that skips wherever PUC Lua or one of its
+two rocks is missing. That placement is the whole point: three real defects
+have already walked through that gap.
+
+One corpus, `TESTS/fixtures/shim_behavior_cases.lua`, is read by both runners
+— so the shim did not become a second implementation with its own test suite,
+which was the constraint. It carries no `require` at all (it must load under
+LuaJIT and PUC 5.4) and holds the two pure functions both sides need: a
+host-independent rendering of a value, and "run one case against one surface",
+where a surface is either the editor's `vim` or the shim's table. Repeated
+tables render as `ref#N`, which is what makes sharing and cycles visible at
+all.
+
+The PUC replay (`standalone/selfcheck_behavior.lua`) compares against
+expectations `scripts/ci.lua` writes out of the Neovim running it, seconds
+earlier — deliberately not a committed golden file, which would need
+regenerating by hand and would drift with the next Neovim release.
+
+**Fifteen divergences on the first run, every one of them silent.** None would
+have raised; each returns a plausible value:
+
+- `vim.tbl_deep_extend` **merged** list values instead of replacing them, so
+  `{1,2,3}` overridden by `{9}` came out as `{9,2,3}` — a value nobody wrote,
+  that still reads like configuration. It also wrote *through* its first
+  argument, editing the caller's table.
+- `vim.deepcopy` had no cache: a cycle was a stack overflow rather than a
+  wrong answer, a table reachable twice became two tables, and the metatable
+  was dropped.
+- `vim.fs.dirname("a/b/")` answered the grandparent, `"/a"` answered the empty
+  string, `"C:/a"` answered `"C:"` rather than the drive root.
+- `vim.fn.fnamemodify("a/b/", ":t")` invented `"b"`; the editor's answer is
+  empty.
+- `vim.split` was plain-only, so a future pattern separator would have
+  searched for its literal characters, found none, and returned the whole
+  string as one field.
+- `vim.list_extend` ignored its `start`/`finish` bounds and appended the whole
+  list.
+- `vim.tbl_extend` accepted a single table where the editor requires two.
+- Separator handling was platform-blind. A backslash is a separator on Windows
+  and an ordinary filename character everywhere else, so the correct answer
+  differs per host — and a shim that picks one is wrong on the other.
+
+**Two more were found by writing the corpus rather than by running it.**
+`vim.json.decode` asked dkjson for a null *sentinel* in exactly the case where
+the caller had said it wanted nulls dropped — inverted, so every `luanil` call
+site in the tree (`artifact.lua`, `tagfiles.lua`, `luals.lua`, the browse
+store, the MCP protocol reader) got `vim.NIL` where Neovim gives nothing.
+`vim.NIL` is truthy, which `editor/browse/README.md` already calls out as easy
+to mishandle. And decoding now strips whatever metatable the rock attaches,
+because the editor hands back plain tables.
+
+**`vim.json.encode` writes scalars itself now** instead of delegating them.
+That is not a rewrite for its own sake: scalars are the only thing
+`core/json.lua` ever delegates, they are what ends up in the byte-compared
+artifact, and writing them here is what lets them be compared against the
+editor *without* the rock. A docstring with an umlaut escaped one way by the
+editor and another by the rock is the same "the map is stale" report that
+host-dependent number formatting already produced once, from a different
+direction. Containers stay dkjson's and stay uncompared — Neovim promises no
+key order, so a case asserting one would be asserting luck.
+
+**What is still behind the skip, and said out loud rather than papered over:**
+`vim.json.decode` (dkjson's, and under Neovim the fake is *refused* rather
+than wired to `vim.json`, so a case that loses its tag fails loudly instead of
+agreeing with itself), the real `lfs` (the Neovim half runs the shim's
+filesystem logic against an adapter over `vim.uv`), and PUC 5.4 semantics.
+`NVIM_APPNAME` is listed as unverified rather than implemented — the rule
+would have had to be guessed here rather than measured.
+
+`luacheck` now covers `standalone/` too. It did not, which meant the whole
+parser-less build sat outside the only gate that reads Lua for undefined
+globals — the tree that has shipped a call to a `nil` value twice.
+
+- **Modules:** `standalone/vim_shim.lua` (`split`, `tbl_extend`,
+  `tbl_deep_extend`, `list_extend`, `deepcopy`, `fs.dirname`,
+  `fn.fnamemodify`, `json.encode`, `json.decode`, `uv.fs_mkdir`),
+  `standalone/selfcheck_behavior.lua` (new), `scripts/ci.lua`
+  (`GATES.standalone`, `GATES.luacheck`)
+- **Tests:** `TESTS/shim_behavior_spec.lua`,
+  `TESTS/fixtures/shim_behavior_cases.lua`, `TESTS/fixtures/shim_fs/`

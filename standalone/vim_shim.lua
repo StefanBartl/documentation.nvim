@@ -59,6 +59,17 @@ end
 
 local vim = {}
 
+---Whether a backslash is a path separator here.
+---
+---Neovim asks `has('win32')`; this asks the interpreter what its directory
+---separator is. The two agree on every host either of them runs on, and the
+---distinction matters because several functions below are *platform*-
+---dependent rather than merely path-dependent: `\` separates directories on
+---Windows and is an ordinary filename character everywhere else. A shim that
+---picks one of the two answers is wrong on the other host, silently — which
+---is what `TESTS/shim_behavior_spec.lua` was written to notice.
+local IS_WINDOWS = (package.config:sub(1, 1) == "\\")
+
 -- ---------------------------------------------------------------- stdlib
 
 ---@param s string
@@ -87,9 +98,23 @@ function vim.pesc(s)
   return (s:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%1"))
 end
 
----Plain (non-pattern) split — every real call site under `core/` splits on
----a literal separator (`"\n"`) with `plain = true`, so that is all this
----implements; a Lua-pattern separator is deliberately not supported.
+---Split, on a literal separator with `plain = true` and on a Lua **pattern**
+---without it — the same rule Neovim applies.
+---
+---**This used to be plain-only, and that was the quiet kind of wrong.** Every
+---call site under `core/` passes `{ plain = true }`, so the restriction cost
+---nothing the day it was written; what it cost was a guarantee. A future
+---`vim.split(s, "%s+")` would not have raised here — it would have searched
+---for the four literal characters `%s+`, found none, and returned the whole
+---string as a single element. Under Neovim the same line splits on runs of
+---whitespace. A scanner that reads one field where the editor reads five
+---does not crash, it under-reports, which is the failure class this build
+---has already shipped three times.
+---
+---The empty-pattern guard is Neovim's too: a separator that can match the
+---empty string (`"%s*"`) never advances the cursor, so the loop would spin
+---forever rather than return something wrong. Neovim raises there, and so
+---does this.
 ---@param s string
 ---@param sep string
 ---@param opts { plain?: boolean, trimempty?: boolean }|nil
@@ -105,10 +130,13 @@ function vim.split(s, sep, opts)
   end
   local pos = 1
   while true do
-    local start_idx, end_idx = s:find(sep, pos, true)
+    local start_idx, end_idx = s:find(sep, pos, opts.plain == true)
     if not start_idx then
       out[#out + 1] = s:sub(pos)
       break
+    end
+    if end_idx < start_idx then
+      error("Infinite loop detected", 0)
     end
     out[#out + 1] = s:sub(pos, start_idx - 1)
     pos = end_idx + 1
@@ -136,66 +164,133 @@ function vim.tbl_map(fn, t)
   return out
 end
 
+---Neovim takes at least two tables and says so when it does not get them.
+---Accepting one and quietly returning a copy hides the call-site mistake at
+---the only moment anyone would have looked at it.
 ---@param behavior "force"|"keep"|"error"
 ---@param ... table
 ---@return table
 function vim.tbl_extend(behavior, ...)
+  if select("#", ...) < 2 then
+    error(
+      ("wrong number of arguments (given %d, expected at least 3)"):format(1 + select("#", ...)),
+      0
+    )
+  end
   local out = {}
   for _, t in ipairs({ ... }) do
     for k, v in pairs(t) do
       if out[k] == nil or behavior == "force" then
         out[k] = v
       elseif behavior == "error" and out[k] ~= nil then
-        error("tbl_extend: key already exists: " .. tostring(k))
+        error("key found in more than one map: " .. tostring(k), 0)
       end
     end
   end
   return out
+end
+
+---Whether a value is something `tbl_deep_extend` merges *into* rather than
+---replaces.
+---
+---Neovim's rule, and it is not the obvious one: a list is **replaced**
+---wholesale, a map is merged, and an empty table counts as a map because it
+---is not yet either. The obvious implementation — merge anything that is a
+---table on both sides — leaves the tail of the longer list behind, so
+---`{ 1, 2, 3 }` overridden by `{ 9 }` comes out as `{ 9, 2, 3 }`: a value no
+---caller wrote, that still looks like configuration.
+---@param v any
+---@return boolean
+local function can_merge(v)
+  if type(v) ~= "table" then
+    return false
+  end
+  local n = 0
+  for k in pairs(v) do
+    n = n + 1
+    if type(k) ~= "number" then
+      return true -- has a non-list key: a map, so mergeable
+    end
+  end
+  if n == 0 then
+    return true -- empty: not yet a list, so mergeable
+  end
+  -- All keys numeric: a list exactly when they are 1..n with no holes.
+  for i = 1, n do
+    if v[i] == nil then
+      return true
+    end
+  end
+  return false
 end
 
 ---@param behavior "force"|"keep"|"error"
 ---@param ... table
 ---@return table
 function vim.tbl_deep_extend(behavior, ...)
-  local function merge(dst, src)
-    for k, v in pairs(src) do
-      if type(v) == "table" and type(dst[k]) == "table" then
-        merge(dst[k], v)
-      elseif dst[k] == nil or behavior == "force" then
-        dst[k] = v
-      elseif behavior == "error" and dst[k] ~= nil then
-        error("tbl_deep_extend: key already exists: " .. tostring(k))
-      end
-    end
-  end
   local out = {}
   for _, t in ipairs({ ... }) do
-    merge(out, t)
+    for k, v in pairs(t) do
+      if can_merge(out[k]) and can_merge(v) then
+        -- A fresh table, never a write through `out[k]`. `out[k]` may still
+        -- be a table the *caller* passed — it was assigned by reference on
+        -- first sight — so merging in place would reach back out of this
+        -- function and edit an argument. Neovim does not, and a caller that
+        -- reuses its defaults table would find them rewritten.
+        out[k] = vim.tbl_deep_extend(behavior, out[k], v)
+      elseif out[k] == nil or behavior == "force" then
+        out[k] = v
+      elseif behavior == "error" and out[k] ~= nil then
+        error("key found in more than one map: " .. tostring(k), 0)
+      end
+    end
   end
   return out
 end
 
+---Append `src[start..finish]` to `dst`, defaulting to all of `src`.
+---
+---The two bounds are the part that was missing, and their absence was not
+---visible from any call site: `vim.list_extend(dst, src, 2, 3)` appended the
+---whole of `src` here and a two-element slice under Neovim, with nothing
+---raised on either side.
 ---@param dst table
 ---@param src table
+---@param start integer|nil
+---@param finish integer|nil
 ---@return table dst
-function vim.list_extend(dst, src)
-  for _, v in ipairs(src) do
-    dst[#dst + 1] = v
+function vim.list_extend(dst, src, start, finish)
+  for i = start or 1, finish or #src do
+    dst[#dst + 1] = src[i]
   end
   return dst
 end
 
+---A deep copy that preserves sharing, survives cycles, and carries
+---metatables — all three of which Neovim's does.
+---
+---**The cache is not an optimisation.** Without it, a table that reaches
+---itself is not copied wrongly, it overflows the stack; and a table reachable
+---by two paths becomes two tables, so a later write through one of them stops
+---being visible through the other. Neither shows up as a missing name, which
+---is why the static contract could not see it.
 ---@param v any
+---@param seen table<table, table>|nil
 ---@return any
-function vim.deepcopy(v)
+function vim.deepcopy(v, seen)
   if type(v) ~= "table" then
     return v
   end
-  local out = {}
-  for k, val in pairs(v) do
-    out[vim.deepcopy(k)] = vim.deepcopy(val)
+  seen = seen or {}
+  if seen[v] then
+    return seen[v]
   end
-  return out
+  local out = {}
+  seen[v] = out
+  for k, val in pairs(v) do
+    out[vim.deepcopy(k, seen)] = vim.deepcopy(val, seen)
+  end
+  return setmetatable(out, getmetatable(v))
 end
 
 -- ------------------------------------------------------------------ json
@@ -208,14 +303,132 @@ vim.NIL = dkjson.null or setmetatable({}, {
 
 vim.json = {}
 
----@param value any
+local STRING_ESCAPE = {
+  ['"'] = '\\"',
+  ["\\"] = "\\\\",
+  ["\b"] = "\\b",
+  ["\f"] = "\\f",
+  ["\n"] = "\\n",
+  ["\r"] = "\\r",
+  ["\t"] = "\\t",
+}
+
+---A JSON string exactly as Neovim writes one.
+---
+---Measured against the editor rather than assumed: the five short escapes
+---above, `\u00xx` in **lower-case** hex for every other control byte and for
+---DEL, `/` left alone, and UTF-8 passed through raw rather than escaped to
+---`\uXXXX`.
+---
+---That last one is why this is written out instead of delegated. The
+---artifact is byte-compared — by `map --check` and by a pre-commit hook —
+---so a docstring with an umlaut in it escaped one way by the editor and
+---another way by the rock is not a cosmetic difference: it is the same
+---"the map is stale" report that host-dependent *number* formatting already
+---produced once, from a different direction. Delegating left that answer
+---up to a dependency nobody here had measured.
+---
+---The character class avoids an embedded zero byte on purpose: LuaJIT's
+---patterns are Lua 5.1's and cannot carry one, and `%z` — 5.1's way of
+---saying it — was removed in 5.3. `%c` covers the whole control range
+---including NUL on both.
+---@param s string
 ---@return string
-function vim.json.encode(value)
-  -- dkjson.encode on a bare scalar (what core/json.lua's own M.encode ever
-  -- delegates here — see that module's header) already produces the same
-  -- shape vim.json.encode does: numbers as-is, correctly quoted/escaped
-  -- strings, true/false/null.
+local function encode_string(s)
+  local body = s:gsub('[%c"\\\127]', function(c)
+    return STRING_ESCAPE[c] or string.format("\\u%04x", c:byte())
+  end)
+  return '"' .. body .. '"'
+end
+
+---A JSON number exactly as Neovim writes one.
+---
+---Two rules, both measured: an integral value that fits a 64-bit integer is
+---written without a decimal point (`100.0` -> `100`, `2^53` ->
+---`9007199254740992`), and anything else gets the shortest `%g` that reads
+---back as the same double — which is how `1/3` comes out as
+---`0.3333333333333333` (16 digits) where a plain `%.14g` would truncate it,
+---and how `1e20`, too large for the integer rule, stays `1e+20`.
+---@param v number
+---@return string
+local function encode_number(v)
+  if v ~= v or v == math.huge or v == -math.huge then
+    error("Cannot serialise number: must not be NaN or Infinity", 0)
+  end
+  if v % 1 == 0 and math.abs(v) < 2 ^ 63 then
+    return string.format("%d", v)
+  end
+  for _, fmt in ipairs({ "%.14g", "%.15g", "%.16g", "%.17g" }) do
+    local out = string.format(fmt, v)
+    if tonumber(out) == v then
+      return out
+    end
+  end
+  return string.format("%.17g", v)
+end
+
+---@param ... any The value to encode. Exactly one argument, `nil` included.
+---@return string
+function vim.json.encode(...)
+  -- Varargs so that `encode()` and `encode(nil)` stay two different calls:
+  -- the editor answers `null` to the second and raises on the first, and a
+  -- plain `function(value)` parameter cannot tell them apart.
+  if select("#", ...) == 0 then
+    error("expected 1 or 2 arguments", 0)
+  end
+  local value = ...
+  -- Scalars are written here rather than handed to dkjson: they are the only
+  -- thing `core/json.lua` ever delegates (that module encodes every container
+  -- itself, to get a deterministic key order), they are what ends up in the
+  -- byte-compared artifact, and writing them here is what lets
+  -- `TESTS/shim_behavior_spec.lua` compare them against the editor without
+  -- needing the rock.
+  if value == nil or value == vim.NIL then
+    return "null"
+  end
+  local ty = type(value)
+  if ty == "boolean" then
+    return value and "true" or "false"
+  elseif ty == "number" then
+    return encode_number(value)
+  elseif ty == "string" then
+    return encode_string(value)
+  end
+  -- Containers still go to dkjson, and are deliberately *not* compared:
+  -- Neovim gives no ordering guarantee for object keys, so "the same output"
+  -- is not a thing either side can promise. Nothing in the standalone path
+  -- takes this branch — `core/json.lua` handles its own containers — and it
+  -- stays only so a caller that did would keep working.
   return (dkjson.encode(value))
+end
+
+---Strip what dkjson adds and Neovim does not, and apply `luanil`.
+---
+---Two jobs, one walk over a tree that is by construction acyclic:
+---
+---  * `luanil` sets a JSON null to `nil` — which removes the key from an
+---    object and leaves a **hole** in an array, both measured against the
+---    editor. Without it the value is a sentinel.
+---  * any metatable dkjson may have attached is removed. Neovim hands back
+---    plain tables, and a stray `__index` or `__jsontype` is the kind of
+---    difference that surfaces three call sites later as an impossible
+---    `pairs` result.
+---@param value any
+---@param drop boolean
+---@return any
+local function normalize_decoded(value, drop)
+  if type(value) ~= "table" then
+    return value
+  end
+  setmetatable(value, nil)
+  for k, v in pairs(value) do
+    if v == vim.NIL and drop then
+      value[k] = nil
+    else
+      normalize_decoded(v, drop)
+    end
+  end
+  return value
 end
 
 ---@param s string
@@ -223,11 +436,21 @@ end
 ---@return any
 function vim.json.decode(s, opts)
   opts = opts or {}
-  local obj, _, err = dkjson.decode(s, 1, opts.luanil and opts.luanil.object and vim.NIL or nil)
+  local luanil = opts.luanil or {}
+  -- The null value is passed explicitly and then dealt with above, rather
+  -- than leaning on what dkjson does when the argument is omitted. The
+  -- version this replaces asked for a sentinel precisely when the caller
+  -- had said it wanted nulls *dropped* — inverted, in other words, so every
+  -- `luanil` call site in this tree (all of them: artifact.lua,
+  -- tagfiles.lua, luals.lua, …) got `vim.NIL` where Neovim gives nothing.
+  -- `vim.NIL` is truthy, which `editor/browse/README.md` already calls out
+  -- as very easy to mishandle, so the failure would have been a field that
+  -- reads as present and renders as garbage.
+  local obj, _, err = dkjson.decode(s, 1, vim.NIL)
   if err then
     error(err, 0)
   end
-  return obj
+  return normalize_decoded(obj, luanil.object == true or luanil.array == true)
 end
 
 -- -------------------------------------------------------------------- fs
@@ -259,14 +482,13 @@ end
 ---@param what string One of "cache"|"data"|"config"|"state"|"log".
 ---@return string
 function vim.fn.stdpath(what)
-  local windows = (package.config:sub(1, 1) == "\\")
   local function env(name, fallback)
     local v = os.getenv(name)
     return (v and v ~= "") and v or fallback
   end
 
   local base
-  if windows then
+  if IS_WINDOWS then
     local local_app = env("LOCALAPPDATA", env("USERPROFILE", ".") .. "/AppData/Local")
     base = {
       cache = env("TEMP", env("TMP", local_app .. "/Temp")) .. "/nvim",
@@ -295,25 +517,57 @@ function vim.fn.stdpath(what)
   return (dir:gsub("\\", "/"))
 end
 
+---Fold the platform's separators to `/`, so one rule covers both.
+---@param path string
+---@return string
+local function to_slashes(path)
+  if IS_WINDOWS then
+    return (path:gsub("\\", "/"))
+  end
+  return path
+end
+
 ---Only the `":t"` (tail/basename) modifier — the one real call site
 ---(`documentation.config`'s own `title` default) never uses another.
+---
+---**The tail of a path that ends in a separator is empty.** This used to
+---strip trailing separators first and then take the last component, which
+---turns `"a/b/"` into `"b"` — a name the editor never reports for that path,
+---and one that reads perfectly plausibly in a title.
 ---@param path string
 ---@param mods string
 ---@return string
 function vim.fn.fnamemodify(path, mods)
   if mods == ":t" then
-    return (path:gsub("[/\\]+$", ""):match("[^/\\]+$")) or path
+    return (to_slashes(path):match("[^/]*$")) or ""
   end
   error('standalone vim_shim: vim.fn.fnamemodify only implements ":t", got ' .. tostring(mods), 0)
 end
 
 vim.fs = {}
 
+---Everything before the last separator, with the three edges Neovim has and
+---the old one-line pattern did not.
+---
+---The pattern this replaces skipped *past* a trailing separator, so
+---`"a/b/"` answered `"a"` — the grandparent — and `"/a"` answered the empty
+---string rather than the root. Each is a plausible-looking path, and a
+---scanner that files a module under the wrong parent reports a tree nobody
+---has.
 ---@param path string
 ---@return string
 function vim.fs.dirname(path)
-  local parent = path:match("^(.*)[/\\][^/\\]+[/\\]?$")
-  return parent or "."
+  local parent = to_slashes(path):match("^(.*)/[^/]*$")
+  if not parent then
+    return "."
+  elseif parent == "" then
+    return "/"
+  elseif parent:match("^%a:$") then
+    -- `C:/a` -> `C:/`, not `C:`: the drive root is a directory, the bare
+    -- drive letter is a different thing entirely.
+    return parent .. "/"
+  end
+  return parent
 end
 
 ---Directory iterator shaped like `vim.fs.dir`: `for name, type in
@@ -382,14 +636,18 @@ end
 
 ---@param path string
 ---@param _mode integer
----@return boolean ok
+---@return boolean|nil ok `true`, or `nil` the way `uv` reports a failure.
 function uv.fs_mkdir(path, _mode)
   -- `lfs.mkdir` has no mode parameter (POSIX permission bits are not a
   -- concern for a docs artifact directory); `lib.nvim.fs.mkdirp` treats a
-  -- false return the same as EEXIST would (checks fs_stat next), so the
+  -- falsy return the same as EEXIST would (checks fs_stat next), so the
   -- "already exists" case does not need distinguishing here either.
-  local ok = lfs.mkdir(path)
-  return ok == true
+  --
+  -- `nil` rather than `false` on failure: that is the shape `uv` returns,
+  -- and the difference is invisible to every `if not ok` in this tree right
+  -- up until someone writes `== false`.
+  local made = lfs.mkdir(path)
+  return made == true or nil
 end
 
 ---Approximated with `os.clock()` (process CPU time) — see this file's

@@ -152,7 +152,11 @@ end
 function GATES.luacheck()
   step("luacheck")
   need("luacheck")
-  run({ "luacheck", "lua", "TESTS", "scripts" }, "luacheck")
+  -- `standalone` is in the list because it was not: the whole parser-less
+  -- build — `vim_shim.lua`, `docmap.lua`, `treesitter.lua` — sat outside the
+  -- only gate that reads Lua for unused locals and undefined globals, which
+  -- is precisely the tree that has already shipped a `nil` call twice.
+  run({ "luacheck", "lua", "TESTS", "scripts", "standalone" }, "luacheck")
 end
 
 function GATES.tests()
@@ -312,6 +316,27 @@ function GATES.standalone()
   end
 
   say("  ok: no host-dependent number formatting in the standalone artifact")
+
+  -- ------------------------------------------------------------------
+  -- The behavioural differential, replayed on the other interpreter.
+  --
+  -- `TESTS/shim_behavior_spec.lua` already compared most of this corpus
+  -- against the real `vim.*` in the always-green `tests` gate — deliberately,
+  -- because this gate skips on most machines. What it could not answer is
+  -- what needs the two rocks and the other Lua: `vim.json.decode` is still
+  -- dkjson's, `lfs` is real here and adapted there, and PUC 5.4 is not
+  -- LuaJIT.
+  --
+  -- The expectations are written from the `vim` of *this* Neovim, seconds
+  -- before the replay, rather than read from a committed golden file: a
+  -- golden would drift with the next Neovim release and would then be
+  -- evidence of nothing.
+  local cases = dofile(root .. "/TESTS/fixtures/shim_behavior_cases.lua")
+  vim.fn.mkdir(root .. "/.deps", "p")
+  local expectations = root .. "/.deps/shim-expectations.txt"
+  local written = cases.write_expectations(vim, root .. "/TESTS/fixtures/shim_fs", expectations)
+  say(("  ok: wrote %d expectations from this Neovim"):format(written))
+  run({ lua, "standalone/selfcheck_behavior.lua", root, expectations }, "standalone shim behaviour")
 end
 
 -- The order is not cosmetic. A formatting failure is the cheapest one to find

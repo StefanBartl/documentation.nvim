@@ -60,6 +60,43 @@ Two scripts remain shell, deliberately:
   maintainer-side publishing utility, not a gate: nobody is blocked by it, and
   rewriting it would buy nothing.
 
+### The `standalone` gate skips, and what that costs
+
+The `standalone` gate runs the parser-less CLI build under a Lua that is **not**
+the LuaJIT Neovim embeds. It needs PUC Lua on `PATH` with `lfs` and `dkjson`;
+where it cannot find one it prints *skipped*, and the closing summary says so
+— `4 gates passed, 1 skipped: standalone`, plus the sentence that matters: *a
+skipped gate checked nothing.* The message names the interpreter it found, the
+rock it could not load and the `luarocks install` line, because "no PUC Lua
+here" and "a PUC Lua that cannot load the rocks" are different problems.
+
+The skip stays a skip on purpose — a machine with Neovim and nothing else is
+the common local case, and making that red is how a gate gets switched off.
+What changed instead is how little is left behind it. Three real defects
+reached a release through that gap, so the two checks that guard the shim are
+built to run **without** PUC Lua wherever they possibly can:
+
+| Check | Answers | Runs in |
+|---|---|---|
+| [`shim_contract_spec.lua`](../TESTS/shim_contract_spec.lua) | every `vim.*` path and method name `core/` calls, against what the shim provides — read off a real parse, not a grep | `tests` — always |
+| [`shim_behavior_spec.lua`](../TESTS/shim_behavior_spec.lua) | the same inputs through the real `vim.*` and through the shim, outputs compared | `tests` — always |
+| [`standalone/selfcheck_behavior.lua`](../standalone/selfcheck_behavior.lua) | the same corpus again, on PUC Lua with the real rocks | `standalone` — skippable |
+
+The first answers *does it exist*, the second *does it do the same thing*, and
+only the third needs the interpreter that is usually missing. All three read
+one corpus, [`TESTS/fixtures/shim_behavior_cases.lua`](../TESTS/fixtures/shim_behavior_cases.lua),
+so the shim never grows a second implementation with its own tests.
+
+The PUC replay compares against expectations `ci.lua` writes out of the Neovim
+running it, seconds earlier — never a committed golden file. A golden would
+need regenerating by hand and would drift with the next Neovim release, at
+which point it is evidence of nothing.
+
+`luacheck` covers `standalone` as well as `lua`, `TESTS` and `scripts`. It did
+not until 2026-09-17, which meant the entire parser-less build sat outside the
+only gate that reads Lua for unused locals and undefined globals — the same
+tree that has shipped a call to a `nil` value twice.
+
 One gate cannot come through `ci.lua` in GitHub Actions: stylua's action is
 both the installer and the runner, so there is no binary on PATH to hand a
 script. Its `args` in the workflow must therefore stay identical to what the
@@ -88,7 +125,7 @@ same rule `*.sh` already had. If you cloned before that landed, one
 nvim --headless -u NONE -l TESTS/run.lua
 ```
 
-**Sixty-seven specs**, every one driven by the tiny shared harness in
+**One hundred specs**, every one driven by the tiny shared harness in
 [`TESTS/harness.lua`](../TESTS/harness.lua) (`eq`, `ok`, `tmpfile`,
 `read_lines` — no framework). The list in
 [`TESTS/run.lua`](../TESTS/run.lua) is the inventory; a handful are worth
@@ -101,6 +138,7 @@ knowing by name before touching what they cover:
 | [`backend_contract_spec.lua`](../TESTS/backend_contract_spec.lua) | What every backend must keep, proved rather than asserted: a comment token is verified by *finding a marker*, `emits_calls` by running the backend over its own parity fixture. Also fails a backend with no parity fixture, so a twenty-fourth cannot drop out of the capability matrix silently. |
 | [`scan_scope_spec.lua`](../TESTS/scan_scope_spec.lua) | `opts.exclude` and `opts.languages` — including the reset discipline, which is the half that fails silently. |
 | [`docmap_browse_spec.lua`](../TESTS/docmap_browse_spec.lua) | `browse` — real floats, real buffers. |
+| [`shim_behavior_spec.lua`](../TESTS/shim_behavior_spec.lua) | `standalone/vim_shim.lua` answering what the editor answers, input by input. Loads the shim *inside* Neovim (`_G.vim` unset for the duration, `lfs` adapted onto `vim.uv`, `dkjson` refused rather than faked) so the comparison needs neither PUC Lua nor a rock. See [the standalone gate](#the-standalone-gate-skips-and-what-that-costs). |
 | `lang_*_spec.lua` | One per language backend. **Each skips when its grammar is absent**, which is the normal local state — see [`languages.md § Running the language specs`](languages.md#running-the-language-specs) for the `DOCMAP_<LANG>_PARSER` variable each one reads. |
 
 **A green run does not mean every backend was exercised.** Without grammars,

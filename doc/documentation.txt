@@ -21,6 +21,7 @@ CONTENTS                                                *documentation-contents*
     7. Drift checks .................... |documentation-checks|
     8. Lua API ......................... |documentation-api|
     9. Headless / CI ................... |documentation-headless|
+       9.1 Standalone build ............ |documentation-standalone|
    10. MCP server ..................... |documentation-mcp|
    11. Reuse in your own plugin ........ |documentation-reuse|
    12. Annotations .................... |documentation-annotations|
@@ -1046,6 +1047,34 @@ the IR, and sorted-key JSON.
 `--check` deliberately does not regenerate. A hook that regenerates and stages
 output produces diffs the author never intended and interacts badly with
 |:amend| and rebase, so regeneration stays explicit.
+
+------------------------------------------------------------------------------
+9.1 STANDALONE BUILD                                  *documentation-standalone*
+
+The same scan runs without Neovim at all, under plain PUC Lua: >bash
+    lua standalone/docmap.lua <root> --source=lua/x --out-dir=docs/map
+<
+It needs `lfs` and `dkjson` (`luarocks install luafilesystem dkjson`). With a
+`lua-tree-sitter` rock and `$DOCMAP_TS_DIR` pointing at compiled grammars it
+produces the same artifact a headless Neovim does; without either it degrades
+to the parser-less build — the module tree, the require graph and every check
+that does not need per-function facts still work, and function-level data
+comes back empty rather than wrong.
+
+The `vim.*` functions that build needs come from `standalone/vim_shim.lua`, a
+closed-scope polyfill rather than a general-purpose one. Two things are
+deliberately *not* equivalent to the editor, and are worth knowing before
+reading a difference as a bug:
+
+    - `vim.uv.hrtime` is process CPU time, not wall time. Scan-stage
+      timings drift cosmetically; nothing is computed from them.
+    - `vim.treesitter` is an inert stub in the parser-less build, so
+      function-level extraction degrades instead of failing.
+
+Everything else is compared against a running Neovim, input by input, by
+`TESTS/shim_behavior_spec.lua` — inside the ordinary test run, so it needs
+neither PUC Lua nor the rocks. `standalone/selfcheck_behavior.lua` replays the
+same corpus on PUC Lua with the real rocks when one is available.
 
 ==============================================================================
 10. MCP SERVER                                                *documentation-mcp*
