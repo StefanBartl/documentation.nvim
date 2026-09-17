@@ -224,6 +224,35 @@ for byte and would otherwise need `lua-language-server` installed to reproduce
 it. Both class-based Hierarchy views say so explicitly when opened against such
 an artifact instead of rendering blank.
 
+### Regenerating from a `git worktree`
+
+`.docmap.json` declares lib.nvim at `local_path: "../lib.nvim"`, resolved
+relative to the **tree root** — which in a worktree is the worktree, not the
+main checkout. A sibling checkout that `../lib.nvim` finds from
+`repos/documentation.nvim` is therefore invisible from a worktree nested
+anywhere else, and
+[`core/external_repos.lua`](../lua/documentation/core/external_repos.lua)
+silently falls back to the unverified flat shape: about 20 external links
+degrade from `…/autocmd/init.lua` to `…/autocmd.lua`, the artifact differs by
+roughly a hundred bytes, and `--check` calls the tree stale for something the
+tree never said. Same failure the `map` job hit in CI, which is why the
+workflow symlinks the dependency into place before generating.
+
+So make `../lib.nvim` resolve from wherever you generate, rather than skipping
+the regeneration. One directory symlink in the folder your worktrees live in
+covers all of them, and needs no administrator on Windows:
+
+```bash
+ln -s /path/to/lib.nvim <worktree-parent>/lib.nvim
+```
+
+```powershell
+cmd /c mklink /J <worktree-parent>\lib.nvim <path-to>\lib.nvim
+```
+
+`--check` reporting "up to date" from inside a worktree is the confirmation
+that it resolved.
+
 ## Specs that read the committed map
 
 A committed artifact is an *input* to the suite, and the UI half of
