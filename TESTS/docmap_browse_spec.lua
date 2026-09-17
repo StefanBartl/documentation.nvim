@@ -1178,9 +1178,33 @@ return function(H)
     -- is left to prove is the wiring — that `p` reaches it, that mode 6 shows
     -- what it holds, and that `<CR>` there restores a *view* rather than only
     -- a subject.
+    -- Centered on a node the artifact says something requires, rather than on
+    -- `ir.root`, because the root is not guaranteed to have an incoming edge.
+    -- When `source` names a directory that merely *contains* the plugin, the
+    -- root is a namespace nothing requires — this repository's own committed
+    -- map was rooted at `lua` instead of `lua/documentation` from 8786299 to
+    -- ac2cbc5 — and Deps then renders a single message row, which `p` refuses
+    -- by design. Opened at the root, this block reported that as
+    -- "expected 1, got 0": a statement about the committed build product
+    -- wearing the costume of one about the pin path, and three commits' worth
+    -- of hunting for a platform bug that was never there. Same rule the `gI`
+    -- block below already follows — read what the tree offers rather than
+    -- assuming its shape.
+    local ir_repo = source.load_artifact({ root = root })
+    local pin_center
+    if ir_repo then
+      for _, id in ipairs(ir_repo.order) do
+        if #(ir_repo.nodes[id].required_by or {}) > 0 then
+          pin_center = id
+          break
+        end
+      end
+    end
+    ok(pin_center ~= nil, "browse: the map offers a node something requires, to pin from")
+
     trail.clear(root)
     browse.close()
-    browse.open({ root = root })
+    browse.open({ root = root, center = pin_center })
     vim.api.nvim_set_current_win((slot("documentation-browse-list")))
 
     -- Pinned from Deps, so the axes have something to restore that Structure
