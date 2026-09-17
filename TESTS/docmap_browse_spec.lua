@@ -1178,18 +1178,21 @@ return function(H)
     -- is left to prove is the wiring — that `p` reaches it, that mode 6 shows
     -- what it holds, and that `<CR>` there restores a *view* rather than only
     -- a subject.
-    -- Centered on a node the artifact says something requires, rather than on
-    -- `ir.root`, because the root is not guaranteed to have an incoming edge.
-    -- When `source` names a directory that merely *contains* the plugin, the
-    -- root is a namespace nothing requires — this repository's own committed
-    -- map was rooted at `lua` instead of `lua/documentation` from 8786299 to
-    -- ac2cbc5 — and Deps then renders a single message row, which `p` refuses
-    -- by design. Opened at the root, this block reported that as
-    -- "expected 1, got 0": a statement about the committed build product
-    -- wearing the costume of one about the pin path, and three commits' worth
-    -- of hunting for a platform bug that was never there. Same rule the `gI`
-    -- block below already follows — read what the tree offers rather than
-    -- assuming its shape.
+    --
+    -- Centered on a node the artifact says something requires, not on
+    -- `ir.root`: the root is a namespace with no incoming edge whenever
+    -- `source` names a directory that merely *contains* the plugin, Deps then
+    -- renders a single message row, and `p` refuses that by design. This
+    -- repository shipped exactly such a map and the block failed on it — see
+    -- docs/DEVELOPMENT.md § "Specs that read the committed map" for why that
+    -- took three commits to read. Same rule the `gI` block below follows.
+    --
+    -- `required_by` rather than any other "is this node interesting" test,
+    -- because it is literally the field Deps reads for the incoming
+    -- direction (`view.lua`'s `dir == "in" and "required_by" or "requires"`).
+    -- Picking on anything else would make the centre and the list agree by
+    -- luck. Deterministic because `order` is the artifact's own sorted node
+    -- order, which the determinism rules keep stable across regenerations.
     local ir_repo = source.load_artifact({ root = root })
     local pin_center
     if ir_repo then
