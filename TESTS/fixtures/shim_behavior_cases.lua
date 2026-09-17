@@ -523,7 +523,13 @@ M.cases = {
   { id = "fs.dirname/root", path = "fs.dirname", args = { "/" } },
   { id = "fs.dirname/empty", path = "fs.dirname", args = { "" } },
   { id = "fs.dirname/windows-forward", path = "fs.dirname", args = { "C:/a/b" } },
-  { id = "fs.dirname/drive-child", path = "fs.dirname", args = { "C:/a" } },
+  {
+    id = "fs.dirname/drive-child",
+    path = "fs.dirname",
+    args = { "C:/a" },
+    why = "`C:/` on Windows, where a drive root is a directory; a plain `C:` "
+      .. "on Linux, where a drive letter is just a directory name",
+  },
   {
     id = "fs.dirname/windows-backslash",
     path = "fs.dirname",

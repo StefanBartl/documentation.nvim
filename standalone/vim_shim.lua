@@ -562,9 +562,16 @@ function vim.fs.dirname(path)
     return "."
   elseif parent == "" then
     return "/"
-  elseif parent:match("^%a:$") then
+  elseif IS_WINDOWS and parent:match("^%a:$") then
     -- `C:/a` -> `C:/`, not `C:`: the drive root is a directory, the bare
     -- drive letter is a different thing entirely.
+    --
+    -- **Only on Windows**, and that guard was missing for one CI run. A
+    -- drive letter is not a path concept on Linux, where the editor answers
+    -- a plain `C:` and treats it as an ordinary directory name — so a shim
+    -- applying the rule unconditionally is wrong on exactly the host the
+    -- `standalone` gate actually runs on. The differential caught it on its
+    -- first run in CI, which is the argument for the differential.
     return parent .. "/"
   end
   return parent
