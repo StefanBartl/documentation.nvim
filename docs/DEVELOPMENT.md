@@ -87,6 +87,18 @@ only the third needs the interpreter that is usually missing. All three read
 one corpus, [`TESTS/fixtures/shim_behavior_cases.lua`](../TESTS/fixtures/shim_behavior_cases.lua),
 so the shim never grows a second implementation with its own tests.
 
+**A signature narrower than the editor's is a behavioural difference too.**
+`vim.deepcopy(t, true)` is a legal call — `true` is Neovim's `noref` — and a
+shim using that slot for something of its own raises on it. When adding to the
+shim, match the editor's whole signature, options table included, rather than
+only the part this tree happens to call today; a case in the corpus is what
+keeps that honest.
+
+A case whose `path` or `kind` is a typo resolves to nothing on *both* sides and
+therefore agrees with itself. Both runners refuse such a case outright rather
+than counting it — a check that reports green while checking nothing is the
+failure this whole corner of the tree exists to prevent.
+
 The PUC replay compares against expectations `ci.lua` writes out of the Neovim
 running it, seconds earlier — never a committed golden file. A golden would
 need regenerating by hand and would drift with the next Neovim release, at

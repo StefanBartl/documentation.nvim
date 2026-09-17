@@ -3290,3 +3290,64 @@ globals — the tree that has shipped a call to a `nil` value twice.
   (`GATES.standalone`, `GATES.luacheck`)
 - **Tests:** `TESTS/shim_behavior_spec.lua`,
   `TESTS/fixtures/shim_behavior_cases.lua`, `TESTS/fixtures/shim_fs/`
+
+## Reviewing the differential found one more, in the differential's own author (2026-09-17)
+
+A review pass over the shim work above, aimed at the classes the differential
+structurally cannot see: an API the shim narrowed, a check that agrees with
+itself, and a walk that runs over every decoded artifact.
+
+**`vim.deepcopy`'s second parameter is Neovim's `noref`, and it had been used
+for the copy cache.** So `vim.deepcopy(KEYS, true)` —
+`editor/browse/init.lua:1730`, a call the editor answers fine — raised
+*attempt to index local 'seen' (a boolean value)* in the shim. That is exactly
+the defect class the tests above exist to prevent, introduced while fixing
+another one: **a signature narrower than the editor's is a behavioural
+difference too.** Not reachable from the standalone binary today (`core/` never
+requires `editor/`, checked), which is why nothing caught it. The cache moved
+into a local helper and the public signature now matches, `noref` semantics
+included — every occurrence copied separately, and a cycle therefore failing,
+as it does in Neovim.
+
+Three more of the same shape, each found by asking "what does the editor do
+that the shim merely accepts?":
+
+- `tbl_extend`/`tbl_deep_extend` took **any** behavior string. A misspelled
+  `"forse"` silently meant `keep`, so the override the caller wrote never
+  happened and the old value survived looking deliberate. The editor raises.
+- `json.encode` accepted Neovim's options table and ignored it, so
+  `escape_slash` — the one option that changes the bytes — did nothing.
+- `uv.fs_mkdir` returned `false` where `uv` returns `nil`; invisible to every
+  `if not ok` in the tree until someone writes `== false`.
+
+**Two holes in the checking apparatus itself**, both of the shape this whole
+corner of the tree is about — a check that reports green while checking
+nothing. A case whose `path` is a typo resolves to nothing on *both* sides,
+compares equal, and reads as coverage; so does a typo in its `kind`. Both are
+now refused outright, in the spec and when writing the expectations. Worth
+noting that this does not catch a `vim.fn.*` typo, because Neovim's `vim.fn`
+resolves any name lazily — there the bogus call raises instead, and the
+mismatch catches it.
+
+**One hypothesis that did not survive measurement**, recorded because the
+alternative is a comment claiming a fix for a bug nobody demonstrated:
+`encode_string` selects bytes with `%c`, which is `iscntrl` under the current
+`LC_CTYPE`, so a locale covering 0x80–0x9F would escape UTF-8 continuation
+bytes one by one and corrupt the umlaut this function is careful about. It
+could not be reproduced on any locale available here. The escape function now
+returns bytes above 0x7F unchanged, which makes an over-match harmless rather
+than relying on the locale's answer — cheap insurance, not a demonstrated fix,
+and the comment says so.
+
+**Performance:** `normalize_decoded` walks every decoded document (strip
+dkjson's metatables, apply `luanil`) and used to recurse into scalars only to
+return immediately — one call per leaf, on a `module_map.json` of ~1.9 MB that
+is mostly leaves. The type test moved to the caller.
+
+- **Modules:** `standalone/vim_shim.lua` (`deepcopy`, `tbl_extend`,
+  `tbl_deep_extend`, `json.encode`, `normalize_decoded`), `scripts/ci.lua`
+  (corpus failures now read as this gate's red, not a traceback)
+- **Tests:** eight new cases in `TESTS/fixtures/shim_behavior_cases.lua`
+  (`deepcopy/noref-*`, `tbl_extend/invalid-behavior`,
+  `json.encode/escape-slash-*`), plus the integrity guards in
+  `TESTS/shim_behavior_spec.lua`

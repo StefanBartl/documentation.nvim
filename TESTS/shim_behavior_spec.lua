@@ -162,9 +162,20 @@ return function(H)
   -- The comparison itself.
   -- ---------------------------------------------------------------------
   local mismatches, compared, deferred = {}, 0, 0
+  -- A case whose path the *editor* does not have is a typo in the corpus, and
+  -- it fails in the one direction nobody notices: both sides answer `missing`,
+  -- the case agrees with itself, and it reads as coverage. Collected
+  -- separately from real mismatches so the message says which it is.
+  local unresolved = {}
 
   for _, case in ipairs(cases.sorted()) do
     if case.needs == "puc" then
+      -- Still resolved against the editor, even though the shim side waits
+      -- for the PUC runner: a typo must not hide behind the tag either.
+      local answer = cases.evaluate(vim, cases.materialize(case), fixture)
+      if answer == "missing" or answer:sub(1, 13) == "unknown-kind:" then
+        unresolved[#unresolved + 1] = case.id .. " -> " .. answer
+      end
       deferred = deferred + 1
     else
       -- Materialised twice on purpose: a mutating implementation must not be
@@ -172,7 +183,9 @@ return function(H)
       local want, want_detail = cases.evaluate(vim, cases.materialize(case), fixture)
       local got, got_detail = cases.evaluate(shim, cases.materialize(case), fixture)
       compared = compared + 1
-      if want ~= got then
+      if want == "missing" or want:sub(1, 13) == "unknown-kind:" then
+        unresolved[#unresolved + 1] = case.id .. " -> " .. want
+      elseif want ~= got then
         local line = ("%s\n      neovim: %s\n      shim:   %s"):format(case.id, want, got)
         if case.why then
           line = line .. "\n      case:   " .. case.why
@@ -188,6 +201,15 @@ return function(H)
       end
     end
   end
+
+  table.sort(unresolved)
+  eq(
+    table.concat(unresolved, ", "),
+    "",
+    "shim behavior: every case names a vim.* path this Neovim has and a kind "
+      .. "the runner knows — a typo in either agrees with itself and checks "
+      .. "nothing"
+  )
 
   ok(compared > 40, "shim behavior: compared " .. compared .. " cases against the real vim.*")
   eq(

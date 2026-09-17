@@ -164,6 +164,20 @@ function vim.tbl_map(fn, t)
   return out
 end
 
+local BEHAVIORS = { force = true, keep = true, error = true }
+
+---Reject a behavior string the editor would reject.
+---
+---A misspelled `"forse"` is not a table-merging question, it is a typo — and
+---without this it silently means `"keep"`, so the override the caller wrote
+---simply does not happen and the old value survives looking deliberate.
+---@param behavior string
+local function check_behavior(behavior)
+  if not BEHAVIORS[behavior] then
+    error(('invalid "behavior": %s'):format(tostring(behavior)), 0)
+  end
+end
+
 ---Neovim takes at least two tables and says so when it does not get them.
 ---Accepting one and quietly returning a copy hides the call-site mistake at
 ---the only moment anyone would have looked at it.
@@ -171,6 +185,7 @@ end
 ---@param ... table
 ---@return table
 function vim.tbl_extend(behavior, ...)
+  check_behavior(behavior)
   if select("#", ...) < 2 then
     error(
       ("wrong number of arguments (given %d, expected at least 3)"):format(1 + select("#", ...)),
@@ -228,6 +243,7 @@ end
 ---@param ... table
 ---@return table
 function vim.tbl_deep_extend(behavior, ...)
+  check_behavior(behavior)
   local out = {}
   for _, t in ipairs({ ... }) do
     for k, v in pairs(t) do
@@ -266,6 +282,28 @@ function vim.list_extend(dst, src, start, finish)
   return dst
 end
 
+---@param v any
+---@param seen table<table, table>|nil
+---@return any
+local function deepcopy(v, seen)
+  if type(v) ~= "table" then
+    return v
+  end
+  if seen then
+    if seen[v] then
+      return seen[v]
+    end
+  end
+  local out = {}
+  if seen then
+    seen[v] = out
+  end
+  for k, val in pairs(v) do
+    out[deepcopy(k, seen)] = deepcopy(val, seen)
+  end
+  return setmetatable(out, getmetatable(v))
+end
+
 ---A deep copy that preserves sharing, survives cycles, and carries
 ---metatables — all three of which Neovim's does.
 ---
@@ -274,23 +312,21 @@ end
 ---by two paths becomes two tables, so a later write through one of them stops
 ---being visible through the other. Neither shows up as a missing name, which
 ---is why the static contract could not see it.
----@param v any
----@param seen table<table, table>|nil
+---
+---**The second parameter is Neovim's `noref`, not an internal one.** It was
+---the cache for one commit, and `editor/browse/init.lua` calls
+---`vim.deepcopy(KEYS, true)` — so the shim raised *attempt to index a boolean*
+---on a call the editor answers perfectly well. That is precisely the class of
+---defect this file's tests exist to prevent, introduced while fixing another
+---one: a signature narrower than the editor's is a behavioural difference too.
+---The cache therefore lives in a local helper, out of reach of callers.
+---@param orig any
+---@param noref boolean|nil When true, every occurrence of a table becomes a
+---new copy instead of one shared copy — which also means a cyclic reference
+---makes the call fail, exactly as it does in Neovim.
 ---@return any
-function vim.deepcopy(v, seen)
-  if type(v) ~= "table" then
-    return v
-  end
-  seen = seen or {}
-  if seen[v] then
-    return seen[v]
-  end
-  local out = {}
-  seen[v] = out
-  for k, val in pairs(v) do
-    out[vim.deepcopy(k, seen)] = vim.deepcopy(val, seen)
-  end
-  return setmetatable(out, getmetatable(v))
+function vim.deepcopy(orig, noref)
+  return deepcopy(orig, not noref and {} or nil)
 end
 
 -- ------------------------------------------------------------------ json
@@ -334,9 +370,27 @@ local STRING_ESCAPE = {
 ---including NUL on both.
 ---@param s string
 ---@return string
-local function encode_string(s)
-  local body = s:gsub('[%c"\\\127]', function(c)
-    return STRING_ESCAPE[c] or string.format("\\u%04x", c:byte())
+local function encode_string(s, escape_slash)
+  local body = s:gsub(escape_slash and '[%c"\\/\127]' or '[%c"\\\127]', function(c)
+    if c == "/" then
+      return "\\/"
+    end
+    local short = STRING_ESCAPE[c]
+    if short then
+      return short
+    end
+    local byte = c:byte()
+    -- `%c` is whatever `iscntrl` says under the current `LC_CTYPE`, and a
+    -- locale where that also covers 0x80-0x9F would match the continuation
+    -- bytes of a UTF-8 character and escape them one by one — silently
+    -- corrupting exactly the umlaut this function is careful about. Returning
+    -- the byte unchanged makes the over-match harmless instead of relying on
+    -- the locale being C. (Not reproduced on any locale available here; this
+    -- is the cheap way to stop depending on the answer.)
+    if byte > 0x7f then
+      return c
+    end
+    return string.format("\\u%04x", byte)
   end)
   return '"' .. body .. '"'
 end
@@ -376,7 +430,12 @@ function vim.json.encode(...)
   if select("#", ...) == 0 then
     error("expected 1 or 2 arguments", 0)
   end
-  local value = ...
+  -- The second argument is Neovim's options table, and the one option that
+  -- changes the bytes is `escape_slash`. Nothing in this tree passes it, but
+  -- accepting the argument and ignoring it is how a shim ends up quietly
+  -- disagreeing with the editor — the same shape as `deepcopy`'s `noref`.
+  local value, opts = ...
+  local escape_slash = opts ~= nil and opts.escape_slash == true
   -- Scalars are written here rather than handed to dkjson: they are the only
   -- thing `core/json.lua` ever delegates (that module encodes every container
   -- itself, to get a deterministic key order), they are what ends up in the
@@ -392,13 +451,14 @@ function vim.json.encode(...)
   elseif ty == "number" then
     return encode_number(value)
   elseif ty == "string" then
-    return encode_string(value)
+    return encode_string(value, escape_slash)
   end
   -- Containers still go to dkjson, and are deliberately *not* compared:
   -- Neovim gives no ordering guarantee for object keys, so "the same output"
   -- is not a thing either side can promise. Nothing in the standalone path
   -- takes this branch — `core/json.lua` handles its own containers — and it
-  -- stays only so a caller that did would keep working.
+  -- stays only so a caller that did would keep working. `escape_slash` does
+  -- not reach it, which is one more reason not to start using it.
   return (dkjson.encode(value))
 end
 
@@ -422,9 +482,15 @@ local function normalize_decoded(value, drop)
   end
   setmetatable(value, nil)
   for k, v in pairs(value) do
-    if v == vim.NIL and drop then
+    -- Setting a field to `nil` during a `pairs` traversal is explicitly
+    -- allowed; adding one is not, and nothing here adds.
+    if drop and v == vim.NIL then
       value[k] = nil
-    else
+    elseif type(v) == "table" then
+      -- Tested before the call rather than inside it: this walk runs over
+      -- every decoded document, and `module_map.json` is ~1.9 MB of mostly
+      -- string and number leaves. Recursing into each of those only to
+      -- return immediately is one function call per leaf for nothing.
       normalize_decoded(v, drop)
     end
   end

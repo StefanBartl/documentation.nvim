@@ -331,10 +331,24 @@ function GATES.standalone()
   -- before the replay, rather than read from a committed golden file: a
   -- golden would drift with the next Neovim release and would then be
   -- evidence of nothing.
-  local cases = dofile(root .. "/TESTS/fixtures/shim_behavior_cases.lua")
+  --
+  -- Both steps are wrapped: a corpus that cannot be loaded, and a case naming
+  -- something this Neovim does not have, are both *this gate's* red — with a
+  -- sentence saying which. Unwrapped they surface as a Lua traceback out of a
+  -- file nobody was editing, which reads like the build is broken.
+  local loaded, cases = pcall(dofile, root .. "/TESTS/fixtures/shim_behavior_cases.lua")
+  if not loaded then
+    fail("cannot load the shim behaviour corpus: " .. tostring(cases))
+    return
+  end
   vim.fn.mkdir(root .. "/.deps", "p")
   local expectations = root .. "/.deps/shim-expectations.txt"
-  local written = cases.write_expectations(vim, root .. "/TESTS/fixtures/shim_fs", expectations)
+  local ok_write, written =
+    pcall(cases.write_expectations, vim, root .. "/TESTS/fixtures/shim_fs", expectations)
+  if not ok_write then
+    fail("shim behaviour corpus is broken: " .. tostring(written))
+    return
+  end
   say(("  ok: wrote %d expectations from this Neovim"):format(written))
   run({ lua, "standalone/selfcheck_behavior.lua", root, expectations }, "standalone shim behaviour")
 end

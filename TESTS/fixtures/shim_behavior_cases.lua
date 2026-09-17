@@ -312,6 +312,10 @@ function M.evaluate(surface, case, root)
     return M.canon(ty)
   end
 
+  -- Rendered as an answer rather than raised, so the runners can report which
+  -- case is broken. Both of them treat a `missing`/`unknown-kind` answer as a
+  -- corpus bug rather than as agreement — two identical `unknown-kind:` lines
+  -- compare equal, and a case that agrees with itself checks nothing.
   return "unknown-kind:" .. tostring(kind)
 end
 
@@ -418,6 +422,15 @@ M.cases = {
     why = "Neovim requires at least two tables and says so; a shim that "
       .. "quietly returns a copy hides the call-site mistake",
   },
+  {
+    id = "tbl_extend/invalid-behavior",
+    path = "tbl_extend",
+    args = { "forse", { a = 1 }, { a = 2 } },
+    why = "a misspelled behavior silently means `keep`, so the override the "
+      .. "caller wrote never happens and the old value survives looking "
+      .. "deliberate",
+  },
+  { id = "tbl_extend/non-table-argument", path = "tbl_extend", args = { "force", { a = 1 }, "x" } },
 
   -- ----------------------------------------------------- tbl_deep_extend
   {
@@ -448,6 +461,11 @@ M.cases = {
     id = "deep_extend/error-on-duplicate",
     path = "tbl_deep_extend",
     args = { "error", { a = 1 }, { a = 2 } },
+  },
+  {
+    id = "deep_extend/invalid-behavior",
+    path = "tbl_deep_extend",
+    args = { "forse", { a = 1 }, { b = 2 } },
   },
   {
     id = "deep_extend/does-not-mutate-input",
@@ -502,6 +520,22 @@ M.cases = {
     path = "deepcopy",
     args = { "<FN:with_mt>" },
     why = "Neovim carries the metatable across; a plain copy drops it",
+  },
+  {
+    id = "deepcopy/noref-true",
+    path = "deepcopy",
+    args = { "<FN:shared>", true },
+    why = "the second argument is Neovim's `noref`: every occurrence becomes "
+      .. "its own copy. A shim using that slot for something else raises "
+      .. "`attempt to index a boolean` on a call the editor answers",
+  },
+  { id = "deepcopy/noref-false", path = "deepcopy", args = { "<FN:shared>", false } },
+  {
+    id = "deepcopy/noref-cycle",
+    path = "deepcopy",
+    args = { "<FN:cyclic>", true },
+    why = "without the cache a cycle cannot terminate — the editor fails here "
+      .. "too, and the shim must fail rather than answer",
   },
 
   -- ---------------------------------------------------------- fs.dirname
@@ -678,6 +712,18 @@ M.cases = {
       .. "reads as 'the map is stale'",
   },
   { id = "json.encode/string-emoji", path = "json.encode", args = { "\240\159\154\128" } },
+  {
+    id = "json.encode/escape-slash-opt",
+    path = "json.encode",
+    args = { "a/b", { escape_slash = true } },
+    why = "the one option that changes the bytes; accepting the argument and "
+      .. "ignoring it is how a shim quietly disagrees with the editor",
+  },
+  {
+    id = "json.encode/escape-slash-off",
+    path = "json.encode",
+    args = { "a/b", { escape_slash = false } },
+  },
   { id = "json.encode/number-integral-float", path = "json.encode", args = { 100.0 } },
   { id = "json.encode/number-zero", path = "json.encode", args = { 0 } },
   { id = "json.encode/number-negative", path = "json.encode", args = { -1 } },
@@ -860,6 +906,17 @@ function M.write_expectations(surface, root, out_path)
   for _, case in ipairs(M.sorted()) do
     if not case.local_only then
       local value = M.evaluate(surface, M.materialize(case), root)
+      -- A path the oracle itself does not have is a typo in the corpus, and
+      -- the quiet failure mode is the dangerous one: both sides would answer
+      -- `missing`, the case would agree with itself, and it would look like
+      -- coverage for as long as nobody read it.
+      if value == "missing" then
+        fd:close()
+        error(("case %q names %q, which this Neovim does not have"):format(case.id, case.path), 0)
+      elseif value:sub(1, 13) == "unknown-kind:" then
+        fd:close()
+        error(("case %q has an %s"):format(case.id, value), 0)
+      end
       fd:write(case.id, "\t", value, "\n")
       n = n + 1
     end
