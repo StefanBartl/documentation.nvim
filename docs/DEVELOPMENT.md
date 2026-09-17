@@ -224,6 +224,39 @@ for byte and would otherwise need `lua-language-server` installed to reproduce
 it. Both class-based Hierarchy views say so explicitly when opened against such
 an artifact instead of rendering blank.
 
+## Specs that read the committed map
+
+A committed artifact is an *input* to the suite, and the UI half of
+`TESTS/docmap_browse_spec.lua` mounts the real browser against it. That buys
+coverage nothing synthetic can — but it also means the spec is reading a build
+product whose shape it does not control, so it may assert only what the
+artifact's contract guarantees.
+
+The rule is: **derive the position from the artifact, never assume it.** The
+failure that established it was a `p` (pin) assertion opened on `ir.root`,
+which quietly assumed the root has an incoming dependency edge. It normally
+does — but `ir.root` is whatever `source` names, and when that is a directory
+which merely *contains* the plugin the root is a namespace nothing requires.
+This repository shipped exactly that artifact from `8786299` to `ac2cbc5`
+(rooted at `lua`, not `lua/documentation`). Deps then renders a single message
+row, `p` refuses it by design, and the spec reported `expected 1, got 0` — a
+statement about the committed JSON wearing the costume of one about the pin
+path.
+
+Two things made it expensive to read. The map commit carried `[skip ci]`, so
+no CI run ever saw that artifact and the last green run belonged to the commit
+before it — which looked like "passes on Linux, fails on Windows". And the map
+was regenerated back to a well-formed root three commits later, so whether it
+reproduced depended on which commit the tree happened to be sitting on — which
+looked like flakiness. It was neither: given the artifact, the failure is
+deterministic on every platform. When a spec in this half goes red, diff
+`docs/map/module_map.json` against the last known-good regeneration before
+reaching for the code.
+
+The `gI` block in the same spec carries the other half of the rule: scan every
+row for one that reports a figure rather than pinning the assertion to a fixed
+module and a fixed window of rows.
+
 ## Determinism
 
 Two rules, and breaking either one makes `--check` useless:
