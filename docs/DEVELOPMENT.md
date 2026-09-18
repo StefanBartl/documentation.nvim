@@ -137,7 +137,7 @@ same rule `*.sh` already had. If you cloned before that landed, one
 nvim --headless -u NONE -l TESTS/run.lua
 ```
 
-**One hundred specs**, every one driven by the tiny shared harness in
+**One hundred and two specs**, every one driven by the tiny shared harness in
 [`TESTS/harness.lua`](../TESTS/harness.lua) (`eq`, `ok`, `tmpfile`,
 `read_lines` — no framework). The list in
 [`TESTS/run.lua`](../TESTS/run.lua) is the inventory; a handful are worth
@@ -152,6 +152,23 @@ knowing by name before touching what they cover:
 | [`docmap_browse_spec.lua`](../TESTS/docmap_browse_spec.lua) | `browse` — real floats, real buffers. |
 | [`shim_behavior_spec.lua`](../TESTS/shim_behavior_spec.lua) | `standalone/vim_shim.lua` answering what the editor answers, input by input. Loads the shim *inside* Neovim (`_G.vim` unset for the duration, `lfs` adapted onto `vim.uv`, `dkjson` refused rather than faked) so the comparison needs neither PUC Lua nor a rock. See [the standalone gate](#the-standalone-gate-skips-and-what-that-costs). |
 | `lang_*_spec.lua` | One per language backend. **Each skips when its grammar is absent**, which is the normal local state — see [`languages.md § Running the language specs`](languages.md#running-the-language-specs) for the `DOCMAP_<LANG>_PARSER` variable each one reads. |
+| [`usrcmds_readonly_spec.lua`](../TESTS/usrcmds_readonly_spec.lua) | The `:DocMap` subcommands that read straight off the already-scanned IR — `why`, `graph`, `dot`, `mermaid`, `tools`, `bindings`, `plugins`, `endpoints`, `consumers` — none of which touch git. The algorithms one layer down (`core/deps.path`, `core/consumers.index`, …) already had literal-data coverage elsewhere; this is the command layer above them — usage errors, "nothing found" messages, collision/duplicate detection, sort order, and the `dot`/`mermaid` buffer-reuse-by-name regression. Literal `Documentation.IR` fixtures throughout, the same shape `docmap_spec.lua`'s churn/diff blocks use. |
+| [`usrcmds_git_spec.lua`](../TESTS/usrcmds_git_spec.lua) | The four `:DocMap` subcommands that shell out to git — `churn`, `diff`, `impact`, `checklist` — against a real, disposable fixture repository (`git init`, real commits, pinned `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE`), the same posture `api_spec.lua` and `mcp_spec.lua`'s `docmap_checklist` block already take: a stubbed `vim.system` would prove the wiring reads the stub, not that the real command, pathspec exclusion and async callback chain work. Skips outright on a machine with no `git`. |
+
+**What `bindings/usrcmds/*.lua` still has no direct spec, deliberately:**
+`open.lua` shells out to a real system opener (`explorer.exe`/`open`/
+`xdg-open`) — nothing to assert against without actually popping a browser
+window. `serve.lua` binds a real listening socket for the life of the editor
+session. `helptags.lua` writes this plugin's own `doc/tags` as a side effect
+of running — sandboxing it would mean faking the one thing the command
+exists to exercise. `untested.lua` is telemetry-only (`runtime-analysis.nvim`
+data, opt-in, degrades to an info message with nothing installed) and its two
+reachable branches without that dependency are the least consequential ones
+in this directory. `generate.lua`/`generate_all.lua`/`browse.lua`/
+`annotate.lua`/`bindings/usrcmds/init.lua` already have their own specs (see
+`docmap_spec.lua`, `generate_all_spec.lua`, `usrcmds_generate_all_spec.lua`,
+`browse_loaded_spec.lua`/`docmap_browse_spec.lua`, `annotate_spec.lua`,
+`usrcmds_actions_spec.lua`).
 
 **A green run does not mean every backend was exercised.** Without grammars,
 the language specs report `ok` after their contract assertions and skip the
