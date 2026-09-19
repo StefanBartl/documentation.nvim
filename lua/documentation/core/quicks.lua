@@ -638,9 +638,26 @@ end
 ---@return Documentation.Quicks.Result
 function M.compute(ir, findings, opts)
   local qopts = (opts and opts.quicks) or {}
-  local th = vim.tbl_deep_extend("force", {}, M.DEFAULT_THRESHOLDS, qopts.thresholds or {})
-  local limit_good = qopts.limit_good or M.DEFAULT_LIMIT
-  local limit_bad = qopts.limit_bad or M.DEFAULT_LIMIT
+
+  -- Same guard shape as `docs.lua`'s `context_max`/`refs_per_entity` and
+  -- 19ef5f3's other sites: a wrong-typed or non-positive
+  -- `qopts.limit_good`/`qopts.limit_bad` (a string, `0`, a negative number
+  -- from a typo'd config) must fall back to the real default rather than
+  -- reach `math.min` below as-is -- `math.min(n, #list)` throws on a
+  -- non-number instead of silently misbehaving, which is worse, not better.
+  local limit_good = (type(qopts.limit_good) == "number" and qopts.limit_good > 0)
+      and qopts.limit_good
+    or M.DEFAULT_LIMIT
+  local limit_bad = (type(qopts.limit_bad) == "number" and qopts.limit_bad > 0) and qopts.limit_bad
+    or M.DEFAULT_LIMIT
+
+  -- `qopts.thresholds` is merged into the defaults with
+  -- `vim.tbl_deep_extend`, which throws on a non-table third argument
+  -- instead of ignoring it -- a wrong-typed `thresholds` (a string from a
+  -- typo'd config) must degrade to the defaults untouched rather than crash
+  -- every call to `compute`.
+  local thresholds_opt = type(qopts.thresholds) == "table" and qopts.thresholds or {}
+  local th = vim.tbl_deep_extend("force", {}, M.DEFAULT_THRESHOLDS, thresholds_opt)
 
   local good, bad = {}, {}
   for _, p in ipairs(probes(ir, findings or {})) do

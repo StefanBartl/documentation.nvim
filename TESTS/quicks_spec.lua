@@ -216,6 +216,43 @@ return function(H)
   eq(find(retuned, "test-coverage").polarity, "good", "quicks: thresholds override the defaults")
 
   -- ---------------------------------------------------------------------
+  -- ERR-22: an invalid config value degrades to its default, not a crash
+  -- ---------------------------------------------------------------------
+
+  -- `limit_good`/`limit_bad` reach `math.min(n, #list)` unguarded; a
+  -- wrong-typed or non-positive value must fall back to `M.DEFAULT_LIMIT`
+  -- instead of throwing there.
+  local bad_limit_good = quicks.compute(ir_with(none_tested), {}, {
+    quicks = { limit_good = "five" },
+  })
+  eq(
+    #bad_limit_good.good,
+    math.min(quicks.DEFAULT_LIMIT, bad_limit_good.total_good),
+    "quicks: a wrong-typed limit_good falls back to DEFAULT_LIMIT"
+  )
+
+  local zero_limit_bad = quicks.compute(ir_with(none_tested), {
+    { severity = "error", check = "c", message = "m" },
+  }, { quicks = { limit_bad = 0 } })
+  eq(
+    #zero_limit_bad.bad,
+    math.min(quicks.DEFAULT_LIMIT, zero_limit_bad.total_bad),
+    "quicks: a non-positive limit_bad falls back to DEFAULT_LIMIT"
+  )
+
+  -- `thresholds` is merged with `vim.tbl_deep_extend("force", ...)`, which
+  -- throws on a non-table third argument; a wrong-typed value must degrade
+  -- to the defaults untouched instead.
+  local bad_thresholds = quicks.compute(ir_with(none_tested), {}, {
+    quicks = { thresholds = "nope" },
+  })
+  eq(
+    find(bad_thresholds, "test-coverage").polarity,
+    "bad",
+    "quicks: a wrong-typed thresholds value falls back to the real defaults"
+  )
+
+  -- ---------------------------------------------------------------------
   -- Absent optional inputs are absences, not zeroes
   -- ---------------------------------------------------------------------
 
