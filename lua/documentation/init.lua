@@ -480,6 +480,42 @@ function M.to_json(ir)
   return table.concat(out)
 end
 
+---Reject an `out_dir` that would write outside `root`, rather than trust it.
+---
+---`opts.out_dir` is repository input — `config/file.lua`'s `REPO_KEYS.out_dir`
+---lets a cloned tree's own `.docmap.json` set it — and `write_artifacts` below
+---used to paste it straight onto `root` with no check at all: a value like
+---`"../../../../.config/nvim/lua"` made `mkdirp` create that tree and wrote
+---the generated artifacts into it, outside the repository, just from running
+---`:DocMap` in an untrusted checkout.
+---
+---Whitelist, not the `..`-substring blacklist `core/deps.lua`/`editor/serve.
+---lua` use elsewhere for a different purpose: every path segment is checked
+---against an explicit allowed character set, and `.`/`..` are rejected as
+---whole segments rather than searched for as a substring, which also rejects
+---a segment like `"a.."` a substring search would let through unexamined. A
+---leading `/` or a Windows drive letter (`out_dir` folded to forward slashes
+---first) is rejected outright as an absolute path masquerading as relative.
+---@param out_dir string?
+---@return string? safe `nil` when `out_dir` is not a safe relative path.
+local function safe_out_dir(out_dir)
+  local s = (out_dir and out_dir ~= "" and out_dir or "docs/map"):gsub("\\", "/")
+  if s:sub(1, 1) == "/" or s:match("^%a:") then
+    return nil
+  end
+  local segments = {}
+  for segment in s:gmatch("[^/]+") do
+    if segment == "." or segment == ".." or not segment:match("^[%w%-%._]+$") then
+      return nil
+    end
+    segments[#segments + 1] = segment
+  end
+  if #segments == 0 then
+    return nil
+  end
+  return table.concat(segments, "/")
+end
+
 ---Write `content` to `path`, creating parent directories.
 ---@param path string
 ---@param content string
@@ -508,7 +544,7 @@ end
 ---@param findings Documentation.Finding[]
 ---@param opts Documentation.Opts
 ---@return string[] written Repo-relative paths of the files written
----@raises string When `opts.root` is missing, or a file under `opts.out_dir` cannot be written.
+---@raises string When `opts.root` is missing, `opts.out_dir` is not a safe relative path, or a file under it cannot be written.
 function M.write_artifacts(ir, findings, opts)
   assert_opts(opts, "documentation.write_artifacts")
   assert(
@@ -516,7 +552,10 @@ function M.write_artifacts(ir, findings, opts)
     "documentation.write_artifacts: ir must be a scanned Documentation.IR"
   )
   local root = opts.root:gsub("\\", "/"):gsub("/+$", "")
-  local out_dir = opts.out_dir or "docs/map"
+  local out_dir = safe_out_dir(opts.out_dir)
+  if not out_dir then
+    error(("docmap: opts.out_dir is not a safe relative path: %s"):format(tostring(opts.out_dir)))
+  end
   local written = {}
 
   local artifacts = {
