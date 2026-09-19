@@ -390,8 +390,21 @@ function M.check()
   -- issued right now would act on.
   h_start("documentation.nvim: resolved configuration")
 
+  -- Where `config.build`'s degradation warnings go in this host.
+  --
+  -- Same reason `scripts/action_run.lua` and `standalone/docmap.lua` each
+  -- grew one: `build()` warns about an unrecognised option, a malformed
+  -- `.docmap.json` and a typo'd `checks` code only through a `notify` it is
+  -- handed, and this section exists specifically to make config degradation
+  -- visible — passing none silenced exactly what it was written to report.
+  local notify = {
+    warn = function(msg)
+      h_warn(("config: %s"):format(tostring(msg)))
+    end,
+  }
+
   local ok_cfg, cfg = pcall(function()
-    return require("documentation.config").build(vim.fn.getcwd())
+    return require("documentation.config").build(vim.fn.getcwd(), nil, notify)
   end)
   if not ok_cfg then
     h_error("documentation.core.config failed to load: " .. tostring(cfg))
