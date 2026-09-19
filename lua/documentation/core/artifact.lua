@@ -66,7 +66,7 @@ function M.rehydrate(doc)
   return doc
 end
 
----Decode an artifact's text into an IR, or nil if it is not one.
+---Decode an artifact's text into an IR, or nil plus why not.
 ---
 ---`luanil` matters here, it is not a style choice: the artifact writes a
 ---literal `null` for every absent optional field (`module`, `parent`,
@@ -75,15 +75,27 @@ end
 ---"userdata: 0x…" and `types_detail == nil` (the "LuaLS never ran" signal)
 ---would never be true. Dropping the keys instead restores exactly the
 ---in-memory semantics.
+---
+---**`content` reaching here at all means something was read from disk.**
+---An empty string, undecodable JSON and JSON with no `nodes` table are three
+---different ways for *that* to be broken, and all three now say so through
+---`err` — distinct from `M.load` below returning a bare `nil` for a file
+---that was never generated in the first place. Collapsing "corrupt" into the
+---same `nil` as "absent" is exactly the ambiguity `M.load`'s callers used to
+---have no way to tell apart.
 ---@param content string
----@return Documentation.IR|nil
+---@return Documentation.IR|nil ir
+---@return string|nil err
 function M.decode(content)
   if type(content) ~= "string" or content == "" then
-    return nil
+    return nil, "artifact content is empty"
   end
   local ok, doc = pcall(vim.json.decode, content, { luanil = { object = true, array = true } })
-  if not ok or type(doc) ~= "table" or type(doc.nodes) ~= "table" then
-    return nil
+  if not ok then
+    return nil, "artifact is not valid JSON: " .. tostring(doc)
+  end
+  if type(doc) ~= "table" or type(doc.nodes) ~= "table" then
+    return nil, "decoded JSON has no 'nodes' table — not a docmap artifact"
   end
   return M.rehydrate(doc)
 end
@@ -93,12 +105,20 @@ end
 ---
 ---Absence is a normal outcome, not an error: a project that has never been
 ---generated simply has none, and every caller already has to say so rather
----than fail.
+---than fail. A *present but corrupt* artifact is a different outcome, so
+---`read`'s own `nil` (no file) is kept apart from `M.decode`'s `err` (a file
+---that exists but is not readable as one) instead of both collapsing into
+---the same bare `nil` — see `M.decode` for why the distinction matters.
 ---@param opts table
----@return Documentation.IR|nil
+---@return Documentation.IR|nil ir
+---@return string|nil err
 function M.load(opts)
   local read = require("lib.nvim.fs.read")
-  return M.decode(read(M.artifact_path(opts)) or "")
+  local content = read(M.artifact_path(opts))
+  if not content then
+    return nil
+  end
+  return M.decode(content)
 end
 
 return M

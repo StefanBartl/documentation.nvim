@@ -29,7 +29,8 @@
 local M = {}
 
 ---@param opts table A resolved `Documentation.Opts`.
----@return Documentation.IR|nil
+---@return Documentation.IR|nil ir
+---@return string|nil err Set only when an artifact exists but is not readable — never for a project that has none yet.
 local function current_ir(opts)
   return require("documentation.core.artifact").load(opts)
 end
@@ -121,9 +122,9 @@ function M.telemetry(opts, snapshot)
     return { available = false, reason = "no namespace" }
   end
 
-  local ir = current_ir(opts)
+  local ir, ir_err = current_ir(opts)
   if not ir then
-    return { available = false, namespace = namespace, reason = "no map generated yet" }
+    return { available = false, namespace = namespace, reason = ir_err or "no map generated yet" }
   end
 
   local data
@@ -192,9 +193,9 @@ end
 function M.loaded(opts, snapshot)
   local loaded_diff = require("documentation.core.loaded_diff")
 
-  local ir = current_ir(opts)
+  local ir, ir_err = current_ir(opts)
   if not ir then
-    return { available = false, reason = "no map generated yet" }
+    return { available = false, reason = ir_err or "no map generated yet" }
   end
 
   local prefix = loaded_diff.prefix(opts)
@@ -263,9 +264,9 @@ end
 ---@param opts table Needs `opts.git`, a `(opts, args) -> stdout|nil, err|nil` function the host supplies.
 ---@return table
 function M.checklist(opts)
-  local ir = current_ir(opts)
+  local ir, ir_err = current_ir(opts)
   if not ir then
-    return { available = false, reason = "no map generated yet" }
+    return { available = false, reason = ir_err or "no map generated yet" }
   end
 
   local ledger = ir.checklist
