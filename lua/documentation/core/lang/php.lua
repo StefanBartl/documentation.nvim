@@ -500,7 +500,15 @@ function M.scan_file(path)
     -- An interface member is public and cannot be declared otherwise; a
     -- class member's absent modifier already means public, so `inherited`
     -- only has to be supplied for the case where the keyword is forbidden.
-    local inherited = kind == "interface_declaration" and false or nil
+    --
+    -- Written as an `if`: `kind == "interface_declaration" and false or nil`
+    -- always evaluates to `nil`, because `false` is itself falsy and the
+    -- `or` branch runs regardless of `kind` — the same trap `swift.lua` and
+    -- `scala.lua` name in their own version of this line.
+    local inherited = nil
+    if kind == "interface_declaration" then
+      inherited = false
+    end
     ---@type Documentation.ScopeKind
     local owner_kind = kind == "interface_declaration" and "interface"
       or kind == "trait_declaration" and "trait"
