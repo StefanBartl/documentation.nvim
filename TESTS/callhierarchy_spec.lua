@@ -352,4 +352,103 @@ return function(H)
       error(body_err, 0)
     end
   end
+
+  -- ------------------------------------------------------------------------
+  -- `telemetry_ttl_ms` from `setup()`/`install()` actually takes effect
+  -- (LUA-87). It used to be read straight off the raw `DEFAULTS` table
+  -- rather than the resolved config, so an override passed the unknown-key
+  -- check and was then silently discarded -- the cache always used the
+  -- hardcoded 2000ms regardless of what was configured.
+  -- ------------------------------------------------------------------------
+  do
+    local ns = "callhierarchy-ttl-fixture"
+    local root3 = H.tmpfile("_ch_ttl")
+    dwrite(root3, "lua/demo/d/init.lua", {
+      "---@module 'demo.d'",
+      "--- One function, called once statically.",
+      "local M = {}",
+      "---Hi.",
+      "function M.hi()",
+      "  return 1",
+      "end",
+      "return M",
+    })
+
+    local loads = 0
+    local previous = package.loaded["runtime-analysis.telemetry"]
+    package.loaded["runtime-analysis.telemetry"] = {
+      load = function(namespace)
+        if namespace ~= ns then
+          return nil
+        end
+        loads = loads + 1
+        return {
+          version = 1,
+          started_at = 0,
+          sessions = 1,
+          functions = { ["d.M.hi"] = { calls = 5 } },
+          days = {},
+          reminded = {},
+          modules = { ["d.M.hi"] = "demo.d" },
+          info = {},
+        }
+      end,
+    }
+
+    -- `telemetry_ttl_ms = 0`: every hover has to re-read, never reuse a
+    -- cached row -- the config value this whole feature exists to make
+    -- effective.
+    local handle3 = docmap.install({
+      root = root3,
+      source = "lua/demo",
+      lua_root = "lua",
+      callhierarchy = true,
+      telemetry_namespace = ns,
+      telemetry_ttl_ms = 0,
+    })
+
+    local d_path = root3 .. "/lua/demo/d/init.lua"
+    vim.cmd.edit(vim.fn.fnameescape(d_path))
+    local d_buf = vim.api.nvim_get_current_buf()
+    local ok_attach3 = vim.wait(2000, function()
+      for _, c in ipairs(vim.lsp.get_clients({ bufnr = d_buf })) do
+        if c.name == "docmap-callhierarchy" then
+          return true
+        end
+      end
+      return false
+    end, 10)
+    ok(ok_attach3, "telemetry_ttl_ms: the client attaches to the third root")
+
+    -- Reset after `install()`/attach: `docmap.install`'s own initial scan
+    -- already calls `telemetry_join.load` once on its own, independent path
+    -- (`core/check.lua`'s dead-function pass) -- unrelated to
+    -- `callhierarchy.lua`'s cache and not what this assertion is about.
+    loads = 0
+
+    local ok_body3, err3 = pcall(function()
+      request(d_buf, "textDocument/hover", {
+        textDocument = { uri = vim.uri_from_bufnr(d_buf) },
+        position = { line = 4, character = 4 },
+      })
+      request(d_buf, "textDocument/hover", {
+        textDocument = { uri = vim.uri_from_bufnr(d_buf) },
+        position = { line = 4, character = 4 },
+      })
+      eq(
+        loads,
+        2,
+        "telemetry_ttl_ms=0: the override reaches telemetry_ttl_ms() and disables caching, "
+          .. "instead of the hardcoded 2000ms default swallowing it"
+      )
+    end)
+
+    handle3.uninstall()
+    package.loaded["runtime-analysis.telemetry"] = previous
+    vim.cmd("silent! %bwipeout!")
+
+    if not ok_body3 then
+      error(err3, 0)
+    end
+  end
 end

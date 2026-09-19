@@ -211,7 +211,8 @@ function M.ensure_callhierarchy(root)
       callhierarchy.attach(
         args.buf,
         entry.handle,
-        require("documentation.core.telemetry_join").namespace(opts)
+        require("documentation.core.telemetry_join").namespace(opts),
+        opts
       )
     end
   end, {

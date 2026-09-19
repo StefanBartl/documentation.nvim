@@ -201,8 +201,21 @@ end
 ---Configurable via `telemetry_ttl_ms` for the case the fixed number cannot
 ---serve: someone watching a namespace fill up while a run is in progress
 ---wants it shorter, someone on a slow filesystem wants the reads rarer.
+---
+---Reads the resolved config first, same as `bindings/usrcmds/churn.lua`'s
+---own `git_log_timeout(cfg)` does for its tunable: a `setup({ telemetry_ttl_ms
+---= … })` override has to win here, not just pass the unknown-key check and
+---then be silently discarded in favour of the raw default.
+---@param cfg Documentation.Config? The resolved config, when the caller has one.
 ---@return integer
-local function telemetry_ttl_ms()
+local function telemetry_ttl_ms(cfg)
+  if
+    type(cfg) == "table"
+    and type(cfg.telemetry_ttl_ms) == "number"
+    and cfg.telemetry_ttl_ms >= 0
+  then
+    return cfg.telemetry_ttl_ms
+  end
   local ok, defaults = pcall(require, "documentation.config.DEFAULTS")
   local n = ok and type(defaults) == "table" and defaults.telemetry_ttl_ms or nil
   return (type(n) == "number" and n >= 0) and n or 2000
@@ -221,8 +234,9 @@ do
   local cached_at, cached_ns, cached = 0, nil, nil
   ---@param namespace string?
   ---@param ir Documentation.IR
+  ---@param cfg Documentation.Config? The resolved config, for `telemetry_ttl_ms`.
   ---@return table<string, Documentation.TelemetryJoin.Row>?
-  telemetry_rows = function(namespace, ir)
+  telemetry_rows = function(namespace, ir, cfg)
     if not namespace or namespace == "" then
       return nil
     end
@@ -231,7 +245,7 @@ do
     -- session can have handles for two repositories attached at once, and a
     -- cache keyed on time alone would answer the second with the first
     -- one's numbers for two seconds.
-    if cached_ns == namespace and (now - cached_at) < telemetry_ttl_ms() then
+    if cached_ns == namespace and (now - cached_at) < telemetry_ttl_ms(cfg) then
       return cached
     end
     local join = require("documentation.core.telemetry_join")
@@ -271,8 +285,9 @@ end
 ---methods `vim.lsp.start`'s `cmd` function has to hand back.
 ---@param handle Documentation.Handle
 ---@param namespace string? Telemetry namespace this root joins against, resolved by the caller from `opts` -- the handle carries no options, and `ir.meta.title` would silently ignore an explicit `opts.telemetry_namespace`.
+---@param cfg Documentation.Config? The resolved config, for `telemetry_ttl_ms`.
 ---@return vim.lsp.rpc.PublicClient
-local function make_client(handle, namespace)
+local function make_client(handle, namespace, cfg)
   local root = handle.root
   local closing = false
 
@@ -317,7 +332,7 @@ local function make_client(handle, namespace)
       local fn_key = node.id .. "#" .. fn.name
       local n_in = #handle.callers(fn_key)
       local n_out = #handle.callees(fn_key)
-      local rows = telemetry_rows(namespace, ir)
+      local rows = telemetry_rows(namespace, ir, cfg)
       local runtime = runtime_fragment(rows and rows[fn_key])
 
       -- **The silent case was the interesting one.** This used to return
@@ -408,7 +423,8 @@ local attached_bufs = {}
 ---@param bufnr integer
 ---@param handle Documentation.Handle
 ---@param namespace string? Telemetry namespace for this root; `nil` simply means the hover carries no runtime half.
-function M.attach(bufnr, handle, namespace)
+---@param cfg Documentation.Config? The resolved config, for `telemetry_ttl_ms`.
+function M.attach(bufnr, handle, namespace, cfg)
   if attached_bufs[bufnr] or not handle then
     return
   end
@@ -420,7 +436,7 @@ function M.attach(bufnr, handle, namespace)
   vim.lsp.start({
     name = CLIENT_NAME,
     cmd = function()
-      return make_client(handle, namespace)
+      return make_client(handle, namespace, cfg)
     end,
     root_dir = handle.root,
     -- Neovim's meta for the *options* table declares `cmd`, which belongs to
