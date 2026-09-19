@@ -1871,6 +1871,32 @@ return function(H)
   ---@diagnostic disable-next-line: param-type-mismatch
   eq(serve.safe_static_name(42), nil, "docmap.serve: refuses a non-string static path")
 
+  -- `route_static` builds its path as `cfg.root/cfg.out_dir/safe`, and
+  -- `cfg.out_dir` is the same repository-controlled value `write_artifacts`
+  -- guards against (SEC-42) -- `config/file.lua`'s `REPO_KEYS.out_dir` lets a
+  -- cloned tree's own `.docmap.json` set it. `safe_static_name` above only
+  -- constrains the request-path half of that join; this is the other half,
+  -- shared via `core/safe_out_dir` rather than re-derived in `serve.lua`.
+  -- Scoped in its own `do...end` block (this function is already at Lua's
+  -- 200-local ceiling): the locals below must not outlive this check.
+  do
+    local safe_out_dir = require("documentation.core.safe_out_dir")
+    eq(
+      safe_out_dir("generated/map"),
+      "generated/map",
+      "docmap.safe_out_dir: an ordinary relative out_dir passes through"
+    )
+    eq(safe_out_dir(nil), "docs/map", "docmap.safe_out_dir: nil falls back to the default")
+    for _, bad in ipairs({
+      "../../../../somewhere_outside",
+      "..\\..\\somewhere_outside",
+      "/etc/somewhere_outside",
+      "C:/somewhere_outside",
+    }) do
+      eq(safe_out_dir(bad), nil, ("docmap.safe_out_dir: refuses %q"):format(bad))
+    end
+  end
+
   -- Lifecycle. Bound to loopback on an OS-assigned port, idempotent both
   -- ways: a second start must not orphan the first socket, and stopping what
   -- never ran is a no-op rather than an error (same tolerance `uninstall`

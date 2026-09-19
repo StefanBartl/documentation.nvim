@@ -197,6 +197,14 @@ function M.safe_static_name(name)
 end
 
 ---Serve a file out of `out_dir`.
+---
+---`cfg.out_dir` is the same repository-controlled value `init.lua`'s
+---`write_artifacts` guards against (SEC-42) — `config/file.lua`'s
+---`REPO_KEYS.out_dir` lets a cloned tree's own `.docmap.json` set it. Left
+---unchecked here, a value like `"../../../.."` would make this route answer
+---requests out of a directory outside `cfg.root` instead of the generated
+---map, the read-side twin of the write-side bug `safe_out_dir` closes. Same
+---whitelist, shared rather than re-derived, via `core/safe_out_dir`.
 ---@param cfg table
 ---@param client uv.uv_tcp_t
 ---@param name string
@@ -206,7 +214,12 @@ local function route_static(cfg, client, name)
     return respond_error(client, 400, "bad path")
   end
 
-  local path = ("%s/%s/%s"):format(cfg.root, cfg.out_dir or "docs/map", safe)
+  local out_dir = require("documentation.core.safe_out_dir")(cfg.out_dir)
+  if not out_dir then
+    return respond_error(client, 500, "out_dir is not a safe relative path")
+  end
+
+  local path = ("%s/%s/%s"):format(cfg.root, out_dir, safe)
   local fd = io.open(path, "rb")
   if not fd then
     return respond_error(client, 404, "not found: " .. safe)

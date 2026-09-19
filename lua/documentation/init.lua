@@ -489,32 +489,11 @@ end
 ---the generated artifacts into it, outside the repository, just from running
 ---`:DocMap` in an untrusted checkout.
 ---
----Whitelist, not the `..`-substring blacklist `core/deps.lua`/`editor/serve.
----lua` use elsewhere for a different purpose: every path segment is checked
----against an explicit allowed character set, and `.`/`..` are rejected as
----whole segments rather than searched for as a substring, which also rejects
----a segment like `"a.."` a substring search would let through unexamined. A
----leading `/` or a Windows drive letter (`out_dir` folded to forward slashes
----first) is rejected outright as an absolute path masquerading as relative.
----@param out_dir string?
----@return string? safe `nil` when `out_dir` is not a safe relative path.
-local function safe_out_dir(out_dir)
-  local s = (out_dir and out_dir ~= "" and out_dir or "docs/map"):gsub("\\", "/")
-  if s:sub(1, 1) == "/" or s:match("^%a:") then
-    return nil
-  end
-  local segments = {}
-  for segment in s:gmatch("[^/]+") do
-    if segment == "." or segment == ".." or not segment:match("^[%w%-%._]+$") then
-      return nil
-    end
-    segments[#segments + 1] = segment
-  end
-  if #segments == 0 then
-    return nil
-  end
-  return table.concat(segments, "/")
-end
+---Extracted to `core/safe_out_dir.lua` (SEC-42) — `editor/serve.lua`'s static
+---route pastes the same `opts.out_dir` onto `root` to build a path and needs
+---the identical whitelist, not a second copy of it. See that module for the
+---whitelist-vs-blacklist reasoning.
+local safe_out_dir = require("documentation.core.safe_out_dir")
 
 ---Write `content` to `path`, creating parent directories.
 ---@param path string
