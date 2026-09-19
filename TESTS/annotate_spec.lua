@@ -177,6 +177,46 @@ return function(H)
     "annotate.apply(inline): everything from `local M = {}` down is byte-for-byte unchanged"
   )
 
+  -- apply(): a stale plan (the file changed on disk after it was scanned) is
+  -- rejected instead of blindly overwritten (ERR-30).
+  do
+    local stale_path = dr .. "/lua/t/stale/init.lua"
+    dwrite("lua/t/stale/init.lua", {
+      "local M = {}",
+      "",
+      "function M.go() end",
+      "",
+      "return M",
+    })
+    local stale_ir = scan.scan({ root = dr, source = "lua/t", lua_root = "lua" })
+    local plan_stale = assert(annotate.plan(stale_ir.nodes["lua/t/stale"], dr, "lua"))
+
+    -- The file changes on disk after the plan above was taken.
+    local fd = assert(io.open(stale_path, "wb"))
+    fd:write(table.concat({
+      "local M = {}",
+      "",
+      "function M.go() end",
+      "function M.changed() end",
+      "",
+      "return M",
+    }, "\n"))
+    fd:close()
+    local changed = assert(dread(stale_path))
+
+    local ok_stale, err_stale = annotate.apply(plan_stale, dr, "inline")
+    ok(not ok_stale, "annotate.apply: a stale plan (file changed since it was scanned) is rejected")
+    ok(
+      type(err_stale) == "string" and err_stale:find("changed", 1, true) ~= nil,
+      "annotate.apply: the rejection names the file as changed"
+    )
+    eq(
+      assert(dread(stale_path)),
+      changed,
+      "annotate.apply: a stale plan leaves the file exactly as it was, not overwritten"
+    )
+  end
+
   -- ── bindings :DocMap annotate --write over a wide candidate set ────────────
   -- More than CHUNK (10) files missing ---@module: the command must plan and
   -- write them in chunks across event-loop ticks (never one blocking loop)
