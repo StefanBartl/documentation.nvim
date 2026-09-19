@@ -64,6 +64,21 @@ end
 ensure("lib.nvim.fs.read", "lib.nvim")
 ensure("documentation.core.cli", "documentation.nvim")
 
+--- Where `config.build`'s degradation warnings go in this host.
+---
+--- Same reason `scripts/action_run.lua` and `standalone/docmap.lua` each
+--- grew one: `build()` warns about an unrecognised option, a malformed
+--- `.docmap.json` and a typo'd `checks` code only through a `notify` it is
+--- handed, and this is the pre-commit hook and CI `map` gate -- a host
+--- where silence goes unnoticed because the run still exits green.
+---
+--- `stderr`, not stdout: stdout carries the run's own report.
+local notify = {
+  warn = function(msg)
+    io.stderr:write("gen_map: " .. tostring(msg) .. "\n")
+  end,
+}
+
 local opts = require("documentation.config").build(root, {
   source = "lua/documentation",
   title = "documentation.nvim",
@@ -81,7 +96,7 @@ local opts = require("documentation.config").build(root, {
   --
   -- What stays here is what genuinely belongs to *this invocation*. See
   -- `config/file.lua` for the split and docs/reuse.md for what to copy.
-})
+}, notify)
 
 local code = require("documentation.core.cli").run(opts, _G.arg or {})
 
