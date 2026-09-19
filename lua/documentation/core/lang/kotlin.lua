@@ -486,7 +486,15 @@ function M.scan_file(path)
     -- PHP. Kotlin allows `private` on an interface member with a body, so
     -- the modifier still wins where it is written; `inherited` only supplies
     -- the default.
-    local inherited = what == "interface" and false or nil
+    --
+    -- Written as an `if`: `what == "interface" and false or nil` always
+    -- evaluates to `nil`, because `false` is itself falsy and the `or`
+    -- branch runs regardless of `what` — the same trap `swift.lua` and
+    -- `scala.lua` name in their own version of this line.
+    local inherited = nil
+    if what == "interface" then
+      inherited = false
+    end
 
     ---@type Documentation.ScopeKind
     local owner_kind = what == "interface" and "interface"
