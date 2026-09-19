@@ -1,0 +1,3 @@
+{
+  "SEC-01": "all findings are in scripts/ (bundle_manifest.lua, package.lua) and standalone/ (docmap.lua), which this repo's own file headers document as running under PUC Lua/luastatic, not Neovim -- vim.system() does not exist there, so os.execute/io.popen are the only available process-call mechanism, not a shortcut around the safer one."
+}
