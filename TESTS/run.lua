@@ -201,6 +201,7 @@ local specs = {
   "host_lua_determinism_spec.lua",
   "shim_contract_spec.lua",
   "shim_behavior_spec.lua",
+  "shell_quote_spec.lua",
   "tools_spec.lua",
   "features_spec.lua",
   "calls_external_spec.lua",

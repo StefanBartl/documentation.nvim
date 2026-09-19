@@ -333,42 +333,18 @@ local opts = require("documentation.config").build(root, {
 if api_route then
   local windows = (package.config:sub(1, 1) == "\\")
 
-  ---One shell-quoted argument, or a refusal.
-  ---
-  ---**Not every value that reaches this is trusted.** `opts.out_dir` is
-  ---repository input — `config/file.lua`'s `REPO_KEYS.out_dir` lets a
-  ---cloned tree's own `.docmap.json` set it — and it is embedded verbatim
-  ---into a git pathspec (`core/api.lua`'s `(":(exclude)%s"):format(out_dir)`)
-  ---before ever reaching here. `opts.root` is the CLI's own first argument,
-  ---also not this program's to trust. Quoting is the *only* lock on that
-  ---door, not a second one behind something else.
-  ---
-  ---`$`/backtick are refused outright rather than quoted: inside a
-  ---double-quoted POSIX string they still trigger command substitution no
-  ---matter how the surrounding quote is escaped, so no escaping of the quote
-  ---character neutralises them. A literal `"` is refused on Windows for the
-  ---same reason from the other direction — cmd.exe has no backslash-escape
-  ---for an embedded quote, so a value carrying one cannot be quoted safely
-  ---here at all.
+  -- Quoting itself lives in `standalone/shell_quote.lua` — the only piece
+  -- of this block with no dependency on the vim shim, `lfs`, or a git
+  -- checkout, and unit-tested there directly (`TESTS/shell_quote_spec.lua`)
+  -- instead of only through this file's own `lfs`-gated CI gate.
+  local shell_quote_mod = require("standalone.shell_quote")
+  ---One shell-quoted argument, or a refusal. See `standalone/shell_quote.
+  ---lua` for what is and is not trusted here and why.
   ---@param s string
   ---@return string? quoted
   ---@return string? err
   local function shell_quote(s)
-    s = tostring(s)
-    if s:find("[$`]") then
-      return nil, "refused: value contains a shell metacharacter ($ or `): " .. s
-    end
-    if windows then
-      if s:find('"') then
-        return nil, 'refused: value contains a literal " and cmd.exe cannot quote it safely: ' .. s
-      end
-      return '"' .. s .. '"'
-    end
-    -- Escape the escape character *before* the quote (SEC-46): otherwise a
-    -- value ending in `\` produces `...\"`, where the trailing backslash
-    -- escapes the closing quote instead of terminating the string, and
-    -- everything after it runs on as shell syntax rather than staying data.
-    return '"' .. (s:gsub("\\", "\\\\"):gsub('"', '\\"')) .. '"'
+    return shell_quote_mod.quote(s, windows)
   end
 
   ---Run git in `opts.root` via `io.popen` — the standalone build's only
