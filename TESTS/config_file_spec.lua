@@ -187,6 +187,32 @@ return function(H)
   eq(file.load(repo("empty", "{}")), nil, "config.file: an empty object yields nil, not {}")
 
   -- ---------------------------------------------------------------------
+  -- A literal JSON `null` decodes to Lua `nil` (via `luanil`), not the
+  -- truthy `vim.NIL` userdata that every downstream `gsub`/concatenation
+  -- would otherwise crash on.
+  -- ---------------------------------------------------------------------
+
+  local nully = repo(
+    "nully",
+    [[{
+      "source": null,
+      "title": "kept",
+      "repo_url": null
+    }]]
+  )
+  local loaded_nully = file.load(nully)
+  eq(loaded_nully.source, nil, "config.file: a null field decodes to nil, not vim.NIL")
+  eq(loaded_nully.repo_url, nil, "config.file: every null field is dropped, not just one")
+  eq(loaded_nully.title, "kept", "config.file: a sibling non-null field is unaffected")
+
+  local built_nully = cfg.build(nully)
+  eq(
+    built_nully.title,
+    "kept",
+    "build: a repository with a null field still builds without crashing"
+  )
+
+  -- ---------------------------------------------------------------------
   -- This repository's own file, since it is now the only statement of the
   -- three layer rules that `scripts/gen_map.lua` and `standalone/docmap.lua`
   -- both used to carry a copy of. If it stops being read, the architecture

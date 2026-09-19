@@ -185,7 +185,14 @@ function M.load(root, notify)
     return nil
   end
 
-  local ok, decoded = pcall(vim.json.decode, text)
+  -- `luanil` matters here, it is not a style choice: without it a literal
+  -- `null` for any key (e.g. `"source": null`) decodes to `vim.NIL`, a
+  -- *truthy* userdata rather than Lua `nil` — every reader downstream that
+  -- concatenates or pattern-matches the value crashes on it instead of the
+  -- key simply being absent, which is what a repository writing `null`
+  -- means. The same reasoning as `core/artifact.lua`'s and
+  -- `bindings/usrcmds/diff.lua`'s decode calls.
+  local ok, decoded = pcall(vim.json.decode, text, { luanil = { object = true, array = true } })
   if not ok or type(decoded) ~= "table" then
     if notify then
       notify.warn(
