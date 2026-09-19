@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**5 modules** · 7 namespaces · 128 helper files
+**5 modules** · 7 namespaces · 129 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -83,6 +83,7 @@ flowchart LR
   nlua_documentation_core_quicks_lua["documentation.core.quicks"]
   nlua_documentation_core_render["render"]
   nlua_documentation_core_rules_join_lua["documentation.core.rules_join"]
+  nlua_documentation_core_safe_out_dir_lua["documentation.core.safe_out_dir"]
   nlua_documentation_core_scan_lua["documentation.core.scan"]
   nlua_documentation_core_scopes_lua["documentation.core.scopes"]
   nlua_documentation_core_snippet_lua["documentation.core.snippet"]
@@ -233,6 +234,7 @@ flowchart LR
   nlua_documentation_editor_registry_lua --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_editor_registry_lua --> nlua_documentation_editor_callhierarchy_lua
   nlua_documentation_editor_serve_lua --> nlua_documentation_core_api_lua
+  nlua_documentation_editor_serve_lua --> nlua_documentation_core_safe_out_dir_lua
   nlua_documentation_mcp_protocol_lua --> nlua_documentation_mcp_tools_lua
   nlua_documentation_mcp_tools_lua --> nlua_documentation_core_checklist_lua
   nlua_documentation_mcp_tools_lua --> nlua_documentation_core_findings_lua
