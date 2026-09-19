@@ -331,20 +331,45 @@ local opts = require("documentation.config").build(root, {
 -- is which. stdout carries exactly the JSON, so the caller does not have to
 -- find where it starts.
 if api_route then
-  ---One shell-quoted argument. Every value that ever reaches this — a
-  ---hardcoded literal, `opts.root`/`opts.out_dir` (config, not request
-  ---input), or a sha that `core.api.answer` already ran through
-  ---`safe_sha`'s hex-only whitelist before this function is ever called —
-  ---cannot contain the metacharacters that make shelling out to a string
-  ---dangerous in the first place. Quoted here anyway, as the second lock
-  ---on that door rather than the only one.
-  ---@param s string
-  ---@return string
-  local function shell_quote(s)
-    return '"' .. tostring(s):gsub('"', '\\"') .. '"'
-  end
-
   local windows = (package.config:sub(1, 1) == "\\")
+
+  ---One shell-quoted argument, or a refusal.
+  ---
+  ---**Not every value that reaches this is trusted.** `opts.out_dir` is
+  ---repository input — `config/file.lua`'s `REPO_KEYS.out_dir` lets a
+  ---cloned tree's own `.docmap.json` set it — and it is embedded verbatim
+  ---into a git pathspec (`core/api.lua`'s `(":(exclude)%s"):format(out_dir)`)
+  ---before ever reaching here. `opts.root` is the CLI's own first argument,
+  ---also not this program's to trust. Quoting is the *only* lock on that
+  ---door, not a second one behind something else.
+  ---
+  ---`$`/backtick are refused outright rather than quoted: inside a
+  ---double-quoted POSIX string they still trigger command substitution no
+  ---matter how the surrounding quote is escaped, so no escaping of the quote
+  ---character neutralises them. A literal `"` is refused on Windows for the
+  ---same reason from the other direction — cmd.exe has no backslash-escape
+  ---for an embedded quote, so a value carrying one cannot be quoted safely
+  ---here at all.
+  ---@param s string
+  ---@return string? quoted
+  ---@return string? err
+  local function shell_quote(s)
+    s = tostring(s)
+    if s:find("[$`]") then
+      return nil, "refused: value contains a shell metacharacter ($ or `): " .. s
+    end
+    if windows then
+      if s:find('"') then
+        return nil, 'refused: value contains a literal " and cmd.exe cannot quote it safely: ' .. s
+      end
+      return '"' .. s .. '"'
+    end
+    -- Escape the escape character *before* the quote (SEC-46): otherwise a
+    -- value ending in `\` produces `...\"`, where the trailing backslash
+    -- escapes the closing quote instead of terminating the string, and
+    -- everything after it runs on as shell syntax rather than staying data.
+    return '"' .. (s:gsub("\\", "\\\\"):gsub('"', '\\"')) .. '"'
+  end
 
   ---Run git in `opts.root` via `io.popen` — the standalone build's only
   ---subprocess capability; `vim.system` does not exist outside Neovim.
@@ -373,11 +398,20 @@ if api_route then
   ---@return string|nil stdout
   ---@return string|nil err
   local function popen_git(o, args)
+    local quoted_root, root_err = shell_quote(o.root)
+    if not quoted_root then
+      return nil, root_err
+    end
+
     local parts = { "git" }
     for _, a in ipairs(args) do
-      parts[#parts + 1] = shell_quote(a)
+      local quoted, err = shell_quote(a)
+      if not quoted then
+        return nil, err
+      end
+      parts[#parts + 1] = quoted
     end
-    local cd = (windows and "cd /d " or "cd ") .. shell_quote(o.root) .. " && "
+    local cd = (windows and "cd /d " or "cd ") .. quoted_root .. " && "
     local fh = io.popen(cd .. table.concat(parts, " ") .. " 2>&1", "r")
     if not fh then
       return nil, "could not start git"
