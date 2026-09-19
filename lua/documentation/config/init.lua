@@ -90,6 +90,8 @@ M.KNOWN_OPTS_KEYS = {
   install_dir = true,
   theme = true,
   serve_port = true,
+  hover = true,
+  startup_flamegraph = true,
 }
 
 ---`opts.source` as a list, whatever shape it was written in.
