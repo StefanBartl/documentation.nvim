@@ -49,6 +49,13 @@ local M = {}
 
 local uv = vim.uv
 
+---Shared with `init.lua`'s `write_artifacts` (SEC-42) — see that module for
+---the whitelist. Required once at module load, not per request: it is a pure
+---function with no requires of its own, so there is no circularity risk in
+---hoisting it above the lazy, handler-local requires (`core/api`) elsewhere
+---in this file.
+local safe_out_dir = require("documentation.core.safe_out_dir")
+
 ---The single running server, if any. Module-level state, which this file is
 ---the only owner of — the alternative (a handle the caller stores) would put
 ---lifecycle management on every call site for a thing there is only ever one
@@ -201,10 +208,15 @@ end
 ---`cfg.out_dir` is the same repository-controlled value `init.lua`'s
 ---`write_artifacts` guards against (SEC-42) — `config/file.lua`'s
 ---`REPO_KEYS.out_dir` lets a cloned tree's own `.docmap.json` set it. Left
----unchecked here, a value like `"../../../.."` would make this route answer
+---unchecked, a value like `"../../../.."` would make this route answer
 ---requests out of a directory outside `cfg.root` instead of the generated
----map, the read-side twin of the write-side bug `safe_out_dir` closes. Same
----whitelist, shared rather than re-derived, via `core/safe_out_dir`.
+---map, the read-side twin of the write-side bug `safe_out_dir` closes.
+---
+---Trusts `cfg.out_dir` rather than re-validating it per request: `M.start`
+---already ran it through the same whitelist once and normalized it in place
+---before this route could ever be reached, so re-checking it here on every
+---static request would only repeat a settled answer at the cost of a regex
+---pass per request.
 ---@param cfg table
 ---@param client uv.uv_tcp_t
 ---@param name string
@@ -214,12 +226,7 @@ local function route_static(cfg, client, name)
     return respond_error(client, 400, "bad path")
   end
 
-  local out_dir = require("documentation.core.safe_out_dir")(cfg.out_dir)
-  if not out_dir then
-    return respond_error(client, 500, "out_dir is not a safe relative path")
-  end
-
-  local path = ("%s/%s/%s"):format(cfg.root, out_dir, safe)
+  local path = ("%s/%s/%s"):format(cfg.root, cfg.out_dir, safe)
   local fd = io.open(path, "rb")
   if not fd then
     return respond_error(client, 404, "not found: " .. safe)
@@ -372,6 +379,21 @@ function M.start(cfg)
     end
     M.stop()
   end
+
+  -- Validated once here, not per request: `cfg.out_dir` cannot change for the
+  -- life of a running server, so re-running the whitelist on every single
+  -- static request only pays its cost again for the same answer. Failing
+  -- fast here also beats the alternative — a server that "starts" fine and
+  -- then answers every request with a 500, which reads as broken rather than
+  -- as the misconfigured `out_dir` it actually is. Normalizes `cfg.out_dir`
+  -- in place so `route_static` can read it directly: `respond_api` below
+  -- already caches `cfg.git` onto this same table for the same reason, this
+  -- is this server's own config, not caller-owned state read again elsewhere.
+  local out_dir = safe_out_dir(cfg.out_dir)
+  if not out_dir then
+    return nil, ("out_dir is not a safe relative path: %s"):format(tostring(cfg.out_dir))
+  end
+  cfg.out_dir = out_dir
 
   local server = uv.new_tcp()
   if not server then

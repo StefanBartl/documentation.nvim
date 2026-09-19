@@ -1897,6 +1897,17 @@ return function(H)
     end
   end
 
+  -- `M.start` now runs `out_dir` through the same whitelist once, up front,
+  -- rather than leaving `route_static` to fail every request against a
+  -- server that "started" fine. A malicious `out_dir` must refuse to start
+  -- at all, and must not leave anything listening behind.
+  do
+    local bad_url, bad_err = serve.start({ root = root, out_dir = "../../../../evil" })
+    eq(bad_url, nil, "docmap.serve: start refuses an out_dir that escapes the repository")
+    ok(bad_err and bad_err:match("out_dir"), "docmap.serve: ...and says why, naming out_dir")
+    eq(serve.is_running(), false, "docmap.serve: ...and nothing was left listening")
+  end
+
   -- Lifecycle. Bound to loopback on an OS-assigned port, idempotent both
   -- ways: a second start must not orphan the first socket, and stopping what
   -- never ran is a no-op rather than an error (same tolerance `uninstall`
