@@ -395,7 +395,12 @@ catalogue.docmap_checklist = {
     -- tool call needs a ceiling more than it needs patience.
     local timeout = 120000
     local configured = type(handle.cfg) == "table" and handle.cfg.git_log_timeout_ms or nil
-    if type(configured) == "number" then
+    -- `> 0`, not just `type(...) == "number"`: `0` and a negative value are
+    -- both well-typed and both wrong -- `vim.wait` on a non-positive timeout
+    -- returns immediately, which reports "did not finish" on every call
+    -- rather than honouring the two-minute default. Same guard as the
+    -- usrcmd copies of this ceiling in churn.lua/checklist.lua.
+    if type(configured) == "number" and configured > 0 then
       timeout = configured
     end
     local settled = vim.wait(timeout, function()

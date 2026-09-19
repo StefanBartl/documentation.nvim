@@ -130,9 +130,14 @@ function M.ensure_watch(root)
   -- install() for the same root would hand back the now-stale cached id
   -- instead of creating a fresh group.
   local group = vim.api.nvim_create_augroup("LibDocmapWatch:" .. root, { clear = true })
+  -- Same guard shape as `docs.lua`'s `context_max`/`refs_per_entity`: a
+  -- wrong-typed or non-positive `opts.watch_ms` (a string, `0`, a negative
+  -- number from a typo'd config) must fall back to the real default rather
+  -- than reach `lib.nvim.debounce.new` as-is.
+  local watch_ms = (type(opts.watch_ms) == "number" and opts.watch_ms > 0) and opts.watch_ms or 500
   local debounce = require("lib.nvim.debounce").new(function()
     entry.rescan_fn()
-  end, opts.watch_ms or 500)
+  end, watch_ms)
 
   -- Scoping via an autocmd *glob pattern* (e.g. "<root>/<source>/**/*.lua")
   -- is the obvious approach and the wrong one: Vim's pattern matcher compares

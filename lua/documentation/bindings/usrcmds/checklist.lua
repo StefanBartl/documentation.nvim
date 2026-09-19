@@ -26,7 +26,17 @@ local M = {}
 ---@param cfg table|nil  # A resolved config, when the caller already has one.
 ---@return integer
 local function git_log_timeout(cfg)
-  if type(cfg) == "table" and type(cfg.git_log_timeout_ms) == "number" then
+  -- `> 0`, not just `type(...) == "number"`: `0` and a negative value are
+  -- both well-typed and both wrong — `vim.system`'s own `timeout` field
+  -- either disables the ceiling or kills the process before it can run,
+  -- neither of which is "two minutes", so a typo'd `git_log_timeout_ms`
+  -- must fall back to the real default like `context_max`/`refs_per_entity`
+  -- in `docs.lua` already do, rather than be used as-is.
+  if
+    type(cfg) == "table"
+    and type(cfg.git_log_timeout_ms) == "number"
+    and cfg.git_log_timeout_ms > 0
+  then
     return cfg.git_log_timeout_ms
   end
   local ok, defaults = pcall(require, "documentation.config.DEFAULTS")

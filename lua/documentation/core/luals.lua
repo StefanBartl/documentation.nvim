@@ -44,7 +44,15 @@ function M.run(root, source, opts)
     return nil, "lua-language-server not found on PATH"
   end
 
-  local timeout_ms = opts.timeout_ms or 60000
+  -- Same guard shape as `docs.lua`'s `context_max`/`refs_per_entity`: a
+  -- wrong-typed or non-positive `opts.luals_timeout_ms` (a string, `0`, a
+  -- negative number from a typo'd config) must fall back to the real
+  -- default rather than reach the arithmetic and `vim.wait` call below
+  -- as-is — `timeout_ms + 3000` on a string throws, and `vim.wait` on a
+  -- non-positive timeout returns immediately, which reads as
+  -- "lua-language-server did not respond" for every single run.
+  local timeout_ms = (type(opts.timeout_ms) == "number" and opts.timeout_ms > 0) and opts.timeout_ms
+    or 60000
   local scan_dir = root .. "/" .. source
   local out_dir = vim.fn.tempname()
   local ok_mk, mk_err = mkdirp(out_dir)

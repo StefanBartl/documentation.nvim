@@ -346,8 +346,16 @@ function M.scan(opts)
   -- multiple `:DocMap` calls in one session): every `M.scan` explicitly
   -- resets it, so a scan with no `opts.snippet_max_lines` always gets the
   -- real default back, never a previous call's override.
-  require("documentation.core.snippet").MAX_LINES = opts.snippet_max_lines
-    or require("documentation.core.snippet").DEFAULT_MAX_LINES
+  -- Same guard shape as `docs.lua`'s `context_max`/`refs_per_entity`: a
+  -- wrong-typed or non-positive `opts.snippet_max_lines` (a string, `0`, a
+  -- negative number from a typo'd config) must degrade to the real default
+  -- rather than become `M.MAX_LINES` as-is — `snippet.lua`'s `M.extract`
+  -- does `first + M.MAX_LINES - 1` unguarded, which throws on a string and
+  -- silently empties every snippet on a non-positive number.
+  local snippet_mod = require("documentation.core.snippet")
+  snippet_mod.MAX_LINES = (type(opts.snippet_max_lines) == "number" and opts.snippet_max_lines > 0)
+      and opts.snippet_max_lines
+    or snippet_mod.DEFAULT_MAX_LINES
 
   -- Same reasoning, same reset discipline: `core/bindings.lua`'s wrapper
   -- table is caller policy that only has to be current before the walk, and
