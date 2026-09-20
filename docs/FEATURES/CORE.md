@@ -102,7 +102,7 @@ on-demand `git` reads already established.
 
 ## Plugin-gated badge
 
-A small `🔌` badge plus an accent tint marks any tab-bar button whose
+A small badge plus an accent tint marks any tab-bar button whose
 usefulness depends on something optional being present — Tools (a
 `docs/install.json` manifest) and Telemetry (`runtime-analysis.nvim`)
 today, applied via one shared `.plugin-gated` CSS class rather than a
@@ -281,7 +281,7 @@ drops them.
 
 ## Compiler Explorer links (experimental)
 
-A "⚙ Compiler Explorer ↗" link next to every module and function in the
+A "Compiler Explorer" link next to every module and function in the
 generated page — opens `godbolt.org` in a new tab, pre-loaded with that
 entity's real source and Lua selected, showing a genuine `luac -l -l -p`
 bytecode disassembly. Not a workaround: verified against Compiler

@@ -49,7 +49,7 @@ line number); `info`-severity findings map to `vim.diagnostic.severity.HINT`
 and are shown, where the quickfix list drops them.
 
 `godbolt = true` (**experimental**, `generate()`-time, not `install()`) adds
-a "⚙ Compiler Explorer ↗" link next to every module and function in the
+a "Compiler Explorer" link next to every module and function in the
 generated page — a real `luac -l -l -p` bytecode disassembly, verified
 against Compiler Explorer's own API and compiler source (`lua` is a real
 language there, with five real interpreter versions), not a workaround.

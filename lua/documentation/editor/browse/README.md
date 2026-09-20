@@ -245,7 +245,7 @@ back from `telemetry_namespace` to `title`. Unset, the mode says so rather
 than picking one.
 
 One row per rule, badged `✕` for `fail`/`error`, `○` for `waived`, blank for
-`manual`/`pass`, plus the same 🔴/🟡/🟢 severity icon `rules.report.buffer`
+`manual`/`pass`, plus the same severity icon `rules.report.buffer`
 already uses — sorted worst first so the rows worth acting on need no
 scrolling to reach. A `manual` rule (no automated `check`) is listed too,
 never silently dropped — `rules.nvim`'s whole design forbids a fake
@@ -321,7 +321,7 @@ needs the UI.
 
 `p` pins the entry under the cursor, in any mode; `6` lists what has been
 pinned; `d` unpins there. The count rides along in every other mode's status
-line (`📌3`) — a trail invisible from where you are pinning is a feature with
+line (`3`) — a trail invisible from where you are pinning is a feature with
 no feedback — but only once there is something to count.
 
 **Not the same thing as `<C-o>`/`<C-i>`**, and conflating them helps neither.

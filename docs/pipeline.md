@@ -516,7 +516,7 @@ options directly above it — this bakes into the generated page itself
 (`meta.godbolt`, the same render-time-only mechanism `out_depth` already
 uses), so it works for anyone who opens the committed `docs/map/index.html`
 cold, no live Neovim session or `install()` needed. Adds a
-"⚙ Compiler Explorer ↗" link next to every module and function, opening
+"Compiler Explorer" link next to every module and function, opening
 `godbolt.org` in a new tab pre-loaded with that entity's real source and
 Lua selected.
 

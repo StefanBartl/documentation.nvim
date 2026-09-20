@@ -42,7 +42,7 @@ the question you arrived with. The four to reach for first:
 | [docs/reuse.md](docs/reuse.md) | Generating a map for your own plugin — including the GitHub Action, which requires copying nothing |
 | [docs/languages.md](docs/languages.md) | The twenty-three backends, as a reference and as a contract |
 
-**Getting started**
+### Getting started
 
 - [Requirements](docs/requirements.md) — Neovim version, `lib.nvim`, and what each optional integration buys you.
 - [Installation](docs/installation.md) — every plugin manager, with the reason each needs a different lazy-loading shape.
@@ -50,7 +50,7 @@ the question you arrived with. The four to reach for first:
 - [What you get](docs/what-you-get.md) — the artifacts it writes, and how this repository's own published map shows what a consumer sees.
 - [Around it](docs/around-it.md) — how this plugin's scope differs from its siblings in the collection.
 
-**Configuration and everyday use**
+### Configuration and everyday use
 
 - [Configuration](docs/configuration.md) — every option, the `.docmap.json` precedence rules, and rebinding `:DocBrowse` by action rather than by key.
 - [Tabs](docs/tabs.md) — what each panel of the generated page shows, and why.
@@ -62,7 +62,7 @@ the question you arrived with. The four to reach for first:
 - [Bindings cheatsheet](docs/BINDINGS.md) — every keymap, user command and autocommand.
 - [Workflow](docs/WORKFLOW.md) — which panel answers which question: Trail versus filter versus fuzzy jump.
 
-**The rest**
+### The rest
 
 - [Ecosystem](docs/ecosystem.md) — how this plugin, `runtime-analysis.nvim`, `mdview.nvim` and `docmap-desktop` fit together.
 - [Development](docs/DEVELOPMENT.md) — the toolchain, and the five things CI runs.

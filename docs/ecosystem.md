@@ -780,7 +780,7 @@ Ordered so each step is independently useful and nothing is a big-bang.
    own text called "the most immediately useful number in this whole
    document"). `dead-function` itself gained one line of real behavior
    change: a finding is suppressed once telemetry proves the *exact*
-   function alive, exactly the design's ⚠️/`!` cell and nowhere else —
+   function alive, exactly the design's `!` cell and nowhere else —
    never escalated to a higher severity, matching the design doc's own
    explicit "a prompt to look, never a delete list" instruction for this
    check.

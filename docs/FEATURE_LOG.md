@@ -290,7 +290,7 @@ functions there, left in place (cleanup wasn't this task's job, the
 "legacy" mention in the tree turned out to reference a Neovim API
 deprecation being worked around, not a `lib.nvim` function actually
 replaced by another. `@see`: one real pair added
-(`fs.scan_cached.scan` ↔ `fs.scan_roots.scan`, session cache vs.
+(`fs.scan_cached.scan` vs. `fs.scan_roots.scan`, session cache vs.
 disk-persistent cache of the same walk) where the module headers already
 described each other as counterparts but never linked at the function
 level.
@@ -1949,7 +1949,7 @@ already avoids, so documentation.nvim's own `scripts/gen_map.lua`
 deliberately does not configure `external_repos` for itself.
 
 Rendered in the Deps view's existing external box, not a new panel: the
-box's second line gains a total (`external ↗ · 27 calls`), its tooltip a
+box's second line gains a total (`external · 27 calls`), its tooltip a
 per-function breakdown sorted by count. Verified end-to-end against this
 repo's own real `require("lib.nvim...")`/`require("pdfport")`/
 `require("runtime-analysis...")` calls — 21 real call sites across the tree,
@@ -2380,7 +2380,7 @@ own byte-for-byte comparison before building, not after.
 
 ## `.plugin-gated` badge/accent styling (2026-08-10)
 
-A small `🔌` badge (`::after` on the button) plus a `var(--ext)` text tint
+A small badge (`::after` on the button) plus a `var(--ext)` text tint
 — the same colour the Hierarchy graphs already use for "connects outside
 this map", reused here for "depends on something outside this plugin" —
 for a tab-bar/panel button whose usefulness depends on something optional
