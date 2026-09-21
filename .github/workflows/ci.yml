@@ -25,7 +25,7 @@ jobs:
       # the installer AND the runner, so there is no binary on PATH to hand
       # the script. `args` must therefore stay identical to what
       # `run_stylua` does — the whole tree, not a list of directories.
-      - uses: JohnnyMorganz/stylua-action@v4
+      - uses: JohnnyMorganz/stylua-action@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           version: v2.5.2
