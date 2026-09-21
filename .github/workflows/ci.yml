@@ -18,6 +18,7 @@ on:
 jobs:
   stylua:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
       # The one gate that does not go through `scripts/ci.sh`: this action is
@@ -32,6 +33,7 @@ jobs:
 
   luacheck:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
       # PUC Lua, not "luajit-2.1": that value fails with a 404 (LuaJIT stopped
@@ -59,6 +61,7 @@ jobs:
   tests:
     name: tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       # One platform failing must not cancel the others: which of the three
       # broke is the whole information content of this job.
@@ -135,7 +138,15 @@ jobs:
           tree-sitter build --output .deps/ts-parsers/parser/tsx.so /tmp/tree-sitter-typescript/tsx
           tree-sitter build --output .deps/ts-parsers/parser/go.so /tmp/tree-sitter-go
           echo "DOCUMENTATION_TS_PARSERS_DIR=$(pwd)/.deps/ts-parsers" >> "$GITHUB_ENV"
-      - run: scripts/ci.sh tests
+      - run: |
+          exec > >(tee -a "$RUNNER_TEMP/test-output.log") 2>&1
+          scripts/ci.sh tests
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-output-tests-${{ matrix.os }}
+          path: ${{ runner.temp }}/test-output.log
+          if-no-files-found: ignore
 
   # The drift check this plugin exists to provide, run against its own tree.
   # The pre-commit hook is opt-in per clone (`git config core.hooksPath`), so
@@ -148,6 +159,7 @@ jobs:
   # a chore, not a gate.
   map:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
@@ -187,15 +199,18 @@ jobs:
           neovim: true
           version: stable
       - name: Regenerate the module map
-        run: nvim --headless -l scripts/gen_map.lua
+        run: |
+          exec > >(tee -a "$RUNNER_TEMP/test-output.log") 2>&1
+          nvim -n -i NONE --headless -l scripts/gen_map.lua
       - name: Verify (PR) or commit the regenerated map (push to main)
         run: |
+          exec > >(tee -a "$RUNNER_TEMP/test-output.log") 2>&1
           if git diff --quiet; then
             echo "module map is up to date"
             exit 0
           fi
           if [ "${{ github.event_name }}" != "push" ] || [ "${{ github.ref_name }}" != "main" ]; then
-            echo "::error::module map is stale — run 'nvim --headless -l scripts/gen_map.lua' and commit the result"
+            echo "::error::module map is stale — run 'nvim -n -i NONE --headless -l scripts/gen_map.lua' and commit the result"
             git --no-pager diff --stat
             exit 1
           fi
@@ -203,6 +218,12 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "docs(map): regenerate module map [skip ci]"
           git push
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-output-map
+          path: ${{ runner.temp }}/test-output.log
+          if-no-files-found: ignore
 
   # The only job that runs this repository's code under a Lua that is *not*
   # LuaJIT, which is the entire reason it exists. Every other job runs inside
@@ -221,6 +242,7 @@ jobs:
   # against a Neovim run stays a local gate.
   standalone:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
       - uses: actions/checkout@v5
@@ -240,4 +262,12 @@ jobs:
         with:
           neovim: true
           version: stable
-      - run: scripts/ci.sh standalone
+      - run: |
+          exec > >(tee -a "$RUNNER_TEMP/test-output.log") 2>&1
+          scripts/ci.sh standalone
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-output-standalone
+          path: ${{ runner.temp }}/test-output.log
+          if-no-files-found: ignore

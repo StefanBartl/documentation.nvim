@@ -31,4 +31,4 @@ command -v nvim >/dev/null 2>&1 || {
   exit 1
 }
 
-exec nvim --headless -l scripts/ci.lua "$@"
+exec nvim -n -i NONE --headless -l scripts/ci.lua "$@"

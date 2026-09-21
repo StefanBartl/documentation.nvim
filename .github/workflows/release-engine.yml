@@ -51,6 +51,7 @@ jobs:
     # a headless binary and grammars, nothing that cares which Ubuntu
     # built it.
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       # lib.nvim is a runtime dependency the bundle actually needs staged
@@ -96,6 +97,7 @@ jobs:
 
   windows:
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: actions/checkout@v5
@@ -158,6 +160,7 @@ jobs:
   publish:
     needs: [linux, windows]
     runs-on: ubuntu-22.04
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
