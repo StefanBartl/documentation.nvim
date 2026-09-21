@@ -32,7 +32,7 @@ fi
 
 # Refuse to publish a stale map: whatever gets served should match the source
 # it was generated from.
-if ! nvim --headless -l scripts/gen_map.lua --check >/dev/null 2>&1; then
+if ! nvim -n -i NONE --headless -l scripts/gen_map.lua --check >/dev/null 2>&1; then
   echo "error: module map is stale. Run :DocMap and commit before publishing." >&2
   exit 1
 fi
