@@ -89,7 +89,7 @@ jobs:
           TRIPLE: x86_64-unknown-linux-gnu
           EXE_EXT: ""
           OUT_DIR: release-out
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: engine-linux
           path: release-out/*
@@ -151,7 +151,7 @@ jobs:
           TRIPLE: x86_64-pc-windows-msvc
           EXE_EXT: ".exe"
           OUT_DIR: release-out
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: engine-windows
           path: release-out/*
@@ -164,7 +164,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: engine-*
           path: release-out

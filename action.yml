@@ -119,14 +119,14 @@ runs:
     # into `$GITHUB_WORKSPACE` would put two extra repositories inside the
     # tree being scanned, and the walk would map them.
     - name: Check out documentation.nvim
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         repository: StefanBartl/documentation.nvim
         ref: ${{ inputs.ref || github.action_ref || 'main' }}
         path: ${{ runner.temp }}/docmap-engine/documentation.nvim
 
     - name: Check out lib.nvim
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         repository: StefanBartl/lib.nvim
         path: ${{ runner.temp }}/docmap-engine/lib.nvim
