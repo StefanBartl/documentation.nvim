@@ -40,10 +40,10 @@ jobs:
       # publishing the 2.1 tarball this action downloads). Which interpreter
       # runs luacheck is independent of what it checks against — `std = "luajit"`
       # in .luacheckrc is what pins that.
-      - uses: leafo/gh-actions-lua@v10
+      - uses: leafo/gh-actions-lua@v13
         with:
           luaVersion: "5.4"
-      - uses: leafo/gh-actions-luarocks@v4
+      - uses: leafo/gh-actions-luarocks@v6
       - run: luarocks install luacheck 1.2.0
       # `scripts/ci.sh` is itself a Neovim Lua script launched via `nvim -l`
       # (see scripts/ci.lua's own header) — that launcher requirement holds
@@ -253,10 +253,10 @@ jobs:
           repository: StefanBartl/lib.nvim
           path: .deps/lib.nvim
           ref: ci-verified
-      - uses: leafo/gh-actions-lua@v10
+      - uses: leafo/gh-actions-lua@v13
         with:
           luaVersion: "5.4"
-      - uses: leafo/gh-actions-luarocks@v4
+      - uses: leafo/gh-actions-luarocks@v6
       - run: luarocks install luafilesystem && luarocks install dkjson
       # `scripts/ci.sh` is itself launched via `nvim -l`, so this job needs
       # Neovim as the script *host* even though the gate it runs deliberately
