@@ -409,37 +409,14 @@ function M.build(root, overrides, notify)
   -- normalisation above would then apply to the wrong value.
   opts.root = M.normalise_root(opts.root)
 
-  -- Auto-derive `repo_url`/`branch` from the real git remote (GS-16) when
-  -- neither the host, `root`'s own `.docmap.json`, nor a CLI flag supplied
-  -- them -- a checkout's blob links used to need `--repo-url=`/`--branch=`
-  -- spelled out by hand even though the answer sits in `.git` already.
-  --
-  -- `pcall`-guarded, not a capability check: `lib.nvim.git` needs
-  -- `vim.system`/`vim.fn.system`, and **`standalone/vim_shim.lua` provides
-  -- neither** (see its own header) -- this module is bundled into the
-  -- parser-less standalone binary and runs there under plain PUC Lua. A
-  -- direct call would crash the standalone build the first time someone ran
-  -- it against a real repo; the `pcall` makes a missing remote, a missing
-  -- `git` binary and a missing `vim.system` all degrade the same way --
-  -- `repo_url`/`branch` simply stay whatever they already were (nil, unless
-  -- a caller set them), same as before this existed.
-  if opts.repo_url == nil or opts.branch == nil then
-    pcall(function()
-      local git = require("lib.nvim.git")
-      local git_remote = require("lib.nvim.git.remote")
-      if opts.repo_url == nil then
-        local remote_url = git.remote_url("origin", { dir = opts.root })
-        local remote = remote_url and git_remote.parse_remote(remote_url)
-        if remote then
-          opts.repo_url = ("https://%s/%s/%s"):format(remote.host, remote.owner, remote.repo)
-        end
-      end
-      if opts.branch == nil then
-        opts.branch = git.current_ref(opts.root)
-      end
-    end)
-  end
-
+  -- `repo_url`/`branch` are deliberately NOT auto-derived from git here
+  -- (GS-16 first tried that, then moved it -- see `core/scan.lua`'s own
+  -- comment on the exact spot): this function is documented and relied on
+  -- as cheap -- `bindings/usrcmds/init.lua`'s `completion_names()` calls it
+  -- on **every keystroke** of a `:DocMap` argument, and a git subprocess
+  -- here would have meant every keystroke blocking on `git remote`/
+  -- `git symbolic-ref`. `core/scan.lua` derives both once per actual scan
+  -- instead, the natural place work this size belongs.
   return opts
 end
 

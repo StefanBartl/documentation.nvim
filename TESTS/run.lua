@@ -197,6 +197,7 @@ local specs = {
   "markers_spec.lua",
   "scopes_spec.lua",
   "scan_scope_spec.lua",
+  "scan_repo_url_derive_spec.lua",
   "backend_contract_spec.lua",
   "host_lua_determinism_spec.lua",
   "shim_contract_spec.lua",

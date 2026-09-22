@@ -770,6 +770,45 @@ function M.scan(opts)
     end
   end
 
+  -- Auto-derive `repo_url`/`branch` from the real git remote (GS-16) when
+  -- neither the host, `root`'s own `.docmap.json`, nor a CLI flag supplied
+  -- them -- a checkout's blob links used to need `--repo-url=`/`--branch=`
+  -- spelled out by hand even though the answer sits in `.git` already.
+  --
+  -- Deliberately here, not in `config.build`: that function is relied on as
+  -- cheap (a table merge plus one `vim.fs.dir` probe) by
+  -- `bindings/usrcmds/init.lua`'s `completion_names()`, which calls it on
+  -- every keystroke of a `:DocMap` argument -- a git subprocess there would
+  -- have meant every keystroke blocking on `git remote`/`git symbolic-ref`.
+  -- `scan()` already walks the whole tree once per real scan; two more
+  -- short-lived processes here cost nothing relative to that.
+  --
+  -- `pcall`-guarded, not a capability check: `lib.nvim.git` needs
+  -- `vim.system`/`vim.fn.system`, and **`standalone/vim_shim.lua` provides
+  -- neither** (see its own header) -- this module is bundled into the
+  -- parser-less standalone binary and runs there under plain PUC Lua. A
+  -- direct call would crash the standalone build the first time someone ran
+  -- it against a real repo; the `pcall` makes a missing remote, a missing
+  -- `git` binary and a missing `vim.system` all degrade the same way --
+  -- `repo_url`/`branch` simply stay whatever `opts` already had.
+  local repo_url, branch = opts.repo_url, opts.branch
+  if repo_url == nil or branch == nil then
+    pcall(function()
+      local git = require("lib.nvim.git")
+      local git_remote = require("lib.nvim.git.remote")
+      if repo_url == nil then
+        local remote_url = git.remote_url("origin", { dir = opts.root })
+        local remote = remote_url and git_remote.parse_remote(remote_url)
+        if remote then
+          repo_url = ("https://%s/%s/%s"):format(remote.host, remote.owner, remote.repo)
+        end
+      end
+      if branch == nil then
+        branch = git.current_ref(opts.root)
+      end
+    end)
+  end
+
   ---@type Documentation.IR
   local ir = {
     meta = {
@@ -795,8 +834,8 @@ function M.scan(opts)
       -- prints only the second; the artifact carries both.
       claimed = next(claimed) and claimed or nil,
       types_dir = types_dir,
-      repo_url = opts.repo_url,
-      branch = opts.branch or "main",
+      repo_url = repo_url,
+      branch = branch or "main",
       -- 3: nodes carry `language`. Bumped rather than added silently so a
       -- consumer can tell "this backend did not say" (schema 3, field
       -- absent) from "this artifact predates the field" (schema 2) --

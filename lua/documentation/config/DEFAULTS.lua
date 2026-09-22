@@ -13,14 +13,16 @@
 ---               default.
 ---   `source`    derived from `root` by `config.detect_source`.
 ---   `title`     derived from `root`'s basename.
----   `branch`    derived from `root`'s real git branch when `build()` can
----               (GS-16) — a literal "main" here would have quietly hidden
----               that for every repository whose default branch is not
----               actually called that, since a present default always beats
----               a derived one in `build()`'s merge order. `core/scan.lua`
----               still falls back to `"main"` itself when derivation is not
----               possible (not a repo, no origin, the standalone build),
----               which is the only place this literal now lives.
+---   `branch`    derived from `root`'s real git branch by `core/scan.lua`
+---               when it can (GS-16) — a literal "main" here would have
+---               quietly hidden that for every repository whose default
+---               branch is not actually called that, since a present
+---               default always beats a derived one in `build()`'s merge
+---               order. `core/scan.lua`'s own `branch or "main"` is the only
+---               place this literal now lives, used when derivation is not
+---               possible (not a repo, no origin, the standalone build) --
+---               deliberately not derived in `build()` itself, which is
+---               relied on as cheap by per-keystroke `:DocMap` completion.
 ---
 --- A user's `opts` is merged over this by `documentation.config.build`; see
 --- there for the merge rule.
