@@ -24,8 +24,8 @@
 ---@field title? string Display name for the root node. Default: the source directory name.
 ---@field types_dir? string Directory name holding type definitions, treated as a module attribute. Default "@types".
 ---@field out_dir? string Output directory, relative to `root`. Default "docs/map".
----@field repo_url? string Base URL used to build source links (e.g. "https://github.com/user/repo").
----@field branch? string Branch used in source links. Default "main".
+---@field repo_url? string Base URL used to build source links (e.g. "https://github.com/user/repo"). Auto-derived from `root`'s "origin" remote when unset and derivable (GS-16); otherwise absent from the built IR.
+---@field branch? string Branch used in source links. Auto-derived from `root`'s current branch when unset and derivable (GS-16); falls back to "main" otherwise.
 ---@field extra_checks? Documentation.Check[] Repo-specific drift checks appended to the generic ones.
 ---@field calls_heuristic? boolean Also emit call edges whose target was guessed by unique-name match rather than resolved through a require alias. Off by default — a wrong call graph is worse than an incomplete one. Default false.
 ---@field docs_heuristic? boolean Also resolve documentation references written as a bare, tree-unique function name rather than a qualified one. Off by default, same posture as `calls_heuristic` and for the same reason — measured on this repository, the bare names doing the matching were `write`/`open`/`scan`/`add`/`esc`, all file-local helpers and all ordinary English words. Default false.

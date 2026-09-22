@@ -38,8 +38,8 @@
     "consumers": { "type": "string", "description": "Directory of sibling checkouts whose maps name this project as a dependency. Enables consumer-require-missing." },
 
     "title": { "type": "string", "description": "Display name for the root node. Default: the repository directory name." },
-    "repo_url": { "type": "string", "description": "Base URL source links are built from, e.g. https://github.com/user/repo." },
-    "branch": { "type": "string", "description": "Branch used in source links. Default \"main\"." },
+    "repo_url": { "type": "string", "description": "Base URL source links are built from, e.g. https://github.com/user/repo. Auto-derived from the repository's 'origin' remote when omitted and a Neovim host can reach git." },
+    "branch": { "type": "string", "description": "Branch used in source links. Auto-derived from the repository's current branch when omitted and a Neovim host can reach git; falls back to \"main\" otherwise." },
 
     "layers": {
       "description": "Architecture rules. A module under `from` requiring one under `to` is reported as layer-violation.",

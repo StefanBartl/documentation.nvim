@@ -61,8 +61,13 @@ return function(H)
 
   local bare = repo("bare")
   eq(file.load(bare), nil, "config.file: no .docmap.json is nil, not an empty table")
-  eq(cfg.build(bare).branch, "main", "build: defaults survive an absent file")
+  eq(cfg.build(bare).command_name, "DocMap", "build: defaults survive an absent file")
   eq(cfg.build(bare).layers, nil, "build: an absent file adds no keys")
+  -- `branch` is no longer a static DEFAULTS value (GS-16) -- `bare` is a
+  -- plain temp directory, not a git repo, so there is nothing to derive it
+  -- from either. `core/scan.lua` still falls back to "main" for the actual
+  -- IR, which this (`config.build` only) does not reach.
+  eq(cfg.build(bare).branch, nil, "build: no static default and no repo to derive from")
 
   -- ---------------------------------------------------------------------
   -- The file is read, and reaches a real option.
@@ -172,7 +177,12 @@ return function(H)
   ok(shout_msgs[1]:match("%.docmap%.json"), "config.file: the warning names the file")
 
   local built = cfg.build(broken)
-  eq(built.branch, "main", "build: a malformed file falls back to the defaults rather than failing")
+  eq(
+    built.tests_dir,
+    "TESTS",
+    "build: a malformed file falls back to the defaults rather than failing"
+  )
+  eq(built.branch, nil, "build: same as `bare` -- no static default, no repo to derive from")
 
   -- A JSON array is valid JSON and not a valid config: `decode` succeeds and
   -- the result is still unusable, which is a different path from a parse
@@ -227,4 +237,54 @@ return function(H)
     "https://github.com/StefanBartl/documentation.nvim",
     "this repo's own .docmap.json still supplies repo_url"
   )
+
+  -- ---------------------------------------------------------------------
+  -- GS-16: repo_url/branch auto-derive from a real git remote/branch when
+  -- neither a file nor the host supplied them. This repository's own
+  -- `.docmap.json` above sets both explicitly, so it cannot exercise the
+  -- derivation itself -- a fresh, file-less real git fixture can.
+  -- ---------------------------------------------------------------------
+
+  ---@param dir string
+  ---@param args string[]
+  local function git_run(dir, args)
+    local argv = {
+      "git",
+      "-c",
+      "user.name=docs-spec",
+      "-c",
+      "user.email=docs-spec@example.invalid",
+      "-C",
+      dir,
+    }
+    vim.list_extend(argv, args)
+    local res = vim.system(argv, { text = true }):wait()
+    assert(
+      res.code == 0,
+      ("fixture: git %s failed: %s"):format(table.concat(args, " "), res.stderr)
+    )
+  end
+
+  local git_derived = repo("git_derived")
+  git_run(git_derived, { "init", "-q", "-b", "feature/derived" })
+  git_run(git_derived, { "remote", "add", "origin", "https://github.com/someone/derived-repo.git" })
+  git_run(git_derived, { "add", "-A" })
+  git_run(git_derived, { "commit", "-q", "-m", "init" })
+
+  local derived_opts = cfg.build(git_derived)
+  eq(
+    derived_opts.repo_url,
+    "https://github.com/someone/derived-repo",
+    "build: repo_url auto-derives from the real 'origin' remote"
+  )
+  eq(
+    derived_opts.branch,
+    "feature/derived",
+    "build: branch auto-derives from the real current branch"
+  )
+
+  -- An explicit branch still wins over derivation -- the file/host layers
+  -- run before the derivation step, same precedence as every other option.
+  local overridden = cfg.build(git_derived, { branch = "explicit" })
+  eq(overridden.branch, "explicit", "build: an explicit branch still beats git derivation")
 end

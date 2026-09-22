@@ -4,14 +4,23 @@
 --- Split out of `build()` so "what does this plugin default to" is answerable
 --- by reading one table rather than by reading a function and mentally
 --- executing it. Nothing here is derived, conditional or computed — that is
---- the whole point of the split, and the reason three fields are deliberately
+--- the whole point of the split, and the reason four fields are deliberately
 --- **absent**:
 ---
----   `root`    there is no default repository. Every entry point supplies it
----             (a lazy spec's `opts.root`, `install()`, or the cwd), and a
----             table that invented one would be stating a guess as a default.
----   `source`  derived from `root` by `config.detect_source`.
----   `title`   derived from `root`'s basename.
+---   `root`      there is no default repository. Every entry point supplies
+---               it (a lazy spec's `opts.root`, `install()`, or the cwd), and
+---               a table that invented one would be stating a guess as a
+---               default.
+---   `source`    derived from `root` by `config.detect_source`.
+---   `title`     derived from `root`'s basename.
+---   `branch`    derived from `root`'s real git branch when `build()` can
+---               (GS-16) — a literal "main" here would have quietly hidden
+---               that for every repository whose default branch is not
+---               actually called that, since a present default always beats
+---               a derived one in `build()`'s merge order. `core/scan.lua`
+---               still falls back to `"main"` itself when derivation is not
+---               possible (not a repo, no origin, the standalone build),
+---               which is the only place this literal now lives.
 ---
 --- A user's `opts` is merged over this by `documentation.config.build`; see
 --- there for the merge rule.
@@ -25,7 +34,6 @@ local DEFAULTS = {
   lua_root = "lua",
   types_dir = "@types",
   out_dir = "docs/map",
-  branch = "main",
   tests_dir = "TESTS",
   command_name = "DocMap",
   browse_command_name = "DocBrowse",

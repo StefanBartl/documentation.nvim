@@ -201,6 +201,13 @@ local argv = {}
 -- own wrapper and can hardcode both. Without them the two produce maps that
 -- differ in `meta.repo_url` — correct on each side, and an apples-to-oranges
 -- comparison when checking that this build is byte-faithful to a Neovim run.
+--
+-- A real Neovim host running `documentation.config.build` can auto-derive
+-- both from `root`'s git remote/branch when neither flag is given (GS-16) --
+-- this binary cannot: it runs under plain PUC Lua with no `vim.system`, so
+-- `config.build`'s derivation attempt finds nothing to call and leaves both
+-- unset, exactly as before that existed. Left unexplicit here rather than
+-- hidden behind a comment claiming parity the two builds do not have.
 -- `--snapshot=` carries `core.api.answer`'s single optional `param`
 -- whatever the chosen route interprets it as — a snapshot name for
 -- `telemetry`/`loaded`, a commit count for `commits`, unused otherwise.
