@@ -159,7 +159,7 @@ end
 --- instead of letting a consumer read an inherited number as X's own.
 ---
 --- Making them real nodes is the open "one file, many modules" entry in
---- `docmap-desktop/docs/PLAN.md`. It is an id-shape change reaching the
+--- the project plan (kept outside the repositories). It is an id-shape change reaching the
 --- walk, `stats`, every `id` and both artifact consumers, and nothing has
 --- asked the question yet. Reporting the case costs a loop over data the
 --- scan already produced, and it is the half that is useful today.

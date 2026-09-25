@@ -6,8 +6,8 @@
 > [`lib.nvim`](https://github.com/StefanBartl/lib.nvim),
 > [`runtime-analysis.nvim`](https://github.com/StefanBartl/runtime-analysis.nvim)
 > and [`mdview.nvim`](https://github.com/StefanBartl/mdview.nvim). Same pattern
-> as the queue in
-> [`docmap-desktop/docs/PLAN.md`](https://github.com/StefanBartl/docmap-desktop/blob/main/docs/PLAN.md):
+> as the plan for what gets built next, which is kept in one place too (the
+> author's working notes, outside the repositories):
 > one source, several pointers, because the alternative is four copies in three
 > different states.
 >
