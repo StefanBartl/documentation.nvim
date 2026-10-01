@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**5 modules** · 7 namespaces · 129 helper files
+**5 modules** · 7 namespaces · 130 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -96,6 +96,7 @@ flowchart LR
   nlua_documentation_core_telemetry_self_lua["documentation.core.telemetry_self"]
   nlua_documentation_core_timing_lua["documentation.core.timing"]
   nlua_documentation_core_tools_lua["documentation.core.tools"]
+  nlua_documentation_core_traffic_join_lua["documentation.core.traffic_join"]
   nlua_documentation_editor_browse["documentation.editor.browse"]
   nlua_documentation_editor_callhierarchy_lua["documentation.editor.callhierarchy"]
   nlua_documentation_editor_command_lua["documentation.editor.command"]
@@ -207,6 +208,7 @@ flowchart LR
   nlua_documentation_core_telemetry_join_lua --> nlua_documentation_core_soft_require_lua
   nlua_documentation_core_telemetry_self_lua --> nlua_documentation_core_soft_require_lua
   nlua_documentation_core_tools_lua --> nlua_documentation_core_soft_require_lua
+  nlua_documentation_core_traffic_join_lua --> nlua_documentation_core_soft_require_lua
   nlua_documentation_editor_browse --> nlua_documentation_bindings_keymaps_lua
   nlua_documentation_editor_browse --> nlua_documentation_core_artifact_lua
   nlua_documentation_editor_browse --> nlua_documentation_core_check_lua
@@ -218,6 +220,7 @@ flowchart LR
   nlua_documentation_editor_browse --> nlua_documentation_core_rules_join_lua
   nlua_documentation_editor_browse --> nlua_documentation_core_soft_require_lua
   nlua_documentation_editor_browse --> nlua_documentation_core_telemetry_join_lua
+  nlua_documentation_editor_browse --> nlua_documentation_core_traffic_join_lua
   nlua_documentation_editor_browse --> nlua_documentation_editor_command_lua
   nlua_documentation_editor_browse --> nlua_documentation_editor_registry_lua
   nlua_documentation_editor_browse --> nlua_documentation_integrations_menu_lua

@@ -15,6 +15,7 @@
 ---@field title? string Display name for the root node — the same field `Documentation.Opts.title` is, forwarded here because `telemetry` mode's join (ecosystem.md step 8) needs it as the default `runtime-analysis.telemetry` namespace. Not needed for anything else the browser does.
 ---@field telemetry_namespace? string Overrides `title` as the namespace `telemetry` mode joins against — see `Documentation.Opts.telemetry_namespace`'s own doc-comment for when the two genuinely differ.
 ---@field rules_gate? string The `rules.nvim` gate name (a `setup({ gates = {...} })` key in the checked repo's own config, e.g. "review") the `rules` mode joins against — see `Documentation.Opts.rules_gate`'s own doc-comment. No default: unlike `telemetry_namespace`, a gate name cannot be guessed from `title`.
+---@field traffic? Documentation.TrafficOpts github_stats.nvim's per-repository traffic digest for the `traffic` mode — see `Documentation.Opts.traffic`'s own doc-comment. See `documentation.core.traffic_join`.
 ---@field depth? integer Initial Deps walk depth. Default 2.
 ---@field theme? Ui.Kit.ThemeArg Passed through to the kit layout.
 ---@field width? number Fraction of the editor the whole layout uses. Default 0.86.
@@ -72,12 +73,13 @@
 ---| "telemetry" # The static x runtime join against `runtime-analysis.telemetry` — not centered on any one node — see `core/telemetry_join.lua`.
 ---| "loaded"    # Diff loaded-vs-declared against `runtime-analysis.loaded` — not centered on any one node — see `core/loaded_diff.lua`.
 ---| "rules"     # `rules.nvim`'s catalog for a configured gate — not centered on any one node — see `core/rules_join.lua`.
+---| "traffic"   # github_stats.nvim's traffic digest for this repository — not centered on any one node — see `core/traffic_join.lua`.
 
 ---One row of the list. Everything the row can *do* — navigate, open source,
 ---go into the quickfix list — is a field here rather than something re-derived
 ---from the rendered text, so the label stays purely presentational.
 ---@class Documentation.Browse.Entry
----@field kind "node"|"function"|"type"|"external"|"message"|"commit"|"endpoint"|"telemetry"|"loaded_diff"|"rules"
+---@field kind "node"|"function"|"type"|"external"|"message"|"commit"|"endpoint"|"telemetry"|"loaded_diff"|"rules"|"traffic"
 ---@field sha string? Full commit hash, for `kind="commit"`.
 ---@field commit table? The `{ sha, short, author, date, subject }` record behind a `kind="commit"` row.
 ---@field callers Documentation.History.Caller[]? Direct callers of a touched function, in History mode — carried on the entry so the detail pane needs no second lookup against an IR that may not describe that revision.
@@ -97,6 +99,7 @@
 ---@field endpoint_sends RA.History.Entry[]? The static x runtime join behind a `kind="endpoint"` entry with `runtime-analysis.nvim` — `nil` when no history data exists for this project at all, an empty list when history exists but never matched this route.
 ---@field loaded_diff_row Documentation.LoadedDiff.Row? The join row behind a `kind="loaded_diff"` entry with `runtime-analysis.nvim`.
 ---@field rules_row Rules.Result? The `rules.nvim` result behind a `kind="rules"` entry — one rule's `{rule, status, findings, waiver_reason?}`, see `rules.nvim`'s own `lua/rules/engine/runner.lua`.
+---@field traffic_row Documentation.TrafficJoin.Row? The row behind a `kind="traffic"` entry — see `documentation.core.traffic_join` and `Documentation.TrafficJoin.Row`.
 
 ---@class Documentation.Browse
 ---@field open fun(opts: Documentation.Browse.Opts): boolean
@@ -132,5 +135,25 @@
 ---@field detail string? Secondary display text.
 ---@field source string? Repo-relative source path, for `gd`/`gq`.
 ---@field line integer? Declaration line, same.
+
+---One row of Traffic mode. A digest is a handful of aggregate numbers for
+---one repository, not a per-node list, so unlike `rules_row`/`loaded_diff_row`
+---(one row per rule/function) a row here is one *section* of the digest:
+---one of the two metrics' windowed summary, or one referrer, or one top
+---page. `digest` is carried on every row, not only `"summary"`, so the
+---detail pane can show span/fetched context for a referrer/path row too
+---without a second lookup.
+---@class Documentation.TrafficJoin.Row
+---@field section "summary"|"referrer"|"path"
+---@field digest GHStats.Digest The digest this row was built from.
+---@field metric "views"|"clones"? Set when `section == "summary"`: which of `digest.views`/`digest.clones` this row summarizes.
+---@field referrer GHStats.Digest.Referrer? Set when `section == "referrer"`.
+---@field path GHStats.Digest.Path? Set when `section == "path"`.
+
+---Per-machine settings for the `traffic` browse mode — see
+---`documentation.core.traffic_join`.
+---@class Documentation.TrafficOpts
+---@field repo? string Override for the "owner/repo" this mode reads traffic for. Default: derived from `root`'s git "origin" remote, the same derivation `repo_url` uses (GS-16) — set this only when the two differ (a fork, a mirror, a remote named something other than "origin").
+---@field digest_dir? string Override for where github_stats.nvim's digest lives, honored the same way that plugin's own discovery chain's first step is ("an explicit setting of the reader") — see `docs/FEATURES/DIGEST.md` in github_stats.nvim. Default: ask the plugin itself, `github_stats.digest.digest_dir()`, which works even before its `setup()` has run.
 
 return {}
