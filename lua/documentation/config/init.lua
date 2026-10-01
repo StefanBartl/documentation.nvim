@@ -77,6 +77,7 @@ M.KNOWN_OPTS_KEYS = {
   telemetry_namespace = true,
   telemetry = true,
   rules_gate = true,
+  traffic = true,
   godbolt = true,
   plugins = true,
   bindings = true,

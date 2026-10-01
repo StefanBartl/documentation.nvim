@@ -747,6 +747,82 @@ local function rules_entries(_ir, st)
   return out
 end
 
+---github_stats.nvim's published traffic digest for this repository, joined
+---through `documentation.core.traffic_join` — artifact-first, not live
+---(unlike `rules_entries`): the digest is already on disk, written by that
+---plugin's own background cycle. Like Endpoints/Telemetry/Loaded/Rules,
+---spans the whole repository rather than one node's neighborhood: traffic
+---is a fact about the repository as a whole, not centered on any one IR
+---node.
+---@param _ir Documentation.IR Unused — like `rules_entries`, this join reads an external source directly, not anything centered on an IR node.
+---@param st table
+---@return Documentation.Browse.Entry[]
+local function traffic_entries(_ir, st)
+  local traffic_join = require("documentation.core.traffic_join")
+  local repo = traffic_join.repo(st.opts)
+  if not repo then
+    return {
+      {
+        kind = "message",
+        label = "(no repository resolved for traffic — set opts.traffic.repo, or check the git remote)",
+      },
+    }
+  end
+
+  local digest = traffic_join.load(repo, st.opts)
+  if not digest then
+    return {
+      {
+        kind = "message",
+        label = ("(no traffic data for %q — install/enable github_stats.nvim, or run :GithubStats fetch there)"):format(
+          repo
+        ),
+      },
+    }
+  end
+
+  local out = {}
+  for _, metric in ipairs({ "views", "clones" }) do
+    local m = digest[metric]
+    local trend = m.trend and (" trend %+.1f%%"):format(m.trend) or ""
+    out[#out + 1] = {
+      kind = "traffic",
+      traffic_row = { section = "summary", metric = metric, digest = digest },
+      label = ("%-6s d7 %-6d d30 %-6d d90 %-6d%s"):format(
+        metric,
+        m.d7.count,
+        m.d30.count,
+        m.d90.count,
+        trend
+      ),
+      detail = "summary",
+    }
+  end
+
+  for _, r in ipairs(digest.referrers or {}) do
+    out[#out + 1] = {
+      kind = "traffic",
+      traffic_row = { section = "referrer", digest = digest, referrer = r },
+      label = ("referrer  %-30s %6d (%d uniques)"):format(r.referrer, r.count, r.uniques),
+      detail = "referrer",
+    }
+  end
+
+  for _, p in ipairs(digest.paths or {}) do
+    out[#out + 1] = {
+      kind = "traffic",
+      traffic_row = { section = "path", digest = digest, path = p },
+      label = ("page      %-40s %6d (%d uniques)"):format(p.title or p.path, p.count, p.uniques),
+      detail = "page",
+    }
+  end
+
+  if #out == 0 then
+    return { { kind = "message", label = "(no traffic rows)" } }
+  end
+  return out
+end
+
 ---Build the list entries for the current state.
 ---@param ir Documentation.IR
 ---@param st table
@@ -770,6 +846,8 @@ function M.entries(ir, st)
     return loaded_entries(ir, st)
   elseif st.mode == "rules" then
     return rules_entries(ir, st)
+  elseif st.mode == "traffic" then
+    return traffic_entries(ir, st)
   end
   return structure_entries(ir, st)
 end
@@ -1248,6 +1326,48 @@ function M.detail(ir, st, entry)
     return out
   end
 
+  if entry.kind == "traffic" then
+    -- The row is built with the entry (see `traffic_entries` above), so
+    -- this states the invariant rather than inventing a rendering for an
+    -- entry that cannot occur.
+    local row = assert(entry.traffic_row)
+    local digest = row.digest
+    local out = {}
+    if row.section == "summary" then
+      local m = digest[row.metric]
+      out[#out + 1] = ("%s — %s"):format(digest.repo, row.metric)
+      out[#out + 1] = ""
+      for _, window in ipairs({ "d7", "d30", "d90" }) do
+        local w = m[window]
+        out[#out + 1] = ("%s: %d (%d uniques)"):format(window, w.count, w.uniques)
+      end
+      if m.trend then
+        out[#out + 1] = ("trend: %+.1f%% (last 7 days vs. the 7 before)"):format(m.trend)
+      end
+      out[#out + 1] = ""
+      if digest.span then
+        out[#out + 1] = ("span: %s … %s"):format(digest.span.from, digest.span.to)
+      end
+      out[#out + 1] = ("data as of: %s"):format(digest.fetched or digest.generated)
+    elseif row.section == "referrer" then
+      local r = assert(row.referrer)
+      out[#out + 1] = "referrer"
+      out[#out + 1] = ""
+      out[#out + 1] = r.referrer
+      out[#out + 1] = ("%d view(s), %d unique"):format(r.count, r.uniques)
+    else
+      local p = assert(row.path)
+      out[#out + 1] = "top page — GitHub's own top 10, not a per-file view count"
+      out[#out + 1] = ""
+      out[#out + 1] = p.title or p.path
+      if p.title then
+        out[#out + 1] = p.path
+      end
+      out[#out + 1] = ("%d view(s), %d unique"):format(p.count, p.uniques)
+    end
+    return out
+  end
+
   if entry.kind == "loaded_diff" then
     -- The row is built with the entry (see the list builder above), so this
     -- states the invariant rather than inventing a rendering for an entry
@@ -1416,6 +1536,27 @@ function M.status(ir, st)
     end
     return ("%d fail, %d manual, %d waived   [rules]"):format(fail, manual, waived)
       .. status_tail(st)
+  end
+
+  -- Traffic, like Rules/Loaded/Telemetry/Endpoints, spans the whole
+  -- repository — a breadcrumb here would point at whatever happens to be
+  -- centered, unrelated to the digest actually on screen.
+  if st.mode == "traffic" then
+    local digest
+    for _, e in ipairs(st.entries or {}) do
+      if e.traffic_row then
+        digest = e.traffic_row.digest
+        break
+      end
+    end
+    if not digest then
+      return "no traffic data   [traffic]" .. status_tail(st)
+    end
+    return ("%s   views d7 %d · clones d7 %d   [traffic]"):format(
+      digest.repo,
+      digest.views.d7.count,
+      digest.clones.d7.count
+    ) .. status_tail(st)
   end
 
   local bits = { M.breadcrumb(ir, st.id) }

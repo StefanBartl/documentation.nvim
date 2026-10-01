@@ -1,5 +1,5 @@
 ---@module 'documentation.bindings.usrcmds.browse'
---- `:DocBrowse [live] [history|trail|endpoints|telemetry|loaded|rules|module]` —
+--- `:DocBrowse [live] [history|trail|endpoints|telemetry|loaded|rules|traffic|module]` —
 --- the same map, navigated inside the editor.
 ---
 --- Its own command rather than a `:DocMap browse` subcommand: `:DocMap` is a
@@ -30,9 +30,9 @@ function M.parse(rest)
     target = tail
     head, tail = target:match("^(%S+)%s*(.-)$")
   end
-  -- `history`, `trail`, `endpoints`, `telemetry`, `loaded` and `rules` open
-  -- straight into their own list. None takes a module, so anything after
-  -- them would be meaningless.
+  -- `history`, `trail`, `endpoints`, `telemetry`, `loaded`, `rules` and
+  -- `traffic` open straight into their own list. None takes a module, so
+  -- anything after them would be meaningless.
   if
     head == "history"
     or head == "trail"
@@ -40,6 +40,7 @@ function M.parse(rest)
     or head == "telemetry"
     or head == "loaded"
     or head == "rules"
+    or head == "traffic"
   then
     mode = head
     target = tail or ""
@@ -88,6 +89,10 @@ function M.run(ctx, arg)
     -- read `rules.nvim` by — see `Documentation.Opts.rules_gate`'s own
     -- doc-comment for why this has no derivable default.
     rules_gate = cfg.rules_gate,
+    -- `traffic` mode's own join (`core/traffic_join.lua`) reads
+    -- github_stats.nvim's published digest for this repo — see
+    -- `Documentation.Opts.traffic`'s own doc-comment.
+    traffic = cfg.traffic,
     live = parsed.live,
     -- The argument wins over the configured default, and `nil` from the
     -- parser is what lets it: `:DocBrowse history` says which list to open,

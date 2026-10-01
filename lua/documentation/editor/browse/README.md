@@ -10,6 +10,7 @@
 :DocBrowse endpoints        " open on the whole tree's route registrations
 :DocBrowse telemetry        " open on the static x runtime join
 :DocBrowse rules            " open on the rules.nvim gate list (needs opts.rules_gate)
+:DocBrowse traffic          " open on github_stats.nvim's traffic digest (needs opts.traffic)
 :DocBrowse live lib.nvim.fs
 ```
 
@@ -255,6 +256,31 @@ rule with nothing more specific to point at than its own source in the
 ruleset doc (shown as plain text in the detail pane instead). Soft
 dependency throughout: `core.soft_require.probe("rules")`, a plain message
 when `rules.nvim` is absent or the gate name does not resolve.
+
+## Traffic mode
+
+`github_stats.nvim`'s published traffic digest for this repository, joined
+the same way Telemetry/Loaded are: artifact-first, not live. The digest is a
+small JSON file that plugin already writes to a local, per-machine
+directory after every fetch (`docs/FEATURES/DIGEST.md` in that repo is the
+stable contract this mode reads against) — `documentation.core.traffic_join`
+reads it straight off disk, no running `github_stats.nvim` session or `setup()`
+call required.
+
+The repository defaults to whatever `root`'s git "origin" remote resolves
+to (the same derivation `repo_url` uses); set `opts.traffic.repo` to
+override it. The digest directory defaults to asking the plugin itself
+(`github_stats.digest.digest_dir()`); set `opts.traffic.digest_dir` to
+override that too — see `Documentation.TrafficOpts`.
+
+Two summary rows (`views`/`clones`, each with the 7/30/90-day counts,
+uniques and the 7-day trend), then one row per referrer and one row per top
+page — GitHub's own top 10, never a per-file view count, and never resolved
+to a local file. Soft dependency throughout:
+`core.soft_require.probe("github_stats.digest")` (never `require("github_stats")`,
+which loads a UI and needs `ui.nvim`), a plain message when the plugin is
+absent, the repository could not be resolved, or nothing has been fetched
+for it yet.
 
 ## Filtering a list
 
