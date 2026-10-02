@@ -730,6 +730,28 @@ function vim.fn.getcwd()
   return (lfs.currentdir())
 end
 
+---Whether this host's filesystem ignores case by default, which is what
+---makes the editor's `glob` ignore it too: Windows, and macOS (APFS and HFS+
+---default to case-insensitive). Found by CI: the first version folded case on
+---Windows only, passed there and on Linux, and failed on macOS. macOS is
+---recognised once with `uname`, the one portable way plain Lua has to ask.
+---@type boolean|nil
+local folds_case_cache
+---@return boolean
+local function folds_case()
+  if folds_case_cache == nil then
+    folds_case_cache = IS_WINDOWS
+    if not IS_WINDOWS then
+      local fh = io.popen("uname -s 2>/dev/null", "r")
+      if fh then
+        folds_case_cache = (fh:read("*a") or ""):match("^Darwin") ~= nil
+        fh:close()
+      end
+    end
+  end
+  return folds_case_cache
+end
+
 ---One glob path segment as a Lua pattern: `*` and `?` stay inside a segment,
 ---`[abc]`/`[!abc]` are classes, everything else is literal.
 ---@param seg string
@@ -763,7 +785,7 @@ end
 ---
 ---  * a name starting with `.` matches only a segment that starts with `.`
 ---    (and that one also yields `.` and `..`), so `*` and `**` skip dotfiles;
----  * matching ignores case on Windows, where the filesystem does;
+---  * matching ignores case on Windows and macOS, where the filesystem does;
 ---  * directories come back without a trailing separator, and so does a file;
 ---  * `/**` as the last segment lists everything below, not the root itself.
 ---
@@ -790,7 +812,7 @@ function vim.fn.glob(pattern, nosuf, list)
     error("standalone vim_shim: vim.fn.glob does not implement backslash escapes", 0)
   end
 
-  local folded = IS_WINDOWS
+  local folded = folds_case()
   local slashed = to_slashes(pattern)
   local segments = {}
   for seg in (slashed .. "/"):gmatch("([^/]*)/") do

@@ -1115,7 +1115,7 @@ M.cases = {
     args = { "<ROOT>/*.TXT", false, true },
     normalize = "slashes",
     sort = true,
-    why = "case-insensitive on Windows, where the filesystem is; exact elsewhere",
+    why = "case-insensitive on Windows and macOS, where the filesystem is; exact on Linux",
   },
   {
     id = "fn.glob/string-form",
