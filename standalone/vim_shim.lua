@@ -17,6 +17,22 @@
 ---   vim.fs.dir, vim.uv (= vim.loop): fs_stat/fs_scandir/fs_scandir_next/
 ---   hrtime, vim.treesitter (inert stub — see below).
 ---
+--- and, added for running `rules.nvim`'s engine (and the Neovim-API calls its
+--- real rulesets make inside `lua_predicate`s) without an editor — measured by
+--- loading that engine and a 430-rule ruleset under this shim, not guessed:
+---
+---   vim.islist, vim.tbl_contains, vim.env (read-only), vim.log.levels,
+---   vim.fn.{filereadable, readfile, getcwd, glob, system, fnamemodify
+---   (":t", ":p")}, vim.v.shell_error, vim.fs.{basename, normalize},
+---   vim.uv.{os_getenv, os_homedir}.
+---
+--- Each has cases in `TESTS/fixtures/shim_behavior_cases.lua`, compared against
+--- the editor on both interpreters. What is *refused* rather than approximated
+--- (`glob` with `nosuf` or a trailing separator, `fnamemodify(":p")` on `~`,
+--- `readfile` on a file with NUL bytes, `system` with stdin or on a Lua that
+--- cannot report an exit status) raises, and is pinned in
+--- `TESTS/shim_behavior_spec.lua`.
+---
 --- **Backed by `luafilesystem` (lfs), not real `luv`.** PORTABILITY.md's own
 --- reading was "`vim.uv` → `luv` is close to a rename" — true, and worth
 --- reconsidering if this ever needs libuv's actual async model (it does
@@ -69,6 +85,16 @@ local vim = {}
 ---picks one of the two answers is wrong on the other host, silently — which
 ---is what `TESTS/shim_behavior_spec.lua` was written to notice.
 local IS_WINDOWS = (package.config:sub(1, 1) == "\\")
+
+---Fold the platform's separators to `/`, so one rule covers both.
+---@param path string
+---@return string
+local function to_slashes(path)
+  if IS_WINDOWS then
+    return (path:gsub("\\", "/"))
+  end
+  return path
+end
 
 -- ---------------------------------------------------------------- stdlib
 
@@ -281,6 +307,78 @@ function vim.list_extend(dst, src, start, finish)
   end
   return dst
 end
+
+---Neovim's own definition, key for key: `{}` is a list, and so is any table
+---whose keys are exactly `1..n`. A hole or a string key is not.
+---
+---**Differs from the editor in one place, on purpose and narrowly:** Neovim
+---answers `false` for the table `vim.empty_dict()` and for what
+---`vim.json.decode("{}")` returns, because both carry a marker metatable. The
+---shim has neither marker, so those read as lists. The one caller that meets a
+---decoded document (`rules.nvim`'s waivers loader) already asks
+---`next(t) ~= nil` first for exactly this reason, and says so.
+---@param t any
+---@return boolean
+function vim.islist(t)
+  if type(t) ~= "table" then
+    return false
+  end
+  local j = 1
+  for _ in pairs(t) do
+    if t[j] == nil then
+      return false
+    end
+    j = j + 1
+  end
+  return true
+end
+
+---`vim.tbl_contains(t, value)` or, with `{ predicate = true }`, whether any
+---entry satisfies the function passed as `value`. Walks with `pairs`, as the
+---editor does, so it answers for dictionaries too.
+---@param t table
+---@param value any|fun(v: any): boolean
+---@param opts { predicate?: boolean }|nil
+---@return boolean
+function vim.tbl_contains(t, value, opts)
+  if type(t) ~= "table" then
+    error("t: expected table, got " .. type(t), 2)
+  end
+  local predicate = opts and opts.predicate
+  for _, v in pairs(t) do
+    if predicate then
+      if value(v) then
+        return true
+      end
+    elseif v == value then
+      return true
+    end
+  end
+  return false
+end
+
+---The severity numbers, as Neovim 0.12 defines them. Nothing here logs: it is
+---a lookup table, there because a `lib.nvim` module reads
+---`vim.log.levels.INFO` at *load* time to fill a config default — and the
+---`standalone` build and the engine release both failed on `field 'log'` the
+---day that module landed, with no change in this repository at all.
+vim.log = {
+  levels = { TRACE = 0, DEBUG = 1, INFO = 2, WARN = 3, ERROR = 4, OFF = 5 },
+}
+
+---The process environment, read-only. `vim.env.NAME` is `nil` when unset.
+---
+---Read-only because `os.getenv` has no counterpart for writing in standard
+---Lua, and a silent no-op on assignment would be the worst of the options:
+---`vim.env.X = "1"` would appear to work and nothing downstream would see it.
+vim.env = setmetatable({}, {
+  __index = function(_, name)
+    return os.getenv(name)
+  end,
+  __newindex = function(_, name)
+    error(("standalone vim_shim: vim.env is read-only (assigning %s)"):format(tostring(name)), 2)
+  end,
+})
 
 ---@param v any
 ---@param seen table<table, table>|nil
@@ -529,6 +627,296 @@ function vim.fn.isdirectory(path)
   return lfs.attributes(path, "mode") == "directory" and 1 or 0
 end
 
+---@param path string
+---@return integer 1 if `path` is a regular file that can be opened for reading
+function vim.fn.filereadable(path)
+  if lfs.attributes(path, "mode") ~= "file" then
+    return 0
+  end
+  local fd = io.open(path, "rb")
+  if not fd then
+    return 0
+  end
+  fd:close()
+  return 1
+end
+
+---The lines of a file, the way the editor reads them — and the way is not
+---"split on newlines": without the `"b"` flag a CR before an NL is dropped, a
+---trailing NL adds no empty last line, and a UTF-8 byte-order mark is removed;
+---with it nothing is dropped and a trailing NL *does* add an empty last
+---element. `max` keeps the first `max` lines, or the last `-max` for a
+---negative one. An unreadable file raises, as `E484` does.
+---
+---A NUL byte is not translated (the editor stores it as an NL inside the
+---line); a file that has one raises here rather than returning lines that
+---differ from the editor's.
+---@param path string
+---@param flags string|nil `"b"` for binary mode
+---@param max integer|nil
+---@return string[]
+function vim.fn.readfile(path, flags, max)
+  if flags ~= nil and flags ~= "" and flags ~= "b" then
+    error(
+      'standalone vim_shim: vim.fn.readfile only implements the "b" flag, got ' .. tostring(flags),
+      0
+    )
+  end
+  local fd = io.open(path, "rb")
+  if not fd or lfs.attributes(path, "mode") ~= "file" then
+    if fd then
+      fd:close()
+    end
+    error("E484: Can't open file " .. tostring(path), 0)
+  end
+  local data = fd:read("*a") or ""
+  fd:close()
+  if data:find("\0", 1, true) then
+    error(
+      "standalone vim_shim: vim.fn.readfile does not translate NUL bytes: " .. tostring(path),
+      0
+    )
+  end
+
+  local binary = flags == "b"
+  if not binary and data:sub(1, 3) == "\239\187\191" then
+    data = data:sub(4)
+  end
+
+  local lines = {}
+  local pos = 1
+  while true do
+    local nl = data:find("\n", pos, true)
+    if not nl then
+      lines[#lines + 1] = data:sub(pos)
+      break
+    end
+    lines[#lines + 1] = data:sub(pos, nl - 1)
+    pos = nl + 1
+  end
+  -- `"a\nb\n"` split on NL ends in an empty piece. Binary mode keeps it (the
+  -- file really does end in a line break); text mode does not care.
+  if not binary and lines[#lines] == "" then
+    lines[#lines] = nil
+  end
+  if not binary then
+    for i, line in ipairs(lines) do
+      -- Only a CR *before an NL*: the last line has none after it, so a CR
+      -- that ends the file is content.
+      if i < #lines or data:sub(-1) == "\n" then
+        lines[i] = (line:gsub("\r$", ""))
+      end
+    end
+  end
+
+  if max ~= nil then
+    local out = {}
+    if max >= 0 then
+      for i = 1, math.min(max, #lines) do
+        out[i] = lines[i]
+      end
+    else
+      for i = math.max(1, #lines + max + 1), #lines do
+        out[#out + 1] = lines[i]
+      end
+    end
+    return out
+  end
+  return lines
+end
+
+---@return string
+function vim.fn.getcwd()
+  return (lfs.currentdir())
+end
+
+---One glob path segment as a Lua pattern: `*` and `?` stay inside a segment,
+---`[abc]`/`[!abc]` are classes, everything else is literal.
+---@param seg string
+---@return string
+local function glob_segment_pattern(seg)
+  local out = {}
+  local i = 1
+  while i <= #seg do
+    local c = seg:sub(i, i)
+    local close = c == "[" and seg:find("]", i + 2, true) or nil
+    if c == "*" then
+      out[#out + 1] = "[^/]*"
+    elseif c == "?" then
+      out[#out + 1] = "[^/]"
+    elseif close then
+      local body = seg:sub(i + 1, close - 1):gsub("^[!^]", "^"):gsub("%%", "%%%%")
+      out[#out + 1] = "[" .. body .. "]"
+      i = close
+    else
+      out[#out + 1] = (c:gsub("%W", "%%%0"))
+    end
+    i = i + 1
+  end
+  return "^" .. table.concat(out) .. "$"
+end
+
+---`glob(pattern, nosuf, list)`, for the forms a caller here uses: `*`, `?`,
+---`[...]` within a segment and `**` for any number of directory levels
+---(including none). Measured against the editor on Windows, and each rule
+---below is one of its findings:
+---
+---  * a name starting with `.` matches only a segment that starts with `.`
+---    (and that one also yields `.` and `..`), so `*` and `**` skip dotfiles;
+---  * matching ignores case on Windows, where the filesystem does;
+---  * directories come back without a trailing separator, and so does a file;
+---  * `/**` as the last segment lists everything below, not the root itself.
+---
+---**The order is not specified.** The editor sorts with the platform's file
+---name comparison (case-insensitive on Windows), and nothing here depends on
+---it; this returns case-folded alphabetical order, which is the same on both
+---hosts and equal to the editor's on Windows.
+---
+---Refused, not guessed: `nosuf = true`, a pattern ending in `/` (the editor
+---answers with trailing separators on *files* too), and a backslash in a
+---pattern on a host where it is an escape.
+---@param pattern string
+---@param nosuf boolean|nil
+---@param list boolean|nil Return a list instead of a newline-joined string.
+---@return string[]|string
+function vim.fn.glob(pattern, nosuf, list)
+  if nosuf then
+    error("standalone vim_shim: vim.fn.glob does not implement nosuf", 0)
+  end
+  if pattern:sub(-1) == "/" or (IS_WINDOWS and pattern:sub(-1) == "\\") then
+    error("standalone vim_shim: vim.fn.glob does not implement a pattern ending in a separator", 0)
+  end
+  if not IS_WINDOWS and pattern:find("\\", 1, true) then
+    error("standalone vim_shim: vim.fn.glob does not implement backslash escapes", 0)
+  end
+
+  local folded = IS_WINDOWS
+  local slashed = to_slashes(pattern)
+  local segments = {}
+  for seg in (slashed .. "/"):gmatch("([^/]*)/") do
+    segments[#segments + 1] = seg
+  end
+
+  -- The literal head (`E:`, the empty first segment of `/abs`, plain
+  -- directories) is walked as a path; wildcards start at the first segment
+  -- that has one.
+  local base = ""
+  local first = 1
+  if segments[1] == "" and #segments > 1 then
+    base, first = "/", 2
+  elseif IS_WINDOWS and segments[1]:match("^%a:$") then
+    base, first = segments[1] .. "/", 2
+  end
+  while first < #segments and not segments[first]:find("[*?%[]") do
+    base = base .. segments[first] .. "/"
+    first = first + 1
+  end
+  local function join(dir, name)
+    if dir == "" then
+      return name
+    end
+    return dir:sub(-1) == "/" and (dir .. name) or (dir .. "/" .. name)
+  end
+
+  local out = {}
+
+  ---@param dir string
+  ---@return string[] names
+  local function entries(dir)
+    local names = {}
+    -- `stat` on Windows refuses a path with a trailing separator, so it is
+    -- dropped for the question (but never from a bare root: `/`, `C:/`).
+    local target = dir == "" and "." or dir
+    local bare = target
+    if #target > 1 and target:sub(-1) == "/" and not target:match("^%a:/$") then
+      bare = target:sub(1, -2)
+    end
+    if lfs.attributes(bare, "mode") ~= "directory" then
+      return names
+    end
+    local ok, iter_fn, dir_obj = pcall(lfs.dir, target)
+    if not ok then
+      return names
+    end
+    for name in iter_fn, dir_obj do
+      names[#names + 1] = name
+    end
+    return names
+  end
+
+  ---@param dir string
+  ---@param i integer
+  local function walk(dir, i)
+    local seg = segments[i]
+    local is_last = i == #segments
+
+    if seg == "**" then
+      if is_last then
+        for _, name in ipairs(entries(dir)) do
+          if name:sub(1, 1) ~= "." then
+            local path = join(dir, name)
+            out[#out + 1] = path
+            if lfs.attributes(path, "mode") == "directory" then
+              walk(path, i)
+            end
+          end
+        end
+      else
+        walk(dir, i + 1)
+        for _, name in ipairs(entries(dir)) do
+          local path = join(dir, name)
+          if name:sub(1, 1) ~= "." and lfs.attributes(path, "mode") == "directory" then
+            walk(path, i)
+          end
+        end
+      end
+      return
+    end
+
+    if not seg:find("[*?%[]") then
+      local path = join(dir, seg)
+      local mode = lfs.attributes(path, "mode")
+      if is_last then
+        if mode then
+          out[#out + 1] = path
+        end
+      elseif mode == "directory" then
+        walk(path, i + 1)
+      end
+      return
+    end
+
+    local want_dot = seg:sub(1, 1) == "."
+    local lua_pat = glob_segment_pattern(folded and seg:lower() or seg)
+    for _, name in ipairs(entries(dir)) do
+      local hidden = name:sub(1, 1) == "."
+      local candidate = folded and name:lower() or name
+      if (not hidden or want_dot) and candidate:match(lua_pat) then
+        local path = join(dir, name)
+        if is_last then
+          out[#out + 1] = path
+        elseif lfs.attributes(path, "mode") == "directory" and name ~= "." and name ~= ".." then
+          walk(path, i + 1)
+        end
+      end
+    end
+  end
+
+  walk(base, first)
+
+  table.sort(out, function(a, b)
+    local la, lb = a:lower(), b:lower()
+    if la ~= lb then
+      return la < lb
+    end
+    return a < b
+  end)
+  if list then
+    return out
+  end
+  return table.concat(out, "\n")
+end
+
 ---Neovim's own standard directories, reimplemented rather than guessed.
 ---
 ---**Why this is here at all**, since nothing in the scan pipeline wants it:
@@ -583,18 +971,55 @@ function vim.fn.stdpath(what)
   return (dir:gsub("\\", "/"))
 end
 
----Fold the platform's separators to `/`, so one rule covers both.
+---Make a path absolute, the way `:p` does for the paths this tree passes it:
+---a relative one is joined onto the working directory (with `.` and `..`
+---resolved, empty components kept), an absolute one is left as written, and
+---a directory that exists gets a trailing separator. Measured against the
+---editor, including the parts that look like bugs — an absolute path keeps its
+---own slashes and only the added separator is native.
+---
+---`~` and a drive-relative `C:foo` are refused rather than guessed: neither is
+---reached by a caller, and both have editor behaviour that differs by host.
 ---@param path string
 ---@return string
-local function to_slashes(path)
-  if IS_WINDOWS then
-    return (path:gsub("\\", "/"))
+local function absolute_path(path)
+  if path:sub(1, 1) == "~" then
+    error('standalone vim_shim: vim.fn.fnamemodify ":p" does not expand "~"', 0)
   end
-  return path
+  local slashed = to_slashes(path)
+  if IS_WINDOWS and slashed:match("^%a:[^/]") then
+    error('standalone vim_shim: vim.fn.fnamemodify ":p" does not resolve a drive-relative path', 0)
+  end
+
+  local sep = IS_WINDOWS and "\\" or "/"
+  local full
+  if slashed:sub(1, 1) == "/" or (IS_WINDOWS and slashed:match("^%a:/")) then
+    full = path
+  else
+    local parts = {}
+    local cwd = to_slashes(lfs.currentdir()):gsub("/+$", "")
+    for component in (slashed .. "/"):gmatch("([^/]*)/") do
+      if component == ".." then
+        parts[#parts] = nil
+      elseif component ~= "." then
+        parts[#parts + 1] = component
+      end
+    end
+    -- A trailing separator in the input survives as an empty last component.
+    full = cwd:gsub("/", sep) .. sep .. table.concat(parts, sep)
+    if path == "" then
+      full = cwd:gsub("/", sep)
+    end
+  end
+
+  if lfs.attributes(full, "mode") == "directory" and not full:match("[/\\]$") then
+    full = full .. sep
+  end
+  return full
 end
 
----Only the `":t"` (tail/basename) modifier — the one real call site
----(`documentation.config`'s own `title` default) never uses another.
+---The `":t"` (tail/basename) and `":p"` (absolute) modifiers — the only ones
+---a real call site passes.
 ---
 ---**The tail of a path that ends in a separator is empty.** This used to
 ---strip trailing separators first and then take the last component, which
@@ -606,8 +1031,75 @@ end
 function vim.fn.fnamemodify(path, mods)
   if mods == ":t" then
     return (to_slashes(path):match("[^/]*$")) or ""
+  elseif mods == ":p" then
+    return absolute_path(path)
   end
-  error('standalone vim_shim: vim.fn.fnamemodify only implements ":t", got ' .. tostring(mods), 0)
+  error(
+    'standalone vim_shim: vim.fn.fnamemodify only implements ":t" and ":p", got ' .. tostring(mods),
+    0
+  )
+end
+
+---The exit status of the last `vim.fn.system`, as in the editor.
+vim.v = { shell_error = 0 }
+
+---Run a command and return what it printed, **stderr merged into stdout** as
+---the editor's `system()` does with its default `shellredir`. `cmd` is an
+---argument list or a string; the list is quoted by `standalone.shell_quote`,
+---which refuses what it cannot quote safely rather than quoting it wrongly.
+---Sets `vim.v.shell_error`.
+---
+---**Needs an interpreter whose `file:close()` reports the exit status.** PUC
+---Lua 5.2+ does (`true|nil, "exit", code` — measured on 5.4: 128 for a failed
+---`git rev-parse`); LuaJIT and 5.1 return a bare `true` for a failure too, so
+---there this raises instead of reporting a status it cannot know.
+---@param cmd string|string[]
+---@param input string|nil Not supported.
+---@return string output
+function vim.fn.system(cmd, input)
+  if input ~= nil then
+    error("standalone vim_shim: vim.fn.system does not implement the stdin argument", 0)
+  end
+  local quote = require("standalone.shell_quote").quote
+  local line
+  if type(cmd) == "table" then
+    local parts = {}
+    for i, arg_ in ipairs(cmd) do
+      local quoted, err = quote(arg_, IS_WINDOWS)
+      if not quoted then
+        error("standalone vim_shim: vim.fn.system: " .. err, 0)
+      end
+      parts[i] = quoted
+    end
+    line = table.concat(parts, " ")
+  else
+    line = tostring(cmd)
+  end
+
+  -- `cmd /c` strips the first and last quote of a line that starts with one
+  -- and holds more of them, which would eat the quoting of `"git" "-C" ...`
+  -- and leave `git" "-C" "...` — so on Windows the whole line gets one more
+  -- pair, which is the pair `cmd` removes.
+  local full = line .. " 2>&1"
+  if IS_WINDOWS then
+    full = '"' .. full .. '"'
+  end
+  local fh = io.popen(full, "r")
+  if not fh then
+    error("standalone vim_shim: vim.fn.system could not start: " .. line, 0)
+  end
+  local out = fh:read("*a") or ""
+  local ok, how, code = fh:close()
+  if how == nil then
+    error(
+      "standalone vim_shim: vim.fn.system cannot see the exit status on this Lua ("
+        .. _VERSION
+        .. ")",
+      0
+    )
+  end
+  vim.v.shell_error = (ok == true) and 0 or (code or 1)
+  return out
 end
 
 vim.fs = {}
@@ -641,6 +1133,156 @@ function vim.fs.dirname(path)
     return parent .. "/"
   end
   return parent
+end
+
+---The last component, as Neovim 0.12 defines it: empty for a path that ends in
+---a separator, and on Windows empty for a bare drive (`C:`, `C:/`).
+---@param file string|nil
+---@return string|nil
+function vim.fs.basename(file)
+  if file == nil then
+    return nil
+  end
+  if type(file) ~= "string" then
+    error("file: expected string, got " .. type(file), 2)
+  end
+  if IS_WINDOWS then
+    file = to_slashes(file)
+    if file:match("^%w:/?$") then
+      return ""
+    end
+  end
+  return file:match("/$") and "" or file:match("[^/]*$")
+end
+
+---Windows prefix and body of a path, as `vim.fs` splits it: `C:/foo` ->
+---`C:`, `/foo`; `//server/share/foo` -> `//server/share`, `/foo`. Ported from
+---Neovim 0.12's `runtime/lua/vim/fs.lua`, not reinvented — normalising a path
+---is exactly the place where a plausible rule and the real one diverge on the
+---edges (UNC, device paths, a drive with no slash).
+---@param path string
+---@return string prefix
+---@return string body
+---@return boolean valid
+local function split_windows_path(path)
+  local prefix = ""
+
+  local function match_to_prefix(pattern)
+    local match = path:match(pattern)
+    if match then
+      prefix = prefix .. match
+      path = path:sub(#match + 1)
+    end
+    return match
+  end
+
+  local function process_unc_path()
+    return match_to_prefix("[^/]+/+[^/]+/+")
+  end
+
+  if match_to_prefix("^//[?.]/") then
+    local device = match_to_prefix("[^/]+/+")
+    if not device or (device:match("^UNC/+$") and not process_unc_path()) then
+      return prefix, path, false
+    end
+  elseif match_to_prefix("^//") then
+    if not process_unc_path() then
+      return prefix, path, false
+    end
+  elseif path:match("^%w:") then
+    prefix, path = path:sub(1, 2), path:sub(3)
+  end
+
+  local trailing_slash = prefix:match("/+$")
+  if trailing_slash then
+    prefix = prefix:sub(1, -1 - #trailing_slash)
+    path = trailing_slash .. path
+  end
+
+  return prefix, path, true
+end
+
+---Resolve `.` and `..` in a `/`-separated path and drop empty components.
+---`..` that would climb above a relative start is kept.
+---@param path string
+---@return string
+local function path_resolve_dot(path)
+  local is_absolute = path:sub(1, 1) == "/"
+  local out = {}
+  for component in (path .. "/"):gmatch("([^/]*)/") do
+    if component == "." or component == "" then -- luacheck: ignore 542
+      -- skipped
+    elseif component == ".." then
+      if #out > 0 and out[#out] ~= ".." then
+        out[#out] = nil
+      elseif is_absolute then -- luacheck: ignore 542
+        -- at the root: nothing to climb
+      else
+        out[#out + 1] = component
+      end
+    else
+      out[#out + 1] = component
+    end
+  end
+  return (is_absolute and "/" or "") .. table.concat(out, "/")
+end
+
+---Normalise a path: `~` and `$VAR` expanded, `\` folded to `/` on Windows,
+---`.`/`..` resolved, a double slash at the start preserved. Ported from
+---Neovim 0.12; see `split_windows_path` for why.
+---@param path string
+---@param opts { expand_env?: boolean, win?: boolean }|nil
+---@return string
+function vim.fs.normalize(path, opts)
+  opts = opts or {}
+  if type(path) ~= "string" then
+    error("path: expected string, got " .. type(path), 2)
+  end
+
+  local win = opts.win
+  if win == nil then
+    win = IS_WINDOWS
+  end
+  local sep = win and "\\" or "/"
+
+  if path == "" then
+    return ""
+  end
+
+  if path:sub(1, 1) == "~" then
+    local home = vim.uv.os_homedir() or "~"
+    if home:sub(-1) == sep then
+      home = home:sub(1, -2)
+    end
+    path = home .. path:sub(2)
+  end
+
+  if opts.expand_env == nil or opts.expand_env then
+    path = path:gsub("%$([%w_]+)", vim.uv.os_getenv)
+  end
+
+  if win then
+    path = path:gsub("\\", "/")
+  end
+
+  local double_slash = path:sub(1, 2) == "//" and path:sub(1, 3) ~= "///"
+
+  local prefix = ""
+  if win then
+    local valid
+    prefix, path, valid = split_windows_path(path)
+    if not valid then
+      return prefix .. path
+    end
+    prefix = prefix:gsub("^%a:", string.upper):gsub("/+", "/")
+  end
+
+  path = path_resolve_dot(path)
+  path = (double_slash and "/" or "") .. prefix .. path
+  if path == "" then
+    path = "."
+  end
+  return path
 end
 
 ---Directory iterator shaped like `vim.fs.dir`: `for name, type in
@@ -686,6 +1328,14 @@ end
 ---@param dir string
 ---@return table|nil handle
 function uv.fs_scandir(dir)
+  -- Asked first rather than inferred from `lfs.dir` raising: LuaFileSystem
+  -- 1.8 raises on a directory it cannot open, 1.9 hands back an iterator that
+  -- fails on first use. A shim whose answer depends on which rock is
+  -- installed is the failure class the differential exists for, and it was
+  -- found by it.
+  if lfs.attributes(dir, "mode") ~= "directory" then
+    return nil
+  end
   local ok, iter_fn, dir_obj = pcall(lfs.dir, dir)
   if not ok then
     return nil
@@ -721,6 +1371,24 @@ function uv.fs_mkdir(path, _mode)
   -- up until someone writes `== false`.
   local made = lfs.mkdir(path)
   return made == true or nil
+end
+
+---@param name string
+---@return string|nil
+function uv.os_getenv(name)
+  return os.getenv(name)
+end
+
+---libuv's own order: `USERPROFILE` on Windows, `HOME` elsewhere. libuv falls
+---back to the password database when the variable is unset; this does not,
+---and answers `nil` instead, which the callers here treat as "unknown".
+---@return string|nil
+function uv.os_homedir()
+  local home = os.getenv(IS_WINDOWS and "USERPROFILE" or "HOME")
+  if home == nil or home == "" then
+    return nil
+  end
+  return home
 end
 
 ---Approximated with `os.clock()` (process CPU time) — see this file's

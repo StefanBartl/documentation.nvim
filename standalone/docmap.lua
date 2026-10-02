@@ -357,16 +357,18 @@ if api_route then
   ---Run git in `opts.root` via `io.popen` — the standalone build's only
   ---subprocess capability; `vim.system` does not exist outside Neovim.
   ---
-  ---**Cannot see the exit code, measured rather than assumed.** Probed on
-  ---Windows via Neovim's own embedded LuaJIT as a stand-in — `io.popen` is
-  ---a thin wrapper over the platform C library's `popen()`/`_popen()`,
-  ---which is the same call regardless of which Lua interpreter drives it,
-  ---so the result transfers to PUC Lua 5.4 even though no PUC interpreter
-  ---was on this machine to test the shipped binary directly with.
+  ---**Does not use the exit code, and the original reason was half right.**
+  ---Probed on Windows via Neovim's own embedded LuaJIT as a stand-in:
   ---`file:close()` returned `true, nil, nil` for both a genuinely
-  ---succeeding *and* a genuinely failing git invocation — there is no exit
-  ---status to branch on the way `editor/serve.lua`'s
-  ---`vim.system(...):wait().code` can.
+  ---succeeding *and* a genuinely failing git invocation. The conclusion that
+  ---this "transfers to PUC Lua 5.4" was an assumption, and it is wrong: re-
+  ---measured on PUC 5.4 (the interpreter this binary is built with),
+  ---`close()` returns `true|nil, "exit", code` — 128 for a failed
+  ---`git rev-parse`. `standalone/vim_shim.lua`'s `vim.fn.system` uses exactly
+  ---that, and raises under an interpreter that cannot report it. This
+  ---function keeps the output heuristic below because changing what
+  ---`--api=` routes treat as a failure is a behaviour change of its own, not
+  ---part of the change that found this.
   ---
   ---So: stderr is merged into the captured stream (`2>&1`), and output
   ---starting with `fatal:`/`error:`/`usage:` is treated as a failure.

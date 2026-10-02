@@ -234,10 +234,42 @@ function M.evaluate(surface, case, root)
     if not ok then
       return "error", tostring(result)
     end
-    if case.normalize == "slashes" and type(result) == "string" then
-      result = (result:gsub("\\", "/"))
+    if case.normalize == "slashes" then
+      if type(result) == "string" then
+        result = (result:gsub("\\", "/"))
+      elseif type(result) == "table" then
+        -- A list of paths (`glob`): the separators of each, not the table.
+        local folded = {}
+        for i, v in ipairs(result) do
+          folded[i] = type(v) == "string" and (v:gsub("\\", "/")) or v
+        end
+        result = folded
+      end
+    end
+    if case.sort and type(result) == "table" then
+      -- For answers whose *order* the editor does not promise: it sorts file
+      -- names with the platform's comparison (case-insensitive on Windows,
+      -- byte order on Linux), so two correct implementations can differ.
+      table.sort(result)
     end
     return M.canon(result)
+  elseif kind == "value" then
+    -- Not a call: the thing at `path` *is* the answer (`vim.log.levels`).
+    return M.canon(fn)
+  elseif kind == "system" then
+    -- What matters about a command is what it printed first and how it ended,
+    -- and the exit status lives in `vim.v.shell_error`, not in a return value.
+    -- Only the first word of the output: the rest is the tool's wording.
+    local args = case_args(case, root)
+    local ok, out = pcall(fn, args[1])
+    if not ok then
+      return "error", tostring(out)
+    end
+    local status = resolve(surface, "v.shell_error")
+    return M.canon({
+      status = status,
+      first_word = type(out) == "string" and out:match("^%w+") or nil,
+    })
   elseif kind == "call_mutates" then
     -- The interesting value is the argument the call wrote into, not only
     -- what it returned: `vim.list_extend` returns its destination, and a
@@ -327,7 +359,10 @@ end
 --   path        dotted path under `vim`.
 --   kind        how to run it — see `M.evaluate`.
 --   args        `<ROOT>` in any string expands to the fixture directory.
---   normalize   `"slashes"`: compare paths with `\` folded to `/`.
+--   normalize   `"slashes"`: compare paths with `\` folded to `/` (a string,
+--               or each string of a list).
+--   sort        sort a list answer before comparing it: for results whose
+--               order the editor leaves to the platform.
 --   needs       `"puc"`: only the PUC runner answers this one (see below).
 --   local_only  never written to the expectations file (env-dependent).
 --   why         what the case is *for*. Not decoration: several of these
@@ -674,6 +709,461 @@ M.cases = {
     local_only = true,
   },
 
+  -- ------------------------------------------- the rules.nvim engine's surface
+  -- What `rules.nvim`'s `engine/` (and the predicates in its real ruleset)
+  -- call, measured against that code rather than guessed — see
+  -- `docs/ROADMAP/` for L10 P1. Each case below is one question the engine
+  -- would otherwise answer differently here than in the editor.
+
+  -- ---------------------------------------------------------------- islist
+  { id = "islist/empty", path = "islist", args = { {} } },
+  { id = "islist/list", path = "islist", args = { { 1, 2, 3 } } },
+  { id = "islist/hole", path = "islist", args = { { 1, nil, 3 } } },
+  { id = "islist/dict", path = "islist", args = { { a = 1 } } },
+  { id = "islist/mixed", path = "islist", args = { { 1, 2, a = 3 } } },
+  { id = "islist/starts-at-two", path = "islist", args = { { [2] = "x", [3] = "y" } } },
+  { id = "islist/string", path = "islist", args = { "x" } },
+  { id = "islist/nil", path = "islist", args = {}, argc = 1 },
+
+  -- ---------------------------------------------------------- tbl_contains
+  { id = "tbl_contains/present", path = "tbl_contains", args = { { "a", "b" }, "b" } },
+  { id = "tbl_contains/absent", path = "tbl_contains", args = { { "a", "b" }, "c" } },
+  { id = "tbl_contains/empty", path = "tbl_contains", args = { {}, "a" } },
+  {
+    id = "tbl_contains/dict-values",
+    path = "tbl_contains",
+    args = { { x = "a" }, "a" },
+    why = "it walks values with pairs, so a dictionary answers too",
+  },
+  {
+    id = "tbl_contains/predicate",
+    path = "tbl_contains",
+    args = { { 1, 2, 3 }, "<FN:is_two>", { predicate = true } },
+  },
+  {
+    id = "tbl_contains/predicate-none",
+    path = "tbl_contains",
+    args = { { 1, 3 }, "<FN:is_two>", { predicate = true } },
+  },
+  { id = "tbl_contains/not-a-table", path = "tbl_contains", args = { "x", "x" } },
+
+  -- ------------------------------------------------------------ fs.basename
+  { id = "fs.basename/simple", path = "fs.basename", args = { "a/b/c.lua" } },
+  { id = "fs.basename/no-separator", path = "fs.basename", args = { "abc" } },
+  {
+    id = "fs.basename/trailing-slash",
+    path = "fs.basename",
+    args = { "a/b/" },
+    why = "the name of a path that ends in a separator is empty, not `b`",
+  },
+  { id = "fs.basename/root", path = "fs.basename", args = { "/" } },
+  { id = "fs.basename/empty", path = "fs.basename", args = { "" } },
+  {
+    id = "fs.basename/bare-drive",
+    path = "fs.basename",
+    args = { "C:" },
+    why = "empty on Windows, where it names a drive; `C:` on Linux, where it is a filename",
+  },
+  { id = "fs.basename/drive-root", path = "fs.basename", args = { "C:/" } },
+  { id = "fs.basename/drive-child", path = "fs.basename", args = { "C:/a" } },
+  { id = "fs.basename/backslash", path = "fs.basename", args = { "a\\b" } },
+  { id = "fs.basename/dotfile", path = "fs.basename", args = { "a/.config" } },
+  { id = "fs.basename/nil", path = "fs.basename", args = {}, argc = 1 },
+  { id = "fs.basename/number", path = "fs.basename", args = { 5 } },
+
+  -- ----------------------------------------------------------- fs.normalize
+  { id = "fs.normalize/dotdot", path = "fs.normalize", args = { "a/b/../c" } },
+  { id = "fs.normalize/dot-prefix", path = "fs.normalize", args = { "./a" } },
+  { id = "fs.normalize/double-separator", path = "fs.normalize", args = { "a//b" } },
+  { id = "fs.normalize/trailing-slash", path = "fs.normalize", args = { "a/b/" } },
+  { id = "fs.normalize/only-dot", path = "fs.normalize", args = { "././" } },
+  { id = "fs.normalize/empty", path = "fs.normalize", args = { "" } },
+  { id = "fs.normalize/root", path = "fs.normalize", args = { "/" } },
+  {
+    id = "fs.normalize/above-the-root",
+    path = "fs.normalize",
+    args = { "/../../x" },
+    why = "`..` at the root of an absolute path stays at the root",
+  },
+  {
+    id = "fs.normalize/above-a-relative-start",
+    path = "fs.normalize",
+    args = { "foo/../../bar" },
+    why = "a relative path that climbs out of its start keeps the `..`",
+  },
+  {
+    id = "fs.normalize/leading-double-slash",
+    path = "fs.normalize",
+    args = { "//server/share/x" },
+  },
+  {
+    id = "fs.normalize/triple-slash",
+    path = "fs.normalize",
+    args = { "///a" },
+    why = "two leading slashes mean something, three do not",
+  },
+  {
+    id = "fs.normalize/dollar-unset",
+    path = "fs.normalize",
+    args = { "$DOCMAP_SHIM_SURELY_UNSET/x" },
+  },
+  {
+    id = "fs.normalize/no-expand-env",
+    path = "fs.normalize",
+    args = { "$DOCMAP_SHIM_SURELY_UNSET/x", { expand_env = false } },
+  },
+  -- The `win` option makes the Windows rules testable on every host.
+  {
+    id = "fs.normalize/win-backslashes",
+    path = "fs.normalize",
+    args = { "C:\\foo\\..\\bar", { win = true } },
+  },
+  {
+    id = "fs.normalize/win-drive-case",
+    path = "fs.normalize",
+    args = { "c:/x/y", { win = true } },
+  },
+  {
+    id = "fs.normalize/win-drive-relative",
+    path = "fs.normalize",
+    args = { "C:foo/../../baz", { win = true } },
+  },
+  {
+    id = "fs.normalize/win-drive-root-dotdot",
+    path = "fs.normalize",
+    args = { "C:/foo/../../baz", { win = true } },
+  },
+  {
+    id = "fs.normalize/win-unc",
+    path = "fs.normalize",
+    args = { "\\\\?\\UNC\\server\\share\\foo\\..\\..\\..\\bar", { win = true } },
+  },
+  {
+    id = "fs.normalize/win-unc-share",
+    path = "fs.normalize",
+    args = { "//server/share/a/../b", { win = true } },
+  },
+  {
+    id = "fs.normalize/posix-keeps-backslash",
+    path = "fs.normalize",
+    args = { "a\\b/c", { win = false } },
+    why = "a backslash is a filename character off Windows, and must survive",
+  },
+  {
+    id = "fs.normalize/home",
+    path = "fs.normalize",
+    args = { "~/x/../y" },
+    normalize = "slashes",
+    local_only = true,
+    why = "the home directory is environment-dependent; compared in-editor only",
+  },
+
+  -- ----------------------------------------------------- fn.fnamemodify :p
+  -- Relative inputs are resolved against the working directory, which both
+  -- runners and the expectations writer share (the repository root).
+  {
+    id = "fn.fnamemodify.p/file",
+    path = "fn.fnamemodify",
+    args = { "<ROOT>/a.txt", ":p" },
+    normalize = "slashes",
+  },
+  {
+    id = "fn.fnamemodify.p/directory",
+    path = "fn.fnamemodify",
+    args = { "<ROOT>/sub", ":p" },
+    normalize = "slashes",
+    why = "an existing directory gets a trailing separator",
+  },
+  {
+    id = "fn.fnamemodify.p/directory-with-slash",
+    path = "fn.fnamemodify",
+    args = { "<ROOT>/sub/", ":p" },
+    normalize = "slashes",
+    why = "and exactly one, not two",
+  },
+  {
+    id = "fn.fnamemodify.p/missing",
+    path = "fn.fnamemodify",
+    args = { "<ROOT>/nope.lua", ":p" },
+    normalize = "slashes",
+  },
+  {
+    id = "fn.fnamemodify.p/relative-file",
+    path = "fn.fnamemodify",
+    args = { "TESTS/fixtures/shim_fs/a.txt", ":p" },
+    normalize = "slashes",
+  },
+  {
+    id = "fn.fnamemodify.p/relative-dotdot",
+    path = "fn.fnamemodify",
+    args = { "./TESTS/fixtures/../fixtures/shim_fs", ":p" },
+    normalize = "slashes",
+    why = "`.` and `..` in a relative path are resolved",
+  },
+  {
+    id = "fn.fnamemodify.p/relative-missing",
+    path = "fn.fnamemodify",
+    args = { "nope/x.lua", ":p" },
+    normalize = "slashes",
+  },
+  {
+    id = "fn.fnamemodify.p/empty",
+    path = "fn.fnamemodify",
+    args = { "", ":p" },
+    normalize = "slashes",
+    why = "the working directory itself, with its trailing separator",
+  },
+  {
+    id = "fn.fnamemodify.p/double-separator",
+    path = "fn.fnamemodify",
+    args = { "a//b", ":p" },
+    normalize = "slashes",
+    why = "empty components are kept, only `.` and `..` are resolved — measured",
+  },
+
+  -- ----------------------------------------------------------- fn.getcwd
+  { id = "fn.getcwd/cwd", path = "fn.getcwd", args = {}, normalize = "slashes", local_only = true },
+
+  -- ------------------------------------------------------- fn.filereadable
+  { id = "fn.filereadable/file", path = "fn.filereadable", args = { "<ROOT>/a.txt" } },
+  {
+    id = "fn.filereadable/empty-file",
+    path = "fn.filereadable",
+    args = { "<ROOT>/lines/empty.txt" },
+  },
+  {
+    id = "fn.filereadable/directory",
+    path = "fn.filereadable",
+    args = { "<ROOT>/sub" },
+    why = "a directory exists but is not a readable *file*",
+  },
+  { id = "fn.filereadable/missing", path = "fn.filereadable", args = { "<ROOT>/nope" } },
+
+  -- --------------------------------------------------------- fn.readfile
+  -- The fixtures under `shim_fs/lines/` are byte-exact (`-text` in
+  -- `.gitattributes`); each one is a question about line endings.
+  { id = "fn.readfile/lf", path = "fn.readfile", args = { "<ROOT>/lines/lf.txt" } },
+  {
+    id = "fn.readfile/no-trailing-newline",
+    path = "fn.readfile",
+    args = { "<ROOT>/lines/no_trailing_nl.txt" },
+  },
+  {
+    id = "fn.readfile/crlf",
+    path = "fn.readfile",
+    args = { "<ROOT>/lines/crlf.txt" },
+    why = "a CR before an NL is dropped in text mode",
+  },
+  {
+    id = "fn.readfile/cr-at-eof",
+    path = "fn.readfile",
+    args = { "<ROOT>/lines/cr_at_eof.txt" },
+    why = "a CR that is not before an NL is content",
+  },
+  { id = "fn.readfile/mixed-eol", path = "fn.readfile", args = { "<ROOT>/lines/mixed_eol.txt" } },
+  { id = "fn.readfile/empty", path = "fn.readfile", args = { "<ROOT>/lines/empty.txt" } },
+  { id = "fn.readfile/only-newline", path = "fn.readfile", args = { "<ROOT>/lines/only_nl.txt" } },
+  {
+    id = "fn.readfile/bom",
+    path = "fn.readfile",
+    args = { "<ROOT>/lines/bom.txt" },
+    why = "a UTF-8 byte-order mark is removed in text mode",
+  },
+  {
+    id = "fn.readfile/blank-lines",
+    path = "fn.readfile",
+    args = { "<ROOT>/lines/blank_lines.txt" },
+  },
+  { id = "fn.readfile/utf8", path = "fn.readfile", args = { "<ROOT>/lines/utf8.txt" } },
+  {
+    id = "fn.readfile/binary-lf",
+    path = "fn.readfile",
+    args = { "<ROOT>/lines/lf.txt", "b" },
+    why = "binary mode keeps the empty last element a trailing NL implies",
+  },
+  { id = "fn.readfile/binary-crlf", path = "fn.readfile", args = { "<ROOT>/lines/crlf.txt", "b" } },
+  { id = "fn.readfile/binary-bom", path = "fn.readfile", args = { "<ROOT>/lines/bom.txt", "b" } },
+  {
+    id = "fn.readfile/binary-empty",
+    path = "fn.readfile",
+    args = { "<ROOT>/lines/empty.txt", "b" },
+  },
+  {
+    id = "fn.readfile/binary-no-trailing-newline",
+    path = "fn.readfile",
+    args = { "<ROOT>/lines/no_trailing_nl.txt", "b" },
+  },
+  {
+    id = "fn.readfile/max-first",
+    path = "fn.readfile",
+    args = { "<ROOT>/lines/blank_lines.txt", "", 2 },
+  },
+  {
+    id = "fn.readfile/max-last",
+    path = "fn.readfile",
+    args = { "<ROOT>/lines/blank_lines.txt", "", -2 },
+  },
+  { id = "fn.readfile/max-zero", path = "fn.readfile", args = { "<ROOT>/lines/lf.txt", "", 0 } },
+  {
+    id = "fn.readfile/max-too-many",
+    path = "fn.readfile",
+    args = { "<ROOT>/lines/lf.txt", "", 99 },
+  },
+  {
+    id = "fn.readfile/missing",
+    path = "fn.readfile",
+    args = { "<ROOT>/nope.txt" },
+    why = "an unreadable file raises (E484) — callers wrap it, and a quiet empty "
+      .. "list would read as an empty ruleset",
+  },
+  { id = "fn.readfile/directory", path = "fn.readfile", args = { "<ROOT>/sub" } },
+
+  -- -------------------------------------------------------------- fn.glob
+  -- `sort`: the editor orders names with the platform's comparison.
+  {
+    id = "fn.glob/star",
+    path = "fn.glob",
+    args = { "<ROOT>/*.txt", false, true },
+    normalize = "slashes",
+    sort = true,
+  },
+  {
+    id = "fn.glob/star-all",
+    path = "fn.glob",
+    args = { "<ROOT>/*", false, true },
+    normalize = "slashes",
+    sort = true,
+    why = "matches files and directories alike",
+  },
+  {
+    id = "fn.glob/double-star",
+    path = "fn.glob",
+    args = { "<ROOT>/**/*.txt", false, true },
+    normalize = "slashes",
+    sort = true,
+    why = "`**` is any number of directory levels, including none",
+  },
+  {
+    id = "fn.glob/double-star-last",
+    path = "fn.glob",
+    args = { "<ROOT>/**", false, true },
+    normalize = "slashes",
+    sort = true,
+    why = "lists everything below, not the root itself",
+  },
+  {
+    id = "fn.glob/one-level",
+    path = "fn.glob",
+    args = { "<ROOT>/*/*.txt", false, true },
+    normalize = "slashes",
+    sort = true,
+  },
+  {
+    id = "fn.glob/double-star-then-name",
+    path = "fn.glob",
+    args = { "<ROOT>/sub/**/c.txt", false, true },
+    normalize = "slashes",
+    sort = true,
+  },
+  {
+    id = "fn.glob/double-star-from-root",
+    path = "fn.glob",
+    args = { "<ROOT>/**/c.txt", false, true },
+    normalize = "slashes",
+    sort = true,
+  },
+  { id = "fn.glob/no-match", path = "fn.glob", args = { "<ROOT>/nomatch*", false, true } },
+  {
+    id = "fn.glob/literal-present",
+    path = "fn.glob",
+    args = { "<ROOT>/a.txt", false, true },
+    normalize = "slashes",
+  },
+  { id = "fn.glob/literal-absent", path = "fn.glob", args = { "<ROOT>/zzz.txt", false, true } },
+  {
+    id = "fn.glob/question-mark",
+    path = "fn.glob",
+    args = { "<ROOT>/s?b/*.txt", false, true },
+    normalize = "slashes",
+    sort = true,
+  },
+  {
+    id = "fn.glob/class",
+    path = "fn.glob",
+    args = { "<ROOT>/[as]*", false, true },
+    normalize = "slashes",
+    sort = true,
+  },
+  {
+    id = "fn.glob/skips-dotfiles",
+    path = "fn.glob",
+    args = { "<ROOT>/sub/*", false, true },
+    normalize = "slashes",
+    sort = true,
+    why = "`*` does not match a name that starts with a dot",
+  },
+  {
+    id = "fn.glob/double-star-skips-dotfiles",
+    path = "fn.glob",
+    args = { "<ROOT>/sub/**/*.txt", false, true },
+    normalize = "slashes",
+    sort = true,
+  },
+  {
+    id = "fn.glob/case-of-the-pattern",
+    path = "fn.glob",
+    args = { "<ROOT>/*.TXT", false, true },
+    normalize = "slashes",
+    sort = true,
+    why = "case-insensitive on Windows, where the filesystem is; exact elsewhere",
+  },
+  {
+    id = "fn.glob/string-form",
+    path = "fn.glob",
+    args = { "<ROOT>/a.txt" },
+    normalize = "slashes",
+    why = "without `list` the answer is one newline-joined string",
+  },
+  -- --------------------------------------------------------------- log
+  {
+    id = "log.levels/values",
+    path = "log.levels",
+    kind = "value",
+    why = "a lib.nvim module reads vim.log.levels.INFO at load time; a missing "
+      .. "or renumbered level fails the whole standalone build, or worse, "
+      .. "filters notifications at the wrong severity",
+  },
+
+  -- ------------------------------------------------------------- uv.os_*
+  { id = "uv.os_getenv/unset", path = "uv.os_getenv", args = { "DOCMAP_SHIM_SURELY_UNSET" } },
+  {
+    id = "uv.os_homedir/home",
+    path = "uv.os_homedir",
+    args = {},
+    normalize = "slashes",
+    local_only = true,
+  },
+
+  -- ------------------------------------------------------------ fn.system
+  -- `needs = "puc"`: the exit status is only visible on a Lua whose
+  -- `file:close()` reports it (PUC 5.2+). LuaJIT cannot tell success from
+  -- failure there, so the shim refuses to run under it.
+  {
+    id = "fn.system/git-version",
+    path = "fn.system",
+    kind = "system",
+    args = { { "git", "--version" } },
+    needs = "puc",
+  },
+  {
+    id = "fn.system/git-failure",
+    path = "fn.system",
+    kind = "system",
+    args = { { "git", "rev-parse", "--verify", "no-such-ref-xyzzy" } },
+    needs = "puc",
+    why = "stderr is merged into the output and the status is non-zero",
+  },
+
   -- -------------------------------------------------------- json, encode
   -- Compared everywhere, because the shim writes scalars itself rather than
   -- handing them to dkjson — and scalars are the whole of what
@@ -828,6 +1318,11 @@ local BUILDERS = {
   double = function()
     return function(v)
       return v * 2
+    end
+  end,
+  is_two = function()
+    return function(v)
+      return v == 2
     end
   end,
   shared = function()

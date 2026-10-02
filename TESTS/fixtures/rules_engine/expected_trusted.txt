@@ -1,0 +1,13 @@
+PARSE	rules=12	errors=3
+FIX-01	fail
+FIX-02	pass
+FIX-03	pass
+FIX-04	fail
+FIX-05	fail
+FIX-06	manual
+HOS-03	manual
+PRD-01	pass
+PRD-02	fail
+PRD-03	pass
+PRD-04	pass
+PRD-05	pass

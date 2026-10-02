@@ -93,6 +93,11 @@ return function(H)
         local made = vim.uv.fs_mkdir(path, 493)
         return made and true or nil
       end,
+      -- The working directory, which `fnamemodify(":p")` joins relative paths
+      -- onto. Native separators, like the rock.
+      currentdir = function()
+        return vim.uv.cwd()
+      end,
     }
   end
 
@@ -223,7 +228,53 @@ return function(H)
   -- smaller one.
   ok(
     deferred > 0,
-    "shim behavior: " .. deferred .. " json cases are left to the PUC runner (real dkjson)"
+    "shim behavior: "
+      .. deferred
+      .. " cases are left to the PUC runner (real dkjson, and `system`'s exit status)"
+  )
+
+  -- ---------------------------------------------------------------------
+  -- What the shim refuses, and `vim.env`. None of it can be a corpus case:
+  -- either the editor *answers* where the shim declines, or the answer is a
+  -- raise whose message is not comparable. Each refusal is a decision (the
+  -- shim's rule is "checked, not guessed"), so each is pinned.
+  -- ---------------------------------------------------------------------
+  local function raises(fn, ...)
+    return not pcall(fn, ...)
+  end
+  ok(
+    raises(shim.fn.glob, fixture .. "/sub/", false, true),
+    "shim refuses a glob pattern ending in a separator"
+  )
+  ok(raises(shim.fn.glob, fixture .. "/*", true, true), "shim refuses glob's nosuf")
+  ok(raises(shim.fn.fnamemodify, "~/x", ":p"), 'shim refuses ":p" on a "~" path')
+  ok(
+    raises(shim.fn.fnamemodify, "a", ":h"),
+    "shim refuses a fnamemodify modifier it does not implement"
+  )
+  ok(
+    raises(shim.fn.readfile, fixture .. "/a.txt", "x"),
+    "shim refuses a readfile flag it does not implement"
+  )
+  ok(
+    raises(shim.fn.system, { "git", "--version" }, "stdin"),
+    "shim refuses system's stdin argument"
+  )
+  -- Under the editor's LuaJIT a failed command and a successful one both close
+  -- as a bare `true`, so the shim must raise rather than report a status it
+  -- cannot know. (On PUC Lua the `fn.system/*` cases answer for the real thing.)
+  ok(
+    raises(shim.fn.system, { "git", "--version" }),
+    "shim.fn.system refuses to guess an exit status on LuaJIT"
+  )
+
+  eq(shim.env.DOCMAP_SHIM_SURELY_UNSET, nil, "shim.env answers nil for an unset variable")
+  eq(shim.env.PATH, vim.env.PATH, "shim.env reads the process environment")
+  ok(
+    raises(function()
+      shim.env.DOCMAP_SHIM_ANY = "x"
+    end),
+    "shim.env refuses assignment instead of silently doing nothing"
   )
 
   -- ---------------------------------------------------------------------

@@ -351,6 +351,136 @@ function GATES.standalone()
   end
   say(("  ok: wrote %d expectations from this Neovim"):format(written))
   run({ lua, "standalone/selfcheck_behavior.lua", root, expectations }, "standalone shim behaviour")
+
+  -- ------------------------------------------------------------------
+  -- The rules.nvim engine on both hosts.
+  --
+  -- The differential above proves each shim function against the editor. It
+  -- cannot prove the *engine* on top of them: every function can be right and
+  -- the engine still answer differently, because of an ordering, a separator,
+  -- a value one of them returns where the other returns nothing. So the same
+  -- script runs the same ruleset over the same project once in this Neovim and
+  -- once under PUC Lua with the shim, and the two outputs must be identical.
+  --
+  -- Identical is necessary and not sufficient — two hosts can fail the same
+  -- way — so each is also held to what the fixture *means*, written by hand in
+  -- `expected_*.txt`: which rule passes, which fails, which is judgement, and
+  -- (second run, predicates off) that every predicate reports `error` rather
+  -- than quietly vanishing.
+  local rules_dir
+  local rules_candidates = {}
+  if vim.env.RULES_NVIM_DIR and vim.env.RULES_NVIM_DIR ~= "" then
+    rules_candidates[#rules_candidates + 1] = vim.env.RULES_NVIM_DIR
+  end
+  rules_candidates[#rules_candidates + 1] = root .. "/.deps/rules.nvim"
+  rules_candidates[#rules_candidates + 1] = vim.fs.dirname(root) .. "/rules.nvim"
+  for _, d in ipairs(rules_candidates) do
+    if vim.fn.filereadable(d .. "/lua/rules/engine/runner.lua") == 1 then
+      rules_dir = d
+      break
+    end
+  end
+  if not rules_dir then
+    -- On a developer's machine a missing sibling checkout is the normal state
+    -- and skipping is honest. In CI the checkout is a step of the job, so its
+    -- absence is the job being wrong, and a skip there would be the silent
+    -- green this whole gate exists to prevent.
+    if vim.env.CI then
+      fail("rules.nvim was not checked out to .deps/rules.nvim, and CI must not skip this step.")
+    else
+      skip(
+        "rules engine under the shim",
+        "rules.nvim not found — set RULES_NVIM_DIR, clone it to .deps/rules.nvim, or put it beside this repo"
+      )
+    end
+    return
+  end
+
+  local fixture_dir = root .. "/TESTS/fixtures/rules_engine"
+  ---@param host string[]
+  ---@param extra string[]
+  ---@return string stdout
+  local function engine_output(host, extra)
+    local cmd = vim.list_extend(vim.deepcopy(host), {
+      "standalone/rules_results.lua",
+      fixture_dir .. "/ruleset",
+      fixture_dir .. "/project",
+    })
+    vim.list_extend(cmd, extra)
+    local proc = vim.system(cmd, { cwd = root, text = true }):wait()
+    if proc.code ~= 0 then
+      fail(
+        ("rules engine run failed (exit %d): %s\n%s"):format(
+          proc.code,
+          table.concat(cmd, " "),
+          proc.stderr or ""
+        )
+      )
+    end
+    local out = (proc.stdout or ""):gsub("\r\n", "\n")
+    return out
+  end
+
+  ---The part of each line the fixture's author wrote an expectation for.
+  ---@param out string
+  ---@return string
+  local function meaning(out)
+    local lines = {}
+    for line in out:gmatch("[^\n]+") do
+      local id, status = line:match("^([^\t]+)\t([^\t]+)")
+      lines[#lines + 1] = id == "PARSE" and line or (id .. "\t" .. status)
+    end
+    return table.concat(lines, "\n") .. "\n"
+  end
+
+  for _, mode in ipairs({
+    { label = "predicates trusted", extra = {}, expected = "expected_trusted.txt" },
+    {
+      label = "predicates off",
+      extra = { "--no-predicates" },
+      expected = "expected_untrusted.txt",
+    },
+  }) do
+    local in_nvim =
+      engine_output({ vim.v.progpath, "-n", "--headless", "-u", "NONE", "-l" }, mode.extra)
+    local under_shim = engine_output({ lua }, mode.extra)
+    if in_nvim ~= under_shim then
+      local a, b =
+        vim.split(in_nvim, "\n", { plain = true }), vim.split(under_shim, "\n", { plain = true })
+      local shown = {}
+      for i = 1, math.max(#a, #b) do
+        if a[i] ~= b[i] then
+          shown[#shown + 1] = ("    neovim: %s\n    shim:   %s"):format(
+            a[i] or "<none>",
+            b[i] or "<none>"
+          )
+          if #shown == 5 then
+            break
+          end
+        end
+      end
+      fail(
+        ("rules engine differs between Neovim and the shim (%s):\n%s"):format(
+          mode.label,
+          table.concat(shown, "\n")
+        )
+      )
+      return
+    end
+    local want = table.concat(vim.fn.readfile(fixture_dir .. "/" .. mode.expected), "\n") .. "\n"
+    if meaning(in_nvim) ~= want then
+      fail(
+        ("rules engine does not say what %s says it should (%s):\n--- got\n%s--- want\n%s"):format(
+          mode.expected,
+          mode.label,
+          meaning(in_nvim),
+          want
+        )
+      )
+      return
+    end
+    say(("  ok: rules engine, %s: identical on both hosts and as expected"):format(mode.label))
+  end
 end
 
 -- The order is not cosmetic. A formatting failure is the cheapest one to find

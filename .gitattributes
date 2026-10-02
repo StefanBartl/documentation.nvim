@@ -49,3 +49,8 @@ docs/map/overview.md     text eol=lf linguist-generated=true
 # Not byte-compared by `--check`, but it is written by the same run, so a CRLF
 # working copy would show it as modified after every regeneration.
 docs/BINDINGS.md         text eol=lf linguist-generated=true
+
+# The readfile fixtures are exactly about line endings, a byte-order mark and a
+# missing final newline: git must store and check them out byte for byte, on
+# every OS, or the differential compares a file that no longer is the case.
+TESTS/fixtures/shim_fs/lines/* -text

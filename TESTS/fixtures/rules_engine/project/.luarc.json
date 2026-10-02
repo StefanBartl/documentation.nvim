@@ -1,0 +1,4 @@
+{
+  "workspace": { "library": ["$VIMRUNTIME"] },
+  "diagnostics": { "globals": ["vim"] }
+}
