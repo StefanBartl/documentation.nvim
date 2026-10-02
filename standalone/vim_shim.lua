@@ -788,6 +788,10 @@ end
 ---  * matching ignores case on Windows and macOS, where the filesystem does;
 ---  * directories come back without a trailing separator, and so does a file;
 ---  * `/**` as the last segment lists everything below, not the root itself.
+---  * **Differs on purpose:** `**` enters only real directories (a symlink to one
+---    is listed, not entered) and at most 64 levels down. `lfs.attributes`
+---    follows links, and a link to an ancestor made the walk revisit the same
+---    tree until the OS link limit stopped it.
 ---
 ---**The order is not specified.** The editor sorts with the platform's file
 ---name comparison (case-insensitive on Windows), and nothing here depends on
@@ -866,29 +870,48 @@ function vim.fn.glob(pattern, nosuf, list)
     return names
   end
 
+  -- `**` descends only into real directories and at most `MAX_GLOB_DEPTH`
+  -- levels. `lfs.attributes` follows symlinks, so a link that points at an
+  -- ancestor (`a/loop -> ..`) made the walk revisit the same tree until the
+  -- operating system's link limit stopped it -- exponentially so with more
+  -- than one such link. The editor bounds this too (it documents a depth limit
+  -- for `**`); a symlinked directory is still *listed*, just not entered.
+  local MAX_GLOB_DEPTH = 64
+  local lstat = lfs.symlinkattributes or lfs.attributes
+  ---@param path string
+  ---@return boolean
+  local function is_real_dir(path)
+    return lstat(path, "mode") == "directory"
+  end
+
   ---@param dir string
   ---@param i integer
-  local function walk(dir, i)
+  ---@param depth integer|nil levels already entered by `**`
+  local function walk(dir, i, depth)
+    depth = depth or 0
     local seg = segments[i]
     local is_last = i == #segments
 
     if seg == "**" then
+      if depth >= MAX_GLOB_DEPTH then
+        return
+      end
       if is_last then
         for _, name in ipairs(entries(dir)) do
           if name:sub(1, 1) ~= "." then
             local path = join(dir, name)
             out[#out + 1] = path
-            if lfs.attributes(path, "mode") == "directory" then
-              walk(path, i)
+            if is_real_dir(path) then
+              walk(path, i, depth + 1)
             end
           end
         end
       else
-        walk(dir, i + 1)
+        walk(dir, i + 1, depth)
         for _, name in ipairs(entries(dir)) do
           local path = join(dir, name)
-          if name:sub(1, 1) ~= "." and lfs.attributes(path, "mode") == "directory" then
-            walk(path, i)
+          if name:sub(1, 1) ~= "." and is_real_dir(path) then
+            walk(path, i, depth + 1)
           end
         end
       end
@@ -903,7 +926,7 @@ function vim.fn.glob(pattern, nosuf, list)
           out[#out + 1] = path
         end
       elseif mode == "directory" then
-        walk(path, i + 1)
+        walk(path, i + 1, depth)
       end
       return
     end
@@ -918,7 +941,7 @@ function vim.fn.glob(pattern, nosuf, list)
         if is_last then
           out[#out + 1] = path
         elseif lfs.attributes(path, "mode") == "directory" and name ~= "." and name ~= ".." then
-          walk(path, i + 1)
+          walk(path, i + 1, depth)
         end
       end
     end
@@ -926,13 +949,22 @@ function vim.fn.glob(pattern, nosuf, list)
 
   walk(base, first)
 
-  table.sort(out, function(a, b)
-    local la, lb = a:lower(), b:lower()
-    if la ~= lb then
-      return la < lb
+  -- Sort on a precomputed lower-case key: the comparator runs O(n log n)
+  -- times, and lowering both sides inside it allocated two strings per
+  -- comparison -- noticeable on a `**` over a large tree.
+  local keyed = {}
+  for n, path in ipairs(out) do
+    keyed[n] = { path:lower(), path }
+  end
+  table.sort(keyed, function(a, b)
+    if a[1] ~= b[1] then
+      return a[1] < b[1]
     end
-    return a < b
+    return a[2] < b[2]
   end)
+  for n, entry in ipairs(keyed) do
+    out[n] = entry[2]
+  end
   if list then
     return out
   end

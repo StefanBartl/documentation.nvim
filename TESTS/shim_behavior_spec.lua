@@ -76,6 +76,15 @@ return function(H)
         local st = vim.uv.fs_stat(path)
         return st and st.type or nil
       end,
+      -- `lstat`: what the shim's `**` asks so that a link is not entered.
+      symlinkattributes = function(path, what)
+        assert(what == "mode", "lfs adapter: only the `mode` attribute is implemented")
+        local st = vim.uv.fs_lstat(path)
+        if not st then
+          return nil
+        end
+        return st.type == "link" and "link" or st.type
+      end,
       dir = function(dir)
         local handle = vim.uv.fs_scandir(dir)
         if not handle then
@@ -373,5 +382,40 @@ return function(H)
           .. ")"
       )
     end
+  end
+  -- ---------------------------------------------------------------------
+  -- Properties of `glob` that are bounds, not parity with the editor: a
+  -- walk must terminate on a tree that loops, and must not run away on a deep
+  -- one. Neither can be a corpus case (the editor's own answer depends on its
+  -- depth limit), so they are asserted directly on the shim.
+  -- ---------------------------------------------------------------------
+  do
+    local base = vim.fn.tempname()
+    vim.fn.mkdir(base .. "/a/b", "p")
+    vim.fn.writefile({ "x" }, base .. "/a/b/hit.txt")
+    local made_link = vim.uv.fs_symlink(base, base .. "/a/b/loop", { dir = true })
+    local found = shim.fn.glob(base .. "/**/hit.txt", false, true)
+    eq(
+      #found,
+      1,
+      "shim glob: `**` finds the file once" .. (made_link and ", through a symlink loop" or "")
+    )
+    if made_link then
+      local listed = shim.fn.glob(base .. "/a/b/*", false, true)
+      eq(#listed, 2, "shim glob: a symlinked directory is still listed, only not entered")
+    end
+
+    local deep = base .. "/deep"
+    local parts = {}
+    for i = 1, 70 do
+      parts[i] = "d"
+    end
+    local deep_dir = deep .. "/" .. table.concat(parts, "/")
+    vim.fn.mkdir(deep_dir, "p")
+    vim.fn.writefile({ "x" }, deep_dir .. "/bottom.txt")
+    vim.fn.writefile({ "x" }, deep .. "/d/top.txt")
+    local deep_found = shim.fn.glob(deep .. "/**/*.txt", false, true)
+    eq(#deep_found, 1, "shim glob: `**` stops at its depth limit (the 70-deep file is not reached)")
+    vim.fn.delete(base, "rf")
   end
 end
