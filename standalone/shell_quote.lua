@@ -38,6 +38,15 @@ function M.quote(s, windows)
     if s:find('"') then
       return nil, 'refused: value contains a literal " and cmd.exe cannot quote it safely: ' .. s
     end
+    -- cmd.exe expands `%NAME%` for a defined variable even inside a double-
+    -- quoted string, and has no escape for the percent sign on a command
+    -- line (`%%` is a batch-file rule, not a `cmd /c` one). A path holding
+    -- one would silently change into whatever the variable holds. Rare in
+    -- a real path, so the loud refusal costs less than the quiet rewrite.
+    if s:find("%", 1, true) then
+      return nil,
+        "refused: value contains a % and cmd.exe would expand it even inside quotes: " .. s
+    end
     -- Double a trailing run of backslashes (SEC-46, Windows branch):
     -- otherwise a value ending in `\` -- an entirely ordinary Windows
     -- path, e.g. `opts.root` pasted from Explorer with its separator, or

@@ -70,6 +70,21 @@ return function(H)
     ok(err ~= nil, "shell_quote(windows): ...with an error message")
   end
 
+  -- cmd.exe expands %NAME% even inside double quotes and has no command-line
+  -- escape for it, so the Windows branch refuses a % rather than let a path
+  -- be rewritten from the environment. POSIX has no such expansion.
+  do
+    local quoted, err = sq.quote("C:/data/%USERPROFILE%/x", true)
+    eq(quoted, nil, "shell_quote(windows): a % is refused")
+    ok(err ~= nil, "shell_quote(windows): ...with an error message")
+  end
+
+  do
+    local quoted, err = sq.quote("100% real", false)
+    eq(err, nil, "shell_quote(posix): a % is not refused")
+    eq(quoted, '"100% real"', "shell_quote(posix): a % is quoted verbatim")
+  end
+
   -- `$`/backtick stay refused on both branches regardless of platform.
   do
     local quoted, err = sq.quote("has$dollar", true)
