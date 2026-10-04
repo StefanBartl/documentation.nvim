@@ -378,6 +378,14 @@ if api_route then
   ---with one of those three words, so a real false positive would need a
   ---commit whose *first output byte* happens to look like a git error,
   ---which the formats used here cannot produce.
+  ---
+  ---**Decision: the heuristic stays.** Reading the exit status instead would
+  ---be a behaviour change of its own, because it would change what the
+  ---`--api=` routes call an error; and no known defect depends on the
+  ---heuristic, since none of the requested formats can start with one of the
+  ---three words. The cost is accepted: a second, weaker definition of
+  ---failure next to the exact one in the shim (`vim.fn.system` reads the
+  ---real exit status, which PUC Lua 5.4 provides).
   ---@param o table
   ---@param args string[]
   ---@return string|nil stdout
