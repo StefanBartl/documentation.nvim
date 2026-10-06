@@ -60,6 +60,7 @@ the question you arrived with. The four to reach for first:
 - [Features](docs/FEATURES/README.md) — one page per area, with the reasoning behind each.
 - [Lua API](docs/api.md) — `generate()`, `install()`, and the live `Documentation.Handle`.
 - [MCP server](docs/mcp.md) — nine read-only tools over stdio, and why none of them writes.
+- [Testing contract](docs/testing-contract.md) — which specs a change touches, from the require graph: freshness, explicit gaps, consumers in other repositories, and a "has specs" column in the map.
 - [Integrations](docs/integrations.md) — the context-menu bridge for `nvzone/menu`.
 - [Health](docs/health.md) — what `:checkhealth documentation` reports, including the declared external tools.
 - [Bindings cheatsheet](docs/BINDINGS.md) — every keymap, user command and autocommand.

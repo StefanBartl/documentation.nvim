@@ -26,6 +26,12 @@
     "types_dir": { "type": "string", "description": "Directory name holding type definitions. Default \"@types\"." },
     "out_dir": { "type": "string", "description": "Where the artifacts are written, relative to the root. Default \"docs/map\"." },
     "tests_dir": { "type": "string", "description": "Directory scanned for auto-derived test coverage. Default \"TESTS\"." },
+    "spec_roots": {
+      "description": "Extra spec locations beside tests_dir/**/*_spec.lua, read by documentation.testing (docs/testing-contract.md): repository-relative directories or single .lua files. Anything that is not a plain path inside the repository is refused and reported as a gap.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "spec_state": { "type": "boolean", "description": "Show, per module, which specs require it and how the last run ended, in index.html and overview.md (docs/testing-contract.md). Off by default; with it off the generated files are unchanged. module_map.json never carries it." },
     "features_dir": {
       "description": "Feature files — see docs/FEATURES_FORMAT.md. Default docs/FEATURES, then docs/features.",
       "anyOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }]

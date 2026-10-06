@@ -28,6 +28,9 @@ per-field documentation is in
     pdf = false,           -- also write overview.pdf (needs pdfport.nvim,
                            -- optional dependency; async, reported separately)
     tests_dir = "TESTS",  -- auto-derived `fn.tested`
+    spec_roots = {},      -- extra spec directories/files for documentation.testing
+    spec_state = false,   -- show which modules have specs (and their last status)
+                          -- in index.html / overview.md; docs/testing-contract.md
     dead_code = false,    -- widen `dead-function` to published functions too
     calls_heuristic = false,           -- guessed call edges, drawn dashed
     layers = {},          -- module-prefix layering rules

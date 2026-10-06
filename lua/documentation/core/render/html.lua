@@ -2556,6 +2556,30 @@ local JS = [[
     depList("Requires", n.requires);
     depList("Required by", n.required_by);
 
+    // Opt-in (`spec_state`): the specs behind this module and how their last
+    // run ended. Every value comes out of the embedded payload and goes through
+    // `esc`; the status is additionally restricted to its known words.
+    if(IR.spec_state && IR.spec_state.nodes && IR.spec_state.nodes[n.id]){
+      var ss = IR.spec_state.nodes[n.id];
+      var known = {pass:1, fail:1, error:1, skip:1, xfail:1, xpass:1, timeout:1, crash:1};
+      h.push('<div class="sec">Specs</div><ul class="lst">');
+      if(!ss.spec_count && !ss.indirect_count){
+        h.push('<li><b>no specs</b> require this module, directly or through another one</li>');
+      } else {
+        (ss.specs || []).forEach(function(sp){ h.push('<li><code>'+esc(sp)+'</code></li>'); });
+        if(ss.spec_count > (ss.specs || []).length){
+          h.push('<li>… and '+(ss.spec_count - ss.specs.length)+' more</li>');
+        }
+        if(ss.indirect_count){
+          h.push('<li>'+ss.indirect_count+' more spec'+(ss.indirect_count === 1 ? '' : 's')+' reach it only through other modules</li>');
+        }
+        if(ss.last_status && known[ss.last_status]){
+          h.push('<li>last run: <b>'+esc(ss.last_status)+'</b></li>');
+        }
+      }
+      h.push('</ul>');
+    }
+
     // Stated even when it is zero: "nothing depends on this" is itself the
     // answer to "is this safe to change".
     if((n.requires || []).length || (n.required_by || []).length){
@@ -9775,6 +9799,9 @@ function M.render(ir, findings, opts)
     -- check for exactly that falsy value.
     tools = ir.tools,
     features = ir.features,
+    -- Opt-in (`opts.spec_state`), absent otherwise: which modules have specs
+    -- and how the last run ended. Nothing in the page changes without it.
+    spec_state = ir.spec_state,
     -- The trap above claimed a third feature after all, and the comment
     -- thread did not prevent it: `ir.checklist` is set by `scan_full` and
     -- serialised by `documentation.to_json`, but never reached this list —

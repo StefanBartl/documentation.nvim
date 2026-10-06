@@ -76,6 +76,33 @@ local function rel(out_dir, target)
   return string.rep("../", depth) .. target
 end
 
+---The "Specs" cell of one module row, from `ir.spec_state` (opt-in).
+---
+---Direct specs first, then the ones that only reach the module through the
+---graph, then the last known status of the direct ones. A module with
+---neither says so plainly: "no specs" is the point of the column.
+---@param state Documentation.Testing.NodeState|nil
+---@return string
+local function spec_cell(state)
+  if not state then
+    return ""
+  end
+  local parts = {}
+  if state.spec_count > 0 then
+    parts[#parts + 1] = ("%d spec%s"):format(state.spec_count, state.spec_count == 1 and "" or "s")
+  end
+  if state.indirect_count > 0 then
+    parts[#parts + 1] = ("%d indirect"):format(state.indirect_count)
+  end
+  if #parts == 0 then
+    return "no specs"
+  end
+  if state.last_status then
+    parts[#parts + 1] = "last: " .. state.last_status
+  end
+  return table.concat(parts, " · ")
+end
+
 ---@param ir Documentation.IR
 ---@param findings Documentation.Finding[]
 ---@param opts Documentation.Opts
@@ -122,8 +149,25 @@ function M.render(ir, findings, opts)
   end
 
   put("\n\n## Modules\n")
-  put("| Module | Description | Fns | Docs |")
-  put("|---|---|---|---|")
+  -- Opt-in (`opts.spec_state`): without `ir.spec_state` the table below is
+  -- exactly what it has always been.
+  local spec_state = ir.spec_state
+  if spec_state then
+    local t = spec_state.totals
+    put(
+      ("%d of %d modules have specs of their own · %d only through the graph · %d none\n"):format(
+        t.with_specs,
+        t.modules,
+        t.indirect_only,
+        t.without_specs
+      )
+    )
+    put("| Module | Description | Fns | Docs | Specs |")
+    put("|---|---|---|---|---|")
+  else
+    put("| Module | Description | Fns | Docs |")
+    put("|---|---|---|---|")
+  end
 
   for _, id in ipairs(ir.order) do
     local n = ir.nodes[id]
@@ -146,15 +190,17 @@ function M.render(ir, findings, opts)
       -- namespace directory itself when there is no file. That is the base
       -- every relative link in it was written against.
       local base_dir = (n.source and n.source:match("^(.*)/[^/]+$")) or n.path
-      put(
-        ("| %s%s | %s | %s | %s |"):format(
-          indent,
-          name,
-          cell(rebase_links(n.summary, base_dir, out_dir, rel)),
-          fn_count > 0 and tostring(fn_count) or "",
-          table.concat(links, " · ")
-        )
+      local row = ("| %s%s | %s | %s | %s |"):format(
+        indent,
+        name,
+        cell(rebase_links(n.summary, base_dir, out_dir, rel)),
+        fn_count > 0 and tostring(fn_count) or "",
+        table.concat(links, " · ")
       )
+      if spec_state then
+        row = row .. " " .. spec_cell(spec_state.nodes[id]) .. " |"
+      end
+      put(row)
     end
   end
 

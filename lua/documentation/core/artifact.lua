@@ -56,9 +56,15 @@ end
 ---@return Documentation.IR
 function M.rehydrate(doc)
   local nodes, order = {}, {}
-  for i, n in ipairs(doc.nodes or {}) do
-    nodes[n.id] = n
-    order[i] = n.id
+  for _, n in ipairs(doc.nodes or {}) do
+    -- A committed artifact is read back from disk, and a hand-edited or
+    -- hostile one can hold entries that are not nodes. Dropped here: indexing
+    -- a table by a nil id would raise, and one bad entry must not take the
+    -- whole map down with it.
+    if type(n) == "table" and type(n.id) == "string" then
+      nodes[n.id] = n
+      order[#order + 1] = n.id
+    end
   end
   doc.nodes = nodes
   doc.order = order

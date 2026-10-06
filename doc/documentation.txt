@@ -1002,6 +1002,26 @@ to_json({ir})           Serialize the IR deterministically: nodes in
                         `ir.order`, object keys in a fixed sequence. Never
                         `vim.json.encode`, whose key order is unspecified.
 
+                                         *documentation.testing.affected_specs()*
+require("documentation.testing").affected_specs({opts})
+                        Which specs does a change touch? `opts`: `root`,
+                        `changed` (files), `since` (a git revision),
+                        `spec_roots`, `consumers`, `verify`. Maps the files to
+                        modules of the committed map, takes their transitive
+                        dependents, and returns the spec files that cover them
+                        together with the graph's freshness (`generated_at`,
+                        `commit`, `stale`) and every gap it could not decide.
+                        `nil, err` only when no answer is possible. Not
+                        measured is never reported as not affected. See
+                        `docs/testing-contract.md`.
+
+                                              *documentation.testing.spec_state()*
+require("documentation.testing").spec_state({opts})
+                        Which modules have specs, and how the last run of them
+                        ended. `opts.spec_state = true` shows it in the page
+                        and in `overview.md`; off by default, and then nothing
+                        generated changes.
+
                                                           *Documentation.Handle*
 >lua
     local handle = require("documentation").install({

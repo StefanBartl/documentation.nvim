@@ -180,6 +180,28 @@ function M.scan_full(opts)
     return require("documentation.core.checklist").resolve(opts.root, opts.checklist_dir)
   end)
 
+  -- Opt-in (`opts.spec_state`): which modules have specs and how the last run
+  -- of them ended. Never part of the committed artifact (`to_json` does not
+  -- carry it: the last status differs per machine and run), only of the page
+  -- and the markdown rendered from this very IR. A failure here leaves the
+  -- field unset, so the rest of the map is exactly what it would have been.
+  if opts.spec_state then
+    timing.stage(t, "spec_state", function()
+      local ok, state = pcall(function()
+        return require("documentation.testing").spec_state({
+          root = opts.root,
+          ir = ir,
+          tests_dir = opts.tests_dir,
+          spec_roots = opts.spec_roots,
+          status_file = opts.spec_state_file,
+        })
+      end)
+      if ok and type(state) == "table" then
+        ir.spec_state = state
+      end
+    end)
+  end
+
   local luals_err
   if opts.luals then
     local luals = require("documentation.core.luals")
@@ -257,6 +279,16 @@ M.cli = setmetatable({}, {
 M.history = setmetatable({}, {
   __index = function(_, k)
     return require("documentation.core.history")[k]
+  end,
+})
+
+--- Which specs does a change touch, and which modules have specs: the
+--- provider side of the affected-selection contract for a test runner (see
+--- `docs/testing-contract.md`). Lazily required: it shells out to git and reads
+--- spec files, which nothing on the generate/check path does by default.
+M.testing = setmetatable({}, {
+  __index = function(_, k)
+    return require("documentation.testing")[k]
   end,
 })
 

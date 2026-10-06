@@ -57,3 +57,12 @@ Built entirely client-side from each function's already-serialized
 `fn.snippet`, no new IR field; a module's own link concatenates its
 functions' snippets, an approximation of the file rather than a
 byte-perfect one, which is why this ships marked experimental.
+
+## Which specs does a change touch?
+
+`require("documentation.testing").affected_specs({ root, changed, since? })`
+turns a list of changed files into the spec files that cover them, using the
+committed module map's require graph, and reports how fresh that graph is and
+everything it could not decide. `spec_state` is the opposite view (which modules
+have specs). Both are a stable, versioned contract for test runners: see
+[`testing-contract.md`](testing-contract.md).

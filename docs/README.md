@@ -31,6 +31,7 @@ were lifted out of it into the pages below rather than kept in two places.
 | [`BINDINGS.md`](BINDINGS.md) | Every key, user command and autocommand this plugin installs. **Generated** from the tables that drive the plugin — do not edit by hand. |
 | [`call_hierarchy.md`](call_hierarchy.md) | Incoming/outgoing calls in Neovim's native LSP UI, alongside LuaLS (which has none): setup, keymaps, and how to tell an unattached client from a function with no callers. |
 | [`hover.md`](hover.md) | Resting the cursor on a dotted module name and getting what that module is — read out of the `module_map.json` this plugin already writes, so the integration costs a lookup rather than a scan. |
+| [`testing-contract.md`](testing-contract.md) | **Which specs does a change touch?** The answer a test runner gets for a list of changed files — specs, graph freshness, explicit gaps, consumers in other repositories — and the opt-in `spec_state` column that shows which modules have specs in the map. |
 | [`integrations.md`](integrations.md) | The soft-dependency bridges — today, the context-menu entries for `nvzone/menu`. |
 | [`EXAMPLES/`](EXAMPLES/README.md) | Runnable snippets for the parts of the API easier to read as code than as prose. |
 
