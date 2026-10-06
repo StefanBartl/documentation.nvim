@@ -1,6 +1,10 @@
--- TESTS/run.lua — headless test runner for documentation.nvim.
+-- TESTS/run.lua — spec ORDER MANIFEST for documentation.nvim (and the old headless runner).
 --
--- Run from the repo root:
+-- The specs run on testing.nvim now (`bash scripts/test.sh`), which reads the order of the `specs`
+-- list below from this file. Keep it: the order matters (in alphabetical order
+-- `check_policy_spec.lua` fails; it depends on state an earlier spec leaves behind).
+--
+-- Standalone, from the repo root (still works, used to compare both verdicts):
 --   nvim -n -i NONE --headless -u NONE -l TESTS/run.lua
 --
 -- Loads every *_spec.lua listed below, runs it against the shared harness,

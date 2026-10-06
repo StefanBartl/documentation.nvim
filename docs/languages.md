@@ -565,7 +565,7 @@ local state and not a failure. To run one for real, point at a built grammar
 through that backend's own variable:
 
 ```bash
-DOCMAP_PYTHON_PARSER=/path/to/python.so nvim --headless -u NONE -l TESTS/run.lua
+DOCMAP_PYTHON_PARSER=/path/to/python.so bash scripts/test.sh
 ```
 
 One variable per backend, named `DOCMAP_<LANG>_PARSER`:

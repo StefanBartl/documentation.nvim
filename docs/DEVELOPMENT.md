@@ -134,14 +134,25 @@ same rule `*.sh` already had. If you cloned before that landed, one
 ## Tests
 
 ```bash
-nvim --headless -u NONE -l TESTS/run.lua
+bash scripts/test.sh                  # all specs
+bash scripts/test.sh --file docmap    # only spec files whose name contains "docmap"
+bash scripts/test.sh --json ir.json   # also write the machine-readable result
 ```
 
-**One hundred and two specs**, every one driven by the tiny shared harness in
+The specs run on [testing.nvim](https://github.com/StefanBartl/testing.nvim)
+(a checkout in `.deps/testing.nvim`, `../testing.nvim`, or `$TESTING_NVIM_DIR`),
+configured by [`.testing.lua`](../.testing.lua); dependencies (lib.nvim, ui.nvim,
+runtime-analysis.nvim) are found the same way, and a missing one is a loud
+failure. `scripts/ci.sh tests` runs the same runner.
+
+**One hundred and seven specs**, every one driven by the tiny shared harness in
 [`TESTS/harness.lua`](../TESTS/harness.lua) (`eq`, `ok`, `tmpfile`,
-`read_lines` — no framework). The list in
-[`TESTS/run.lua`](../TESTS/run.lua) is the inventory; a handful are worth
-knowing by name before touching what they cover:
+`read_lines` — no framework). [`TESTS/run.lua`](../TESTS/run.lua) is no longer
+the runner but still the **order manifest**: testing.nvim runs the specs in the
+order it lists them, and the order matters (alphabetical order fails
+`check_policy_spec.lua`, which depends on state an earlier spec leaves). A spec
+on disk but not listed runs last, with a note. A handful are worth knowing by
+name before touching what they cover:
 
 | Spec | Covers |
 |---|---|
@@ -175,7 +186,7 @@ the language specs report `ok` after their contract assertions and skip the
 parse. Point at built grammars before trusting a language change:
 
 ```bash
-DOCMAP_PYTHON_PARSER=/path/to/python.so nvim --headless -u NONE -l TESTS/run.lua
+DOCMAP_PYTHON_PARSER=/path/to/python.so bash scripts/test.sh
 ```
 
 The runner prints one line per spec and exits non-zero on the first failure. It
@@ -185,9 +196,11 @@ redraw that swallows the pending newline, running two results together on one
 line. `docmap_browse_spec` mounts real floats, so that is not hypothetical.
 
 Adding a spec means adding its filename to the `specs` list in
-[`TESTS/run.lua`](../TESTS/run.lua) — explicit, not globbed, so the order is
-stable and a half-written file in the directory does not join the run by
-accident.
+[`TESTS/run.lua`](../TESTS/run.lua) — the order manifest, so the order is
+stable (a spec that is not listed still runs, but last, with a note). The file
+also still works as the old standalone runner
+(`nvim --headless -u NONE -l TESTS/run.lua`), which is how the two verdicts were
+compared when the suite moved to testing.nvim.
 
 **The watch test is worth reading before touching `registry.lua`.** It writes
 through a real buffer with `vim.wait` pumping the event loop until the debounced

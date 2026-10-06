@@ -159,11 +159,54 @@ function GATES.luacheck()
   run({ "luacheck", "lua", "TESTS", "scripts", "standalone" }, "luacheck")
 end
 
+---testing.nvim is the spec runner. Looked up like the other dependencies:
+---`$TESTING_NVIM_DIR`, `.deps/testing.nvim`, a sibling checkout. The runner resolves
+---the dependencies named in `.testing.lua` itself.
+---@return string|nil
+local function find_testing_nvim()
+  local candidates = {}
+  if vim.env.TESTING_NVIM_DIR and vim.env.TESTING_NVIM_DIR ~= "" then
+    candidates[#candidates + 1] = vim.env.TESTING_NVIM_DIR
+  end
+  candidates[#candidates + 1] = root .. "/.deps/testing.nvim"
+  candidates[#candidates + 1] = vim.fs.dirname(root) .. "/testing.nvim"
+  for _, d in ipairs(candidates) do
+    if vim.fn.filereadable(d .. "/scripts/testing.lua") == 1 then
+      return d
+    end
+  end
+  return nil
+end
+
 function GATES.tests()
   step("tests")
   need("nvim")
   need_lib_nvim()
-  run({ "nvim", "--headless", "-u", "NONE", "-l", "TESTS/run.lua" }, "tests")
+  local testing = find_testing_nvim()
+  if not testing then
+    fail(
+      "testing.nvim not found. Set TESTING_NVIM_DIR, clone it to .deps/testing.nvim, "
+        .. "or put it beside this repo."
+    )
+    return
+  end
+  -- Same call as `scripts/test.sh` (which the CI `tests` job runs directly, to also write the
+  -- JSON result): `TESTS/run.lua` stays only as the order manifest the runner reads.
+  run({
+    "nvim",
+    "-n",
+    "-i",
+    "NONE",
+    "--headless",
+    "-u",
+    "NONE",
+    "-l",
+    testing .. "/scripts/testing.lua",
+    "run",
+    ".",
+    "--sentinel",
+    "DOCUMENTATION_TESTS_OK",
+  }, "tests")
 end
 
 function GATES.map()

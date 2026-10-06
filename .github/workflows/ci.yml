@@ -77,18 +77,24 @@ jobs:
       - uses: actions/checkout@v5
       # lib.nvim is a runtime dependency: notify, fs, usercmd, map,
       # debounce, autocmd. A headless `-l` run has no plugin manager, so CI
-      # provides it the same way a local checkout does — see
-      # TESTS/run.lua's `add_lib_nvim`.
+      # provides it the same way a local checkout does — `.deps/lib.nvim` is
+      # one of the four places `scripts/test.sh` looks.
       - uses: actions/checkout@v5
         with:
           repository: StefanBartl/lib.nvim
           path: .deps/lib.nvim
           ref: ci-verified
+      # testing.nvim: the spec runner (`scripts/test.sh` runs it).
+      - uses: actions/checkout@v5
+        with:
+          repository: StefanBartl/testing.nvim
+          path: .deps/testing.nvim
+          ref: ci-verified
       # ui.nvim: editor/browse/init.lua requires ui.kit/ui.contextmenu
       # unconditionally at module load (moved out of lib.nvim in the
       # 2026-09 migration), and several specs require
-      # documentation.editor.browse/.pick directly — see TESTS/run.lua's
-      # `add_ui_nvim`.
+      # documentation.editor.browse/.pick directly. It is in the `deps` of
+      # `.testing.lua`.
       - uses: actions/checkout@v5
         with:
           repository: StefanBartl/ui.nvim
@@ -99,9 +105,8 @@ jobs:
       # not being installed (this repository's own normal state). Checking
       # it out here upgrades that one assertion block from "the soft
       # dependency degrades correctly" to "the soft dependency actually
-      # works end to end" — `TESTS/run.lua` reads `RUNTIME_ANALYSIS_DIR` and
-      # appends it to the rtp itself if set, the same way it already does
-      # `DOCUMENTATION_TS_PARSERS_DIR` below.
+      # works end to end" — it is in the `deps` of `.testing.lua`, which puts
+      # `.deps/runtime-analysis.nvim` on the rtp.
       - uses: actions/checkout@v5
         with:
           repository: StefanBartl/runtime-analysis.nvim
@@ -111,13 +116,12 @@ jobs:
         with:
           neovim: true
           version: stable
-      - run: echo "RUNTIME_ANALYSIS_DIR=$(pwd)/.deps/runtime-analysis.nvim" >> "$GITHUB_ENV"
       # Builds real javascript/typescript/tsx/go grammars from source into
       # .deps/ts-parsers, so the specs that need a parser run their real
       # assertions here instead of their stated skip path — which, before
       # this step existed, was all this job ever exercised. All three grammar
       # repos ship pre-generated `parser.c`, so only `tree-sitter build`
-      # (compile), never `tree-sitter generate`, is needed. `TESTS/run.lua`
+      # (compile), never `tree-sitter generate`, is needed. `TESTS/minimal_init.lua`
       # reads `DOCUMENTATION_TS_PARSERS_DIR` and appends it to the rtp itself
       # if set — this step only has to produce the directory and export the
       # variable, not touch the test runner's own invocation.
@@ -139,14 +143,20 @@ jobs:
           tree-sitter build --output .deps/ts-parsers/parser/tsx.so /tmp/tree-sitter-typescript/tsx
           tree-sitter build --output .deps/ts-parsers/parser/go.so /tmp/tree-sitter-go
           echo "DOCUMENTATION_TS_PARSERS_DIR=$(pwd)/.deps/ts-parsers" >> "$GITHUB_ENV"
-      - run: |
+      # Directly, not through `scripts/ci.sh tests`, so the JSON result (the
+      # IR) can be written next to the log. `scripts/ci.sh tests` runs the same
+      # runner for a local all-gates run.
+      - name: Run the specs
+        run: |
           exec > >(tee -a "$RUNNER_TEMP/test-output.log") 2>&1
-          scripts/ci.sh tests
+          bash scripts/test.sh --json "$RUNNER_TEMP/testing-ir.json"
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: test-output-tests-${{ matrix.os }}
-          path: ${{ runner.temp }}/test-output.log
+          path: |
+            ${{ runner.temp }}/test-output.log
+            ${{ runner.temp }}/testing-ir.json
           if-no-files-found: ignore
           retention-days: 14
 
