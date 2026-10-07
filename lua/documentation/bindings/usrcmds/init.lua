@@ -302,7 +302,9 @@ function M.setup(opts)
   ---@return string[]
   local function completion_names()
     local entry = registry.get(resolve_root())
-    if not entry then
+    -- `scanned()`: `setup()` installs the handle lazily, and asking a handle
+    -- nobody has read yet for its IR would scan on this keystroke.
+    if not entry or not entry.scanned() then
       return {}
     end
     local cfg = require("documentation.config").build(resolve_root(), opts)
@@ -321,7 +323,10 @@ function M.setup(opts)
   local command_name = setup_cfg.command_name or "DocMap"
   local browse_command_name = setup_cfg.browse_command_name or "DocBrowse"
 
-  local handle = registry.get(setup_cfg.root) or registry.install(setup_cfg)
+  -- Lazy: `setup()` registers commands; the first scan (and the git processes
+  -- `core/scan.lua` spawns for `repo_url`/`branch`) waits for the first
+  -- command or handle read that needs the tree.
+  local handle = registry.get(setup_cfg.root) or registry.install(setup_cfg, { lazy = true })
 
   -- Self-instrumentation: on by default, `opts.telemetry = false` to opt
   -- out, a no-op without runtime-analysis.nvim installed — see

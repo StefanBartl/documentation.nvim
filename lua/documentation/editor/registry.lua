@@ -341,7 +341,8 @@ function M.ensure_mdview(root)
     local opts = entry.opts
     local out_dir = opts.out_dir or "docs/map"
     local path = root .. "/" .. out_dir .. "/overview.md"
-    local markdown = require("documentation.core.render.mdview")(entry.ir, entry.findings, opts)
+    local markdown =
+      require("documentation.core.render.mdview")(entry.current_ir(), entry.findings, opts)
     require("mdview.adapter.ws_client").send_markdown(path, markdown, { immediate = true })
   end
 
@@ -355,9 +356,16 @@ end
 ---(synchronously — including the LuaLS shell-out if `opts.luals` is set, so
 ---a caller passing `luals = true` here is opting into that cost up front,
 ---not just on some later rescan).
+---
+---With `install_opts.lazy` the initial scan is deferred to the first read of
+---the handle (`ir()`, `findings()`, a graph query, `node()`) or the first
+---`rescan()`: `setup()` registers commands and must not scan the tree (and
+---spawn git for it) before anybody asked a question. A failing lazy scan
+---raises at that first read instead of at install.
 ---@param opts Documentation.Opts
+---@param install_opts { lazy: boolean? }?
 ---@return Documentation.Handle
-function M.install(opts)
+function M.install(opts, install_opts)
   assert(
     type(opts) == "table" and type(opts.root) == "string" and opts.root ~= "",
     "docmap.install: opts.root is required"
@@ -385,6 +393,17 @@ function M.install(opts)
   end
   entry.rescan_fn = rescan
 
+  ---The IR, scanning first if a lazy install has not yet. The first scan does
+  ---not notify watchers, exactly like the eager initial scan below.
+  ---@return Documentation.IR
+  local function current_ir()
+    if entry.ir == nil then
+      entry.ir, entry.findings = docmap.scan_full(opts)
+    end
+    return entry.ir
+  end
+  entry.current_ir = current_ir
+
   -- initial scan; handle.ir() must never observe an unset IR. Guarded
   -- (unlike a bare call) because `registry[root] = entry` above already ran:
   -- a failed scan must not leave a dangling entry with no `.handle` for a
@@ -393,10 +412,12 @@ function M.install(opts)
   -- the existing raise-a-string contract every caller already handles),
   -- now carrying a full traceback via lib.lua.error.safe_call rather than
   -- just the point M.install itself re-raises from.
-  local ok_rescan, rescan_err = require("lib.lua.error").safe_call(rescan)
-  if not ok_rescan then
-    registry[root] = nil
-    error(rescan_err.message, 0)
+  if not (install_opts and install_opts.lazy) then
+    local ok_rescan, rescan_err = require("lib.lua.error").safe_call(current_ir)
+    if not ok_rescan then
+      registry[root] = nil
+      error(rescan_err.message, 0)
+    end
   end
 
   if opts.watch then
@@ -414,7 +435,7 @@ function M.install(opts)
   ---@return Documentation.Edge[]
   local function edges_where(kind, field, value)
     local out = {}
-    for _, e in ipairs(entry.ir.edges or {}) do
+    for _, e in ipairs(current_ir().edges or {}) do
       if e.kind == kind and e[field] == value then
         out[#out + 1] = e
       end
@@ -440,8 +461,11 @@ function M.install(opts)
     -- `git log` by `git_log_timeout_ms` and could otherwise only guess the
     -- default, while the very same value sits here in `entry.opts`.
     cfg = entry.opts,
-    ir = function()
-      return entry.ir
+    ir = current_ir,
+    -- Has the tree been scanned yet? False only for a lazy install that
+    -- nobody has read: lets cheap callers (completion) ask without paying.
+    scanned = function()
+      return entry.ir ~= nil
     end,
     -- The graph queries a consumer would otherwise reimplement by filtering
     -- `ir.edges` themselves. Kept on the handle rather than as free functions
@@ -456,7 +480,7 @@ function M.install(opts)
     callees = function(key)
       local node_id, fn_name = split_fn(key)
       local out = {}
-      for _, e in ipairs(entry.ir.edges or {}) do
+      for _, e in ipairs(current_ir().edges or {}) do
         if e.kind == "call" and e.from == node_id and e.from_fn == fn_name then
           out[#out + 1] = e
         end
@@ -466,7 +490,7 @@ function M.install(opts)
     callers = function(key)
       local node_id, fn_name = split_fn(key)
       local out = {}
-      for _, e in ipairs(entry.ir.edges or {}) do
+      for _, e in ipairs(current_ir().edges or {}) do
         if e.kind == "call" and e.to == node_id and e.to_fn == fn_name then
           out[#out + 1] = e
         end
@@ -474,10 +498,11 @@ function M.install(opts)
       return out
     end,
     findings = function()
+      current_ir()
       return entry.findings
     end,
     node = function(id)
-      return entry.ir.nodes[id]
+      return current_ir().nodes[id]
     end,
     rescan = rescan,
     on_change = function(cb)

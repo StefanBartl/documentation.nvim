@@ -160,8 +160,15 @@ return function(H)
   local check = require("documentation.core.check")
   local empty_ir = { root = "lua", nodes = {}, order = {}, edges = {}, meta = {} }
 
+  -- An empty directory of its own, never the working directory: `check.run`
+  -- reads the README/docs link corpus of `opts.root`, so `root = "."` made
+  -- these two cases depend on whatever the cwd's docs happened to link to
+  -- (a dead-readme-link finding appeared or not, by checkout and by order).
+  local empty_root = vim.fn.tempname()
+  vim.fn.mkdir(empty_root, "p")
+
   local ran = check.run(empty_ir, {
-    root = ".",
+    root = empty_root,
     extra_checks = {
       function()
         return { finding("error", "mine"), finding("warn", "also-mine") }
@@ -171,7 +178,7 @@ return function(H)
   eq(codes(ran), "error:mine warn:also-mine", "check.run: extra_checks reach the output")
 
   local filtered = check.run(empty_ir, {
-    root = ".",
+    root = empty_root,
     checks = { mine = false, ["also-mine"] = "info" },
     extra_checks = {
       function()
@@ -184,4 +191,6 @@ return function(H)
     "info:also-mine",
     "check.run: the policy reaches extra_checks results too, and runs before the sort"
   )
+
+  vim.fn.delete(empty_root, "rf")
 end

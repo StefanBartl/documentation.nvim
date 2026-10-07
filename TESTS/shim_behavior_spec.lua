@@ -42,10 +42,9 @@
 --   * `vim.uv.hrtime` (documented as CPU time, not wall time) and
 --     `vim.treesitter` (a deliberately inert stub). Both are *intended*
 --     differences, stated in `standalone/vim_shim.lua`'s own header.
---   * `NVIM_APPNAME`. Neovim folds it into every `stdpath` directory and the
---     shim does not implement it. Unverified rather than fixed, because the
---     rule would have to be guessed here rather than measured — the stdpath
---     cases simply report it instead.
+--   * The stdpath cases follow `NVIM_APPNAME` and the `XDG_*` variables: the
+--     shim implements both (measured against the editor on Windows), so the
+--     comparison holds whatever the environment the suite runs in.
 
 return function(H)
   local eq, ok = H.eq, H.ok

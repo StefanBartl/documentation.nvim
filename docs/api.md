@@ -30,6 +30,13 @@ handle.on_change(function(ir, findings) end)
 handle.uninstall()
 ```
 
+`install()` scans before it returns. The handle that `setup()` (the
+`:DocMap` commands) installs is **lazy** instead: `setup()` registers commands
+and scans nothing, so starting the editor costs no tree walk and no git
+process. The first read — `ir()`, `findings()`, a graph query, `node()`, or
+any command that needs the tree — scans; `handle.scanned()` says whether that
+has happened. Until then `:DocMap <Tab>` offers no module names.
+
 `callhierarchy = true` attaches a second, narrow LSP client alongside
 whatever real language server is already there — off by default, costs no
 new scan, answers only `textDocument/prepareCallHierarchy`/`callHierarchy/

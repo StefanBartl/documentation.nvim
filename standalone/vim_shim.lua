@@ -987,6 +987,12 @@ end
 ---`%LOCALAPPDATA%`, which is the intuitive wrong answer), `data` is
 ---`nvim-data`, `config` is plain `nvim`. Elsewhere the XDG variables win
 ---when set, with the documented defaults underneath.
+---
+---`NVIM_APPNAME` replaces `nvim` in every directory name, and the `XDG_*`
+---variables win over the defaults on Windows too -- both measured on Windows
+---(`foo` -> `<Local>/foo`, `<Local>/foo-data`, `$TEMP/foo`; `XDG_DATA_HOME=D`
+---gives `D/nvim-data`). There `data`, `state` and `log` carry a `-data`
+---suffix and `log` lives in the state directory.
 ---@param what string One of "cache"|"data"|"config"|"state"|"log".
 ---@return string
 function vim.fn.stdpath(what)
@@ -995,26 +1001,31 @@ function vim.fn.stdpath(what)
     return (v and v ~= "") and v or fallback
   end
 
+  local appname = env("NVIM_APPNAME", "nvim")
+  local data_name = IS_WINDOWS and (appname .. "-data") or appname
+
   local base
   if IS_WINDOWS then
     local local_app = env("LOCALAPPDATA", env("USERPROFILE", ".") .. "/AppData/Local")
+    local temp = env("TEMP", env("TMP", local_app .. "/Temp"))
+    local state = env("XDG_STATE_HOME", local_app) .. "/" .. data_name
     base = {
-      cache = env("TEMP", env("TMP", local_app .. "/Temp")) .. "/nvim",
-      data = local_app .. "/nvim-data",
-      config = local_app .. "/nvim",
-      -- Neovim keeps both under the data root on Windows.
-      state = local_app .. "/nvim-data",
-      log = local_app .. "/nvim-data",
+      cache = env("XDG_CACHE_HOME", temp) .. "/" .. appname,
+      data = env("XDG_DATA_HOME", local_app) .. "/" .. data_name,
+      config = env("XDG_CONFIG_HOME", local_app) .. "/" .. appname,
+      -- Neovim keeps state and log in the same `-data` directory on Windows.
+      state = state,
+      log = state,
     }
   else
     local home = env("HOME", ".")
-    local data = env("XDG_DATA_HOME", home .. "/.local/share") .. "/nvim"
+    local state = env("XDG_STATE_HOME", home .. "/.local/state") .. "/" .. appname
     base = {
-      cache = env("XDG_CACHE_HOME", home .. "/.cache") .. "/nvim",
-      data = data,
-      config = env("XDG_CONFIG_HOME", home .. "/.config") .. "/nvim",
-      state = env("XDG_STATE_HOME", home .. "/.local/state") .. "/nvim",
-      log = env("XDG_STATE_HOME", home .. "/.local/state") .. "/nvim",
+      cache = env("XDG_CACHE_HOME", home .. "/.cache") .. "/" .. appname,
+      data = env("XDG_DATA_HOME", home .. "/.local/share") .. "/" .. appname,
+      config = env("XDG_CONFIG_HOME", home .. "/.config") .. "/" .. appname,
+      state = state,
+      log = state,
     }
   end
 

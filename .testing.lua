@@ -19,8 +19,7 @@ return {
     fs = "error",
     -- Real finding, kept at warn: the specs run in one editor (isolated = "none") and leave
     -- buffers, windows, user commands, highlight groups and autocmds behind (setup() of the
-    -- plugin and its dependencies). Per-file isolation would fix it but exposes a separate real
-    -- failure in the shim_behavior_spec stdpath cases (the shim ignores XDG_* variables).
+    -- plugin and its dependencies). Per-file isolation would fix it.
     state = "warn",
     scheduled_error = "error",
     prompt = "error",
@@ -48,6 +47,12 @@ return {
   },
   -- Environment variables the specs read; a child editor inherits an allowlist only (never secrets).
   env_allow = {
+    -- shim_behavior_spec compares the shim's stdpath with the editor's; both read these.
+    "NVIM_APPNAME",
+    "XDG_CACHE_HOME",
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+    "XDG_STATE_HOME",
     "DOCMAP_CSHARP_PARSER",
     "DOCMAP_DART_PARSER",
     "DOCMAP_ELIXIR_PARSER",

@@ -835,6 +835,7 @@
 ---@field required_by fun(id: string): Documentation.Edge[] Require edges into this node.
 ---@field callees fun(fn_key: string): Documentation.Edge[] Call edges out of a function, keyed `"<node id>#<declared name>"` — the same id scheme the HTML map uses.
 ---@field callers fun(fn_key: string): Documentation.Edge[] Call edges into a function, same key scheme.
+---@field scanned fun(): boolean Has the tree been scanned yet? False only for a lazy install (what `setup()` registers) that nothing has read: `ir()`, `findings()`, the graph queries and `node()` scan on first use, so a cheap caller such as completion asks this first instead of paying for the scan.
 ---@field rescan fun(opts?: { luals?: boolean }): Documentation.IR, Documentation.Finding[] Force a rescan now; notifies `on_change` subscribers same as a watch-triggered one.
 ---@field on_change fun(cb: fun(ir: Documentation.IR, findings: Documentation.Finding[])): fun() Subscribe; returns an unsubscribe function.
 ---@field uninstall fun() Equivalent to `docmap.uninstall(handle)`.
