@@ -886,8 +886,13 @@ Generic checks, run against any annotated Lua tree:
                                  `opts.tag_files`.
     layer-violation       warn   Opt-in via `opts.layers`: a module reaching
                                  into a layer it must not.
-    missing-readme        info   Module without a README.
+    missing-readme        info   A module with no module above it (the
+                                 plugin itself) or one with 10 or more
+                                 source files, without a README.
+                                 Small nested folders are not asked.
     unreferenced-module   info   Required by no other file in the tree.
+                                 Never reported for <plugin>.health,
+                                 which :checkhealth loads by name.
     tag-require-missing   warn   Needs `opts.tag_files`. A require into
                                  another project that that project's own
                                  committed map no longer declares -- the

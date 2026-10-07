@@ -214,47 +214,61 @@ local function check_many_modules(ir, findings)
   end
 end
 
---- A README is worth asking for on the modules somebody lands on, not on every
---- folder with an `init.lua`.
+--- A module is "big" at this many source files (of any language a backend
+--- claims: `stats.files_lua` counts them all, despite its name).
+local BIG_MODULE_FILES = 10
+
+--- Whether `check_readmes` asks this module for a README.
+---
+--- A module is asked when nothing above it is a module — the plugin itself,
+--- or each source root of a multi-root tree — or when it is big enough to be a
+--- subsystem of its own. Small nested folders (`config/`, `marks/`) are not.
+---
+--- **Structural, not numeric.** `node.depth` is relative to wherever the scan
+--- started, and that differs by layout: with `source = "lua/<plugin>"` the
+--- plugin is depth 0, with `source = "lua"` it is depth 1 below a namespace,
+--- and with several roots it is depth 1 below a synthetic `.`. A fixed depth
+--- is therefore right for one of them and wrong for the others (the first
+--- version used `depth <= 1` and still asked `sessions.nvim` for `config/`).
+--- Walking `parent` to find a module ancestor answers the question in every
+--- layout.
+---@param ir Documentation.IR
+---@param node Documentation.Node
+---@return boolean
+local function wants_readme(ir, node)
+  local seen = {}
+  local parent = node.parent
+  while parent and not seen[parent] do
+    seen[parent] = true
+    local up = ir.nodes[parent]
+    if not up then
+      break
+    end
+    if up.kind == "module" then
+      return ((node.stats or {}).files_lua or 0) >= BIG_MODULE_FILES
+    end
+    parent = up.parent
+  end
+  return true
+end
+
+--- Not every module needs a README, but the absence on the front door should
+--- be a decision rather than an oversight, so this is reported at `info`.
 ---
 --- **The rule used to be "every module".** On `sessions.nvim` that reported
 --- five README-less subfolders (`bindings/autocmds`, `bindings/keymaps`,
 --- `config`, `marks`, ...), none of which anyone would write a README for, and
 --- the findings list became a column of `info` lines to scroll past. A finding
---- that is true of nearly every tree is not a finding.
----
---- Now a module is asked for one when it is
----
----   * **top level** — at most `TOP_LEVEL_DEPTH` below the source root: the
----     plugin itself, the thing a visitor opens first; or
----   * **big** — at least `BIG_MODULE_FILES` source files under it, where a
----     folder is a subsystem in its own right and a reader needs a way in.
----
---- Small nested folders stay quiet. Both numbers are measured judgement, not
---- law; a repository that disagrees has `checks = { ["missing-readme"] = false }`
---- (or a re-grade), which `check_policy` applies after every check has run.
----
---- Still `info`: not every module needs a README, but the absence of one on
---- the front door should be a decision rather than an oversight.
-local TOP_LEVEL_DEPTH = 1
-local BIG_MODULE_FILES = 10
-
----@param node Documentation.Node
----@return boolean
-local function wants_readme(node)
-  if (node.depth or 0) <= TOP_LEVEL_DEPTH then
-    return true
-  end
-  local st = node.stats or {}
-  return (st.files_lua or 0) + (st.files_other or 0) >= BIG_MODULE_FILES
-end
-
+--- that is true of nearly every tree is not a finding. See `wants_readme` for
+--- what is asked now; a repository that disagrees has
+--- `checks = { ["missing-readme"] = false }` (or a re-grade), which
+--- `check_policy` applies after every check has run.
 ---@param ir Documentation.IR
 ---@param findings Documentation.Finding[]
 local function check_readmes(ir, findings)
   for _, id in ipairs(ir.order) do
     local node = ir.nodes[id]
-    if node.kind == "module" and not node.readme and wants_readme(node) then
+    if node.kind == "module" and not node.readme and wants_readme(ir, node) then
       add(findings, "info", "missing-readme", id, { path = node.path })
     end
   end
@@ -620,15 +634,6 @@ local function check_tag_requires(ir, findings)
   end
 end
 
---- A module that exists on disk but is required by nothing above it was
---- either written and never wired up, or orphaned by a refactor.
----
---- Reads `node.required_by`, which `docmap.deps` fills during the scan. An
---- earlier version re-read every source file here to collect `require` strings
---- into one flat set — which answered this one question and discarded the
---- thing that made a dependency graph possible, namely *which* file each
---- require came from. Same answer now, from data that also draws the Deps
---- view, at no I/O.
 --- `<plugin>.health` is loaded by name, never by `require`: `:checkhealth
 --- sessions` finds `lua/sessions/health.lua` itself. Every plugin that
 --- implements a health check has exactly this module, and none of them has a
@@ -640,6 +645,15 @@ local function is_health_module(module)
   return module == "health" or module:match("%.health$") ~= nil
 end
 
+--- A module that exists on disk but is required by nothing above it was
+--- either written and never wired up, or orphaned by a refactor.
+---
+--- Reads `node.required_by`, which `docmap.deps` fills during the scan. An
+--- earlier version re-read every source file here to collect `require` strings
+--- into one flat set — which answered this one question and discarded the
+--- thing that made a dependency graph possible, namely *which* file each
+--- require came from. Same answer now, from data that also draws the Deps
+--- view, at no I/O.
 ---@param ir Documentation.IR
 ---@param findings Documentation.Finding[]
 ---@param opts Documentation.Opts
