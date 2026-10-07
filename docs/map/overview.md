@@ -271,13 +271,13 @@ flowchart LR
 
 ## Drift
 
-0 errors · 0 warnings · 32 info
+0 errors · 0 warnings · 31 info
 
 No errors or warnings.
 
 
 <details>
-<summary>32 informational findings</summary>
+<summary>31 informational findings</summary>
 
 
 | Check | Message |
@@ -312,7 +312,6 @@ No errors or warnings.
 | `unreferenced-module` | documentation.core.lang.ts is required by no other file in the tree |
 | `unreferenced-module` | documentation.core.lang.tsx is required by no other file in the tree |
 | `unreferenced-module` | documentation.core.lang.zig is required by no other file in the tree |
-| `unreferenced-module` | documentation.health is required by no other file in the tree |
 | `unreferenced-module` | documentation.mcp is required by no other file in the tree |
 
 </details>
