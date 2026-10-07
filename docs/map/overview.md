@@ -271,19 +271,18 @@ flowchart LR
 
 ## Drift
 
-0 errors · 0 warnings · 31 info
+0 errors · 0 warnings · 30 info
 
 No errors or warnings.
 
 
 <details>
-<summary>31 informational findings</summary>
+<summary>30 informational findings</summary>
 
 
 | Check | Message |
 |---|---|
 | `dead-function` | M._reset is marked @internal and nothing in the tree calls it |
-| `missing-readme` | lua/documentation/mcp has no README.md |
 | `undocumented-param` | M.rank has 4 parameter(s) but only 3 @param line(s) |
 | `undocumented-param` | complexity has 3 parameter(s) but only 2 @param line(s) |
 | `undocumented-param` | is_ignorable has 2 parameter(s) but only 0 @param line(s) |
