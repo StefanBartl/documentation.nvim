@@ -267,7 +267,7 @@ flowchart LR
 | &nbsp;&nbsp;`documentation.editor.browse` | `:DocBrowse` — the module map inside the editor. | 42 | [README](../../lua/documentation/editor/browse/README.md) · [src](../../lua/documentation/editor/browse/init.lua) |
 | `integrations` |  |  |  |
 | `documentation.mcp` | An MCP (Model Context Protocol) server exposing this repository's module map to a coding agent. | 1 | [src](../../lua/documentation/mcp/init.lua) |
-| `documentation.testing` | Which specs does a change touch, and what do the specs say about the map. | 19 | [README](../../lua/documentation/testing/README.md) · [src](../../lua/documentation/testing/init.lua) |
+| `documentation.testing` | Which specs does a change touch, and what do the specs say about the map. | 20 | [README](../../lua/documentation/testing/README.md) · [src](../../lua/documentation/testing/init.lua) |
 
 ## Drift
 

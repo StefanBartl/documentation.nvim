@@ -154,7 +154,7 @@ end
 ---@param abs string
 ---@return string|nil text
 ---@return string|nil err
-local function read_capped(abs)
+function M.read_capped(abs)
   local uv = vim.uv or vim.loop
   local st = uv.fs_stat(abs)
   if not st or st.type ~= "file" then
@@ -172,21 +172,13 @@ local function read_capped(abs)
   return text, nil
 end
 
----What a spec's source says it needs.
+---The computed requires of a source: the literal heads of `require("a.b." .. k)`
+---and whether a bare `require(variable)` / `pcall(require, variable)` occurs.
+---Shared by the spec scan and the check for dynamic loaders in the graph.
 ---@param src string
----@return string[] modules Literal module names.
----@return string[] prefixes Literal heads of computed names (end with a dot).
----@return boolean dynamic `require(<expression>)` somewhere.
-function M.scan_text(src)
-  local deps = require("documentation.core.deps")
-  local modules, seen = {}, {}
-  for _, req in ipairs(deps.extract_source(src)) do
-    if not seen[req.module] then
-      seen[req.module] = true
-      modules[#modules + 1] = req.module
-    end
-  end
-
+---@return string[] prefixes Literal heads of computed names (end with a dot), sorted.
+---@return boolean dynamic `require(<expression>)` with no literal head somewhere.
+function M.scan_computed(src)
   local prefixes, pseen = {}, {}
   local dynamic = false
   for line in (src .. "\n"):gmatch("([^\n]*)\n") do
@@ -206,8 +198,27 @@ function M.scan_text(src)
       end
     end
   end
-  table.sort(modules)
   table.sort(prefixes)
+  return prefixes, dynamic
+end
+
+---What a spec's source says it needs.
+---@param src string
+---@return string[] modules Literal module names.
+---@return string[] prefixes Literal heads of computed names (end with a dot).
+---@return boolean dynamic `require(<expression>)` somewhere.
+function M.scan_text(src)
+  local deps = require("documentation.core.deps")
+  local modules, seen = {}, {}
+  for _, req in ipairs(deps.extract_source(src)) do
+    if not seen[req.module] then
+      seen[req.module] = true
+      modules[#modules + 1] = req.module
+    end
+  end
+
+  local prefixes, dynamic = M.scan_computed(src)
+  table.sort(modules)
   return modules, prefixes, dynamic
 end
 
@@ -216,7 +227,7 @@ end
 ---@param rel string
 ---@return Documentation.Testing.SpecInfo
 function M.read(root, rel)
-  local text, err = read_capped(root .. "/" .. rel)
+  local text, err = M.read_capped(root .. "/" .. rel)
   if not text then
     return { path = rel, modules = {}, prefixes = {}, dynamic = false, unreadable = err }
   end

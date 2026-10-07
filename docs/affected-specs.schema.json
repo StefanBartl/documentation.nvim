@@ -76,6 +76,7 @@
             "changed_module_without_spec",
             "test_support_changed",
             "spec_unplaced",
+            "dynamic_require_in_graph",
             "spec_unreadable",
             "invalid_path",
             "invalid_spec_root"
@@ -83,7 +84,7 @@
         },
         "path": { "type": "string" },
         "module": { "type": "string" },
-        "reason": { "enum": ["dynamic_require", "no_graph_module", "unreadable"] },
+        "reason": { "enum": ["dynamic_require", "dynamic_require_prefix", "no_graph_module", "unreadable"] },
         "message": { "type": "string" }
       }
     },

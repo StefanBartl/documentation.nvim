@@ -149,6 +149,7 @@ local specs = {
   "consumers_spec.lua",
   "consumer_require_spec.lua",
   "testing_provider_spec.lua",
+  "testing_dynamic_loader_spec.lua",
   "glossary_spec.lua",
   "binding_conflict_spec.lua",
   "unused_require_spec.lua",

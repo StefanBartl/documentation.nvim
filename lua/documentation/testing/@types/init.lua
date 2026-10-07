@@ -6,10 +6,10 @@
 ---One reported hole in what the graph can tell. A consumer must treat a
 ---`blocking` gap as "do not trust a narrowed selection".
 ---@class Documentation.Testing.Gap
----@field kind "changed_not_in_graph"|"changed_module_without_spec"|"test_support_changed"|"spec_unplaced"|"spec_unreadable"|"invalid_path"|"invalid_spec_root"
+---@field kind "changed_not_in_graph"|"changed_module_without_spec"|"test_support_changed"|"spec_unplaced"|"dynamic_require_in_graph"|"spec_unreadable"|"invalid_path"|"invalid_spec_root"
 ---@field path? string Repository-relative file the gap is about.
 ---@field module? string Module path (`a.b.c`) when the gap is about a module.
----@field reason? string `spec_unplaced`: `dynamic_require` or `no_graph_module`.
+---@field reason? string `spec_unplaced`: `dynamic_require`, `no_graph_module` or `unreadable`; `dynamic_require_in_graph`: `dynamic_require` or `dynamic_require_prefix`.
 ---@field message string One English sentence for a human.
 
 ---Freshness of the module map the answer was computed from.

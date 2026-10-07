@@ -546,6 +546,56 @@ local function cross_repo(root, affected_modules, consumers_dir)
   return entries, nil
 end
 
+---Modules of the graph that load others by a computed name and are not
+---themselves affected: the graph has no edge from them to what they load.
+---Their source is read now (the tree, not the map), only for a call that has a
+---changed module, and only the files the map names.
+---@param root string
+---@param ir Documentation.IR
+---@param role table<string, string> Affected node ids.
+---@param affected_modules table<string, true> Module paths of the affected nodes.
+---@return Documentation.Testing.Gap[]
+local function computed_loader_gaps(root, ir, role, affected_modules)
+  local gaps = {}
+  for _, id in ipairs(ir.order) do
+    local node = ir.nodes[id]
+    local rel = node.source or node.path
+    if not role[id] and rel then
+      local text = specs_mod.read_capped(root .. "/" .. rel)
+      if not text and node.path then
+        text = specs_mod.read_capped(root .. "/" .. node.path .. "/init.lua")
+      end
+      if text and text:find("require", 1, true) then
+        local prefixes, dynamic = specs_mod.scan_computed(text)
+        local reason
+        if dynamic then
+          reason = "dynamic_require"
+        else
+          for _, p in ipairs(prefixes) do
+            for m in pairs(affected_modules) do
+              if m:sub(1, #p) == p then
+                reason = "dynamic_require_prefix"
+              end
+            end
+          end
+        end
+        if reason then
+          gaps[#gaps + 1] = {
+            kind = "dynamic_require_in_graph",
+            path = rel,
+            module = node.module,
+            reason = reason,
+            message = reason == "dynamic_require"
+                and "the module requires by a computed name: it may load an affected module without a graph edge"
+              or "the module requires by a computed name under a head an affected module matches: it may load it without a graph edge",
+          }
+        end
+      end
+    end
+  end
+  return gaps
+end
+
 -- ------------------------------------------------------------------ public
 
 ---Which specs does this change touch?
@@ -703,6 +753,16 @@ function M.affected_specs(opts)
     -- two views share one coverage computation.
     local _ = direct
 
+    -- A `require(variable)` is no edge. A module that loads others by a
+    -- computed name may load an affected module without the graph knowing, so
+    -- its specs (and its dependents') are not provably unaffected: report it,
+    -- unless it is already affected itself (then everything that covers it is
+    -- selected anyway). A literal head (`require("a.b." .. k)`) limits the
+    -- risk to affected modules under that head.
+    if #changed_nodes > 0 then
+      vim.list_extend(gaps, computed_loader_gaps(root, ir, role, affected_modules))
+    end
+
     local unplaced = {}
     for _, spec in ipairs(spec_list) do
       local reason = idx.unplaced[spec]
@@ -729,6 +789,7 @@ function M.affected_specs(opts)
         or g.kind == "invalid_path"
         or g.kind == "spec_unreadable"
         or g.kind == "invalid_spec_root"
+        or g.kind == "dynamic_require_in_graph"
       then
         blocking = true
       end

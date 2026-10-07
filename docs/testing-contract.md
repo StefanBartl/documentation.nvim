@@ -94,6 +94,7 @@ Every `gaps` entry is something the graph could not tell:
 | `invalid_spec_root` | A `spec_roots` entry refused or missing. | yes |
 | `spec_unreadable` | A spec file could not be read (too large, unreadable). | yes |
 | `changed_module_without_spec` | A changed module that no spec requires, directly or through another module. The change selects nothing for it. | no |
+| `dynamic_require_in_graph` | A module of the graph that is not itself affected requires by a computed name, so the graph has no edge from it to what it loads and the change may reach it unseen. `path`/`module` name the loader. `reason = "dynamic_require"`: a bare `require(variable)` (may load anything); `reason = "dynamic_require_prefix"`: `require("a.b." .. k)`, reported only when an affected module's name starts with that head. Only checked when a changed file is a module of the graph. | yes |
 | `spec_unplaced` | A spec the graph cannot place: it requires a module by a computed name (`reason = "dynamic_require"`: it may depend on anything), or none of its requires is in the map (`reason = "no_graph_module"`). Also listed in `unplaced_specs`. | no |
 
 ## Reading the answer safely
@@ -113,10 +114,15 @@ caller:
 - Do not make affected-selection the default of a CI gate: a graph that is
   missing a dynamic `require` can only under-select, and CI is where an
   under-selection costs the most.
-- Static analysis does not see a `require` built from a variable. A module
-  loaded only that way has no edge in the graph, so a change to it selects no
-  specs. This is a property of the graph, not of this call; a run of everything
-  is the backstop.
+- Static analysis does not see a `require` built from a variable, so the graph
+  has no edge for it. The call makes up for that: every module of the graph
+  that requires by a computed name and is not itself affected is reported as a
+  `dynamic_require_in_graph` gap, which blocks `complete`. The source of those
+  modules is read from the tree at call time (not from the map), so an old map
+  is covered too. Within one version this is a new `kind` and a new `reason`
+  value; no field changed. A caller that narrows only on `complete = true`
+  needs no change. A caller that ignores `complete` still under-selects in this
+  one case: a run of everything is the backstop.
 
 ## Other repositories (consumers)
 
@@ -182,6 +188,7 @@ One JSON document on stdout; exit code 0 when an answer was produced (read
 ## Versioning
 
 `version` (and `graph.version`) is the version of the shape described here.
-Fields are only ever added within a version; a change that removes or
-reinterprets a field raises it. A caller must treat an unknown `version` as "no
+Fields (and the values of `gaps[].kind` / `gaps[].reason`) are only ever
+added within a version; a change that removes or reinterprets a field raises
+it. A caller must treat an unknown `version` as "no
 answer" and run everything.
