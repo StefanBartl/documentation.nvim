@@ -109,10 +109,19 @@ return function(H)
   for i = 1, 8 do
     write(c, ("lua/p/small/f%d.lua"):format(i), ("p.small.f%d"):format(i))
   end
+  -- A module of four Lua and three Python files is seven source files, not
+  -- ten: the scan counts a claimed file in `files_lua` *and* in `files_other`,
+  -- and summing the two (the first version of the rule did) asked for a README
+  -- on every mixed-language folder.
+  write(c, "lua/p/mix/init.lua", "p.mix")
+  for i = 1, 3 do
+    write(c, ("lua/p/mix/f%d.lua"):format(i), ("p.mix.f%d"):format(i))
+    write(c, ("lua/p/mix/s%d.py"):format(i))
+  end
   eq(
     flagged(scanned(c, "lua/p"), "missing-readme"),
     "lua/p,lua/p/big",
-    "readme: ten files (init + nine) is big, nine (init + eight) is not"
+    "readme: ten files (init + nine) is big, nine (init + eight) and a mixed seven are not"
   )
 
   -- A module that has a README is never reported, at any size.
