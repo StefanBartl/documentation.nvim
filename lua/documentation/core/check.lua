@@ -660,7 +660,12 @@ local function check_orphans(ir, findings, opts)
 
   for _, id in ipairs(ir.order) do
     local node = ir.nodes[id]
-    if node.module and node.kind ~= "namespace" and id ~= ir.root and not is_health_module(node.module) then
+    if
+      node.module
+      and node.kind ~= "namespace"
+      and id ~= ir.root
+      and not is_health_module(node.module)
+    then
       -- A module may legitimately be reached only through the aggregator's
       -- string map rather than a literal require, so this stays at `info`.
       if #(node.required_by or {}) == 0 and not (loaded and loaded[node.module]) then

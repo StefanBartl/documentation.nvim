@@ -47,8 +47,14 @@ return function(H)
       by_id[n.id] = n
     end
     return {
-      meta = { title = "t", source = "lua", types_dir = "@types", branch = "main", schema = 1,
-        counts = { module = #nodes, namespace = 0, file = 0 } },
+      meta = {
+        title = "t",
+        source = "lua",
+        types_dir = "@types",
+        branch = "main",
+        schema = 1,
+        counts = { module = #nodes, namespace = 0, file = 0 },
+      },
       root = "lua",
       order = order,
       nodes = by_id,
@@ -100,12 +106,19 @@ return function(H)
     node("lua/p", { depth = 1, readme = "README.md" }),
     node("lua/p/mixed", { depth = 2, stats = { files_lua = 4, files_md = 0, files_other = 6 } }),
   })
-  eq(flagged(ir, "missing-readme"), "lua/p/mixed", "readme: size counts every source file, not just Lua")
+  eq(
+    flagged(ir, "missing-readme"),
+    "lua/p/mixed",
+    "readme: size counts every source file, not just Lua"
+  )
 
   -- A module that has one is never reported, at any size.
   ir = make_ir({
     node("lua/p", { depth = 1, readme = "README.md" }),
-    node("lua/p/engine", { depth = 2, readme = "README.md", stats = { files_lua = 40, files_md = 0, files_other = 0 } }),
+    node(
+      "lua/p/engine",
+      { depth = 2, readme = "README.md", stats = { files_lua = 40, files_md = 0, files_other = 0 } }
+    ),
   })
   eq(flagged(ir, "missing-readme"), "", "readme: a module with a README is silent")
 
