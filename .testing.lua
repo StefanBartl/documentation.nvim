@@ -24,10 +24,10 @@ return {
     scheduled_error = "error",
     prompt = "error",
     deprecation = "error",
-    -- Guard false alarm, kept at warn: shim_behavior_spec runs io.popen('"git" "--version" 2>&1');
-    -- the guard judges a shell string by its first word including the quotes, so allowing git
-    -- does not match and the case would fail.
-    process_net = "warn",
+    -- shim_behavior_spec runs io.popen('"git" "--version" 2>&1'); the guard reads the program of
+    -- such a doubly quoted shell line as git (the extra outer pair of quotes that cmd /c wants is
+    -- no part of the first word), so "git" in guard_allow.spawn below covers it.
+    process_net = "error",
   },
   -- What the guards let through on purpose.
   guard_allow = {
