@@ -7,9 +7,11 @@
 --- "needs more", never less:
 ---
 ---   * `require("a.b")`, `require "a.b"`, `pcall(require, "a.b")` name a module;
----   * `require("a.dialect." .. name)` names a PREFIX: every module below it;
----   * `require(name)` (a variable) is DYNAMIC: the spec may need anything, so
----     it can never be proven unaffected.
+---   * `require("a.dialect." .. name)` names a PREFIX: every module below it
+---     (also `"a.backend_" .. name`: the head need not end in a dot);
+---   * any other non-literal argument is DYNAMIC: `require(name)`,
+---     `require(("a.%s"):format(k))`, an argument on the line after the `(`.
+---     The spec may need anything, so it can never be proven unaffected.
 ---
 --- Comment lines are ignored, strings are not. Discovery follows the
 --- conventional layout (`<tests_dir>/**/*_spec.lua`, `TESTS` by default) plus
@@ -172,28 +174,89 @@ function M.read_capped(abs)
   return text, nil
 end
 
----The computed requires of a source: the literal heads of `require("a.b." .. k)`
----and whether a bare `require(variable)` / `pcall(require, variable)` occurs.
+-- What a literal head of a computed module name is made of (a dotted path, maybe cut inside a
+-- segment: `"p.backend_" .. kind`).
+local HEAD_CHARS = "^[%w%._%-]+$"
+
+---Where the first argument of the `require` word at `s..e` starts: after `require(`, or after
+---`pcall(require,`. Nil when the word is not a call (part of a longer name, a value).
+---@param code string
+---@param s integer
+---@param e integer
+---@return integer|nil start Index of the first non-blank character of the argument.
+local function argument_start(code, s, e)
+  if code:sub(s - 1, s - 1):match("[%w_]") or code:sub(e + 1, e + 1):match("[%w_]") then
+    return nil
+  end
+  local i = code:find("%S", e + 1)
+  if not i then
+    return nil
+  end
+  local c = code:sub(i, i)
+  if c == "(" or (c == "," and code:sub(math.max(1, s - 200), s - 1):match("pcall%s*%(%s*$")) then
+    return code:find("%S", i + 1) or #code + 1
+  end
+  return nil
+end
+
+---Read the first argument of a `require` call that starts at `a`.
+---@param code string
+---@param a integer
+---@return string|nil head The literal head of `"head" .. expr`.
+---@return boolean dynamic The argument is not a plain literal and has no usable head.
+local function read_argument(code, a)
+  local quote = code:sub(a, a)
+  if quote ~= "'" and quote ~= '"' then
+    -- A name, a call, a field, `("p.%s"):format(k)`, `...`: nothing to read a module from.
+    -- What cannot start an expression (`require(%q)` in a format template, `require()`, the end
+    -- of the text) is no call at all.
+    return nil, quote:match("[%w_%(%.%[{#%-]") ~= nil
+  end
+  local close = code:find(quote, a + 1, true)
+  local text = close and code:sub(a + 1, close - 1)
+  if not text or text:find("[\n\\]") then
+    return nil, true
+  end
+  local nxt = code:match("^%s*(%S%S?)", close + 1) or ""
+  local first = nxt:sub(1, 1)
+  if first == ")" or first == "," then
+    -- A plain literal: `deps.extract_source` names the module.
+    return nil, false
+  end
+  if nxt == ".." and text:match(HEAD_CHARS) then
+    return text, false
+  end
+  return nil, true
+end
+
+---The computed requires of a source: the literal heads of `require("a.b." .. k)` and
+---whether a `require` with any other non-literal argument occurs (`require(name)`,
+---`pcall(require, name)`, `require(("a.%s"):format(k))`, an argument on the next line).
 ---Shared by the spec scan and the check for dynamic loaders in the graph.
 ---@param src string
----@return string[] prefixes Literal heads of computed names (end with a dot), sorted.
----@return boolean dynamic `require(<expression>)` with no literal head somewhere.
+---@return string[] prefixes Literal heads of computed names (`a.b.` or `a.b_`), sorted.
+---@return boolean dynamic A `require` whose argument is neither a literal nor `"head" .. expr`.
 function M.scan_computed(src)
   local prefixes, pseen = {}, {}
   local dynamic = false
-  for line in (src .. "\n"):gmatch("([^\n]*)\n") do
-    if not line:match("^%s*%-%-") then
-      for p in line:gmatch("require%s*[%(,]?%s*['\"]([%w%._%-]+%.)['\"]%s*%.%.") do
-        if not pseen[p] then
-          pseen[p] = true
-          prefixes[#prefixes + 1] = p
-        end
+  -- The whole text, not line by line: stylua puts the argument of a long call on the next line.
+  -- Comment-only lines go first (usage examples in module headers: `--- local m = require(name)`).
+  local code = ("\n" .. src):gsub("\n[ \t]*%-%-[^\n]*", "\n")
+  local pos = 1
+  while true do
+    local s, e = code:find("require", pos, true)
+    if not s then
+      break
+    end
+    pos = e + 1
+    local a = argument_start(code, s, e)
+    if a then
+      local head, is_dynamic = read_argument(code, a)
+      if head and not pseen[head] then
+        pseen[head] = true
+        prefixes[#prefixes + 1] = head
       end
-      -- A variable argument: `require(name)`, `pcall(require, name)`.
-      if line:match("[^%w_]require%s*%(%s*[%a_]") or line:match("^%s*require%s*%(%s*[%a_]") then
-        dynamic = true
-      end
-      if line:match("pcall%s*%(%s*require%s*,%s*[%a_]") then
+      if is_dynamic then
         dynamic = true
       end
     end
@@ -205,7 +268,7 @@ end
 ---What a spec's source says it needs.
 ---@param src string
 ---@return string[] modules Literal module names.
----@return string[] prefixes Literal heads of computed names (end with a dot).
+---@return string[] prefixes Literal heads of computed names (`a.b.`, `a.b_`).
 ---@return boolean dynamic `require(<expression>)` somewhere.
 function M.scan_text(src)
   local deps = require("documentation.core.deps")

@@ -12,6 +12,13 @@
 --   p.loader                 require(modname)            (bare computed name)
 --   p.headed                 require("p.zz." .. k)       (computed name under a head)
 --   p.zz.impl                only loadable through p.headed
+--   p.tailed                 require("p.backend_" .. k)  (a head that does not end in a dot)
+--   p.backend_x              only loadable through p.tailed
+--   p.fmt                    require(("p.fmt.%s"):format(k))
+--   p.multi                  require(<newline> name <newline>)   (the layout stylua gives a long call)
+--
+-- The scanner behind it (`documentation.testing.specs.scan_computed`) is also
+-- checked on its own, form by form.
 --
 -- Kept apart from testing_provider_spec.lua: every generated project costs a
 -- scan, and that spec already uses most of its time budget.
@@ -19,6 +26,70 @@
 return function(H)
   local eq, ok = H.eq, H.ok
   local testing = require("documentation.testing")
+  local specs = require("documentation.testing.specs")
+
+  -- The scanner, form by form: what it reports for one source text.
+  local function scan(src)
+    local prefixes, dynamic = specs.scan_computed(src)
+    return table.concat(prefixes, ","), dynamic
+  end
+
+  local plain = { "require('p.a')", 'require "p.a"', "local m = pcall(require, 'p.a')" }
+  for _, src in ipairs(plain) do
+    local prefixes, dynamic = scan(src)
+    eq(prefixes, "", ("a literal require has no head: %s"):format(src))
+    eq(dynamic, false, ("a literal require is not dynamic: %s"):format(src))
+  end
+
+  local heads = {
+    { "require('p.zz.' .. k)", "p.zz." },
+    { "require('p.backend_' .. k)", "p.backend_" },
+    { "pcall(require, 'p.zz.' .. k)", "p.zz." },
+    { "require(\n  'p.zz.' .. k\n)", "p.zz." },
+  }
+  for _, case in ipairs(heads) do
+    local prefixes, dynamic = scan(case[1])
+    eq(prefixes, case[2], ("the literal head is a prefix: %q"):format(case[1]))
+    eq(dynamic, false, ("...and not dynamic: %q"):format(case[1]))
+  end
+
+  local computed = {
+    "require(name)",
+    "require(string.format('p.%s', k))",
+    "require(('p.impl.%s'):format(k))",
+    "require(\n  name\n)",
+    "pcall(require, name)",
+    "pcall(\n  require,\n  name\n)",
+    "require(map[k])",
+    "require('' .. k)",
+    "require('a b' .. k)",
+    "require('p.a' or other)",
+    "return function(...) return require(...) end",
+  }
+  for _, src in ipairs(computed) do
+    local _, dynamic = scan(src)
+    eq(dynamic, true, ("a computed require is dynamic: %q"):format(src))
+  end
+
+  local silent = {
+    "-- require(name)",
+    "--- local m = require(name)",
+    "local my_require = 1\nmy_require(name)",
+    "require_all(name)",
+    "local f = ('require(%q)'):format(mod)",
+    "require()",
+    "require",
+  }
+  for _, src in ipairs(silent) do
+    local prefixes, dynamic = scan(src)
+    eq(prefixes .. tostring(dynamic), "false", ("not a computed require: %q"):format(src))
+  end
+
+  -- A spec that requires over several lines is placed by the same scan.
+  local modules, _, spec_dynamic =
+    specs.scan_text("local m = require(\n  name\n)\nrequire('p.a')\n")
+  eq(table.concat(modules, ","), "p.a", "the literal require of a spec is still named")
+  eq(spec_dynamic, true, "...and its multi-line computed one makes the spec dynamic")
 
   local function write(path, text)
     vim.fn.mkdir(vim.fs.dirname(path), "p")
@@ -85,6 +156,10 @@ return function(H)
   module("loader", "function M.load(modname) return require(modname) end\n")
   module("headed", "function M.load(k) return require('p.zz.' .. k) end\n")
   module("zz.impl")
+  module("tailed", "function M.load(k) return require('p.backend_' .. k) end\n")
+  module("backend_x")
+  module("fmt", "function M.load(k) return require(('p.fmt.%s'):format(k)) end\n")
+  module("multi", "function M.load(name)\n  return require(\n    name\n  )\nend\n")
   write(root .. "/TESTS/a_spec.lua", "local a = require('p.a')\nreturn function() end\n")
   write(root .. "/README.md", "# p\n")
   git(root, "init", "-q")
@@ -106,6 +181,21 @@ return function(H)
   eq(gaps["p.headed"].reason, "dynamic_require_prefix", "...with the head reason")
   ok(gaps["p.loader"] ~= nil, "...next to the bare one")
   eq(via_impl.complete, false, "...and the selection is not complete")
+
+  -- Other spellings of a computed name are gaps too (they used to slip through unseen).
+  ok(gaps["p.fmt"] ~= nil, 'require(("p.fmt.%s"):format(k)) is reported')
+  eq(gaps["p.fmt"].reason, "dynamic_require", "...as a bare computed name")
+  ok(gaps["p.multi"] ~= nil, "a require whose argument is on the next line is reported")
+  eq(gaps["p.multi"].reason, "dynamic_require", "...as a bare computed name")
+  eq(gaps["p.tailed"], nil, "a head that no affected module matches is not reported")
+
+  -- A head that does not end in a dot limits the risk to the modules it is a prefix of.
+  local via_backend = testing.affected_specs({ root = root, changed = { "lua/p/backend_x.lua" } })
+  gaps = loader_gaps(via_backend)
+  ok(gaps["p.tailed"] ~= nil, "require('p.backend_' .. k) is reported for p.backend_x")
+  eq(gaps["p.tailed"].reason, "dynamic_require_prefix", "...with the head reason")
+  eq(gaps["p.headed"], nil, "...and the other head stays quiet")
+  eq(via_backend.complete, false, "...and the selection is not complete")
 
   -- Without a changed module there is nothing to guard.
   local docs_only = testing.affected_specs({ root = root, changed = { "README.md" } })
