@@ -94,6 +94,11 @@ shim, match the editor's whole signature, options table included, rather than
 only the part this tree happens to call today; a case in the corpus is what
 keeps that honest.
 
+The gate also makes real links with the real rock — `docs/map` as a link out of
+the project, and a link out of the source tree — and checks that the build
+refuses to write through the first and does not read behind the second. On
+Windows those are junctions, made with `cmd /C mklink /J`.
+
 A case whose `path` or `kind` is a typo resolves to nothing on *both* sides and
 therefore agrees with itself. Both runners refuse such a case outright rather
 than counting it — a check that reports green while checking nothing is the
@@ -162,6 +167,11 @@ name before touching what they cover:
 | [`scan_scope_spec.lua`](../TESTS/scan_scope_spec.lua) | `opts.exclude` and `opts.languages` — including the reset discipline, which is the half that fails silently. |
 | [`docmap_browse_spec.lua`](../TESTS/docmap_browse_spec.lua) | `browse` — real floats, real buffers. |
 | [`shim_behavior_spec.lua`](../TESTS/shim_behavior_spec.lua) | `standalone/vim_shim.lua` answering what the editor answers, input by input. Loads the shim *inside* Neovim (`_G.vim` unset for the duration, `lfs` adapted onto `vim.uv`, `dkjson` refused rather than faked) so the comparison needs neither PUC Lua nor a rock. See [the standalone gate](#the-standalone-gate-skips-and-what-that-costs). |
+| [`safe_fs_spec.lua`](../TESTS/safe_fs_spec.lua) | `core/safe_fs.lua`, the check for links: how a link target is judged (Windows UNC, `\\?\GLOBALROOT`, `\??\`, drive-relative), the Windows path rules on an in-memory tree, and the same functions on the real file system with real links (junctions on Windows, via `H.link`). |
+| [`out_dir_links_spec.lua`](../TESTS/out_dir_links_spec.lua) | The real write routine and the real `--check` against a project whose output path goes through a link — including an `out_dir` set by a `.docmap.json` in the tree. Each case ends by looking at what the link leads to. |
+| [`scan_links_spec.lua`](../TESTS/scan_links_spec.lua) | The real scanner over a tree with links that leave the project, stay inside it, loop, or are the source root itself. |
+| [`win_links_spec.lua`](../TESTS/win_links_spec.lua) | Reading `dir /a:l` (`standalone/win_links.lua`), on listings written down in two languages. |
+| [`shim_links_spec.lua`](../TESTS/shim_links_spec.lua) | How the shim sees a link: against the editor on the host's file system, and its Windows branch on any host, driven on a canned listing. |
 | `lang_*_spec.lua` | One per language backend. **Each skips when its grammar is absent**, which is the normal local state — see [`languages.md § Running the language specs`](languages.md#running-the-language-specs) for the `DOCMAP_<LANG>_PARSER` variable each one reads. |
 | [`usrcmds_readonly_spec.lua`](../TESTS/usrcmds_readonly_spec.lua) | The `:DocMap` subcommands that read straight off the already-scanned IR — `why`, `graph`, `dot`, `mermaid`, `tools`, `bindings`, `plugins`, `endpoints`, `consumers` — none of which touch git. The algorithms one layer down (`core/deps.path`, `core/consumers.index`, …) already had literal-data coverage elsewhere; this is the command layer above them — usage errors, "nothing found" messages, collision/duplicate detection, sort order, and the `dot`/`mermaid` buffer-reuse-by-name regression. Literal `Documentation.IR` fixtures throughout, the same shape `docmap_spec.lua`'s churn/diff blocks use. |
 | [`usrcmds_git_spec.lua`](../TESTS/usrcmds_git_spec.lua) | The four `:DocMap` subcommands that shell out to git — `churn`, `diff`, `impact`, `checklist` — against a real, disposable fixture repository (`git init`, real commits, pinned `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE`), the same posture `api_spec.lua` and `mcp_spec.lua`'s `docmap_checklist` block already take: a stubbed `vim.system` would prove the wiring reads the stub, not that the real command, pathspec exclusion and async callback chain work. Skips outright on a machine with no `git`. |

@@ -3,7 +3,7 @@
 > **Generated** by `documentation`. Do not edit by hand — run `:DocMap`
 > (or `nvim --headless -l scripts/gen_map.lua`) to regenerate.
 
-**6 modules** · 7 namespaces · 134 helper files
+**6 modules** · 7 namespaces · 135 helper files
 
 The [interactive map](index.html) has filtering, full descriptions and
 source links; this page is the version the code host renders directly.
@@ -54,6 +54,7 @@ flowchart LR
   nlua_documentation_bindings_progress_lua["documentation.bindings.progress"]
   nlua_documentation_bindings_usrcmds["documentation.bindings.usrcmds"]
   nlua_documentation_config_DEFAULTS_lua["documentation.config.DEFAULTS"]
+  nlua_documentation_config_file_lua["documentation.config.file"]
   nlua_documentation_core_annotate_lua["documentation.core.annotate"]
   nlua_documentation_core_api_lua["documentation.core.api"]
   nlua_documentation_core_artifact_lua["documentation.core.artifact"]
@@ -85,6 +86,7 @@ flowchart LR
   nlua_documentation_core_quicks_lua["documentation.core.quicks"]
   nlua_documentation_core_render["render"]
   nlua_documentation_core_rules_join_lua["documentation.core.rules_join"]
+  nlua_documentation_core_safe_fs_lua["documentation.core.safe_fs"]
   nlua_documentation_core_safe_out_dir_lua["documentation.core.safe_out_dir"]
   nlua_documentation_core_scan_lua["documentation.core.scan"]
   nlua_documentation_core_scopes_lua["documentation.core.scopes"]
@@ -137,6 +139,7 @@ flowchart LR
   nlua_documentation_bindings_usrcmds --> nlua_documentation_editor_pick_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_editor_registry_lua
   nlua_documentation_bindings_usrcmds --> nlua_documentation_editor_serve_lua
+  nlua_documentation_config_file_lua --> nlua_documentation_core_safe_fs_lua
   nlua_documentation_core_annotate_lua --> nlua_documentation_core_check_lua
   nlua_documentation_core_api_lua --> nlua_documentation_core_artifact_lua
   nlua_documentation_core_api_lua --> nlua_documentation_core_checklist_lua
@@ -161,6 +164,8 @@ flowchart LR
   nlua_documentation_core_cli_lua --> nlua_documentation_core_findings_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_lang_registry_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_render
+  nlua_documentation_core_cli_lua --> nlua_documentation_core_safe_fs_lua
+  nlua_documentation_core_cli_lua --> nlua_documentation_core_safe_out_dir_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_scopes_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_startup_graph_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_telemetry_join_lua
@@ -204,6 +209,7 @@ flowchart LR
   nlua_documentation_core_scan_lua --> nlua_documentation_core_lang_registry_lua
   nlua_documentation_core_scan_lua --> nlua_documentation_core_markers_lua
   nlua_documentation_core_scan_lua --> nlua_documentation_core_plugins_lua
+  nlua_documentation_core_scan_lua --> nlua_documentation_core_safe_fs_lua
   nlua_documentation_core_scan_lua --> nlua_documentation_core_snippet_lua
   nlua_documentation_core_startup_graph_lua --> nlua_documentation_core_soft_require_lua
   nlua_documentation_core_symbols_lua --> nlua_documentation_core_scan_lua

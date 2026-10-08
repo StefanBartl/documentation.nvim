@@ -109,6 +109,12 @@ Precedence, loosest first: the defaults, what `config.build` derives from the
 root, **this file**, the host's explicit `opts` table, then CLI flags. So a
 Neovim spec still wins over the file, and `--exclude=` still wins over both.
 
+`out_dir` is where the map is written, relative to the root. It cannot contain
+`..` or be absolute, and **nothing on the way to it may be a symlink or a
+junction** — the run refuses and writes nothing, whoever set it (the default, a
+flag, your options, or this file). See
+[`SECURITY.md`](SECURITY.md#links-junctions-and-the-output-directory).
+
 A repository may state facts about itself and not about the session reading
 it: `command_name`, `keys`, `watch`, `diagnostics`, `telemetry` and their
 neighbours are refused with a warning naming them, because a checkout you

@@ -3351,3 +3351,92 @@ is mostly leaves. The type test moved to the caller.
   (`deepcopy/noref-*`, `tbl_extend/invalid-behavior`,
   `json.encode/escape-slash-*`), plus the integrity guards in
   `TESTS/shim_behavior_spec.lua`
+
+## The engine no longer writes or reads through a link (2026-10-08)
+
+`docmap <root>` — what `docmap-desktop` runs, with no flags — wrote
+`index.html`, `module_map.json` and `overview.md` into whatever `docs/map`
+turned out to be, and followed every link on the way. Reproduced on Windows:
+with `docs/map` a junction to a folder outside the repository, the engine
+overwrote same-named files there; the same for an `out_dir` that a
+`.docmap.json` in the repository set to a junction. `core/safe_out_dir.lua`
+had closed `..` and absolute paths in `out_dir` (SEC-42) and could not close
+this: it checks a *string*, and a link makes a clean string lead anywhere. The
+other half was the read side — the source walk and `--check` opened whatever a
+link led to, and on Windows a link to `\\host\share\x` makes the machine
+contact that host (a stall, and an NTLM negotiation) before anything can look
+at the answer.
+
+**One module decides, and it is asked rather than trusted.**
+`core/safe_fs.lua` resolves a path one component at a time from the root,
+`lstat`-ing each only after everything before it is known not to leave the
+project — `lstat` does not follow the last component but does follow the
+earlier ones, so the order is the whole point. `..` is applied to the
+*resolved* path (`a/link/..` is above wherever `link` leads, not `a`), a link's
+target is judged as a string before it is opened, and a hop and a step limit end
+loops. The writer asks a stricter question than the reader: nothing from the
+root to the output directory may be a link at all, and neither may any file about
+to be written, checked on the artifacts table itself so a fifth artifact is
+covered the day it is added. A refusal happens before the first byte, so it
+leaves the tree as it was.
+
+**Two decisions that look like omissions.**
+
+- *The project root is not inspected, and neither is anything above it.* A
+  person who hands over a path reached through a link has decided that. The
+  output directory gets the check even when it was named by flag: `out_dir` is
+  relative to the root, so the links on the way are the repository's.
+- *`--out-dir` pointing outside the project was never allowed.* The brief for
+  this change called it "the user's own decision, and stays allowed"; the
+  engine has always refused it (`..`, an absolute path and a drive letter fail
+  `safe_out_dir` in `write_artifacts` whichever way they arrive), and
+  `scripts/ci.lua` says why it passes a repo-relative `--out-dir`. This change
+  neither adds it nor removes it. `docmap-desktop` documents `../maps` as a
+  supported "Map directory" and passes it as `--out-dir=`; this engine answers
+  that with "not a safe relative path" (measured with `--out-dir=../x`, on the
+  engine as it was before this change).
+
+**Reading follows a link only inside the project.** The walk, the source roots,
+`.docmap.json` and the committed map `--check` reads back go through
+`safe_fs`; a link that leaves the project is left out and reported on stderr
+(`3 links not followed:`), and a source root that is one — or reaches out with
+`..` — is refused with the reason instead of "not found". A link that stays
+inside is followed as it always was in the standalone build (the editor's
+`vim.fs.dir` reported it as a `"link"` and the walk ignored it; the two hosts now
+agree). Two names for one folder, or a link back up the tree, are walked once:
+the directory a walk is inside of is identified by where it really is. `--check`
+also lost a second hole on the way — it read `out_dir` unvetted, `..` and all,
+and printed an excerpt of the file when it differed — and `write_pdf_artifact`
+took `opts.out_dir` as it came, with `pdf` a key a `.docmap.json` may set.
+
+**The standalone build cannot lstat on Windows, so it asks `cmd.exe`.**
+`lfs.symlinkattributes` is `lfs.attributes` there. `standalone/win_links.lua`
+reads `dir /a:l` — the labels `<JUNCTION>`, `<SYMLINKD>`, `<SYMLINK>`, which
+`/a:l` selects among *every* reparse point, so a OneDrive "files on demand"
+placeholder, which is one, is not mistaken for a link — once per directory. The
+working directory is changed for the length of the command so no path is ever
+put on a command line (`%`, `&` and a quote then cannot matter), `DIRCMD` is
+cleared because `/b` in it would remove the labels, and an end mark is asked for
+so a command that never ran is not read as "no links". On failure the entries of
+that directory are treated as links, which are not followed, and the run says
+so. The shim's directory listing now reports `"link"`, as libuv does, instead of
+opening the link to name its type.
+
+**Not done, and listed in `docs/SECURITY.md`:** the `docs/FEATURES` and
+checklist folders, the files README links resolve to, `opts.tests_dir`
+(`lib.nvim.fs.collect_recursive`), `opts.tag_files` and `opts.external_repos`
+still open fixed names under the root directly. And nothing here has run on a
+Windows machine: the Windows branch of the shim is driven on a canned listing
+(`TESTS/shim_links_spec.lua`), the junction cases of the specs run on the
+Windows CI job, and `dir /a:l` printing exactly those labels is the assumption
+that job tests.
+
+- **Modules:** `documentation/core/safe_fs.lua` (new), `core/scan.lua`
+  (`entries`, source roots, cycle guard), `documentation/init.lua`
+  (`write_artifacts`, `write_pdf_artifact`), `core/cli.lua` (`--check`,
+  skipped-link report), `config/file.lua`, `standalone/win_links.lua` (new),
+  `standalone/vim_shim.lua` (`uv.fs_lstat`, `uv.fs_readlink`, listing types)
+- **Tests:** `TESTS/safe_fs_spec.lua`, `out_dir_links_spec.lua`,
+  `scan_links_spec.lua`, `win_links_spec.lua`, `shim_links_spec.lua` (new);
+  `H.link` in `TESTS/harness.lua`; two `lstat` and two `readlink` cases in the
+  shim corpus; the `standalone` gate makes real links with the real rock

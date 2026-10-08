@@ -22,6 +22,7 @@ CONTENTS                                                *documentation-contents*
     8. Lua API ......................... |documentation-api|
     9. Headless / CI ................... |documentation-headless|
        9.1 Standalone build ............ |documentation-standalone|
+       9.2 Links and junctions ......... |documentation-links|
    10. MCP server ..................... |documentation-mcp|
    11. Reuse in your own plugin ........ |documentation-reuse|
    12. Annotations .................... |documentation-annotations|
@@ -194,7 +195,8 @@ All options, with their defaults: >lua
       lua_root = "lua",         -- what the Lua module path is relative to
       title = nil,              -- default: the root directory's name
       types_dir = "@types",     -- treated as a module attribute, not a sibling
-      out_dir = "docs/map",
+      out_dir = "docs/map",     -- relative to root; no link on the way, see
+                                -- |documentation-links|
       repo_url = nil,           -- base URL for source links
       branch = "main",
 
@@ -408,6 +410,9 @@ key and then regretted.
 :DocMap                 Regenerate the artifacts into `out_dir`. Prints what
                         it wrote, the node counts, test coverage and
                         documentation coverage, then the drift findings.
+                        Refuses, and writes nothing, when `out_dir`, a
+                        directory on the way to it or one of the files is a
+                        symlink or a junction. See |documentation-links|.
 
 :DocMap check           Regenerate in memory and compare byte for byte against
                         what is committed. Writes nothing. Findings go to the
@@ -1100,6 +1105,45 @@ Everything else is compared against a running Neovim, input by input, by
 `TESTS/shim_behavior_spec.lua` — inside the ordinary test run, so it needs
 neither PUC Lua nor the rocks. `standalone/selfcheck_behavior.lua` replays the
 same corpus on PUC Lua with the real rocks when one is available.
+
+A directory listing reports a link as a link (`"link"`), as the editor does,
+and never opens it to name its type. On Windows `lfs` cannot tell a junction
+from a directory, so the shim asks `cmd.exe` (`dir /a:l`), once per directory;
+see |documentation-links|.
+
+------------------------------------------------------------------------------
+9.2 LINKS AND JUNCTIONS                                    *documentation-links*
+
+A repository can contain a symlink — on Windows also a junction — anywhere,
+and a clean-looking path can lead through one to a place outside it. The
+engine therefore does not write or read through a link where that would reach
+outside the project (`lua/documentation/core/safe_fs.lua`).
+
+Writing: before the first byte, every component from the project root to
+`out_dir` is checked with `lstat`, and so is each file about to be written.
+If one is a link the run stops, names it, and writes nothing: >
+    docmap: refusing to write the map: docs/map is a link (a symlink or a
+    junction), so the map would be written wherever it leads. Replace it with
+    a plain directory.
+<
+This holds whoever set `out_dir` (the default, a flag, your options or a
+`.docmap.json` in the repository), and for a link that stays inside the
+project too. It covers `module_map.json`, `index.html`, `overview.md`,
+`coverage.svg` and `overview.pdf`.
+
+Reading: the source walk, the source roots, `.docmap.json` and the committed
+map that `--check` reads follow a link only if, resolved one step at a time,
+it stays inside the project. A link that leaves it is not followed, and the
+run says so on stderr (`3 links not followed:`). A source root that is such a
+link, or reaches outside with `..`, is refused with the reason. A link back up
+the tree is walked once. `--check` refuses, rather than reporting "stale", when
+it cannot read the map.
+
+On Windows a link target is judged as a string first: anything but a plain
+drive path (`\\host\share`, `\\?\UNC\…`, `\\?\GLOBALROOT\…`, `\??\…`) is never
+opened. Not covered yet: the `docs/FEATURES` and checklist folders, README
+link targets, `opts.tests_dir`, `opts.tag_files` and `opts.external_repos` still
+open fixed names under the root directly. See docs/SECURITY.md.
 
 ==============================================================================
 10. MCP SERVER                                                *documentation-mcp*

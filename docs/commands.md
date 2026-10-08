@@ -51,6 +51,10 @@ with `opts.badge`) into `out_dir`. Prints the repository it acted on, what it
 wrote, the node counts, test coverage and documentation coverage, then the
 drift findings.
 
+It refuses, and writes nothing, when `out_dir` or any directory on the way to it
+is a symlink or a junction, or when one of the files is — see
+[`SECURITY.md`](SECURITY.md#links-junctions-and-the-output-directory).
+
 ### `:DocMap check`
 
 Regenerate **in memory** and compare byte for byte against what is committed.
