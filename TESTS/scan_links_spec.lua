@@ -34,11 +34,14 @@ return function(H)
   H.write(outside .. "/lib/app.js", { "// outside", "function f() {}" })
   H.write(root .. "/tools/app.js", { "// inside", "function g() {}" })
 
-  ok(H.link(root .. "/lua/q", root .. "/lua/p/inside", true), "a link inside the project")
+  -- The targets of the links meant to stay inside are spelled the way the
+  -- engine spells the root (see `H.canonical`).
+  local here = H.canonical(root)
+  ok(H.link(here .. "/lua/q", root .. "/lua/p/inside", true), "a link inside the project")
   ok(H.link(outside .. "/lua", root .. "/lua/p/leaving", true), "a link out of the project")
-  ok(H.link(root .. "/lua/p", root .. "/lua/p/loop", true), "a link back up the tree")
+  ok(H.link(here .. "/lua/p", root .. "/lua/p/loop", true), "a link back up the tree")
   ok(H.link(outside, root .. "/rootlink", true), "a link out of the project, at its root")
-  ok(H.link(root .. "/tools", root .. "/toolslink", true), "a second name for a folder")
+  ok(H.link(here .. "/tools", root .. "/toolslink", true), "a second name for a folder")
   local made_file = H.link(outside .. "/secret.lua", root .. "/lua/p/secret.lua", false)
 
   local function build(extra)
@@ -99,8 +102,8 @@ return function(H)
   -- Two links at each other terminate, and every directory still appears.
   module_file(root .. "/cyc/c1/init.lua", "c1", "C1.")
   module_file(root .. "/cyc/c2/init.lua", "c2", "C2.")
-  H.link(root .. "/cyc/c2", root .. "/cyc/c1/to_c2", true)
-  H.link(root .. "/cyc/c1", root .. "/cyc/c2/to_c1", true)
+  H.link(here .. "/cyc/c2", root .. "/cyc/c1/to_c2", true)
+  H.link(here .. "/cyc/c1", root .. "/cyc/c2/to_c1", true)
   local cyc = scan.scan(build({ source = "cyc" }))
   ok(
     #cyc.order >= 3 and #cyc.order < 20,
@@ -152,7 +155,7 @@ return function(H)
     H.write(base .. "/cfg_in/real.json", { '{ "title": "FROM-LINKED-FILE" }' })
     module_file(base .. "/cfg_in/lua/c/init.lua", "c", "C.")
     ok(
-      H.link(base .. "/cfg_in/real.json", base .. "/cfg_in/.docmap.json", false),
+      H.link(H.canonical(base .. "/cfg_in") .. "/real.json", base .. "/cfg_in/.docmap.json", false),
       "inside file link"
     )
     local inside = config.build(base .. "/cfg_in", { source = "lua", lua_root = "lua" })

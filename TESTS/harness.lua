@@ -80,6 +80,19 @@ function H.link(target, link, is_dir)
   return false, tostring(err)
 end
 
+--- `path` spelled the way the engine spells a project root: resolved, so a
+--- Windows 8.3 short name (`RUNNER~1`) is long and `/var` on macOS is
+--- `/private/var`. `vim.fn.tempname()` gives the unresolved spelling, and the
+--- engine resolves the root it is handed (`config.build`); a link whose
+--- *absolute* target names the project the other way counts as leading
+--- outside it. Use this for the target of a link that is meant to stay inside.
+---@param path string An existing path.
+---@return string
+function H.canonical(path)
+  local real = vim.uv.fs_realpath(path)
+  return real and (real:gsub("\\", "/")) or path
+end
+
 --- Write `lines` to `path`, creating its directory.
 ---@param path string
 ---@param lines string[]

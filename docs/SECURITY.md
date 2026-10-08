@@ -82,6 +82,12 @@ project. One that leaves it is not followed; the run says so on stderr:
   lua/p/escape -> /home/me/private: it leads outside the project
 ```
 
+An absolute target is matched against the project path as given and, where the
+host can say, as the system resolves it. A target that spells the same place
+another way — a Windows 8.3 short name (`RUNNER~1` for `runneradmin`), `/var` for
+`/private/var` — counts as leaving the project: the check never asks the file
+system about a path it has not placed inside the project first.
+
 A source root that is such a link, or reaches outside with `..`, is refused with
 the reason rather than reported as missing. Links that stay inside the project
 work as they did, and a link back up the tree is walked once, not for ever.

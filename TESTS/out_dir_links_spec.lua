@@ -331,7 +331,7 @@ return function(H)
     -- A hidden directory, because the prose corpus (every `.md` outside
     -- `out_dir`) skips those: the map must differ only by where it is read.
     vim.uv.fs_rename(root .. "/docs/map", root .. "/.real_map")
-    local made = H.link(root .. "/.real_map", root .. "/docs/map", true)
+    local made = H.link(H.canonical(root) .. "/.real_map", root .. "/docs/map", true)
     ok(made, "check: a link inside the project can be made here")
     local out
     code, out, err = check(root, "docs/map")

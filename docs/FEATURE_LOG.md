@@ -3425,11 +3425,20 @@ opening the link to name its type.
 **Not done, and listed in `docs/SECURITY.md`:** the `docs/FEATURES` and
 checklist folders, the files README links resolve to, `opts.tests_dir`
 (`lib.nvim.fs.collect_recursive`), `opts.tag_files` and `opts.external_repos`
-still open fixed names under the root directly. And nothing here has run on a
-Windows machine: the Windows branch of the shim is driven on a canned listing
-(`TESTS/shim_links_spec.lua`), the junction cases of the specs run on the
-Windows CI job, and `dir /a:l` printing exactly those labels is the assumption
-that job tests.
+still open fixed names under the root directly.
+
+**First run on Windows and macOS (CI, `fca1477`).** The Windows job ran the
+shim for real — `cmd.exe`, `dir /a:l`, junctions made with `mklink /J` — and
+`shim_links_spec`, `shim_behavior_spec`, `safe_fs_spec` and `win_links_spec`
+passed: the labels are `<JUNCTION>` as assumed, and the shim agrees with libuv
+on a junction's type, `lstat` and `readlink`. Two specs failed on both Windows
+and macOS, for one reason that was the specs' and not the engine's: they made
+a link meant to stay inside the project with an absolute target spelled the way
+`vim.fn.tempname()` gives it (`C:\Users\RUNNER~1\…`, `/var/…`), while the
+engine resolves the root it is handed (`runneradmin`, `/private/var`). A target
+that names the project the other way is, by design, not placed inside it. The
+specs now spell such targets with `H.canonical`, and the property is stated in
+`docs/SECURITY.md`; an aliased `TMPDIR` reproduces the failure on Linux.
 
 - **Modules:** `documentation/core/safe_fs.lua` (new), `core/scan.lua`
   (`entries`, source roots, cycle guard), `documentation/init.lua`
