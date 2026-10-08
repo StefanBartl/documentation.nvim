@@ -578,6 +578,22 @@ function M.write_artifacts(ir, findings, opts)
     artifacts["coverage.svg"] = require("documentation.core.doccoverage").badge_svg(ir)
   end
 
+  -- **Before the first byte.** `out_dir` is a clean string and can still lead
+  -- anywhere: `docs/map` checked out as a symlink or a junction -- or an
+  -- `out_dir` a `.docmap.json` points at one -- would have these files
+  -- overwrite same-named ones wherever it goes. Nothing on the way from the
+  -- root to the files may be a link; see `core/safe_fs.lua`. Asked of the names
+  -- in `artifacts` itself, so a fifth artifact is covered the day it is added.
+  local names = {}
+  for name in pairs(artifacts) do
+    names[#names + 1] = name
+  end
+  table.sort(names)
+  local plain, refusal = require("documentation.core.safe_fs").check_output(root, out_dir, names)
+  if not plain then
+    error(("docmap: refusing to write the map: %s"):format(refusal))
+  end
+
   for name, content in pairs(artifacts) do
     local rel = out_dir .. "/" .. name
     local ok, err = write(root .. "/" .. rel, content)
@@ -618,7 +634,23 @@ function M.write_pdf_artifact(ir, findings, opts, callback)
 
   assert_opts(opts, "documentation.write_pdf_artifact")
   local root = opts.root:gsub("\\", "/"):gsub("/+$", "")
-  local out_dir = opts.out_dir or "docs/map"
+  -- The same vetting `write_artifacts` gives the directory it writes into:
+  -- this path used to take `opts.out_dir` as it came, which a cloned tree's
+  -- `.docmap.json` can set, and `pdf` is a key it may set too.
+  local out_dir = safe_out_dir(opts.out_dir)
+  if not out_dir then
+    callback(
+      false,
+      ("docmap: opts.out_dir is not a safe relative path: %s"):format(tostring(opts.out_dir))
+    )
+    return
+  end
+  local plain, refusal =
+    require("documentation.core.safe_fs").check_output(root, out_dir, { "overview.pdf" })
+  if not plain then
+    callback(false, ("docmap: refusing to write the PDF: %s"):format(refusal))
+    return
+  end
   local rel = out_dir .. "/overview.pdf"
 
   pdfport.create({

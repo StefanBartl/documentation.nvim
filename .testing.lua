@@ -33,8 +33,9 @@ return {
   guard_allow = {
     -- The specs build tmp repositories (git init/commit/rev-parse), the docmap reads the git
     -- remote/branch, the plugin spawns a headless nvim and the language parsers, and the
-    -- fixture cleanup removes directories with rm.
-    spawn = { "git", "nvim", "node", "rm" },
+    -- fixture cleanup removes directories with rm, and the link specs make a
+    -- directory junction on Windows with `cmd /C mklink /J` (TESTS/harness.lua, H.link).
+    spawn = { "git", "nvim", "node", "rm", "cmd" },
     -- Fixtures of the generate-all spec live below .deps/generate-all-*; the callhierarchy spec
     -- makes the runtime append to the Neovim LSP log in the state directory.
     -- The telemetry specs make runtime-analysis.nvim write its telemetry snapshots below

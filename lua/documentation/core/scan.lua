@@ -13,8 +13,6 @@
 
 local M = {}
 
-local uv = vim.uv
-
 -- This is the only backend-aware line in this file, and it names a
 -- registry, never a specific backend — `core/lang.lua` requiring THIS
 -- module back (deferred, inside its own functions) is fine, but this file
@@ -25,6 +23,7 @@ local uv = vim.uv
 -- self-registration require now lives instead.
 local lang_registry = require("documentation.core.lang_registry")
 local marker_scan = require("documentation.core.markers")
+local safe_fs = require("documentation.core.safe_fs")
 
 ---The artifact schema this build writes.
 ---
@@ -85,20 +84,6 @@ end
 ---@return string
 local function chomp(p)
   return (p:gsub("/+$", ""))
-end
-
----@param path string
----@return boolean
-local function is_dir(path)
-  local st = uv.fs_stat(path)
-  return st ~= nil and st.type == "directory"
-end
-
----@param path string
----@return boolean
-local function is_file(path)
-  local st = uv.fs_stat(path)
-  return st ~= nil and st.type == "file"
 end
 
 ---Read a file's first `limit` lines without slurping the whole thing.
@@ -248,17 +233,14 @@ local function export_shape(path)
 end
 
 ---List entries of `dir`, sorted, so generated output is deterministic.
+---
+---A link counts as the thing it leads to when that stays inside `root`, and
+---is left out otherwise (`core/safe_fs.lua` notes it for the CLI to report).
+---@param root string
 ---@param dir string
 ---@return { name: string, type: string }[]
-local function entries(dir)
-  local out = {}
-  local iter = vim.fs.dir(dir)
-  if not iter then
-    return out
-  end
-  for name, type_ in iter do
-    out[#out + 1] = { name = name, type = type_ }
-  end
+local function entries(root, dir)
+  local out = safe_fs.entries(root, dir)
   table.sort(out, function(a, b)
     if (a.type == "directory") ~= (b.type == "directory") then
       return a.type == "directory"
@@ -411,8 +393,28 @@ function M.scan(opts)
     return false
   end
 
+  -- Every directory the scan reads, from the source roots down, is reached
+  -- through `core/safe_fs.lua`: a link that leads out of the project is not
+  -- followed, so a repository cannot point the walk at somebody else's files
+  -- (or, on Windows, at another machine) by checking one in. A source root
+  -- that is such a link, or names a place outside the project with `..`, is
+  -- refused with the reason rather than reported as missing.
+  safe_fs.forget()
+  safe_fs.clear_skipped()
   for _, src in ipairs(sources) do
-    assert(is_dir(root .. "/" .. src), "docmap: source directory not found: " .. root .. "/" .. src)
+    local st, why, detail = safe_fs.stat(root, root .. "/" .. src)
+    if not (st and st.type == "directory") then
+      if why and why ~= "missing" then
+        error(
+          ("docmap: source directory %s is not read: %s"):format(
+            src,
+            why == "outside" and "it is not inside the project" or safe_fs.describe(why, detail)
+          ),
+          0
+        )
+      end
+      error("docmap: source directory not found: " .. root .. "/" .. src)
+    end
   end
 
   local index = {} ---@type table<string, Documentation.Node>
@@ -436,13 +438,24 @@ function M.scan(opts)
   ---@type table<string, integer>
   local claimed = {}
 
+  ---Directories the walk is inside of right now, by where they really are.
+  ---A link may lead back up the tree, or two links at each other, and a walk
+  ---that follows links inside the project has to notice it is going round.
+  ---@type table<string, true>
+  local active = {}
+
   ---Build one node from a directory.
   ---@param abs string
   ---@param rel string Path relative to `root`
   ---@param parent_id string?
   ---@param depth integer
-  ---@return string id
+  ---@return string? id `nil` when the directory is one the walk is already inside of.
   local function walk_dir(abs, rel, parent_id, depth)
+    local where = safe_fs.key(safe_fs.physical(root, abs) or abs)
+    if active[where] then
+      return nil
+    end
+    active[where] = true
     local id = rel
     local name = rel:match("([^/]+)$") or opts.title or rel
 
@@ -454,7 +467,7 @@ function M.scan(opts)
     for _, backend in ipairs(lang_registry.all()) do
       if backend.module_file then
         local candidate = abs .. "/" .. backend.module_file
-        if is_file(candidate) then
+        if safe_fs.is_file(root, candidate) then
           module_backend, module_abs = backend, candidate
           break
         end
@@ -471,15 +484,15 @@ function M.scan(opts)
     -- tree for no navigational gain.
     local type_files = {}
     local abs_types = abs .. "/" .. types_dir
-    if is_dir(abs_types) then
-      for _, e in ipairs(entries(abs_types)) do
+    if safe_fs.is_dir(root, abs_types) then
+      for _, e in ipairs(entries(root, abs_types)) do
         if e.type == "file" and e.name:match("%.lua$") then
           type_files[#type_files + 1] = rel .. "/" .. types_dir .. "/" .. e.name
         end
       end
     end
 
-    local readme = is_file(abs .. "/README.md") and (rel .. "/README.md") or nil
+    local readme = safe_fs.is_file(root, abs .. "/README.md") and (rel .. "/README.md") or nil
 
     local kind = has_init and "module" or "namespace"
     counts[kind] = counts[kind] + 1
@@ -509,7 +522,7 @@ function M.scan(opts)
     -- Listed once and reused by both the tally and the child walk below: an
     -- earlier version called `entries(abs)` twice per directory, which is a
     -- second full directory read for every one of ~150 directories.
-    local dir_entries = entries(abs)
+    local dir_entries = entries(root, abs)
     for _, e in ipairs(dir_entries) do
       if e.type ~= "directory" and not e.name:match("%.lua$") then
         if e.name:lower():match("%.md$") then
@@ -647,6 +660,7 @@ function M.scan(opts)
       end
     end
 
+    active[where] = nil
     return id
   end
 
@@ -680,7 +694,7 @@ function M.scan(opts)
       -- which is real and is the one thing a reader landing here wants.
       summary = "",
       body = "",
-      readme = is_file(root .. "/README.md") and "README.md" or nil,
+      readme = safe_fs.is_file(root, root .. "/README.md") and "README.md" or nil,
       types = {},
       parent = nil,
       depth = 0,
@@ -731,9 +745,15 @@ function M.scan(opts)
   do
     local seen = 0
     local stack = { { abs = root, rel = "" } }
+    ---@type table<string, true>
+    local visited = {}
     while #stack > 0 and seen < OUTSIDE_MAX_FILES do
       local cur = table.remove(stack)
-      for _, e in ipairs(entries(cur.abs)) do
+      -- A directory reached twice, through a link, is read once.
+      local where = safe_fs.key(safe_fs.physical(root, cur.abs) or cur.abs)
+      local listing = visited[where] and {} or entries(root, cur.abs)
+      visited[where] = true
+      for _, e in ipairs(listing) do
         local child_rel = cur.rel == "" and e.name or (cur.rel .. "/" .. e.name)
         if e.type == "directory" then
           -- Skipped when it is a source root or inside one: those files are

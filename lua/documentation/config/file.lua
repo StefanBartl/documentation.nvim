@@ -143,21 +143,27 @@ M.REPO_KEYS = {
   rules_gate = true,
 }
 
----Read `path` whole, or `nil`.
+---Read `path` whole, or `nil` -- and say so through `notify` when it is a
+---link that leads out of the project.
 ---
 ---`io.open` rather than `lib.nvim.fs.read`: this module is bundled into the
 ---standalone binary and runs there under PUC Lua with only
 ---`standalone/vim_shim.lua`'s subset of `vim.*`, which has no `fs` surface at
 ---all. The same reason `core/features.lua` opens files by hand.
+---
+---Through `core/safe_fs.lua`, because this is the first file of a repository
+---that is read and it is the repository's to name: a `.docmap.json` checked in
+---as a link to somebody else's file (or, on Windows, to a share on another
+---machine) would be opened like any other.
+---@param root string
 ---@param path string
+---@param notify table? A `lib.nvim.notify`-shaped instance (`.warn(msg)`).
 ---@return string?
-local function read(path)
-  local fd = io.open(path, "r")
-  if not fd then
-    return nil
+local function read(root, path, notify)
+  local text, kind, why = require("documentation.core.safe_fs").read(root, path)
+  if kind == "refused" and notify then
+    notify.warn(("%s: not read, %s"):format(M.NAME, tostring(why)))
   end
-  local text = fd:read("*a")
-  fd:close()
   return text
 end
 
@@ -181,8 +187,8 @@ function M.load(root, notify)
     return nil
   end
 
-  local path = (root:gsub("\\", "/"):gsub("/+$", "")) .. "/" .. M.NAME
-  local text = read(path)
+  local clean = (root:gsub("\\", "/"):gsub("/+$", ""))
+  local text = read(clean, clean .. "/" .. M.NAME, notify)
   if not text or text:match("^%s*$") then
     return nil
   end

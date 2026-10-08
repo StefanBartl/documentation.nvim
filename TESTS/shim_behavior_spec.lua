@@ -67,6 +67,12 @@ return function(H)
   -- ---------------------------------------------------------------------
   local function lfs_on_uv()
     return {
+      -- The shim's Windows branch changes directory around a `dir` listing
+      -- (see `windows_census` there) and puts it back. Only ever reached on a
+      -- Windows host here; real, so that listing lists the right directory.
+      chdir = function(path)
+        return pcall(vim.uv.chdir, path) and true or nil
+      end,
       attributes = function(path, what)
         -- Loud rather than nil: the shim asks for `"mode"` and nothing else,
         -- and a silently-nil answer to some future third argument would look
@@ -75,9 +81,16 @@ return function(H)
         local st = vim.uv.fs_stat(path)
         return st and st.type or nil
       end,
-      -- `lstat`: what the shim's `**` asks so that a link is not entered.
+      -- `lstat`: what the shim's `**` asks so that a link is not entered, and
+      -- (`target`) what `uv.fs_readlink` asks to read where a link points.
       symlinkattributes = function(path, what)
-        assert(what == "mode", "lfs adapter: only the `mode` attribute is implemented")
+        assert(
+          what == "mode" or what == "target",
+          "lfs adapter: only the `mode` and `target` attributes are implemented"
+        )
+        if what == "target" then
+          return (vim.uv.fs_readlink(path))
+        end
         local st = vim.uv.fs_lstat(path)
         if not st then
           return nil
@@ -148,6 +161,15 @@ return function(H)
   package.loaded.lfs, package.loaded.dkjson = nil, nil
   package.preload.lfs = lfs_on_uv
   package.preload.dkjson = dkjson_refusing
+  -- The shim reads this module on Windows (`pcall`-required, so absent here
+  -- it would only degrade); on a Windows host it must be there for the
+  -- listing cases below to mean anything.
+  local saved_win_links = package.preload["standalone.win_links"]
+  local saved_win_links_loaded = package.loaded["standalone.win_links"]
+  package.loaded["standalone.win_links"] = nil
+  package.preload["standalone.win_links"] = function()
+    return dofile(root .. "/standalone/win_links.lua")
+  end
 
   local chunk, load_err = loadfile(root .. "/standalone/vim_shim.lua")
   ok(chunk ~= nil, "shim behavior: vim_shim.lua loads as a chunk — " .. tostring(load_err))
@@ -161,6 +183,8 @@ return function(H)
     package.preload.dkjson = saved_preload.dkjson
     package.loaded.lfs = saved_loaded.lfs
     package.loaded.dkjson = saved_loaded.dkjson
+    package.preload["standalone.win_links"] = saved_win_links
+    package.loaded["standalone.win_links"] = saved_win_links_loaded
     ok(ran, "shim behavior: vim_shim.lua runs on the uv-backed lfs — " .. tostring(result))
     if ran then
       shim = result

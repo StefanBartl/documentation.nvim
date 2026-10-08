@@ -663,6 +663,33 @@ M.cases = {
   { id = "uv.fs_stat/directory", path = "uv.fs_stat", kind = "stat_type", args = { "<ROOT>/sub" } },
   { id = "uv.fs_stat/file", path = "uv.fs_stat", kind = "stat_type", args = { "<ROOT>/a.txt" } },
   { id = "uv.fs_stat/missing", path = "uv.fs_stat", kind = "stat_type", args = { "<ROOT>/nope" } },
+  -- `lstat` is `stat` for anything that is not a link; the cases with a link in
+  -- them are built on the fly in `shim_links_spec.lua`, because a committed
+  -- symlink does not survive a checkout on every platform this runs on.
+  {
+    id = "uv.fs_lstat/directory",
+    path = "uv.fs_lstat",
+    kind = "stat_type",
+    args = { "<ROOT>/sub" },
+  },
+  { id = "uv.fs_lstat/file", path = "uv.fs_lstat", kind = "stat_type", args = { "<ROOT>/a.txt" } },
+  {
+    id = "uv.fs_lstat/missing",
+    path = "uv.fs_lstat",
+    kind = "stat_type",
+    args = { "<ROOT>/nope" },
+  },
+  {
+    id = "uv.fs_readlink/not-a-link",
+    path = "uv.fs_readlink",
+    args = { "<ROOT>/a.txt" },
+    why = "reading a link that is not one fails; the failure is nil in both",
+  },
+  {
+    id = "uv.fs_readlink/missing",
+    path = "uv.fs_readlink",
+    args = { "<ROOT>/nope" },
+  },
 
   -- ------------------------------------------------------------- stdpath
   -- Env-dependent, so never written to the expectations file — but both

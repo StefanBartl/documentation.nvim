@@ -124,6 +124,35 @@ local function known_language_names()
   return names
 end
 
+---Say which links the scan left alone, and why. On stderr, like the other
+---notes about the run: stdout carries its report, which callers parse.
+---
+---Said rather than skipped silently because a person who put a link in their
+---source tree and finds half of it missing from the map would otherwise have
+---nothing to go on. Capped, because a tree that links its way out of the
+---project in a thousand places has made its point after twenty.
+local function report_skipped_links()
+  local safe_fs = require("documentation.core.safe_fs")
+  local skipped = safe_fs.skipped
+  if #skipped == 0 then
+    return
+  end
+  io.stderr:write(("%d link%s not followed:\n"):format(#skipped, #skipped == 1 and "" or "s"))
+  for i, entry in ipairs(skipped) do
+    if i > 20 then
+      io.stderr:write(("  ... and %d more\n"):format(#skipped - 20))
+      break
+    end
+    io.stderr:write(
+      ("  %s%s: %s\n"):format(
+        entry.path,
+        entry.target and (" -> " .. entry.target) or "",
+        safe_fs.describe(entry.why, entry.target)
+      )
+    )
+  end
+end
+
 ---Run the CLI over `opts` with `argv` (`_G.arg`-shaped: `--check`, `--lenient`,
 ---`--full`, `--exclude=<path>`, `--languages=<a,b>`). Writes to stdout/stderr
 ---as a side effect; returns the process exit code rather than calling
@@ -230,7 +259,21 @@ function M.run(opts, argv)
   end
 
   if check_only then
+    -- The committed map is read from `out_dir`, which a `.docmap.json` in the
+    -- repository can set: the same whitelist the writer applies, and the same
+    -- distrust of links on the way there (see `core/safe_fs.lua`). This used
+    -- to read whatever `root/out_dir/<name>` named, `..` and links included,
+    -- and print an excerpt of it when it differed.
+    local out_dir = require("documentation.core.safe_out_dir")(opts.out_dir)
+    if not out_dir then
+      io.stderr:write(
+        ("docmap: opts.out_dir is not a safe relative path: %s\n"):format(tostring(opts.out_dir))
+      )
+      return 1
+    end
+
     local ir, findings = docmap.scan_full(opts)
+    report_skipped_links()
 
     local expected = {
       ["module_map.json"] = docmap.to_json(ir),
@@ -241,12 +284,21 @@ function M.run(opts, argv)
       expected["coverage.svg"] = require("documentation.core.doccoverage").badge_svg(ir)
     end
 
-    local read = require("lib.nvim.fs.read")
+    local safe_fs = require("documentation.core.safe_fs")
     local startup_graph = require("documentation.core.startup_graph")
     local stale = {}
     for name, content in pairs(expected) do
-      local path = root .. "/" .. opts.out_dir .. "/" .. name
-      local actual = read(path)
+      -- A link that leaves the project is not followed (a read through one
+      -- reaches a file this repository does not own, and on Windows may
+      -- reach another machine). Refused as a whole rather than read as "not
+      -- committed": the answer to a map that cannot be read is not "stale".
+      local actual, kind, why = safe_fs.read(root, root .. "/" .. out_dir .. "/" .. name)
+      if kind == "refused" then
+        io.stderr:write(
+          ("docmap: refusing to read %s/%s: %s\n"):format(out_dir, name, tostring(why))
+        )
+        return 1
+      end
       -- The baked-in startup flamegraph is compared out of `index.html` on
       -- both sides. It is machine-local and changes whenever somebody
       -- measures, so leaving it in would make a repository that once baked
@@ -260,7 +312,7 @@ function M.run(opts, argv)
       end
       if actual ~= content then
         stale[#stale + 1] = {
-          file = opts.out_dir .. "/" .. name,
+          file = out_dir .. "/" .. name,
           committed = actual,
           generated = content,
         }
@@ -322,6 +374,7 @@ function M.run(opts, argv)
   end
 
   local ir, findings, written = docmap.generate(opts)
+  report_skipped_links()
   for _, w in ipairs(written) do
     io.stdout:write("wrote " .. w .. "\n")
   end

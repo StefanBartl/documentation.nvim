@@ -75,6 +75,17 @@ end
 
 local vim = {}
 
+-- Only *used* on Windows, where `lfs` cannot tell a link from a directory (see
+-- the links section further down). Loaded on every platform nonetheless:
+-- `scripts/bundle_manifest.lua` measures `package.loaded` on a Linux run, so a
+-- module only a Windows branch requires would never be staged into the binary
+-- that needs it. `pcall` because a Neovim-hosted spec loads this file without
+-- the repository root on `package.path`, as `standalone.treesitter` below is.
+local ok_win_links, win_links = pcall(require, "standalone.win_links")
+if not ok_win_links then
+  win_links = nil
+end
+
 ---Whether a backslash is a path separator here.
 ---
 ---Neovim asks `has('win32')`; this asks the interpreter what its directory
@@ -1350,10 +1361,134 @@ function vim.fs.normalize(path, opts)
   return path
 end
 
+-- ------------------------------------------------------------------ links
+
+-- **A directory entry is reported as what it is, not as what it leads to.**
+-- Neovim's `uv.fs_scandir_next` and `vim.fs.dir` have always said `"link"`
+-- for a symlink or junction, and the shim used to answer with the *target's*
+-- type instead -- by calling `lfs.attributes`, which follows. Two things went
+-- wrong with that. A listing of a cloned repository opened every link in it
+-- just to name its type, and on Windows opening a link to `\\host\share\x`
+-- makes the machine contact that host (a stall, and an NTLM negotiation) before
+-- any caller can look at the answer. And the standalone build disagreed with
+-- the editor about what a directory holds, which is the class of difference
+-- `TESTS/shim_behavior_spec.lua` exists to keep out.
+--
+-- `lfs.symlinkattributes` is the lstat. It does not exist as one on Windows
+-- (there it is `lfs.attributes` under another name), so the question is put
+-- to `cmd.exe` instead -- see `standalone/win_links.lua` for what is asked and
+-- why the answer is only trusted where it is exact.
+
+---What `dir /a:l` said about each directory, kept for the run. A directory is
+---listed once however many of its entries are asked about; `false` records a
+---listing that failed, so a failure is reported once and not once per entry.
+---@type table<string, Standalone.WinLinks.Census|false>
+local win_census = {}
+
+---@param path string
+---@return string dir
+---@return string name
+local function split_parent(path)
+  local slashed = (to_slashes(path):gsub("/+$", ""))
+  local dir, name = slashed:match("^(.*)/([^/]+)$")
+  if not dir then
+    return ".", slashed
+  end
+  if dir == "" then
+    return "/", name
+  end
+  if IS_WINDOWS and dir:match("^%a:$") then
+    -- `C:` is "the current directory on drive C"; the drive's root is `C:/`.
+    return dir .. "/", name
+  end
+  return dir, name
+end
+
+---The links directly inside `dir` on Windows, or `nil` and why.
+---
+---The working directory is changed for the length of the command rather than
+---the path being put on the command line: nothing in a path can then be
+---mistaken for `cmd.exe` syntax (`%`, `&`, `^`, a quote), and no path has to
+---be quoted in a language with no reliable way to do it. `DIRCMD` is cleared
+---because it presets `dir`'s switches for the whole machine, and `/b` among
+---them removes the very labels this reads.
+---
+---Pessimistic on failure: the caller treats an entry it cannot classify as a
+---link, which is not followed.
+---@param dir string
+---@return Standalone.WinLinks.Census? census
+---@return string? err
+local function windows_census(dir)
+  local key = (to_slashes(dir):gsub("/+$", "")):lower()
+  local cached = win_census[key]
+  if cached ~= nil then
+    if cached == false then
+      return nil, "the listing of this directory failed earlier"
+    end
+    return cached
+  end
+
+  ---@param why string
+  ---@return nil
+  ---@return string
+  local function fail(why)
+    win_census[key] = false
+    io.stderr:write(
+      ("docmap: cannot tell which entries of %s are links (%s); none of them is followed\n"):format(
+        dir,
+        why
+      )
+    )
+    return nil, why
+  end
+
+  if not win_links then
+    return fail("standalone.win_links is not available")
+  end
+  local previous = lfs.currentdir()
+  if not previous or not lfs.chdir(dir) then
+    return fail("it cannot be entered")
+  end
+  local pipe = io.popen('set "DIRCMD=" & dir /a:l 2>nul & echo ' .. win_links.END_MARK, "r")
+  local text = pipe and pipe:read("*a") or ""
+  if pipe then
+    pipe:close()
+  end
+  lfs.chdir(previous)
+
+  local census = win_links.parse(text)
+  if not census.complete then
+    return fail("cmd.exe did not answer")
+  end
+  win_census[key] = census
+  return census
+end
+
+---`lfs.attributes` that does not follow the entry itself, where `lfs` can do
+---that. Not on Windows: there `symlinkattributes` is `attributes` renamed.
+local entry_mode = (not IS_WINDOWS and lfs.symlinkattributes) or lfs.attributes
+
+---The type of `dir/name` the way a directory listing reports it: `"link"` for
+---a symlink or a junction, whatever it points at, and the entry's own type
+---otherwise. Never opens a link.
+---@param dir string
+---@param name string
+---@return string?
+local function entry_type(dir, name)
+  if IS_WINDOWS then
+    local census = windows_census(dir)
+    if not census or win_links.find(census, name) then
+      return "link"
+    end
+    return lfs.attributes(dir .. "/" .. name, "mode")
+  end
+  return entry_mode(dir .. "/" .. name, "mode")
+end
+
 ---Directory iterator shaped like `vim.fs.dir`: `for name, type in
 ---vim.fs.dir(dir) do ... end`, `type` one of the `uv` dirent strings this
----codebase actually branches on (`"directory"`/`"file"`; anything else is
----never distinguished by a real call site, checked).
+---codebase actually branches on (`"directory"`/`"file"`/`"link"`; anything
+---else is never distinguished by a real call site, checked).
 ---@param dir string
 ---@return fun(): string?, string?
 function vim.fs.dir(dir)
@@ -1371,8 +1506,7 @@ function vim.fs.dir(dir)
     if not name then
       return nil
     end
-    local mode = lfs.attributes(dir .. "/" .. name, "mode")
-    return name, mode
+    return name, entry_type(dir, name)
   end
 end
 
@@ -1419,7 +1553,69 @@ function uv.fs_scandir_next(handle)
   if not name then
     return nil
   end
-  return name, lfs.attributes(handle.dir .. "/" .. name, "mode")
+  return name, entry_type(handle.dir, name)
+end
+
+---`lstat`: the entry itself, and `"link"` for a symlink or a junction.
+---
+---The parent directory is followed, as it is by the real call -- a caller
+---that has not checked it is not a link has not asked a safe question. Only
+---`type` is filled in; that is all `core/safe_fs.lua` reads.
+---@param path string
+---@return { type: string }|nil
+---@return string? err
+---@return string? code `"ENOENT"` when the entry is not there.
+function uv.fs_lstat(path)
+  local dir, name = split_parent(path)
+  local missing = "ENOENT: no such file or directory: " .. path
+  if IS_WINDOWS then
+    -- A missing parent is a missing entry, and is settled before a process is
+    -- started to list a directory that is not there.
+    if lfs.attributes(dir, "mode") ~= "directory" then
+      return nil, missing, "ENOENT"
+    end
+    local census, err = windows_census(dir)
+    if not census then
+      return nil, "EIO: cannot tell whether " .. path .. " is a link: " .. tostring(err), "EIO"
+    end
+    if win_links.find(census, name) then
+      return { type = "link" }
+    end
+  end
+  local mode = entry_mode(path, "mode")
+  if not mode then
+    return nil, missing, "ENOENT"
+  end
+  return { type = mode }
+end
+
+---Where a link points, as the link says it -- not resolved, not checked.
+---@param path string
+---@return string? target
+---@return string? err
+---@return string? code
+function uv.fs_readlink(path)
+  local not_a_link = "EINVAL: invalid argument: " .. path
+  if IS_WINDOWS then
+    local dir, name = split_parent(path)
+    local census, err = windows_census(dir)
+    if not census then
+      return nil, "EIO: cannot read " .. path .. ": " .. tostring(err), "EIO"
+    end
+    local hit = win_links.find(census, name)
+    if not hit then
+      return nil, not_a_link, "EINVAL"
+    end
+    if not hit.target or hit.target == "" then
+      return nil, "EIO: the target of " .. path .. " is not readable", "EIO"
+    end
+    return hit.target
+  end
+  local target = lfs.symlinkattributes and lfs.symlinkattributes(path, "target")
+  if not target then
+    return nil, not_a_link, "EINVAL"
+  end
+  return target
 end
 
 ---@param path string

@@ -361,6 +361,124 @@ function GATES.standalone()
   say("  ok: no host-dependent number formatting in the standalone artifact")
 
   -- ------------------------------------------------------------------
+  -- Links, on the interpreter and the `lfs` this build actually ships.
+  --
+  -- `TESTS/shim_links_spec.lua` compares the shim with the editor on the
+  -- host's own file system, but through an `lfs` adapted onto `vim.uv`. What
+  -- only this gate has is the real rock -- and on Windows the real
+  -- `cmd.exe` -- under the real PUC Lua: the interpreter `docmap-desktop`
+  -- runs. Two checks, the two things a repository can do with a link:
+  --   * make `docs/map` one, and the engine must refuse to write and leave
+  --     the folder it points at exactly as it was;
+  --   * put one in the source tree that leaves the project, and the engine
+  --     must not read what is behind it, and must say it did not.
+  local links_dir = root .. "/.deps/standalone-links"
+  vim.fn.delete(links_dir, "rf")
+  vim.fn.mkdir(links_dir .. "/repo/lua/t", "p")
+  vim.fn.mkdir(links_dir .. "/repo/docs", "p")
+  vim.fn.mkdir(links_dir .. "/outside/map", "p")
+  vim.fn.mkdir(links_dir .. "/outside/lua", "p")
+  vim.fn.writefile(
+    { "---@module 't'", "--- T-SUMMARY.", "local M = {}", "return M" },
+    links_dir .. "/repo/lua/t/init.lua"
+  )
+  vim.fn.writefile({ "VICTIM" }, links_dir .. "/outside/map/index.html")
+  vim.fn.writefile({ "VICTIM" }, links_dir .. "/outside/map/module_map.json")
+  vim.fn.writefile({ "VICTIM" }, links_dir .. "/outside/map/overview.md")
+  vim.fn.writefile(
+    { "---@module 'leaked'", "--- OUTSIDE-SUMMARY.", "local M = {}", "return M" },
+    links_dir .. "/outside/lua/init.lua"
+  )
+
+  ---A directory link: a junction on Windows (needs no privilege), a symlink
+  ---elsewhere.
+  ---@param target string
+  ---@param link string
+  ---@return boolean
+  local function make_dir_link(target, link)
+    if vim.fn.has("win32") == 1 then
+      local made = vim
+        .system({
+          "cmd",
+          "/C",
+          "mklink",
+          "/J",
+          (link:gsub("/", "\\")),
+          (target:gsub("/", "\\")),
+        }, { text = true })
+        :wait()
+      return made.code == 0
+    end
+    return vim.uv.fs_symlink(target, link, { dir = true }) == true
+  end
+
+  if not make_dir_link(links_dir .. "/outside/map", links_dir .. "/repo/docs/map") then
+    fail("standalone links check: could not make a directory link in " .. links_dir)
+    return
+  end
+  local refused = vim
+    .system({ lua, "standalone/docmap.lua", links_dir .. "/repo", "--source=lua/t" }, {
+      cwd = root,
+      text = true,
+    })
+    :wait()
+  if refused.code == 0 then
+    fail("standalone build wrote the map through docs/map, a link out of the project")
+    return
+  end
+  if not (refused.stderr or ""):find("refusing to write the map", 1, true) then
+    fail(
+      "standalone build failed on a linked docs/map, but not with the refusal:\n    "
+        .. (refused.stderr or ""):sub(1, 600)
+    )
+    return
+  end
+  for _, name in ipairs({ "index.html", "module_map.json", "overview.md" }) do
+    local victim = table.concat(vim.fn.readfile(links_dir .. "/outside/map/" .. name), "\n")
+    if victim ~= "VICTIM" then
+      fail("standalone build overwrote outside/map/" .. name .. " through a link")
+      return
+    end
+  end
+  say("  ok: a linked docs/map is refused, and what it points at is untouched")
+
+  vim.fn.delete(links_dir .. "/repo/docs/map")
+  if not make_dir_link(links_dir .. "/outside/lua", links_dir .. "/repo/lua/t/leaving") then
+    fail("standalone links check: could not make a directory link in the source tree")
+    return
+  end
+  local walked = vim
+    .system({
+      lua,
+      "standalone/docmap.lua",
+      links_dir .. "/repo",
+      "--source=lua/t",
+      "--out-dir=out",
+    }, { cwd = root, text = true })
+    :wait()
+  if walked.code ~= 0 then
+    fail(
+      "standalone build failed on a source tree with a link out of the project:\n    "
+        .. (walked.stderr or ""):sub(1, 600)
+    )
+    return
+  end
+  local walked_map = table.concat(vim.fn.readfile(links_dir .. "/repo/out/module_map.json"), "\n")
+  if walked_map:find("OUTSIDE-SUMMARY", 1, true) or walked_map:find("leaked", 1, true) then
+    fail("standalone build read a folder behind a link that leaves the project")
+    return
+  end
+  if not (walked.stderr or ""):find("not followed", 1, true) then
+    fail(
+      "standalone build did not say it left a link alone:\n    "
+        .. (walked.stderr or ""):sub(1, 600)
+    )
+    return
+  end
+  say("  ok: a link out of the source tree is not read, and the run says so")
+  vim.fn.delete(links_dir, "rf")
+
+  -- ------------------------------------------------------------------
   -- The behavioural differential, replayed on the other interpreter.
   --
   -- `TESTS/shim_behavior_spec.lua` already compared most of this corpus
