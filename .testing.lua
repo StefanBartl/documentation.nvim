@@ -46,13 +46,12 @@ return {
     },
   },
   -- Environment variables the specs read; a child editor inherits an allowlist only (never secrets).
+  -- Not listed on purpose: NVIM_* (the validator refuses names with that prefix, and one refused
+  -- entry voids the whole list) and XDG_*_HOME (the child gets its own sandbox values, and
+  -- shim_behavior_spec compares the shim with the editor of the same process, so both read those).
+  -- TESTS/testing_config_spec.lua keeps the list valid.
   env_allow = {
-    -- shim_behavior_spec compares the shim's stdpath with the editor's; both read these.
-    "NVIM_APPNAME",
-    "XDG_CACHE_HOME",
-    "XDG_CONFIG_HOME",
-    "XDG_DATA_HOME",
-    "XDG_STATE_HOME",
+    -- backend_contract_spec points a language backend at a parser library with these.
     "DOCMAP_CSHARP_PARSER",
     "DOCMAP_DART_PARSER",
     "DOCMAP_ELIXIR_PARSER",
