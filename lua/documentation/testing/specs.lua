@@ -16,9 +16,13 @@
 --- Comment lines are ignored, strings are not. Discovery follows the
 --- conventional layout (`<tests_dir>/**/*_spec.lua`, `TESTS` by default) plus
 --- an optional per-repository list, and treats every path as untrusted input:
---- roots must be repository-relative and may not climb out of it.
+--- roots must be repository-relative and may not climb out of it. Everything is
+--- read through `core/safe_fs.lua`: a link that leaves the repository (a tests
+--- directory that is one, a spec root that is one) is not followed.
 
 local M = {}
+
+local safe_fs = require("documentation.core.safe_fs")
 
 ---Largest spec file read (a bigger file is reported unreadable, never cut).
 M.MAX_FILE_BYTES = 2 * 1024 * 1024
@@ -64,7 +68,6 @@ end
 ---@return string[] specs Repo-relative, sorted, unique.
 ---@return Documentation.Testing.Gap[] problems Roots that were refused or unreadable.
 function M.discover(root, tests_dir, spec_roots)
-  local uv = vim.uv or vim.loop
   local problems = {}
   local roots = {}
 
@@ -105,11 +108,19 @@ function M.discover(root, tests_dir, spec_roots)
 
   for _, r in ipairs(roots) do
     local abs = root .. "/" .. r.rel
-    local st = uv.fs_stat(abs)
+    local st, why, detail = safe_fs.stat(root, abs)
     if not st then
-      -- The conventional directory missing is a normal state (a project
-      -- without specs); an explicitly listed root that is missing is not.
-      if not r.implicit then
+      if why and why ~= "missing" then
+        -- A link that leaves the repository is a root that cannot be read,
+        -- which is not the same as one that is not there.
+        problems[#problems + 1] = {
+          kind = "invalid_spec_root",
+          path = r.rel,
+          message = ("spec root %s is not read: %s"):format(r.rel, safe_fs.describe(why, detail)),
+        }
+      elseif not r.implicit then
+        -- The conventional directory missing is a normal state (a project
+        -- without specs); an explicitly listed root that is missing is not.
         problems[#problems + 1] = {
           kind = "invalid_spec_root",
           path = r.rel,
@@ -121,28 +132,20 @@ function M.discover(root, tests_dir, spec_roots)
         add(r.rel)
       end
     elseif st.type == "directory" then
-      local ok, files, errors = pcall(function()
-        return require("lib.nvim.fs.collect_recursive").files(abs, {
-          ignore = function(p, is_dir)
-            if is_dir then
-              return SKIP_DIRS[p:match("([^/]+)$") or ""] == true
-            end
-            return false
-          end,
-        })
+      local files, unlisted = safe_fs.walk_files(root, abs, function(p, is_dir)
+        return is_dir and SKIP_DIRS[p:match("([^/]+)$") or ""] == true
       end)
-      if ok and type(files) == "table" then
-        for _, f in ipairs(files) do
-          if f:sub(-9) == "_spec.lua" then
-            add(r.rel .. "/" .. f:sub(#abs + 2))
-          end
-        end
-        if type(errors) == "table" and #errors > 0 then
-          problems[#problems + 1] = {
-            kind = "invalid_spec_root",
-            path = r.rel,
-            message = "part of the spec root could not be read: " .. tostring(errors[1]),
-          }
+      if #unlisted > 0 then
+        -- Specs may be missing: the selection must not call itself complete.
+        problems[#problems + 1] = {
+          kind = "invalid_spec_root",
+          path = r.rel,
+          message = "part of the spec root could not be read: " .. unlisted[1],
+        }
+      end
+      for _, f in ipairs(files) do
+        if f:sub(-9) == "_spec.lua" then
+          add(r.rel .. "/" .. f:sub(#abs + 2))
         end
       end
     end
@@ -152,25 +155,24 @@ function M.discover(root, tests_dir, spec_roots)
   return out, problems
 end
 
----Read one file whole, within the size cap.
+---Read one file whole, within the size cap, if it can be reached without
+---leaving the repository.
 ---@param abs string
+---@param root string Absolute repository root (forward slashes) that `abs` lies under.
 ---@return string|nil text
 ---@return string|nil err
-function M.read_capped(abs)
-  local uv = vim.uv or vim.loop
-  local st = uv.fs_stat(abs)
+function M.read_capped(abs, root)
+  local st, why, detail = safe_fs.stat(root, abs)
+  if why and why ~= "missing" then
+    return nil, "not read: " .. safe_fs.describe(why, detail)
+  end
   if not st or st.type ~= "file" then
     return nil, "not a regular file"
   end
-  if st.size > M.MAX_FILE_BYTES then
-    return nil, ("larger than %d bytes"):format(M.MAX_FILE_BYTES)
+  local text, kind, message = safe_fs.read(root, abs, M.MAX_FILE_BYTES)
+  if not text then
+    return nil, kind == "large" and message or "cannot be opened"
   end
-  local fd = io.open(abs, "rb")
-  if not fd then
-    return nil, "cannot be opened"
-  end
-  local text = fd:read("*a")
-  fd:close()
   return text, nil
 end
 
@@ -290,7 +292,7 @@ end
 ---@param rel string
 ---@return Documentation.Testing.SpecInfo
 function M.read(root, rel)
-  local text, err = M.read_capped(root .. "/" .. rel)
+  local text, err = M.read_capped(root .. "/" .. rel, root)
   if not text then
     return { path = rel, modules = {}, prefixes = {}, dynamic = false, unreadable = err }
   end

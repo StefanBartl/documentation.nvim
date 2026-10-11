@@ -24,6 +24,11 @@
 local M = {}
 
 local spec = require("documentation.core.soft_require").probe("lib.nvim.deps.spec")
+local safe_fs = require("documentation.core.safe_fs")
+
+---Largest manifest read (a bigger file is reported as an error, never cut).
+---A real one is a few kilobytes.
+M.MAX_BYTES = 1024 * 1024
 
 --- Resolution order matches `lib.nvim.deps.spec`'s own `SPEC_FILES`: JSON
 --- preferred when a repo ships both, since it has no line-oriented parsing
@@ -60,7 +65,19 @@ function M.resolve(root, dir)
     -- `module_map.json` and rendered as a path in the page's Tools panel,
     -- and a dot segment there is a spelling nobody writes by hand.
     local rel = folder ~= "" and (folder .. "/" .. file) or file
-    local result = spec.load(normalized .. "/" .. rel)
+    -- Through `core/safe_fs.lua`, with a size bound: both the file name and
+    -- `install_dir` are the repository's to choose, so the path may be a link
+    -- (or a `..`) that leaves the project, or a device that never ends. A
+    -- manifest that is not read is no manifest: the next name is tried, and the
+    -- refusal is in `safe_fs.skipped`.
+    local text, kind, why = safe_fs.read(normalized, normalized .. "/" .. rel, M.MAX_BYTES)
+    local result
+    if text then
+      result = file:match("%.json$") and spec.parse_json(text) or spec.parse_markdown(text)
+    elseif kind == "large" then
+      -- Present but not usable, like a manifest with a missing field: said, not skipped.
+      result = { tools = {}, errors = { { index = 0, field = "file", message = why } } }
+    end
     if result then
       return {
         source = rel,

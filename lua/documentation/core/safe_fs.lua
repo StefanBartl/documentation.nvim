@@ -551,6 +551,7 @@ end
 ---@param root string
 ---@param dir string Absolute path under `root`.
 ---@return { name: string, type: string, link: boolean? }[] `link` is set on an entry that is a followed link.
+---@return boolean? unlisted `true` when `dir` is one that can be reached but not listed (no permission), which an empty listing does not tell from a folder with nothing in it.
 function M.entries(root, dir)
   local rel = strip_root(root, dir)
   if rel == nil then
@@ -563,7 +564,7 @@ function M.entries(root, dir)
   end
   local handle = M.host.scandir(phys)
   if not handle then
-    return {}
+    return {}, true
   end
   local phys_rel = strip_root(root, phys) --[[@as string]]
   local out = {}
@@ -600,17 +601,25 @@ end
 ---Same rules as the scan: a link that stays inside the project is the thing it
 ---leads to, one that leaves is left out and noted in `M.skipped`. Like the
 ---walker it replaces, a *directory* link is not entered -- two names for one
----folder would be read twice, and a link back up the tree for ever -- and a
----directory that cannot be listed gives nothing, not an error.
+---folder would be read twice, and a link back up the tree for ever. A directory
+---that cannot be listed gives nothing, and is named in the second result so
+---that a caller whose answer depends on completeness can say so.
 ---@param root string
 ---@param start string Absolute directory under `root`.
 ---@param ignore (fun(abs: string, is_dir: boolean): boolean)? `true` skips a file, or a whole directory.
 ---@return string[] files
+---@return string[] unlisted Directories that could not be listed, relative to `root` (`"."` for the root itself).
 function M.walk_files(root, start, ignore)
   M.forget()
   local out = {}
+  local unlisted = {}
   local function walk(dir)
-    for _, e in ipairs(M.entries(root, dir)) do
+    local entries, failed = M.entries(root, dir)
+    if failed then
+      local rel = strip_root(root, dir) --[[@as string]]
+      unlisted[#unlisted + 1] = rel == "" and "." or rel
+    end
+    for _, e in ipairs(entries) do
       local abs = dir .. "/" .. e.name
       local is_dir = e.type == "directory"
       if not (ignore and ignore(abs, is_dir)) then
@@ -625,7 +634,7 @@ function M.walk_files(root, start, ignore)
     end
   end
   walk(start)
-  return out
+  return out, unlisted
 end
 
 ---Open `abs` for reading or writing if it can be reached without leaving the
@@ -651,12 +660,16 @@ end
 
 ---The whole content of `abs`, if it can be reached without leaving the
 ---project. Looks at the disk afresh, for the reason `open` does.
+---
+---A refusal is noted in `M.skipped` like the links a walk leaves alone, so the
+---CLI names it even when no walk met the link.
 ---@param root string
 ---@param abs string Absolute path under `root`.
+---@param limit integer? Most bytes to read. A longer file is not read on: a name the repository chooses can be a device, and `*a` of one never ends.
 ---@return string? content
----@return string? kind `"missing"` when there is no such file, `"refused"` when a link on the way is not followed.
----@return string? message Why, for `"refused"`.
-function M.read(root, abs)
+---@return string? kind `"missing"` when there is no such file, `"refused"` when a link on the way is not followed, `"large"` when the file is longer than `limit`.
+---@return string? message Why, for `"refused"` and `"large"`.
+function M.read(root, abs, limit)
   M.forget()
   local rel = strip_root(root, abs)
   if rel == nil then
@@ -664,14 +677,27 @@ function M.read(root, abs)
   end
   local phys, why, detail = M.resolve(root, rel)
   if not phys then
+    note_skip(rel, why or "leaves", detail)
     return nil, "refused", M.describe(why or "leaves", detail)
   end
   local fd = io.open(phys, "rb")
   if not fd then
     return nil, "missing"
   end
-  local content = fd:read("*a")
+  local content, err
+  if limit then
+    -- One byte more than allowed tells "exactly the limit" from "longer".
+    content, err = fd:read(limit + 1)
+    if content == nil and err == nil then
+      content = "" -- `read(n)` answers nil at the end of the file; an empty one is not nothing
+    end
+  else
+    content = fd:read("*a")
+  end
   fd:close()
+  if limit and content and #content > limit then
+    return nil, "large", ("larger than %d bytes"):format(limit)
+  end
   return content
 end
 

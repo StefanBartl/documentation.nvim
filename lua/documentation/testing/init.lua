@@ -561,9 +561,9 @@ local function computed_loader_gaps(root, ir, role, affected_modules)
     local node = ir.nodes[id]
     local rel = node.source or node.path
     if not role[id] and rel then
-      local text = specs_mod.read_capped(root .. "/" .. rel)
+      local text = specs_mod.read_capped(root .. "/" .. rel, root)
       if not text and node.path then
-        text = specs_mod.read_capped(root .. "/" .. node.path .. "/init.lua")
+        text = specs_mod.read_capped(root .. "/" .. node.path .. "/init.lua", root)
       end
       if text and text:find("require", 1, true) then
         local prefixes, dynamic = specs_mod.scan_computed(text)
