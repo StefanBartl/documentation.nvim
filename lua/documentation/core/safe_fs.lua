@@ -728,7 +728,7 @@ function M.read(root, abs, limit)
   end
   local phys, why, detail = M.resolve(root, rel)
   if not phys then
-    note_skip(rel, why or "leaves", detail)
+    M.note_skip(rel, why or "leaves", detail)
     return nil, "refused", M.describe(why or "leaves", detail)
   end
   local fd = io.open(phys, "rb")
