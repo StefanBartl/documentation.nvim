@@ -220,10 +220,21 @@ end
 ---find nothing it is allowed to read, and report an empty map. Set through
 ---the registry's scan-scoped filter and restored afterwards, because
 ---`build()` runs before `scan()` and the two must not disagree in between.
+---
+---**The backends look at the disk through `core/safe_fs.lua`.** Detection
+---runs before the scan has vetted anything, and the names it probes
+---(`lua`, `src`, `lib`, ...) are the repository's to choose: a link there
+---that leaves the project is not opened (on Windows that means not
+---contacting another machine) and counts as neither a directory nor
+---evidence of a language. One that stays inside is followed, as in the walk.
 ---@param root string Absolute repository root, forward slashes.
 ---@param languages string[]? Backend names to consider; `nil`/`{}` means all.
 ---@return string[] sources Relative to `root`, at least one.
 function M.detect_source(root, languages)
+  -- One view of the disk for all the backends, and a fresh one per call:
+  -- `:DocMap` completion asks on every keystroke in an editor that outlives
+  -- the links it saw last time.
+  require("documentation.core.safe_fs").forget()
   local registry = require("documentation.core.lang_registry")
   local restore = registry.ENABLED
   registry.set_enabled(languages)

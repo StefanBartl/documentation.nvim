@@ -762,21 +762,14 @@ function M.backend(name, grammar, extensions, roots)
     ---backend claims — answering unconditionally is the bug rather than the
     ---feature, per `Documentation.LangBackend.detect_source`.
     detect_source = function(root)
-      local uv = vim.uv or vim.loop
+      local safe_fs = require("documentation.core.safe_fs")
       local function holds(dir)
-        local fd = uv.fs_scandir(dir)
-        if not fd then
-          return false
-        end
-        while true do
-          local entry, entry_kind = uv.fs_scandir_next(fd)
-          if not entry then
-            return false
-          end
-          if entry_kind ~= "directory" and is_source(entry) then
+        for _, entry in ipairs(safe_fs.entries(root, dir)) do
+          if entry.type ~= "directory" and is_source(entry.name) then
             return true
           end
         end
+        return false
       end
       for _, candidate in ipairs(roots) do
         if holds(root .. "/" .. candidate) then

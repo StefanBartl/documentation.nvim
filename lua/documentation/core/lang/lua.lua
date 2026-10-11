@@ -103,13 +103,15 @@ local NOT_SOURCE = { ["@types"] = true, spec = true, tests = true }
 ---@param root string
 ---@return string?
 function M.detect_source(root)
+  local safe_fs = require("documentation.core.safe_fs")
   local lua_dir = root .. "/lua"
-  if vim.fn.isdirectory(lua_dir) == 0 then
+  if not safe_fs.is_dir(root, lua_dir) then
     return nil
   end
 
   local found
-  for name, kind in vim.fs.dir(lua_dir) do
+  for _, entry in ipairs(safe_fs.entries(root, lua_dir)) do
+    local name, kind = entry.name, entry.type
     if kind == "directory" and not NOT_SOURCE[name] then
       if found then
         return "lua"

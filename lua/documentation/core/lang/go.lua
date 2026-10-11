@@ -85,27 +85,21 @@ end
 ---@param root string
 ---@return string?
 function M.detect_source(root)
-  local uv = vim.uv or vim.loop
+  local safe_fs = require("documentation.core.safe_fs")
 
   local function holds_go(dir)
-    local fd = uv.fs_scandir(dir)
-    if not fd then
-      return false
-    end
-    while true do
-      local name, kind = uv.fs_scandir_next(fd)
-      if not name then
-        return false
-      end
+    for _, entry in ipairs(safe_fs.entries(root, dir)) do
+      local name, kind = entry.name, entry.type
       if kind ~= "directory" and M.is_source(name) then
         return true
       end
     end
+    return false
   end
 
   -- `go.mod` at the root is the strongest signal a tree is a Go module, and
   -- it sits beside the sources rather than above them.
-  if uv.fs_stat(root .. "/go.mod") and holds_go(root) then
+  if safe_fs.stat(root, root .. "/go.mod") and holds_go(root) then
     return "."
   end
   for _, candidate in ipairs({ "cmd", "internal", "pkg", "src" }) do

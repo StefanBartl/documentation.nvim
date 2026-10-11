@@ -99,18 +99,11 @@ end
 ---@param root string
 ---@return string?
 function M.detect_source(root)
-  local uv = vim.uv or vim.loop
+  local safe_fs = require("documentation.core.safe_fs")
 
   local function holds_python(dir)
-    local fd = uv.fs_scandir(dir)
-    if not fd then
-      return false
-    end
-    while true do
-      local name, kind = uv.fs_scandir_next(fd)
-      if not name then
-        return false
-      end
+    for _, entry in ipairs(safe_fs.entries(root, dir)) do
+      local name, kind = entry.name, entry.type
       if kind ~= "directory" and M.is_source(name) then
         return true
       end
@@ -118,10 +111,11 @@ function M.detect_source(root)
       -- `src/mypkg/__init__.py` with nothing loose in `src/` is the standard
       -- layout, and answering `nil` there would send the walk to the root
       -- and map the test and build files instead.
-      if kind == "directory" and uv.fs_stat(dir .. "/" .. name .. "/__init__.py") then
+      if kind == "directory" and safe_fs.stat(root, dir .. "/" .. name .. "/__init__.py") then
         return true
       end
     end
+    return false
   end
 
   for _, candidate in ipairs({ "src", "lib", "source" }) do

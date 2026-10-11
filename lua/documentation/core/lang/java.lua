@@ -66,7 +66,7 @@ end
 ---@param root string
 ---@return string?
 function M.detect_source(root)
-  local uv = vim.uv or vim.loop
+  local safe_fs = require("documentation.core.safe_fs")
 
   ---Whether any `.java` file lives under `dir`, looking three levels deep.
   ---
@@ -74,28 +74,23 @@ function M.detect_source(root)
   ---`src/main/java` finds directories and no files. Bounded rather than
   ---unbounded: three levels reaches `com/example/Thing.java`, which is
   ---enough to answer "is there Java under here" without walking a tree
-  ---whose size is the reason this check exists.
+  ---whose size is the reason this check exists. A link is not entered, for
+  ---the reason `Documentation.LangBackend.detect_source` gives.
   ---@param dir string
   ---@return boolean
   local function holds_java(dir)
     local stack, depth = { dir }, { 0 }
     while #stack > 0 do
       local current, d = table.remove(stack), table.remove(depth)
-      local fd = uv.fs_scandir(current)
-      if fd then
-        while true do
-          local name, kind = uv.fs_scandir_next(fd)
-          if not name then
-            break
+      for _, entry in ipairs(safe_fs.entries(root, current)) do
+        local name, kind = entry.name, entry.type
+        if kind == "directory" then
+          if d < 3 and not entry.link then
+            stack[#stack + 1] = current .. "/" .. name
+            depth[#depth + 1] = d + 1
           end
-          if kind == "directory" then
-            if d < 3 then
-              stack[#stack + 1] = current .. "/" .. name
-              depth[#depth + 1] = d + 1
-            end
-          elseif M.is_source(name) then
-            return true
-          end
+        elseif M.is_source(name) then
+          return true
         end
       end
     end

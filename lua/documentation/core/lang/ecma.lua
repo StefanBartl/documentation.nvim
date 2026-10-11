@@ -927,21 +927,31 @@ local ECMA_ROOTS = { "src", "lib", "app", "source" }
 ---does not need an exhaustive walk to answer. Vendored trees are skipped so
 ---a `node_modules` full of JavaScript cannot make an unrelated directory
 ---look like the project's own source.
+---
+---A link is not entered: a repository can hold any number of them back up
+---the tree, and each would be walked again from the top, at every level.
+---@param root string
 ---@param dir string
 ---@param claims fun(filename: string): boolean
 ---@param depth integer
 ---@return boolean
-local function holds_source(dir, claims, depth)
-  if depth <= 0 or vim.fn.isdirectory(dir) == 0 then
+local function holds_source(root, dir, claims, depth)
+  if depth <= 0 then
     return false
   end
-  for name, kind in vim.fs.dir(dir) do
+  local safe_fs = require("documentation.core.safe_fs")
+  for _, entry in ipairs(safe_fs.entries(root, dir)) do
+    local name, kind = entry.name, entry.type
     if kind == "file" then
       if claims(name) then
         return true
       end
-    elseif kind == "directory" and not require("documentation.core.scan").VENDOR_DIRS[name] then
-      if holds_source(dir .. "/" .. name, claims, depth - 1) then
+    elseif
+      kind == "directory"
+      and not entry.link
+      and not require("documentation.core.scan").VENDOR_DIRS[name]
+    then
+      if holds_source(root, dir .. "/" .. name, claims, depth - 1) then
         return true
       end
     end
@@ -1002,11 +1012,11 @@ function M.backend(name, lang, extensions, module_file)
     ---pulls in everything the walk does not skip.
     detect_source = function(root)
       for _, candidate in ipairs(ECMA_ROOTS) do
-        if holds_source(root .. "/" .. candidate, is_source, 6) then
+        if holds_source(root, root .. "/" .. candidate, is_source, 6) then
           return candidate
         end
       end
-      if holds_source(root, is_source, 1) then
+      if holds_source(root, root, is_source, 1) then
         return "."
       end
       return nil

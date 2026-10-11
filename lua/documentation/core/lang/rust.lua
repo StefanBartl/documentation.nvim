@@ -89,22 +89,16 @@ end
 ---@param root string
 ---@return string?
 function M.detect_source(root)
-  local uv = vim.uv or vim.loop
+  local safe_fs = require("documentation.core.safe_fs")
 
   local function holds_rs(dir)
-    local fd = uv.fs_scandir(dir)
-    if not fd then
-      return false
-    end
-    while true do
-      local name, kind = uv.fs_scandir_next(fd)
-      if not name then
-        return false
-      end
+    for _, entry in ipairs(safe_fs.entries(root, dir)) do
+      local name, kind = entry.name, entry.type
       if kind ~= "directory" and M.is_source(name) then
         return true
       end
     end
+    return false
   end
 
   if holds_rs(root .. "/src") then
@@ -113,20 +107,14 @@ function M.detect_source(root)
   -- A Cargo workspace: no `src/` at the root, one per member. The root is
   -- the honest answer there — the map should hold every member, and naming
   -- one of them would silently drop the rest.
-  local fd = uv.fs_scandir(root)
-  if fd then
-    while true do
-      local name, kind = uv.fs_scandir_next(fd)
-      if not name then
-        break
-      end
-      if
-        kind == "directory"
-        and name:sub(1, 1) ~= "."
-        and holds_rs(root .. "/" .. name .. "/src")
-      then
-        return "."
-      end
+  for _, entry in ipairs(safe_fs.entries(root, root)) do
+    local name, kind = entry.name, entry.type
+    if
+      kind == "directory"
+      and name:sub(1, 1) ~= "."
+      and holds_rs(root .. "/" .. name .. "/src")
+    then
+      return "."
     end
   end
   if holds_rs(root) then

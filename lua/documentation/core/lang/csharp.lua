@@ -92,7 +92,7 @@ end
 ---@param root string
 ---@return string?
 function M.detect_source(root)
-  local uv = vim.uv or vim.loop
+  local safe_fs = require("documentation.core.safe_fs")
 
   ---Whether `dir`, or any directory one level inside it, holds a `.cs` file.
   ---One level rather than a full walk: a C# solution puts each project in
@@ -103,20 +103,20 @@ function M.detect_source(root)
   ---@param depth integer
   ---@return boolean
   local function holds_cs(dir, depth)
-    local fd = uv.fs_scandir(dir)
-    if not fd then
-      return false
-    end
     local subdirs = {}
-    while true do
-      local name, kind = uv.fs_scandir_next(fd)
-      if not name then
-        break
-      end
+    for _, entry in ipairs(safe_fs.entries(root, dir)) do
+      local name, kind = entry.name, entry.type
       if kind ~= "directory" and M.is_source(name) then
         return true
       end
-      if kind == "directory" and name:sub(1, 1) ~= "." and name ~= "bin" and name ~= "obj" then
+      -- Not into a link: see `Documentation.LangBackend.detect_source`.
+      if
+        kind == "directory"
+        and not entry.link
+        and name:sub(1, 1) ~= "."
+        and name ~= "bin"
+        and name ~= "obj"
+      then
         subdirs[#subdirs + 1] = dir .. "/" .. name
       end
     end
