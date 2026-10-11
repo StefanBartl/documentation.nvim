@@ -198,6 +198,7 @@ flowchart LR
   nlua_documentation_core_lang --> nlua_documentation_core_endpoints_lua
   nlua_documentation_core_lang --> nlua_documentation_core_functions_lua
   nlua_documentation_core_lang --> nlua_documentation_core_lang_registry_lua
+  nlua_documentation_core_lang --> nlua_documentation_core_safe_fs_lua
   nlua_documentation_core_lang --> nlua_documentation_core_scan_lua
   nlua_documentation_core_lang --> nlua_documentation_core_snippet_lua
   nlua_documentation_core_loaded_diff_lua --> nlua_documentation_core_check_lua
@@ -238,6 +239,8 @@ flowchart LR
   nlua_documentation_editor_browse --> nlua_documentation_core_lang_registry_lua
   nlua_documentation_editor_browse --> nlua_documentation_core_loaded_diff_lua
   nlua_documentation_editor_browse --> nlua_documentation_core_rules_join_lua
+  nlua_documentation_editor_browse --> nlua_documentation_core_safe_fs_lua
+  nlua_documentation_editor_browse --> nlua_documentation_core_safe_out_dir_lua
   nlua_documentation_editor_browse --> nlua_documentation_core_soft_require_lua
   nlua_documentation_editor_browse --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_editor_browse --> nlua_documentation_core_traffic_join_lua
@@ -249,6 +252,8 @@ flowchart LR
   nlua_documentation_editor_command_lua --> nlua_documentation_bindings_usrcmds
   nlua_documentation_editor_command_lua --> nlua_documentation_core_find_lua
   nlua_documentation_editor_health_lua --> nlua_documentation_core_lang_registry_lua
+  nlua_documentation_editor_health_lua --> nlua_documentation_core_safe_fs_lua
+  nlua_documentation_editor_health_lua --> nlua_documentation_core_safe_out_dir_lua
   nlua_documentation_editor_health_lua --> nlua_documentation_core_soft_require_lua
   nlua_documentation_editor_pick_lua --> nlua_documentation_core_soft_require_lua
   nlua_documentation_editor_registry_lua --> nlua_documentation_bindings_diagnostics_lua
