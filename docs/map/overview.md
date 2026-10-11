@@ -142,6 +142,7 @@ flowchart LR
   nlua_documentation_bindings_usrcmds --> nlua_documentation_editor_serve_lua
   nlua_documentation_config_file_lua --> nlua_documentation_core_safe_fs_lua
   nlua_documentation_core_annotate_lua --> nlua_documentation_core_check_lua
+  nlua_documentation_core_annotate_lua --> nlua_documentation_core_safe_fs_lua
   nlua_documentation_core_api_lua --> nlua_documentation_core_artifact_lua
   nlua_documentation_core_api_lua --> nlua_documentation_core_checklist_lua
   nlua_documentation_core_api_lua --> nlua_documentation_core_history_lua
@@ -225,6 +226,7 @@ flowchart LR
   nlua_documentation_core_telemetry_join_lua --> nlua_documentation_core_doccoverage_lua
   nlua_documentation_core_telemetry_join_lua --> nlua_documentation_core_soft_require_lua
   nlua_documentation_core_telemetry_self_lua --> nlua_documentation_core_soft_require_lua
+  nlua_documentation_core_tools_lua --> nlua_documentation_core_safe_fs_lua
   nlua_documentation_core_tools_lua --> nlua_documentation_core_soft_require_lua
   nlua_documentation_core_traffic_join_lua --> nlua_documentation_core_soft_require_lua
   nlua_documentation_editor_browse --> nlua_documentation_bindings_keymaps_lua
@@ -255,6 +257,7 @@ flowchart LR
   nlua_documentation_editor_registry_lua --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_editor_registry_lua --> nlua_documentation_editor_callhierarchy_lua
   nlua_documentation_editor_serve_lua --> nlua_documentation_core_api_lua
+  nlua_documentation_editor_serve_lua --> nlua_documentation_core_safe_fs_lua
   nlua_documentation_editor_serve_lua --> nlua_documentation_core_safe_out_dir_lua
   nlua_documentation_mcp_protocol_lua --> nlua_documentation_mcp_tools_lua
   nlua_documentation_mcp_tools_lua --> nlua_documentation_core_checklist_lua
@@ -262,6 +265,7 @@ flowchart LR
   nlua_documentation_mcp_tools_lua --> nlua_documentation_core_json_lua
   nlua_documentation_testing_freshness_lua --> nlua_documentation_testing_git_lua
   nlua_documentation_testing_specs_lua --> nlua_documentation_core_deps_lua
+  nlua_documentation_testing_specs_lua --> nlua_documentation_core_safe_fs_lua
 ```
 
 
