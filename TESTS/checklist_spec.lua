@@ -163,7 +163,7 @@ return function(H)
   -- ── resolve ──────────────────────────────────────────────────────────────
 
   do
-    local root = H.tmpfile("_checklist_dir")
+    local root = (H.tmpfile("_checklist_dir"):gsub("\\", "/"))
     dwrite(root, "docs/CHECKLIST/b_second.md", { "## B", "- [x] two", "- [ ] three" })
     dwrite(
       root,
@@ -185,7 +185,7 @@ return function(H)
 
   do
     -- The degenerate single-file case: six items should not need a directory.
-    local root = H.tmpfile("_checklist_file")
+    local root = (H.tmpfile("_checklist_file"):gsub("\\", "/"))
     dwrite(root, "docs/CHECKLIST.md", { "## S", "- [ ] only" })
     local result = assert(checklist.resolve(root), "resolve: a single file resolves too")
     eq(result.source, "docs/CHECKLIST.md", "resolve: reports the file candidate")
@@ -193,7 +193,7 @@ return function(H)
   end
 
   do
-    local root = H.tmpfile("_checklist_none")
+    local root = (H.tmpfile("_checklist_none"):gsub("\\", "/"))
     vim.fn.mkdir(root, "p")
     eq(checklist.resolve(root), nil, "resolve: nil for a repo with no checklist — not an error")
   end
