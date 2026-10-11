@@ -1,6 +1,8 @@
 -- TESTS/out_dir_links_spec.lua — the engine does not write the map through a
 -- link, and does not read the committed one through a link that leaves the
--- project.
+-- project. The same rule holds for the other files a run writes outside the
+-- map directory (`--sarif=`, `docs/BINDINGS.md`), and a refusal to read has an
+-- exit code of its own.
 --
 -- `out_dir_traversal_spec.lua` pins the string checks (`..`, a leading `/`, a
 -- drive letter). A link makes a perfectly clean string lead anywhere, so
@@ -309,11 +311,12 @@ return function(H)
   -- `--check` reads the committed map. Through the real CLI function.
   -- ---------------------------------------------------------------------
 
-  ---Run `--check` for `root` with `out_dir`, the way the CLI would.
-  local function check(root, out_dir)
+  ---Run `--check` (and `extra` flags) for `root` with `out_dir`, the way the CLI would.
+  local function check(root, out_dir, extra)
     local built = config.build(root, { source = "lua/t", lua_root = "lua", out_dir = out_dir })
+    local argv = vim.list_extend({ "--check" }, extra or {})
     return capture(function()
-      return cli.run(built, { "--check" })
+      return cli.run(built, argv)
     end)
   end
 
@@ -349,7 +352,7 @@ return function(H)
     vim.fn.mkdir(root .. "/docs", "p")
     H.link(outside .. "/map", root .. "/docs/map", true)
     local code, _, err = check(root, "docs/map")
-    eq(code, 1, "check: a map directory that leaves the project is not read")
+    eq(code, 2, "check: a map directory that leaves the project is refused, not 'stale' (1)")
     ok(err:find("refusing to read", 1, true), "check: ...and the message says so: " .. err)
     ok(not err:find("VICTIM", 1, true), "check: ...and nothing of the file behind it is printed")
     assert_untouched(outside, "check dir link")
@@ -365,7 +368,7 @@ return function(H)
     local made = H.link(outside .. "/target.json", root .. "/docs/map/module_map.json", false)
     if made then
       local code, _, err = check(root, "docs/map")
-      eq(code, 1, "check: a map file that is a link out of the project is not read")
+      eq(code, 2, "check: a map file that is a link out of the project is refused, not 'stale'")
       ok(err:find("refusing to read", 1, true), "check: ...and the message says so: " .. err)
       ok(not err:find("SECRET", 1, true), "check: ...and none of the file it led to is printed")
     else
@@ -377,8 +380,421 @@ return function(H)
   do
     local root = project("check_unsafe")
     local code, _, err = check(root, "../elsewhere")
-    eq(code, 1, "check: an out_dir with `..` is refused")
+    eq(code, 2, "check: an out_dir with `..` is refused, not 'stale'")
     ok(err:find("not a safe relative path", 1, true), "check: ...as the writer does: " .. err)
+  end
+
+  -- ---------------------------------------------------------------------
+  -- A refusal is not a verdict, and `--lenient` does not turn it into one.
+  --
+  -- docmap-desktop asks "is the map current?" with `--check --lenient` and
+  -- reads the exit code as staleness and nothing else. A map that cannot be
+  -- read must not share the code of one that is out of date: regenerating
+  -- fixes the second and not the first.
+  -- ---------------------------------------------------------------------
+  do
+    local root, outside = project("lenient_refused")
+    vim.fn.mkdir(root .. "/docs", "p")
+    H.link(outside .. "/map", root .. "/docs/map", true)
+    local code, _, err = check(root, "docs/map", { "--lenient" })
+    eq(code, 2, "lenient: a link that leaves the project is still a refusal")
+    ok(err:find("refusing to read", 1, true), "lenient: ...and says so: " .. err)
+
+    local unsafe_root = project("lenient_unsafe")
+    code = check(unsafe_root, "../elsewhere", { "--lenient" })
+    eq(code, 2, "lenient: an unsafe out_dir is still a refusal")
+  end
+
+  do
+    local root = project("lenient_stale")
+    local built = config.build(root, { source = "lua/t", lua_root = "lua", out_dir = "docs/map" })
+    capture(function()
+      return docmap.generate(built)
+    end)
+    H.write(root .. "/docs/map/overview.md", { "NOT THE GENERATED MAP" })
+    local code, _, err = check(root, "docs/map", { "--lenient" })
+    eq(code, 1, "lenient: a map that is out of date is the exit code 1, as ever")
+    ok(err:find("Module map is stale", 1, true), "lenient: ...and says so: " .. err)
+  end
+
+  -- ---------------------------------------------------------------------
+  -- `--sarif=<path>` is a write of its own. It was a plain `io.open`, so a
+  -- link named like the report -- or standing for a directory on the way --
+  -- had the run overwrite whatever it led to.
+  --
+  -- Through the real `cli.run`, from inside the project as CI runs it (the
+  -- path is relative to where the run starts), in `--check` and in a plain
+  -- generate: they reach the write from different places.
+  -- ---------------------------------------------------------------------
+  local function build(root)
+    return config.build(root, { source = "lua/t", lua_root = "lua", out_dir = "docs/map" })
+  end
+
+  ---`cli.run` over `built` with `argv`, started in the project. The working
+  ---directory is put back whatever happens.
+  local function run_cli(built, argv)
+    local old = vim.fn.getcwd()
+    vim.fn.chdir(built.root)
+    local ran, code, out, err = pcall(capture, function()
+      return cli.run(built, argv)
+    end)
+    vim.fn.chdir(old)
+    if not ran then
+      error(code, 0)
+    end
+    return code, out, err
+  end
+
+  ---A project with its map written (so `--check` gets as far as the report),
+  ---and a file outside it that must come out as it went in.
+  local function with_map(label)
+    local root, outside = project(label)
+    local built = build(root)
+    capture(function()
+      return docmap.generate(built)
+    end)
+    H.write(outside .. "/victim.sarif", { "VICTIM-SARIF" })
+    return built, outside
+  end
+
+  for _, mode in ipairs({
+    { name = "check", argv = { "--check" } },
+    { name = "generate", argv = {} },
+  }) do
+    local function sarif(built, path)
+      return run_cli(built, vim.list_extend(vim.deepcopy(mode.argv), { "--sarif=" .. path }))
+    end
+    local label = "sarif (" .. mode.name .. "): "
+
+    -- The control: a plain report is written, and is the JSON a consumer reads.
+    do
+      local built = with_map("sarif_plain_" .. mode.name)
+      vim.fn.mkdir(built.root .. "/reports", "p")
+      local code, out, err = sarif(built, "drift.sarif")
+      eq(code, 0, label .. "a plain path runs as before: " .. err)
+      ok(out:find("wrote drift.sarif", 1, true), label .. "...and says it wrote it")
+      local decoded = vim.json.decode(H.slurp(built.root .. "/drift.sarif") or "")
+      eq(decoded.version, "2.1.0", label .. "...a SARIF document")
+      code = sarif(built, "reports/drift.sarif")
+      eq(code, 0, label .. "a plain directory on the way is no obstacle")
+      ok(H.slurp(built.root .. "/reports/drift.sarif"), label .. "...and the report is in it")
+      code = sarif(built, "./drift.sarif")
+      eq(code, 0, label .. "a leading ./ is only where the path starts")
+    end
+
+    -- The report is a link to a file outside the project.
+    do
+      local built, outside = with_map("sarif_file_" .. mode.name)
+      local made, how = H.link(outside .. "/victim.sarif", built.root .. "/drift.sarif", false)
+      if made then
+        local code, out, err = sarif(built, "drift.sarif")
+        eq(code, 0, label .. "a refused report does not change the exit code")
+        ok(err:find("refusing to write drift.sarif", 1, true), label .. "says it refused: " .. err)
+        ok(err:find("drift.sarif is a link", 1, true), label .. "...and names the link: " .. err)
+        ok(
+          not out:find("wrote drift.sarif", 1, true),
+          label .. "...and does not claim to have written"
+        )
+        eq(
+          H.slurp(outside .. "/victim.sarif"),
+          "VICTIM-SARIF\n",
+          label .. "the file it led to is intact"
+        )
+      else
+        ok(vim.fn.has("win32") == 1, label .. "a file link could not be made: " .. tostring(how))
+      end
+    end
+
+    -- ...or to a place that is not there yet: opening it for writing creates it.
+    do
+      local built, outside = with_map("sarif_dangling_" .. mode.name)
+      local made = H.link(outside .. "/never.sarif", built.root .. "/drift.sarif", false)
+      if made then
+        local _, _, err = sarif(built, "drift.sarif")
+        ok(err:find("refusing to write", 1, true), label .. "a dangling link is refused: " .. err)
+        eq(vim.fn.filereadable(outside .. "/never.sarif"), 0, label .. "...and nothing is created")
+      end
+    end
+
+    -- A link that stays inside the project is a link all the same.
+    do
+      local built = with_map("sarif_inside_" .. mode.name)
+      H.write(built.root .. "/real.sarif", { "REAL-SARIF" })
+      local made = H.link(built.root .. "/real.sarif", built.root .. "/drift.sarif", false)
+      if made then
+        local _, _, err = sarif(built, "drift.sarif")
+        ok(
+          err:find("refusing to write", 1, true),
+          label .. "an inside link is refused too: " .. err
+        )
+        eq(
+          H.slurp(built.root .. "/real.sarif"),
+          "REAL-SARIF\n",
+          label .. "...and its target is intact"
+        )
+      end
+      vim.fn.mkdir(built.root .. "/real_reports", "p")
+      local dir_made = H.link(built.root .. "/real_reports", built.root .. "/reports", true)
+      ok(dir_made, label .. "a directory link can be made here")
+      local _, _, dir_err = sarif(built, "reports/drift.sarif")
+      ok(
+        dir_err:find("reports is a link", 1, true),
+        label .. "an inside directory link: " .. dir_err
+      )
+      eq(
+        vim.fn.filereadable(built.root .. "/real_reports/drift.sarif"),
+        0,
+        label .. "...nothing written"
+      )
+    end
+
+    -- A directory on the way is the link, and leads out of the project.
+    do
+      local built, outside = with_map("sarif_dir_" .. mode.name)
+      vim.fn.mkdir(outside .. "/reports", "p")
+      local made, how = H.link(outside .. "/reports", built.root .. "/reports", true)
+      ok(made, label .. "a directory link can be made here: " .. tostring(how))
+
+      local code, out, err = sarif(built, "reports/drift.sarif")
+      eq(code, 0, label .. "the exit code is unchanged")
+      ok(err:find("refusing to write reports/drift.sarif", 1, true), label .. "refused: " .. err)
+      ok(err:find("reports is a link", 1, true), label .. "...naming the directory: " .. err)
+      ok(not out:find("wrote reports", 1, true), label .. "...and not claiming to have written")
+      eq(
+        vim.fn.filereadable(outside .. "/reports/drift.sarif"),
+        0,
+        label .. "nothing appeared behind it"
+      )
+
+      -- The same place spelled as an absolute path below the project.
+      _, _, err = sarif(built, built.root .. "/reports/drift.sarif")
+      ok(err:find("reports is a link", 1, true), label .. "absolute, below the project: " .. err)
+      eq(vim.fn.filereadable(outside .. "/reports/drift.sarif"), 0, label .. "...nothing appeared")
+
+      -- A `..` after a name leads somewhere else than it reads if that name
+      -- is a link, and the name is not looked at once the path is folded. It is
+      -- refused as written rather than guessed at.
+      vim.fn.mkdir(built.root .. "/plain", "p")
+      _, _, err = sarif(built, "plain/../drift.sarif")
+      ok(
+        err:find("refusing to write plain/../drift.sarif", 1, true),
+        label .. "`..` after a name is refused: " .. err
+      )
+      ok(err:find("is not a plain path component", 1, true), label .. "...and says why: " .. err)
+      eq(vim.fn.filereadable(built.root .. "/drift.sarif"), 0, label .. "...and nothing is written")
+    end
+
+    -- Outside the project the person chose the place, so only the report
+    -- itself is asked about: a plain file there is written, a link is not.
+    do
+      local built, outside = with_map("sarif_outside_" .. mode.name)
+      local code, out = sarif(built, outside .. "/plain.sarif")
+      eq(code, 0, label .. "a path outside the project is not refused for being outside")
+      ok(out:find("wrote ", 1, true), label .. "...and is written")
+      ok(H.slurp(outside .. "/plain.sarif"), label .. "...there")
+
+      local made = H.link(outside .. "/victim.sarif", outside .. "/linked.sarif", false)
+      if made then
+        local _, _, err = sarif(built, outside .. "/linked.sarif")
+        ok(
+          err:find("linked.sarif is a link", 1, true),
+          label .. "...but not through a link: " .. err
+        )
+        eq(
+          H.slurp(outside .. "/victim.sarif"),
+          "VICTIM-SARIF\n",
+          label .. "...the target is intact"
+        )
+      end
+
+      -- A leading `../` leaves the project by the path the person wrote.
+      code = sarif(built, "../up.sarif")
+      eq(code, 0, label .. "a path that climbs out of the project is not refused")
+      ok(H.slurp(vim.fs.dirname(built.root) .. "/up.sarif"), label .. "...and is written there")
+    end
+  end
+
+  -- The Windows spelling of a report path -- backslashes, a drive letter, the
+  -- project named in another case -- on an in-memory tree: a real link of
+  -- that kind cannot be made on the host the suite usually runs on.
+  do
+    local safe_fs = require("documentation.core.safe_fs")
+    local links = {
+      ["c:/proj/reports"] = true,
+      ["./reports"] = true,
+      ["d:/out"] = true,
+      ["d:/out/linked.sarif"] = true,
+    }
+    local fake = vim.tbl_extend("force", safe_fs.host, {
+      lstat = function(path)
+        if links[path:lower()] then
+          return { type = "link" }
+        end
+        return nil, "ENOENT: no such file or directory", "ENOENT"
+      end,
+    })
+    local saved_host, saved_windows = safe_fs.host, safe_fs.windows
+    safe_fs.host, safe_fs.windows = fake, true
+    local ran, err = pcall(function()
+      local function refusal(path)
+        return cli.sarif_refusal(path, "C:/proj") or ""
+      end
+      ok(
+        refusal("C:\\PROJ\\reports\\drift.sarif"):find("reports is a link", 1, true),
+        "sarif (windows): backslashes and another case of the project path are the same place"
+      )
+      ok(
+        refusal("reports\\drift.sarif"):find("reports is a link", 1, true),
+        "sarif (windows): a relative path is read with its backslashes"
+      )
+      eq(
+        refusal("C:/proj/plain/drift.sarif"),
+        "",
+        "sarif (windows): a plain path below the project"
+      )
+      ok(
+        refusal("D:\\out\\linked.sarif"):find("linked.sarif is a link", 1, true),
+        "sarif (windows): outside the project the report itself is asked about"
+      )
+      eq(
+        refusal("D:\\out\\plain.sarif"),
+        "",
+        "sarif (windows): ...and only that (the directory above it is a link here, by choice)"
+      )
+      ok(
+        refusal("C:drift.sarif"):find("drive", 1, true),
+        "sarif (windows): a path relative to a drive's directory cannot be judged, so it is refused"
+      )
+    end)
+    safe_fs.host, safe_fs.windows = saved_host, saved_windows
+    safe_fs.forget()
+    if not ran then
+      error(err, 0)
+    end
+  end
+
+  -- ---------------------------------------------------------------------
+  -- `scripts/gen_map.lua` writes `docs/BINDINGS.md` itself, after `cli.run`
+  -- has written the map. The script is the thing under test, so it runs as
+  -- itself: a real headless Neovim over a real minimal project (the script
+  -- names `lua/documentation` as its source, so that is the one the project
+  -- has).
+  -- ---------------------------------------------------------------------
+  do
+    local repo_root =
+      slashed((debug.getinfo(1, "S").source:sub(2):match("(.*)[/\\]TESTS[/\\]")) or ".")
+    ---The checkout a module file is found in on this editor's runtimepath.
+    local function checkout_of(modfile)
+      local found = vim.api.nvim_get_runtime_file(modfile, false)[1]
+      return found and slashed(found):sub(1, -(#modfile + 2))
+    end
+    local lib_dir = checkout_of("lua/lib/nvim/fs/read/init.lua")
+    local ui_dir = checkout_of("lua/ui/init.lua")
+    ok(lib_dir and ui_dir, "gen_map: lib.nvim and ui.nvim are on the runtimepath of this run")
+
+    local function gen_map(proj)
+      return vim
+        .system({
+          vim.v.progpath,
+          "-n",
+          "-i",
+          "NONE",
+          "--headless",
+          "--cmd",
+          "set rtp+=" .. vim.fn.fnameescape(ui_dir),
+          "-l",
+          repo_root .. "/scripts/gen_map.lua",
+        }, {
+          cwd = proj,
+          text = true,
+          env = { DOCUMENTATION_NVIM_DIR = repo_root, LIB_NVIM_DIR = lib_dir },
+        })
+        :wait(60000)
+    end
+
+    local function map_project(label)
+      local base = slashed(vim.fn.tempname()) .. "_" .. label
+      bases[#bases + 1] = base
+      local proj = base .. "/proj"
+      H.write(
+        proj .. "/lua/documentation/foo.lua",
+        { "---@module 'documentation.foo'", "local M = {}", "return M" }
+      )
+      H.write(proj .. "/docs/real.md", { "REAL-ORIGINAL" })
+      H.write(base .. "/outside/victim.md", { "VICTIM-ORIGINAL" })
+      return proj, base .. "/outside"
+    end
+
+    -- The control: the page is written when nothing is in the way, whether
+    -- the file is absent or an ordinary one.
+    do
+      local proj = map_project("bindings_plain")
+      local res = gen_map(proj)
+      eq(res.code, 0, "gen_map: a plain project runs: " .. tostring(res.stderr))
+      ok(res.stdout:find("wrote docs/BINDINGS.md", 1, true), "gen_map: ...and writes the page")
+      ok(
+        (H.slurp(proj .. "/docs/BINDINGS.md") or ""):find("# Bindings", 1, true),
+        "gen_map: ...which is the rendered bindings"
+      )
+      H.write(proj .. "/docs/BINDINGS.md", { "OLD-PAGE" })
+      res = gen_map(proj)
+      ok(
+        res.stdout:find("wrote docs/BINDINGS.md", 1, true),
+        "gen_map: an ordinary file is replaced"
+      )
+      ok(
+        (H.slurp(proj .. "/docs/BINDINGS.md") or ""):find("# Bindings", 1, true),
+        "gen_map: ...with the rendered bindings"
+      )
+    end
+
+    -- The page is a link to a file outside the project.
+    do
+      local proj, outside = map_project("bindings_outside")
+      local made, how = H.link(outside .. "/victim.md", proj .. "/docs/BINDINGS.md", false)
+      if made then
+        local res = gen_map(proj)
+        eq(res.code, 0, "gen_map: a refused page does not change the exit code")
+        ok(
+          res.stderr:find("not writing docs/BINDINGS.md", 1, true),
+          "gen_map: ...and the run says it refused: " .. tostring(res.stderr)
+        )
+        ok(
+          res.stderr:find("docs/BINDINGS.md is a link", 1, true),
+          "gen_map: ...naming the link: " .. tostring(res.stderr)
+        )
+        ok(
+          not res.stdout:find("wrote docs/BINDINGS.md", 1, true),
+          "gen_map: ...and not claiming to have written it"
+        )
+        eq(
+          H.slurp(outside .. "/victim.md"),
+          "VICTIM-ORIGINAL\n",
+          "gen_map: the file it led to is intact"
+        )
+        ok(H.slurp(proj .. "/docs/map/index.html"), "gen_map: ...and the map was still written")
+      else
+        ok(vim.fn.has("win32") == 1, "gen_map: a file link could not be made: " .. tostring(how))
+      end
+    end
+
+    -- A link that stays inside the project is a link all the same.
+    do
+      local proj = map_project("bindings_inside")
+      local made = H.link(H.canonical(proj) .. "/docs/real.md", proj .. "/docs/BINDINGS.md", false)
+      if made then
+        local res = gen_map(proj)
+        ok(
+          res.stderr:find("not writing docs/BINDINGS.md", 1, true),
+          "gen_map: an inside link is refused too: " .. tostring(res.stderr)
+        )
+        eq(
+          H.slurp(proj .. "/docs/real.md"),
+          "REAL-ORIGINAL\n",
+          "gen_map: ...and what it led to is intact"
+        )
+      end
+    end
   end
 
   for _, base in ipairs(bases) do

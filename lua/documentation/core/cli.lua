@@ -19,6 +19,16 @@
 
 local M = {}
 
+---Exit code of a run that refused to go on and so reached no verdict: `--check`
+---asked to read the committed map through an `out_dir` that is not a plain
+---relative path, or through a link.
+---
+---Not 1, which says "the map is stale, or the tree has error-severity drift".
+---`--check --lenient` is how a caller reads that code as staleness alone
+---(docmap-desktop's "is the map current?" does), and a refusal sharing it would
+---be reported as an out-of-date map that regenerating cannot fix.
+local REFUSED = 2
+
 ---@param findings Documentation.Finding[]
 ---@return table<Documentation.Severity, integer>
 local function report(findings)
@@ -41,17 +51,100 @@ local function report(findings)
   return tally
 end
 
+---Why the report may not be written to `path`, or `nil` when it may.
+---
+---The report goes where the person said, and a link on the way leads somewhere
+---they did not say: `drift.sarif` checked out as a symlink, or a `reports/`
+---that is one, would have this run overwrite whatever it leads to. So the
+---map's writer rule applies (see `core/safe_fs.lua`): a link in the name or on
+---the way is refused, however far it stays inside the project.
+---
+---Where the looking starts is the one difference. A relative path starts at the
+---directory the run was started in, which the person chose, so every name
+---below it is looked at. An absolute one is looked at below `root` when it lies
+---there, and by its last name alone elsewhere: the directories above the
+---project were not the repository's to choose. A relative `root` is compared as
+---written.
+---@param path string The `--sarif=` value, as given.
+---@param root string Forward slashes, no trailing slash.
+---@return string? reason A sentence for the person running the command.
+local function sarif_refusal(path, root)
+  local safe_fs = require("documentation.core.safe_fs")
+  local windows = safe_fs.windows
+  local function fold(s)
+    return windows and s:lower() or s
+  end
+
+  local spelled = path
+  if windows then
+    spelled = path:gsub("\\", "/")
+  end
+  ---@type string?, string?
+  local base, rel
+  if spelled:sub(1, 1) == "/" or (windows and spelled:match("^%a:")) then
+    if windows and spelled:match("^%a:[^/]") then
+      -- `C:drift.sarif` starts at the current directory *of that drive*, which
+      -- the string does not say.
+      return "a path relative to a drive's current directory cannot be checked for links. "
+        .. "Spell it with a slash after the drive letter."
+    end
+    if fold(spelled):sub(1, #root + 1) == fold(root) .. "/" then
+      base, rel = root, spelled:sub(#root + 2)
+    else
+      base, rel = spelled:match("^(.*)/([^/]+)$")
+    end
+  else
+    -- A leading `./` or `../` only says where the path starts.
+    base, rel = ".", spelled
+    while true do
+      local step, rest = rel:match("^(%.%.?)/+(.*)$")
+      if not step then
+        break
+      end
+      base = step == ".." and (base .. "/..") or base
+      rel = rest
+    end
+  end
+  if not (base and rel) then
+    return nil
+  end
+
+  safe_fs.forget()
+  local link, err = safe_fs.link_in_chain(base, rel)
+  if err then
+    return err
+  end
+  if link then
+    return ("%s is a link, so the report would be written wherever it leads. Remove it."):format(
+      link
+    )
+  end
+  return nil
+end
+
+---Exported so a spec can drive the Windows spelling of a path from any host.
+M.sarif_refusal = sarif_refusal
+
 ---Write `findings` as SARIF to `path`, when one was asked for.
 ---
----A failure to write is reported and does not change the exit code: the
----drift verdict is what the run is *for*, and losing a machine-readable copy
----of it must not turn a passing tree into a failing build.
+---A failure to write, and a refusal to write through a link, are reported and
+---do not change the exit code: the drift verdict is what the run is *for*, and
+---losing a machine-readable copy of it must not turn a passing tree into a
+---failing build.
 ---@param path string?
 ---@param ir Documentation.IR
 ---@param findings Documentation.Finding[]
 ---@param opts Documentation.Opts
 local function write_sarif(path, ir, findings, opts)
   if not path or path == "" then
+    return
+  end
+  -- Before anything is rendered, let alone opened: a refusal leaves the tree as
+  -- it was.
+  local root = opts.root:gsub("\\", "/"):gsub("/+$", "")
+  local refusal = sarif_refusal(path, root)
+  if refusal then
+    io.stderr:write(("docmap: refusing to write %s: %s\n"):format(path, refusal))
     return
   end
   local body = require("documentation.core.render.sarif").render(ir, findings, opts)
@@ -157,6 +250,10 @@ end
 ---`--full`, `--exclude=<path>`, `--languages=<a,b>`). Writes to stdout/stderr
 ---as a side effect; returns the process exit code rather than calling
 ---`os.exit`/`vim.cmd("cq ...")`, so the caller decides how to actually exit.
+---
+---`0` is a pass, `1` a verdict against the tree (a stale map, or error-severity
+---drift without `--lenient`) and `2` a `--check` that refused to read the
+---committed map and so has no verdict at all; `--lenient` does not soften it.
 ---@param opts Documentation.Opts
 ---@param argv string[]
 ---@return integer exit_code
@@ -269,7 +366,7 @@ function M.run(opts, argv)
       io.stderr:write(
         ("docmap: opts.out_dir is not a safe relative path: %s\n"):format(tostring(opts.out_dir))
       )
-      return 1
+      return REFUSED
     end
 
     local ir, findings = docmap.scan_full(opts)
@@ -297,7 +394,7 @@ function M.run(opts, argv)
         io.stderr:write(
           ("docmap: refusing to read %s/%s: %s\n"):format(out_dir, name, tostring(why))
         )
-        return 1
+        return REFUSED
       end
       -- The baked-in startup flamegraph is compared out of `index.html` on
       -- both sides. It is machine-local and changes whenever somebody

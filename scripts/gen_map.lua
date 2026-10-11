@@ -125,12 +125,21 @@ if not checking then
     return require("documentation.bindings.docs").render()
   end)
   if ok_bindings then
-    local path = opts.root .. "/docs/BINDINGS.md"
-    local fd = io.open(path, "wb")
-    if fd then
-      fd:write(rendered)
-      fd:close()
-      io.stdout:write("wrote docs/BINDINGS.md\n")
+    -- The map is never written through a link, and neither is this: the same
+    -- check `cli.run` makes of the map directory, asked before the file is
+    -- opened. A refusal is said and skipped rather than fatal -- the map above
+    -- is already written, and its exit code stands.
+    local plain, refusal =
+      require("documentation.core.safe_fs").check_output(opts.root, "docs", { "BINDINGS.md" })
+    if not plain then
+      io.stderr:write("not writing docs/BINDINGS.md: " .. tostring(refusal) .. "\n")
+    else
+      local fd = io.open(opts.root .. "/docs/BINDINGS.md", "wb")
+      if fd then
+        fd:write(rendered)
+        fd:close()
+        io.stdout:write("wrote docs/BINDINGS.md\n")
+      end
     end
   else
     io.stderr:write("could not render docs/BINDINGS.md: " .. tostring(rendered) .. "\n")

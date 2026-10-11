@@ -266,6 +266,27 @@ function M.apply(plan, root, mode)
   local write = require("lib.nvim.fs.write.to_file")
   local abs = root .. "/" .. plan.path
 
+  -- **Nothing is written through a link**, the rule of the map's writer (see
+  -- `core/safe_fs.lua`). The sidecar's name is derived from the scanned path,
+  -- so a repository can plant a link under it that leads anywhere, and the
+  -- source file itself may have become one since the scan. Asked before the
+  -- file is read, let alone written.
+  local target = mode == "sidecar" and (plan.path .. ".annot.lua") or plan.path
+  local safe_fs = require("documentation.core.safe_fs")
+  safe_fs.forget()
+  local project = root:gsub("\\", "/"):gsub("/+$", "")
+  local link, link_err = safe_fs.link_in_chain(project, target)
+  if link_err then
+    return false, ("cannot write %s: %s"):format(target, link_err)
+  end
+  if link then
+    return false,
+      ("%s is a link, so writing %s would change whatever it leads to. Nothing was written."):format(
+        link,
+        target
+      )
+  end
+
   -- Re-verify against the current text immediately before writing: `plan`
   -- may have been computed many event-loop ticks ago (the chunked caller in
   -- `bindings/usrcmds/annotate.lua` spreads planning and applying across

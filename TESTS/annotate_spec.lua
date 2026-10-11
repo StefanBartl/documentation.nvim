@@ -217,6 +217,157 @@ return function(H)
     )
   end
 
+  -- apply(): never through a link. The sidecar's name is derived from the
+  -- scanned path, so a repository can plant a link under it; the real
+  -- routines run over real links, and the places they lead to are looked at
+  -- afterwards -- "apply returned false" alone would pass a version that
+  -- wrote first.
+  do
+    local lr = H.tmpfile("_annotate_links")
+    vim.fn.mkdir(lr, "p")
+    lr = H.canonical(lr)
+    local outside = lr .. "/outside"
+    local proj = lr .. "/proj"
+    local source = { "local M = {}", "", "function M.go() end", "", "return M" }
+    local function lwrite(path, lines)
+      vim.fn.mkdir(vim.fs.dirname(path), "p")
+      local fd = assert(io.open(path, "wb"))
+      fd:write(table.concat(lines, "\n"))
+      fd:close()
+    end
+    for _, name in ipairs({
+      "plain",
+      "existing",
+      "dangling",
+      "inside",
+      "swapped",
+      "dirswap",
+      "denied",
+    }) do
+      lwrite(proj .. "/lua/t/" .. name .. "/init.lua", source)
+    end
+    lwrite(outside .. "/victim.txt", { "VICTIM-ORIGINAL" })
+    lwrite(proj .. "/lua/t/inside/real.txt", { "INSIDE-ORIGINAL" })
+
+    local made_all = true
+    local function link(target, at, is_dir)
+      local made = H.link(target, at, is_dir)
+      made_all = made_all and made
+    end
+    link(outside .. "/victim.txt", proj .. "/lua/t/existing/init.lua.annot.lua", false)
+    link(outside .. "/never.txt", proj .. "/lua/t/dangling/init.lua.annot.lua", false)
+    link(proj .. "/lua/t/inside/real.txt", proj .. "/lua/t/inside/init.lua.annot.lua", false)
+
+    if not made_all then
+      -- Windows without the symlink privilege: a file link cannot be made, so
+      -- there is nothing to refuse.
+      ok(vim.fn.has("win32") == 1, "annotate.apply (links): a file link could not be made")
+    else
+      local lir = scan.scan({ root = proj, source = "lua/t", lua_root = "lua" })
+      local function plan_of(name)
+        return assert(annotate.plan(lir.nodes["lua/t/" .. name], proj, "lua"))
+      end
+
+      -- The control: the same call over a plain candidate writes its sidecar.
+      local plain_ok = annotate.apply(plan_of("plain"), proj, "sidecar")
+      ok(plain_ok, "annotate.apply (links): a plain candidate still gets its sidecar")
+      ok(dread(proj .. "/lua/t/plain/init.lua.annot.lua"), "annotate.apply (links): ...written")
+
+      -- The sidecar name is a link to a file outside the project.
+      local ok_existing, err_existing = annotate.apply(plan_of("existing"), proj, "sidecar")
+      eq(ok_existing, false, "annotate.apply (links): a sidecar that is a link is refused")
+      ok(
+        type(err_existing) == "string"
+          and err_existing:find("init.lua.annot.lua is a link", 1, true),
+        "annotate.apply (links): ...naming the link: " .. tostring(err_existing)
+      )
+      eq(
+        dread(outside .. "/victim.txt"),
+        "VICTIM-ORIGINAL",
+        "annotate.apply (links): target intact"
+      )
+
+      -- ...to a place that is not there yet: writing would create it.
+      local ok_dangling = annotate.apply(plan_of("dangling"), proj, "sidecar")
+      eq(ok_dangling, false, "annotate.apply (links): a dangling sidecar link is refused")
+      eq(
+        vim.fn.filereadable(outside .. "/never.txt"),
+        0,
+        "annotate.apply (links): ...nothing created"
+      )
+
+      -- ...to a file inside the project, which is a link all the same.
+      local ok_inside = annotate.apply(plan_of("inside"), proj, "sidecar")
+      eq(ok_inside, false, "annotate.apply (links): a sidecar link that stays inside is refused")
+      eq(
+        dread(proj .. "/lua/t/inside/real.txt"),
+        "INSIDE-ORIGINAL",
+        "annotate.apply (links): ...and its target is intact"
+      )
+
+      -- A name that cannot be looked at is not taken to be a plain one.
+      local safe_fs = require("documentation.core.safe_fs")
+      local real_lstat = safe_fs.host.lstat
+      safe_fs.host.lstat = function(path)
+        if path:find("/denied/init.lua.annot.lua", 1, true) then
+          return nil, "EACCES: permission denied", "EACCES"
+        end
+        return real_lstat(path)
+      end
+      local ran, ok_denied, err_denied = pcall(annotate.apply, plan_of("denied"), proj, "sidecar")
+      safe_fs.host.lstat = real_lstat
+      safe_fs.forget()
+      assert(ran, ok_denied)
+      eq(ok_denied, false, "annotate.apply (links): a sidecar name that cannot be inspected")
+      ok(
+        type(err_denied) == "string" and err_denied:find("cannot be inspected", 1, true),
+        "annotate.apply (links): ...is refused, and says so: " .. tostring(err_denied)
+      )
+      eq(
+        vim.fn.filereadable(proj .. "/lua/t/denied/init.lua.annot.lua"),
+        0,
+        "annotate.apply (links): ...and nothing is written"
+      )
+
+      -- A plan outlives the scan, and the tree can change in between: the
+      -- source is now a link to a file with the very same content, so the
+      -- stale-plan check passes and only the link check is left to stop it.
+      local swapped = plan_of("swapped")
+      lwrite(outside .. "/swapped.lua", source)
+      vim.fn.delete(proj .. "/lua/t/swapped/init.lua")
+      link(outside .. "/swapped.lua", proj .. "/lua/t/swapped/init.lua", false)
+      local ok_swapped, err_swapped = annotate.apply(swapped, proj, "inline")
+      eq(ok_swapped, false, "annotate.apply (links): inline refuses a source that became a link")
+      ok(
+        type(err_swapped) == "string" and err_swapped:find("is a link", 1, true),
+        "annotate.apply (links): ...and says why: " .. tostring(err_swapped)
+      )
+      eq(
+        dread(outside .. "/swapped.lua"),
+        table.concat(source, "\n"),
+        "annotate.apply (links): ...and the file it led to is intact"
+      )
+
+      -- ...and so can a directory on the way.
+      local dirswap = plan_of("dirswap")
+      lwrite(outside .. "/dirswap/init.lua", source)
+      vim.fn.delete(proj .. "/lua/t/dirswap", "rf")
+      link(outside .. "/dirswap", proj .. "/lua/t/dirswap", true)
+      local ok_dirswap, err_dirswap = annotate.apply(dirswap, proj, "sidecar")
+      eq(ok_dirswap, false, "annotate.apply (links): a directory on the way that is a link")
+      ok(
+        type(err_dirswap) == "string" and err_dirswap:find("lua/t/dirswap is a link", 1, true),
+        "annotate.apply (links): ...names that directory: " .. tostring(err_dirswap)
+      )
+      eq(
+        vim.fn.filereadable(outside .. "/dirswap/init.lua.annot.lua"),
+        0,
+        "annotate.apply (links): ...and nothing appeared behind it"
+      )
+    end
+    vim.fn.delete(lr, "rf")
+  end
+
   -- ── bindings :DocMap annotate --write over a wide candidate set ────────────
   -- More than CHUNK (10) files missing ---@module: the command must plan and
   -- write them in chunks across event-loop ticks (never one blocking loop)
