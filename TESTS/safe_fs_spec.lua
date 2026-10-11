@@ -112,7 +112,9 @@ return function(H)
       by_key[key(path)] = { name = path:match("([^/]+)$"), path = path, entry = entry }
     end
     local host = {}
+    host.lstat_calls = {}
     function host.lstat(path)
+      host.lstat_calls[path] = (host.lstat_calls[path] or 0) + 1
       local hit = by_key[key(path)]
       if not hit then
         return nil, "ENOENT: no such file or directory: " .. path, "ENOENT"
@@ -145,11 +147,15 @@ return function(H)
         end
       end
       table.sort(names)
-      return { names = names, i = 0 }
+      return { names = names, i = 0, dir = path }
     end
     function host.scandir_next(handle)
       handle.i = handle.i + 1
-      return handle.names[handle.i]
+      local name = handle.names[handle.i]
+      -- The type a listing gives is only there when the entry says so
+      -- (`listed`); a listing that leaves it out is the common worst case.
+      local hit = name and by_key[key(handle.dir .. "/" .. name)]
+      return name, hit and hit.entry.listed or nil
     end
     host.realpath = nil
     return host
@@ -281,6 +287,82 @@ return function(H)
     eq(safe_fs.link_in_chain("/p", "LN"), nil, "posix: `LN` is not `ln`; it is simply not there")
   end)
 
+  -- What a listing says about an entry decides whether it is looked at.
+  -- `listed` is the type the listing gives; `libuv` and the standalone shim
+  -- both say `"link"` for a link, so `"file"` and `"directory"` are believed
+  -- and cost no `lstat`, while anything else is asked of the disk.
+  local function entry_listed(entry_type, listed_as, target)
+    return { type = entry_type, listed = listed_as, target = target }
+  end
+  local trusting = fake_host({
+    ["/p"] = DIR,
+    ["/p/d"] = DIR,
+    ["/p/d/plain.lua"] = entry_listed("file", "file"),
+    ["/p/d/sub"] = entry_listed("directory", "directory"),
+    ["/p/d/other"] = entry_listed("directory", "directory"),
+    ["/p/d/in"] = entry_listed("link", "link", "/p/d/sub"),
+    ["/p/d/out"] = entry_listed("link", "link", "/etc"),
+    ["/p/d/blind"] = entry_listed("link", nil, "/etc"),
+    ["/p/d/unknown"] = entry_listed("link", "unknown", "/etc"),
+    ["/p/d/blind_ok"] = entry_listed("link", nil, "/p/d/sub"),
+    ["/p/d/odd.lua"] = entry_listed("file", nil),
+    ["/p/d/sub/g.lua"] = FILE,
+  }, false)
+  with_host(trusting, false, function()
+    local types, followed = {}, {}
+    for _, e in ipairs(safe_fs.entries("/p", "/p/d")) do
+      types[e.name] = e.type
+      followed[e.name] = e.link
+    end
+    local calls = trusting.lstat_calls
+    eq(types["plain.lua"], "file", "listed: a file the listing calls a file")
+    eq(types.sub, "directory", "listed: ...and a directory")
+    eq(calls["/p/d/plain.lua"], nil, "listed: ...a file is not looked at again")
+    eq(calls["/p/d/other"], nil, "listed: ...nor is a directory")
+    eq(types["in"], "directory", "listed: a link inside is the thing it leads to")
+    eq(followed["in"], true, "listed: ...and is marked as a link")
+    ok(calls["/p/d/in"], "listed: ...it is looked at: a link is a link")
+    eq(types.out, nil, "listed: a link out of the project is left out")
+    eq(types.blind, nil, "listed: ...also when the listing gives no type")
+    eq(types.unknown, nil, "listed: ...or one it does not know")
+    ok(calls["/p/d/blind"] and calls["/p/d/unknown"], "listed: ...the disk is asked for those")
+    eq(types.blind_ok, "directory", "listed: an unlisted link inside is still followed")
+    eq(types["odd.lua"], "file", "listed: an unlisted file is a file after the disk was asked")
+    ok(calls["/p/d/odd.lua"], "listed: ...it is asked")
+    local why = {}
+    for _, skip in ipairs(safe_fs.skipped) do
+      why[skip.path] = skip.why
+    end
+    eq(why["d/out"], "leaves", "listed: the link out is noted")
+    eq(why["d/blind"], "leaves", "listed: ...as are the unlisted ones")
+    eq(why["d/unknown"], "leaves", "listed: ...all of them")
+  end)
+
+  -- Every link that leaves is noted once however often it is met, and a new
+  -- scan starts the list afresh.
+  local many = { ["/p"] = DIR, ["/p/d"] = DIR }
+  for i = 1, 300 do
+    many["/p/d/l" .. i] = link("/etc")
+  end
+  with_host(fake_host(many, false), false, function()
+    safe_fs.entries("/p", "/p/d")
+    safe_fs.entries("/p", "/p/d")
+    eq(#safe_fs.skipped, 300, "skipped: asked twice, noted once each")
+    local paths = {}
+    for _, skip in ipairs(safe_fs.skipped) do
+      paths[skip.path] = (paths[skip.path] or 0) + 1
+    end
+    local twice = 0
+    for _, count in pairs(paths) do
+      twice = twice + (count > 1 and 1 or 0)
+    end
+    eq(twice, 0, "skipped: ...no path twice")
+    safe_fs.clear_skipped()
+    eq(#safe_fs.skipped, 0, "skipped: a new scan starts empty")
+    safe_fs.entries("/p", "/p/d")
+    eq(#safe_fs.skipped, 300, "skipped: ...and notes them again")
+  end)
+
   -- Whether the file system folds case is asked of the disk: `root` looked up
   -- with the last letter of its path in the other case.
   ---@param host Documentation.SafeFs.Host
@@ -405,6 +487,89 @@ return function(H)
     false,
     "folds_case: a host that errors is not folding, and the question does not raise"
   )
+
+  -- ---------------------------------------------------------------------
+  -- 2b. A file system that does not answer: nothing is followed, and it says so.
+  -- ---------------------------------------------------------------------
+
+  ---`base` with `lstat` failing for the paths in `lstat_fails` and `readlink`
+  ---for those in `readlink_fails` (set of path -> error code); every other
+  ---path is answered by `base`.
+  ---@param base table
+  ---@param lstat_fails table<string, string>
+  ---@param readlink_fails table<string, string>?
+  local function failing(base, lstat_fails, readlink_fails)
+    local host = setmetatable({}, { __index = base })
+    function host.lstat(path)
+      local code = lstat_fails[path]
+      if code then
+        return nil, code .. ": cannot stat: " .. path, code
+      end
+      return base.lstat(path)
+    end
+    function host.readlink(path)
+      local code = readlink_fails and readlink_fails[path]
+      if code then
+        return nil, code .. ": cannot read link: " .. path, code
+      end
+      return base.readlink(path)
+    end
+    return host
+  end
+
+  local plain_tree = fake_host({
+    ["/p"] = DIR,
+    ["/p/d"] = DIR,
+    ["/p/d/f"] = FILE,
+    ["/p/d/index.html"] = FILE,
+    ["/p/d/ln"] = link("/p/d"),
+  }, false)
+
+  -- cmd.exe that does not answer, a directory without permission: the answer
+  -- is "cannot tell", never "no link".
+  with_host(failing(plain_tree, { ["/p/d"] = "EIO", ["/p/d/f"] = "EIO" }), false, function()
+    local path, why, detail = safe_fs.resolve("/p", "d/f")
+    eq(path, nil, "unanswered lstat: nothing is returned to open")
+    eq(why, "unreadable", "unanswered lstat: ...it is called unreadable, not absent")
+    eq(detail, "EIO", "unanswered lstat: ...with the error code")
+    eq(safe_fs.is_dir("/p", "/p/d"), false, "unanswered lstat: is_dir is false")
+    eq(safe_fs.stat("/p", "/p/d/f"), nil, "unanswered lstat: stat is nil")
+    eq(#safe_fs.entries("/p", "/p/d"), 0, "unanswered lstat: nothing is listed")
+    eq(#safe_fs.skipped, 1, "unanswered lstat: ...and the folder is noted")
+    eq(safe_fs.skipped[1].why, "unreadable", "unanswered lstat: ...as unreadable")
+    local link_found, err = safe_fs.link_in_chain("/p", "d/f")
+    eq(link_found, nil, "unanswered lstat: the writer finds no link...")
+    ok(
+      err and err:find("cannot be inspected", 1, true),
+      "unanswered lstat: ...and says it could not look: " .. tostring(err)
+    )
+    local allowed, refusal = safe_fs.check_output("/p", "d", { "index.html" })
+    eq(allowed, false, "unanswered lstat: nothing is written")
+    ok(
+      refusal and refusal:find("cannot be inspected", 1, true),
+      "unanswered lstat: ...because it could not look: " .. tostring(refusal)
+    )
+  end)
+
+  -- Only the file to be written cannot be inspected: the guard on the file
+  -- stands on its own, not covered by the one on the directory chain.
+  with_host(failing(plain_tree, { ["/p/d/index.html"] = "EACCES" }), false, function()
+    eq(safe_fs.link_in_chain("/p", "d"), nil, "unanswered file: the directory chain is fine")
+    local allowed, refusal = safe_fs.check_output("/p", "d", { "index.html" })
+    eq(allowed, false, "unanswered file: a file that cannot be inspected is not written")
+    ok(
+      refusal and refusal:find("cannot be inspected", 1, true),
+      "unanswered file: ...and it says so: " .. tostring(refusal)
+    )
+  end)
+
+  -- A link whose target cannot be read is not followed.
+  with_host(failing(plain_tree, {}, { ["/p/d/ln"] = "EACCES" }), false, function()
+    local path, why = safe_fs.resolve("/p", "d/ln/f")
+    eq(path, nil, "unreadable link: nothing is returned to open")
+    eq(why, "unreadable", "unreadable link: ...for that reason")
+    eq(safe_fs.is_file("/p", "/p/d/ln/f"), false, "unreadable link: a file below it is not a file")
+  end)
 
   -- ---------------------------------------------------------------------
   -- 3. The real file system.
@@ -550,6 +715,51 @@ return function(H)
       "real: a target spelled with the canonical path is inside a project named by an alias"
     )
   end
+
+  -- Asked again after the directory was swapped for a link out: the answer is
+  -- a fresh one. `read`, `open` and `walk_files` forget what they learned at
+  -- the start, so a long-lived editor does not answer for the old tree. One
+  -- directory per function, and nothing else may call safe_fs in between
+  -- (its own forget() would hide the one under test).
+  ---@param name string
+  ---@param ask fun(dir: string): any
+  ---@return any before
+  ---@return any after
+  local function asked_twice(name, ask)
+    local dir = root .. "/" .. name
+    H.write(dir .. "/secret.txt", { "SECRET" })
+    local before = ask(dir)
+    vim.fn.delete(dir, "rf")
+    ok(H.link(outside .. "/x", dir, true), "fresh: " .. name .. " can be replaced by a link out")
+    return before, (ask(dir))
+  end
+
+  local function read_as(dir)
+    local body, how_it_went = safe_fs.read(root, dir .. "/secret.txt")
+    return body and "content" or how_it_went
+  end
+  local read_before, read_after = asked_twice("fresh_read", read_as)
+  eq(read_before, "content", "fresh: read of a plain directory")
+  eq(read_after, "refused", "fresh: read asks the disk again, and finds the link")
+
+  local function open_as(dir)
+    local fd = safe_fs.open(root, dir .. "/secret.txt", "rb")
+    if fd then
+      fd:close()
+      return "opened"
+    end
+    return "refused"
+  end
+  local open_before, open_after = asked_twice("fresh_open", open_as)
+  eq(open_before, "opened", "fresh: open of a plain directory")
+  eq(open_after, "refused", "fresh: open asks the disk again, and finds the link")
+
+  local function walk_as(dir)
+    return #safe_fs.walk_files(root, dir)
+  end
+  local walk_before, walk_after = asked_twice("fresh_walk", walk_as)
+  eq(walk_before, 1, "fresh: walk_files of a plain directory")
+  eq(walk_after, 0, "fresh: walk_files asks the disk again, and finds the link")
 
   vim.fn.delete(base, "rf")
 end

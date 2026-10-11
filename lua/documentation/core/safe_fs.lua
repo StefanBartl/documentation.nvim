@@ -77,6 +77,53 @@ local M = {}
 ---@type boolean
 M.windows = package.config:sub(1, 1) == "\\"
 
+---A relative `path` as an absolute one, from the working directory and by
+---string alone: `.`, `..` and doubled slashes are folded, no link is looked
+---at. For a host that has no `fs_realpath` (the standalone shim), so that a
+---project named `.` or `../repo` can still be told from an absolute link
+---target that names it. `nil` for a path that is absolute already, or when the
+---working directory is not a plain local path.
+---@param path string
+---@return string?
+local function lexical_absolute(path)
+  local function slash(s)
+    return M.windows and (s:gsub("\\", "/")) or s
+  end
+  path = slash(path)
+  if path:sub(1, 1) == "/" or (M.windows and path:match("^%a:")) then
+    return nil
+  end
+  local cwd = slash(vim.fn.getcwd())
+  local drive, rest = "", cwd
+  if M.windows and cwd:match("^%a:") then
+    drive, rest = cwd:sub(1, 2), cwd:sub(3)
+  end
+  if rest:sub(1, 1) ~= "/" or rest:sub(1, 2) == "//" then
+    return nil
+  end
+  -- A `..` after a name of the path is only safe to fold if that name is not a
+  -- link, which a string cannot tell (`hop/../proj` is not `./proj` when `hop`
+  -- leads elsewhere): answer nothing, as without this fallback. A leading `..`
+  -- steps out of the working directory itself, which is physical.
+  local named = false
+  for part in path:gmatch("[^/]+") do
+    if part == ".." and named then
+      return nil
+    elseif part ~= "." and part ~= ".." then
+      named = true
+    end
+  end
+  local parts = {}
+  for part in (rest .. "/" .. path):gmatch("[^/]+") do
+    if part == ".." then
+      parts[#parts] = nil
+    elseif part ~= "." then
+      parts[#parts + 1] = part
+    end
+  end
+  return drive .. "/" .. table.concat(parts, "/")
+end
+
 ---The file-system calls, replaceable so a spec can describe a tree that only
 ---exists in memory -- the Windows rules cannot otherwise be exercised on the
 ---host the suite usually runs on.
@@ -85,8 +132,8 @@ M.windows = package.config:sub(1, 1) == "\\"
 ---@field readlink fun(path: string): string?, string?, string?
 ---@field stat fun(path: string): { type: string, ino: integer?, dev: integer? }|nil
 ---@field scandir fun(path: string): any
----@field scandir_next fun(handle: any): string?, string?
----@field realpath (fun(path: string): string?)?
+---@field scandir_next fun(handle: any): string?, string? name, then the type the listing gives it (`"link"` for a link)
+---@field realpath (fun(path: string): string?)? Without `fs_realpath` a relative path is made absolute from the working directory, by string alone.
 ---@type Documentation.SafeFs.Host
 M.host = {
   lstat = function(path)
@@ -106,7 +153,10 @@ M.host = {
   end,
   realpath = function(path)
     local uv = vim.uv or vim.loop
-    return uv.fs_realpath and uv.fs_realpath(path) or nil
+    if uv.fs_realpath then
+      return uv.fs_realpath(path)
+    end
+    return lexical_absolute(path)
   end,
 }
 
@@ -138,9 +188,14 @@ function M.forget()
   real_roots = {}
 end
 
+---The paths in `M.skipped`, so noting one again does not walk the list.
+---@type table<string, true>
+local skipped_seen = {}
+
 ---Start a scan's list of links that were left alone.
 function M.clear_skipped()
   M.skipped = {}
+  skipped_seen = {}
 end
 
 ---Say that `path` was left alone, once however often it is met.
@@ -148,11 +203,10 @@ end
 ---@param why string One of the reasons `describe` knows.
 ---@param target string?
 function M.note_skip(path, why, target)
-  for _, seen in ipairs(M.skipped) do
-    if seen.path == path then
-      return
-    end
+  if skipped_seen[path] then
+    return
   end
+  skipped_seen[path] = true
   M.skipped[#M.skipped + 1] = { path = path, why = why, target = target }
 end
 
@@ -593,9 +647,12 @@ end
 ---left out, and noted in `M.skipped`, when it cannot be followed
 ---without leaving the project.
 ---
----The types come from `lstat` of each entry, not from the listing: a listing
----may leave a type unknown, and the entry would then be looked at with a call
----that follows links.
+---A listing that says `"file"` or `"directory"` is believed: `libuv` reports a
+---link as `"link"`, and so does the standalone shim (from `lstat`, or on
+---Windows from the link census), so such an entry is not a link and costs no
+---call of its own. Anything else -- `"link"`, a type the listing leaves out or
+---does not know, a device -- is asked of `lstat`, never of a call that
+---follows links.
 ---@param root string
 ---@param dir string Absolute path under `root`.
 ---@return { name: string, type: string, link: boolean? }[] `link` is set on an entry that is a followed link.
@@ -617,11 +674,14 @@ function M.entries(root, dir)
   local phys_rel = strip_root(root, phys) --[[@as string]]
   local out = {}
   while true do
-    local name = M.host.scandir_next(handle)
+    local name, listed = M.host.scandir_next(handle)
     if not name then
       break
     end
-    local kind = lstat_kind(phys .. "/" .. name)
+    local kind = listed
+    if kind ~= "file" and kind ~= "directory" then
+      kind = lstat_kind(phys .. "/" .. name)
+    end
     local linked = kind == "link"
     if linked then
       local child = phys_rel == "" and name or (phys_rel .. "/" .. name)

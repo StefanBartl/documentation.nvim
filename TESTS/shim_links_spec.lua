@@ -194,6 +194,111 @@ return function(H)
   end
 
   -- ---------------------------------------------------------------------
+  -- A2. A relative root, as `docmap .` and `docmap ../repo` hand it over.
+  --
+  -- The shim has no `uv.fs_realpath`, so an absolute link target that names
+  -- the project could not be told from one that leaves it: `safe_fs` joins the
+  -- working directory to the relative root itself. The editor's own answer for
+  -- the absolute root is the oracle.
+  -- ---------------------------------------------------------------------
+  do
+    local shim = load_shim(real_lfs, false)
+    local safe_fs = require("documentation.core.safe_fs")
+    local base = (vim.fn.tempname():gsub("\\", "/")) .. "_shim_relroot"
+    local fixture = base .. "/fixture"
+    H.write(fixture .. "/lua/p/init.lua", { "return 1" })
+    H.write(fixture .. "/lua/q/init.lua", { "return 2" })
+    H.write(base .. "/elsewhere/init.lua", { "return 3" })
+    local canonical = H.canonical(fixture)
+    local canonical_outside = H.canonical(base .. "/elsewhere")
+    local made_in = H.link(canonical .. "/lua/q", fixture .. "/lua/p/inside_abs", true)
+    local made_out = H.link(canonical_outside, fixture .. "/lua/p/outside_abs", true)
+    ok(made_in and made_out, "A2: absolute directory links can be made")
+
+    ---What the walk of `lua/p` sees, the paths that were refused, and where an
+    ---absolute in-project link leads, as `root` names the project.
+    local function seen_from(root_name)
+      local listing = {}
+      for _, e in ipairs(safe_fs.entries(root_name, root_name .. "/lua/p")) do
+        listing[#listing + 1] = e.name .. ":" .. e.type
+      end
+      table.sort(listing)
+      local refused = {}
+      for _, entry in ipairs(safe_fs.skipped) do
+        refused[#refused + 1] = entry.path .. "=" .. entry.why
+      end
+      table.sort(refused)
+      local led_to = safe_fs.resolve(root_name, "lua/p/inside_abs/init.lua")
+      return table.concat(listing, ","), table.concat(refused, ","), led_to
+    end
+
+    local saved_dir, saved_uv, saved_host = vim.uv.cwd(), vim.uv, safe_fs.host
+    local ran, err = pcall(function()
+      -- A host that cannot say where a path really is: the shim's.
+      vim.uv = setmetatable({}, {
+        __index = function(_, key)
+          if key ~= "fs_realpath" then
+            return saved_uv[key]
+          end
+        end,
+      })
+      safe_fs.host = {
+        lstat = shim.uv.fs_lstat,
+        readlink = shim.uv.fs_readlink,
+        stat = shim.uv.fs_stat,
+        scandir = shim.uv.fs_scandir,
+        scandir_next = shim.uv.fs_scandir_next,
+        realpath = saved_host.realpath,
+      }
+      safe_fs.forget()
+      safe_fs.clear_skipped()
+      local want_list, want_refused, want_path = seen_from(canonical)
+      ok(want_list:find("inside_abs:directory", 1, true), "A2: absolute root: the link is followed")
+      ok(want_refused:find("outside_abs=leaves", 1, true), "A2: ...and the one that leaves is not")
+      eq(want_refused:find("inside_abs", 1, true), nil, "A2: ...and only that one is refused")
+      eq(want_path, canonical .. "/lua/q/init.lua", "A2: ...to the folder it names")
+
+      for root_name, dir in pairs({ ["."] = canonical, ["../fixture"] = canonical_outside }) do
+        vim.uv.chdir(dir)
+        safe_fs.forget()
+        safe_fs.clear_skipped()
+        local list, refused, path = seen_from(root_name)
+        eq(
+          list,
+          want_list,
+          "A2: root `" .. root_name .. "`: the same folders, as the absolute root"
+        )
+        eq(refused, want_refused, "A2: root `" .. root_name .. "`: the same links refused")
+        eq(
+          path,
+          root_name .. "/lua/q/init.lua",
+          "A2: root `" .. root_name .. "`: the link leads where it does for the absolute root"
+        )
+      end
+
+      -- A `..` after a name cannot be folded by string: `hop/../proj` is not
+      -- `./proj` when `hop` is a link. A leading one steps out of the working
+      -- directory, which is physical, and is still answered.
+      eq(
+        saved_host.realpath("hop/../proj"),
+        nil,
+        "A2: a `..` after a name of the root is not folded by string"
+      )
+      ok(saved_host.realpath("../fixture") ~= nil, "A2: a leading `..` still is")
+      ok(saved_host.realpath("./a//b") ~= nil, "A2: `.` and `//` still are")
+    end)
+    vim.uv.chdir(saved_dir)
+    vim.uv = saved_uv
+    safe_fs.host = saved_host
+    safe_fs.forget()
+    safe_fs.clear_skipped()
+    vim.fn.delete(base, "rf")
+    if not ran then
+      error(err, 0)
+    end
+  end
+
+  -- ---------------------------------------------------------------------
   -- B. The Windows branch, on a listing written down.
   -- ---------------------------------------------------------------------
   local win_links = dofile(root .. "/standalone/win_links.lua")
