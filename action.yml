@@ -95,7 +95,8 @@ inputs:
   sarif:
     description: >-
       Also write the findings as SARIF to this path, for
-      `github/codeql-action/upload-sarif`. Empty means no SARIF file.
+      `github/codeql-action/upload-sarif`. Empty means no SARIF file. A link
+      at the path (or on the way to it) is refused, not written through.
     required: false
   neovim-version:
     description: >-

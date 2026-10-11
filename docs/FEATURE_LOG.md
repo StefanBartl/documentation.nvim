@@ -3378,7 +3378,10 @@ loops. The writer asks a stricter question than the reader: nothing from the
 root to the output directory may be a link at all, and neither may any file about
 to be written, checked on the artifacts table itself so a fifth artifact is
 covered the day it is added. A refusal happens before the first byte, so it
-leaves the tree as it was.
+leaves the tree as it was — for a tree that is not changed while the run goes
+on: the check is an `lstat` chain and the write an `open` by path, and a process
+that swaps `docs/map` between a directory and a link in between defeats it
+(2026-10-11, below).
 
 **Two decisions that look like omissions.**
 
@@ -3386,12 +3389,15 @@ leaves the tree as it was.
   person who hands over a path reached through a link has decided that. The
   output directory gets the check even when it was named by flag: `out_dir` is
   relative to the root, so the links on the way are the repository's.
-- *`--out-dir` pointing outside the project was never allowed.* The brief for
-  this change called it "the user's own decision, and stays allowed"; the
-  engine has always refused it (`..`, an absolute path and a drive letter fail
-  `safe_out_dir` in `write_artifacts` whichever way they arrive), and
-  `scripts/ci.lua` says why it passes a repo-relative `--out-dir`. This change
-  neither adds it nor removes it. `docmap-desktop` documents `../maps` as a
+- *`--out-dir` pointing outside the project was never allowed for the map.*
+  The brief for this change called it "the user's own decision, and stays
+  allowed"; `write_artifacts` has always refused it (`..`, an absolute path and
+  a drive letter fail `safe_out_dir` whichever way they arrive). Not for
+  everything, though (corrected 2026-10-11): before this change `--check` read
+  the committed map from an unvetted `out_dir`, and `write_pdf_artifact` wrote
+  `overview.pdf` to one; both vet it now. `scripts/ci.lua` says why it passes a
+  repo-relative `--out-dir`. This change neither adds it nor removes it.
+  `docmap-desktop` documents `../maps` as a
   supported "Map directory" and passes it as `--out-dir=`; this engine answers
   that with "not a safe relative path" (measured with `--out-dir=../x`, on the
   engine as it was before this change).
@@ -3411,9 +3417,11 @@ took `opts.out_dir` as it came, with `pdf` a key a `.docmap.json` may set.
 
 **The standalone build cannot lstat on Windows, so it asks `cmd.exe`.**
 `lfs.symlinkattributes` is `lfs.attributes` there. `standalone/win_links.lua`
-reads `dir /a:l` — the labels `<JUNCTION>`, `<SYMLINKD>`, `<SYMLINK>`, which
-`/a:l` selects among *every* reparse point, so a OneDrive "files on demand"
-placeholder, which is one, is not mistaken for a link — once per directory. The
+reads `dir /a:l` — which selects among *every* reparse point, so a OneDrive
+"files on demand" placeholder, which is one, must not be mistaken for a link —
+once per directory. (As first written it kept the English labels `<JUNCTION>`,
+`<SYMLINKD>`, `<SYMLINK>`; since 2026-10-11 a line is a link by its shape, see
+below: a placeholder file prints no `<label>`, a placeholder folder no ` [`.) The
 working directory is changed for the length of the command so no path is ever
 put on a command line (`%`, `&` and a quote then cannot matter), `DIRCMD` is
 cleared because `/b` in it would remove the labels, and an end mark is asked for
@@ -3439,9 +3447,12 @@ different problem (who may name a path outside the root), left as a task.
 **First run on Windows and macOS (CI, `fca1477`).** The Windows job ran the
 shim for real — `cmd.exe`, `dir /a:l`, junctions made with `mklink /J` — and
 `shim_links_spec`, `shim_behavior_spec`, `safe_fs_spec` and `win_links_spec`
-passed: the labels are `<JUNCTION>` as assumed, and the shim agrees with libuv
-on a junction's type, `lstat` and `readlink`. Two specs failed on both Windows
-and macOS, for one reason that was the specs' and not the engine's: they made
+passed: the labels are `<JUNCTION>` as assumed (the English ones; translated
+labels, French `<REP>`/`<JONCTION>` and Spanish `<UNION>`/`<ENLACE>`, are
+tested only on listings written from memory, not on a real localized
+`cmd.exe`), and the shim agrees with libuv on a junction's type, `lstat` and
+`readlink`. Two specs failed on both Windows and macOS, for one reason that was
+the specs' and not the engine's: they made
 a link meant to stay inside the project with an absolute target spelled the way
 `vim.fn.tempname()` gives it (`C:\Users\RUNNER~1\…`, `/var/…`), while the
 engine resolves the root it is handed (`runneradmin`, `/private/var`). A target
@@ -3458,3 +3469,130 @@ specs now spell such targets with `H.canonical`, and the property is stated in
   `scan_links_spec.lua`, `win_links_spec.lua`, `shim_links_spec.lua` (new);
   `H.link` in `TESTS/harness.lua`; two `lstat` and two `readlink` cases in the
   shim corpus; the `standalone` gate makes real links with the real rock
+
+## Reviewing the link guard (2026-10-11)
+
+The guard of 2026-10-08 was reviewed by reading every place the engine opens a
+path under the project root, and then attacked with trees built for each hole.
+The findings came in four classes, and each was fixed except where stated.
+
+**Scan fan-out.** Since the directory links that stay inside the project were
+entered, the only cycle guard was against ancestors, so a repository with `k`
+links per level over `n` levels made the scan walk `k^n` paths. A directory is
+now entered through links at most once per scan (real directories always), and
+`scan.MAX_LINKED_DIRS = 10000` is a hard backstop for spellings of one folder
+that string comparison cannot see (Unicode case, NFC/NFD, 8.3 names); past it no
+link is followed and the link list says so. Case folding is asked of the disk
+once (`safe_fs.folds_case`, also for a root with no letter). Source detection
+no longer enters a link found below a probed name.
+
+**Readers and writers that never went through `safe_fs`.** The static route of
+`:DocMap serve`, the install manifest, the `spec_state` roots, `:DocBrowse`,
+hover and `:checkhealth`, the probes of source detection, the README link
+fallback; on the write side `--sarif`, `:DocMap annotate` and `docs/BINDINGS.md`
+from `gen_map.lua`. All go through `safe_fs` now; `safe_fs.read` takes an
+optional size bound, used for the install manifest and the spec files. `--check`
+exits 2 for a refusal instead of 1, because `--lenient` reads 1 as staleness and
+a refusal looked like a map that regeneration cannot
+fix. README targets with a URL scheme are no longer judged on POSIX
+(`mailto:` produced `dead-readme-link`), and the tests-directory walk is sorted,
+so `test-references-missing` comes out the same on every file system.
+
+**Windows census holes.** The census keyed on the English labels and treated
+only a non-ASCII link name as opaque. A line is a link by its shape now; names
+the console may print as `?`, a look-alike or without the 8.3 alias are links in
+a directory that lists one; ambiguity answers "link, no target"; a network or
+device root is refused instead of listing `C:\Windows`; the nested-name lookup
+is bounded (`MAX_NESTED = 32`) and indexed; and `fs_lstat` asks the census
+cache first, one `lfs.attributes` per entry instead of two. A placeholder
+folder named like `Project [2024]` is the price: it reads as a link. None of
+it has run on a real localized `cmd.exe`.
+
+**Performance.** The fan-out above; source detection costs 1.7x to 3.3x more
+than before (it `lstat`s each entry; lib.nvim 3.7 ms to 6.2 ms); the editor's
+map staleness check costs about 17 us per file instead of 7 (about 2.5 ms
+instead of 1.0 ms for 148 files, once per `:DocBrowse` open), and a hover
+lookup that climbs 24 levels costs 1.11 ms instead of 0.92 ms, once per
+directory.
+
+**Behaviour changes to know.** A report path, sidecar or `docs/BINDINGS.md`
+that is a link is refused even when it stays inside the project. A setup that
+kept its map behind a link out of the project no longer shows it in
+`:DocBrowse`, hover or `:checkhealth`. Directory links inside the project are
+entered by the editor host too (the standalone build always entered them).
+
+**Limit, stated instead of fixed (F8).** The write guard is an `lstat` of the
+chain followed by an `open` by path. A process that exchanges `docs/map`
+between a directory and a link while the engine runs wins that window about
+every other open (reproduced with `renameat2(RENAME_EXCHANGE)`: files landed in
+the outside directory in 15 of 40 runs). It is not a regression (before
+`e472c5c` nothing checked), it needs a second process with write access to the
+tree, and it overwrites only the fixed artifact names with generated content.
+Nothing path-based in Lua closes it, so `docs/SECURITY.md` now says the guard is
+for static trees.
+
+**A later pass over the same code (also 2026-10-11).**
+
+- `safe_fs.entries` believes a listing's `file` and `directory` and asks `lstat`
+  only for the rest (`link`, no type, `unknown`, devices): libuv and the shim
+  report a link as `link` (on Windows the shim says `link` when it cannot tell),
+  so a link still goes through `lstat`, `resolve` and the skipped list. On a
+  tree of 1000 files the `lstat` calls fell from 1042 to 42.
+- A relative root in the standalone build (`docmap .`, `docmap ../repo`) now
+  recognises an absolute link target that stays inside the project: the shim has
+  no `uv.fs_realpath`, so `M.host.realpath` joins the working directory and the
+  root by string. It answers nothing when a `..` follows a name, because a link
+  there makes the string wrong (`hop/../proj`).
+- `note_skip` dedupes through a set that `clear_skipped` resets.
+- `safe_fs_spec` gained the safety net the rewrite needed: `read`, `open` and
+  `walk_files` look at the disk afresh after a directory was swapped for a link,
+  and a failing `lstat` or `readlink` leaves every answer closed.
+
+**Decided against.**
+
+- *A memo for `safe_fs.resolve`.* Proposed for the cost of resolving a path one
+  component at a time (one `lstat` per component for every new directory), which
+  grows with the square of the depth. Not applied: a memo of exact `(root, rel)`
+  pairs does not help, as every directory asks about a new path; it would have
+  to remember the resolved parent, in security code, for a depth no real tree
+  has. On real repositories the whole guard costs one to two percent.
+- *The F13 policy* (what to do with directory links inside the project): they
+  are entered, once per scan, because the shipped standalone build always
+  entered them and refusing them would break a repository that links one of its
+  own folders into another. Skipping them in the editor host, as before, would
+  have left the two builds disagreeing on the same tree.
+- *Closing the race* with a temporary file and a rename, or with `O_NOFOLLOW`:
+  either protects only the last component, which was already checked, not the
+  swapped directory that was reproduced.
+
+**Correction to 7b30dc8.** Its message and the entry above say every switch was
+reverted in turn and the spec went red. That was not true for the tests-directory
+reader and the README fallback: removing either left the suite green. Both are
+pinned now (`readers_links_spec.lua`, `check_readme_links_spec.lua`; the
+sorted tests-directory walk by `check_test_references_spec.lua`). The
+stderr report of skipped links (`report_skipped_links` in `core/cli.lua`) is
+still not pinned by any spec, and `SECURITY.md` now names the two properties
+without a spec (this report and the race) instead of claiming that every
+property has one.
+
+**Not done.** In the standalone build with a relative root (`docmap .`) the
+shim has no `fs_realpath`, so an absolute link target that points into the
+project is taken to leave it and is not followed (the editor accepts it); a
+relative target or an absolute root works. `.docmap.json` may still name
+paths outside the project in `tag_files`, `external_repos` and `consumers`, and
+may set `luals`, which starts `lua-language-server` on the repository on every
+scan; both are the separate
+trust problem listed under "Not covered" in `docs/SECURITY.md`. `docmap-desktop`
+still reads any non-zero `--check` exit as "stale" and needs a branch for 2.
+
+- **Modules:** `core/safe_fs.lua` (`folds_case`, `note_skip`, `read`, `entries`,
+  `walk_files`), `core/scan.lua` (`MAX_LINKED_DIRS`), `core/cli.lua`
+  (`sarif_refusal`, exit code 2), `core/annotate.lua`, `core/tools.lua`,
+  `core/check.lua`, `config/*` and the language backends (detection),
+  `editor/serve.lua` (`static_answer`), `editor/browse/source.lua`,
+  `hover.lua`, `editor/health.lua`, `testing/specs.lua`, `core/checklist.lua`,
+  `standalone/win_links.lua`, `standalone/vim_shim.lua`, `scripts/gen_map.lua`
+- **Tests:** `serve_links`, `tools_links`, `spec_roots_links`,
+  `readers_editor_links`, `check_readme_links` and `detect_source_links` are new;
+  `check_test_references` is pinned too; `scan_links`, `safe_fs`,
+  `out_dir_links`, `win_links`, `shim_links`, `readers_links` and `annotate` grew

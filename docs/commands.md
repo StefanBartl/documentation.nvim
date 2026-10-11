@@ -81,6 +81,10 @@ plain table) — never anywhere below it. `--sidecar` writes the same block to
 `<path>.annot.lua` next to the original instead, for review before merging it
 in by hand.
 
+A file or sidecar that is a link, or lies below a linked directory, is not
+written, including a link that stays inside the project. It is reported as
+failed with the link named, and the tree is left as it was.
+
 Deliberately a starting point, not a finished annotation: types are best
 guesses — `fun(...)` reconstructed from a function's own already-parsed
 `@param`/`@return`, the referenced `---@class` name when a field's own value
@@ -510,7 +514,9 @@ Security posture, enforced rather than documented and hoped for:
   — a whitelist, not an escape, because the value becomes a subprocess argument
   and `--upload-pack=…` is a perfectly valid-looking path segment. `HEAD` is
   refused too;
-- static serving takes a bare filename, so no request can walk out of `out_dir`;
+- static serving takes a bare filename, so no request can walk out of `out_dir`,
+  and a file or `out_dir` that is a link leaving the project is not served
+  (404, no target named); links that stay inside the project are;
 - `VimLeavePre` tears the socket down.
 
 ### `:DocMap helptags`

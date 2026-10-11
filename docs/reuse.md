@@ -124,8 +124,8 @@ same way if it is not already on your rtp.
 
 ```bash
 nvim --headless -l scripts/gen_map.lua                    # regenerate
-nvim --headless -l scripts/gen_map.lua --check            # stale or drift -> exit 1
-nvim --headless -l scripts/gen_map.lua --check --lenient  # fail on staleness only
+nvim --headless -l scripts/gen_map.lua --check            # stale or drift -> exit 1; map not readable -> exit 2
+nvim --headless -l scripts/gen_map.lua --check --lenient  # fail on staleness only (exit 2 still stands)
 nvim --headless -l scripts/gen_map.lua --full             # + LuaLS enrichment
 ```
 
@@ -341,7 +341,8 @@ local function my_check(root)
 end
 ```
 
-Only `error` severity fails `--check` (unless `--lenient`). Choose it for
+Only `error` severity fails `--check` (unless `--lenient`; exit 2, a refusal to
+read the committed map, is never turned into a pass). Choose it for
 things that are *false*, not for things that are untidy: a check that is red
 before anyone touches anything gets switched off the same day.
 

@@ -52,8 +52,10 @@ says so when the source is newer:
 └────────────────────────────────────────────────────────┘
 ```
 
-One `fs_stat` on a file the map already names. It turns a silent wrong answer
-into a visible old one.
+One `safe_fs.stat` on a file the map already names (the stat itself, one `lstat`
+per path component and the `realpath` of the root it is given on top, so a link that
+leaves the project is not statted). It turns a silent wrong answer into a
+visible old one.
 
 **There is a subtlety in that check worth knowing**, because the obvious
 implementation gets it wrong silently: `path` in the map names either a file
@@ -105,6 +107,19 @@ Measured on 2026-09-03 against the registered callback, 2000 repetitions:
 The climb was 98 % of the ask against 1.6 µs for the dotted-name test, so this
 is not a fast path made faster — it is the only slow one removed. The hit is
 cached too, which is why the third row moves as well.
+
+Every probe of the climb is a `safe_fs.stat` since the link guard, so a link
+that leaves the project finds no map. The table above predates that. Re-measured
+on 2026-10-11, on one machine (slower than the first), the same callback: the
+24-level climb that finds nothing, both passes, took 0.92 ms before and
+1.11 ms after, paid once per directory; a cached hit ask went from 17 µs to
+68 µs; a cached miss ask is unchanged. Take the numbers as from that
+one machine.
+
+**An `out_dir` is vetted before it is believed.** One that the writers refuse
+(not a safe relative path, such as `doc/../doc/gen` or `../x`) is not believed
+and counts as nothing stated, and a `docs/map` that is a link leaving the
+project finds no map.
 
 The cost is one narrow kind of staleness: a map that **appears** where there
 was none — generated during the session, or arriving with a branch — is not

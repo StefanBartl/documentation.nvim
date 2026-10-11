@@ -112,7 +112,9 @@ Neovim spec still wins over the file, and `--exclude=` still wins over both.
 `out_dir` is where the map is written, relative to the root. It cannot contain
 `..` or be absolute, and **nothing on the way to it may be a symlink or a
 junction** — the run refuses and writes nothing, whoever set it (the default, a
-flag, your options, or this file). See
+flag, your options, or this file). `--check` vets it the same way and exits 2
+when it refuses to read the committed map (1 stays stale). The guard is for a
+tree that is not changed while the run goes on. See
 [`SECURITY.md`](SECURITY.md#links-junctions-and-the-output-directory).
 
 A repository may state facts about itself and not about the session reading
@@ -122,6 +124,11 @@ cloned must not be able to rebind your keys or start a watcher. The file is
 **data, never code** for the same reason — `extra_checks` is a list of Lua
 functions and stays a host-side option. The full split is in
 [`lua/documentation/config/file.lua`](../lua/documentation/config/file.lua).
+Two things the file *can* still set deserve a look before you run `docmap` on a
+repository you do not trust: `tag_files`, `external_repos` and `consumers` may
+name paths outside the project, and `luals` starts `lua-language-server` on the
+repository (when one is installed). Both are listed under "Not covered" in
+[`SECURITY.md`](SECURITY.md#links-junctions-and-the-output-directory).
 
 ### Switching a check off, or re-grading it
 

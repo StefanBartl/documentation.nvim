@@ -428,7 +428,11 @@ key and then regretted.
                         block in place above `local M = {}`; `--sidecar`
                         writes it to <path>.annot.lua instead. A starting
                         point, not a finished annotation — types are best
-                        guesses, review before committing.
+                        guesses, review before committing. A file or sidecar
+                        that is a link, or lies below a linked directory, is
+                        not written, including a link that stays inside the
+                        project: it is reported as failed with the link
+                        named. See |documentation-links|.
 
 :DocMap full            `:DocMap` plus LuaLS enrichment: parsed @class/@alias
                         detail, type-reference edges and inheritance edges
@@ -596,7 +600,10 @@ key and then regretted.
                         opaque origin and `fetch()` refuses the `file:` scheme
                         outright, so computing a commit on click needs an
                         origin. Binds 127.0.0.1 on an OS-assigned port, never
-                        0.0.0.0.
+                        0.0.0.0. A file in the served map directory, or the
+                        directory itself, that is a link leaving the project
+                        is answered 404; links that stay inside are followed
+                        (|documentation-links|).
 
 :DocMap serve stop      Shut it down. `VimLeavePre` does this too, so quitting
                         cannot leave a socket listening.
@@ -870,7 +877,10 @@ Generic checks, run against any annotated Lua tree:
                                  lives — copy-pasted or stale headers.
     missing-summary       warn   @module present but no description line.
     dead-readme-link      warn   A relative link in a README pointing at
-                                 nothing.
+                                 nothing. A target with a URL scheme
+                                 (mailto:, https://) is not a file and is
+                                 never checked; one that goes through a link
+                                 leaving the project is not judged.
     dead-see-target       warn   An @see target resolving to no known module
                                  or function.
     type-vs-class         warn   A module table annotated ---@type Foo that
@@ -927,7 +937,8 @@ Generic checks, run against any annotated Lua tree:
                                  at runtime (a lazy __index, or a table that
                                  is a factory's result), because such a
                                  surface cannot be enumerated by reading.
-                                 Reads `opts.tests_dir`.
+                                 Reads `opts.tests_dir`, in sorted file
+                                 order.
     tools-spec-invalid    warn   This repo's own docs/install.json or
                                  docs/INSTALL.md (lib.nvim.deps) has a
                                  malformed entry — missing bin, empty why, or
@@ -951,7 +962,8 @@ because dynamic dispatch is invisible to a static scanner and no confident
 verdict is available at any severity.
 
 Only `error` severity fails `--check`, and `--lenient` turns even that into a
-staleness-only check.
+staleness-only check (exit codes 0 and 1; a refusal, exit 2, is not softened
+by it, see |documentation-headless|).
 
 Repository-specific checks go in `opts.extra_checks`, each a
 `fun(ir, opts): Documentation.Finding[]`.
@@ -1068,7 +1080,10 @@ currently holds — including after a watch-triggered rescan.
     nvim --headless -l scripts/gen_map.lua --full
 <
 `--check` regenerates in memory and compares byte for byte; it writes nothing,
-and it exits 1 on staleness or error-severity drift.
+and it exits 1 on staleness or error-severity drift. It exits 2 when it
+refuses to read the committed map (an `out_dir` that is not a safe relative
+path, or a link on the way that leaves the project): no verdict, so `--lenient`
+does not turn it into a pass.
 
 That byte comparison is only possible because output is deterministic across
 runs on unchanged input. Two decisions make it so: no timestamp anywhere in
@@ -1132,19 +1147,49 @@ project too. It covers `module_map.json`, `index.html`, `overview.md`,
 `coverage.svg` and `overview.pdf`.
 
 Reading: the source walk, the source roots, `.docmap.json`, the prose corpus,
-the tests directory, the Features and Checklist folders, README link targets
-and the committed map (`--check`, `--api=`) follow a link only if, resolved one step at a time,
-it stays inside the project. A link that leaves it is not followed, and the
-run says so on stderr (`3 links not followed:`). A source root that is such a
-link, or reaches outside with `..`, is refused with the reason. A link back up
-the tree is walked once. `--check` refuses, rather than reporting "stale", when
-it cannot read the map.
+the tests directory, the Features and Checklist folders, README link targets,
+the install manifest (`docs/install.json`, `docs/INSTALL.md`), the spec roots
+of `spec_state` and the committed map follow a link only if, resolved one step
+at a time, it stays inside the project. The committed map is read by
+`--check`, `--api=`, `:DocMap serve` (its static files), `:DocBrowse`, the
+hover.nvim contribution and `:checkhealth documentation`; the editor-side ones
+vet `out_dir` like the writers do, and a `docs/map` that leaves the project is
+refused (`:DocBrowse` says "map at <path> is not read: <why>", `:checkhealth`
+warns with the reason, hover answers nothing). A link that leaves the project
+is not followed, and the run says so on stderr (`3 links not followed:`). A
+source root that is such a link, or reaches outside with `..`, is refused with
+the reason.
+
+A directory link that stays inside the project is entered, at most once per
+scan, so a folder that many links lead to is not walked once per path of
+links; real directories are always walked. A hard backstop,
+`scan.MAX_LINKED_DIRS` (10000 folders entered through links per scan), bounds
+the work for spellings of one folder the scan cannot see through; past it no
+further link is followed and stderr says so.
+
+`--check` refuses, rather than reporting "stale", when it cannot read the map,
+and exits 2. `--sarif=<path>` and `:DocMap annotate --write|--sidecar` refuse
+to write through a link as well (see |documentation-headless| and
+|:DocMap|).
+
+The guard is for a static tree. It asks `lstat` for each component and opens
+by path afterwards, so a process that swaps `docs/map` between a directory and
+a link while the engine runs can defeat it; the window is the gap between
+rendering and writing. It does not protect a tree an attacker modifies
+concurrently.
 
 On Windows a link target is judged as a string first: anything but a plain
 drive path (`\\host\share`, `\\?\UNC\…`, `\\?\GLOBALROOT\…`, `\??\…`) is never
-opened. `opts.tag_files`, `opts.external_repos` and `opts.consumers` name paths
-outside the project on purpose and are not covered by this; see
-docs/SECURITY.md.
+opened. The standalone build finds links through `cmd.exe` (`dir /a:l`): a
+line is a link by its shape (`<label> name [target]`), not by its label, and
+cloud-sync placeholders stay ordinary. In a directory that lists a link, a
+name with a non-ASCII byte, a `?` or a `~digit` (8.3 alias) is treated as a
+link and not followed, and a network or device path is not followed at all.
+
+Not covered: `opts.tag_files`, `opts.external_repos` and `opts.consumers`
+name paths outside the project on purpose, and a repository's `.docmap.json`
+can set them and can switch on `luals` (which runs lua-language-server). That
+trust question is separate and open. See docs/SECURITY.md.
 
 ==============================================================================
 10. MCP SERVER                                                *documentation-mcp*

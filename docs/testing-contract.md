@@ -91,7 +91,7 @@ Every `gaps` entry is something the graph could not tell:
 | `changed_not_in_graph` | A changed source file that is not in the map (new file, stale map, a directory the scan does not read). Its dependents are unknown. | yes |
 | `test_support_changed` | A file under the spec directory that is not a spec (a helper, a harness). Any spec may use it. | yes |
 | `invalid_path` | A `changed` entry refused (see above). | yes |
-| `invalid_spec_root` | A `spec_roots` entry refused or missing. | yes |
+| `invalid_spec_root` | A `spec_roots` entry refused or missing. A root or tests folder that is a link out of the project is reported as `is not read`, and a folder under a root that cannot be listed (no permission) as `part of the spec root could not be read: <rel>`. | yes |
 | `spec_unreadable` | A spec file could not be read (too large, unreadable). | yes |
 | `changed_module_without_spec` | A changed module that no spec requires, directly or through another module. The change selects nothing for it. | no |
 | `dynamic_require_in_graph` | A module of the graph that is not itself affected requires by a computed name, so the graph has no edge from it to what it loads and the change may reach it unseen. `path`/`module` name the loader. `reason = "dynamic_require"`: a `require` whose argument is neither a string literal nor a literal head followed by `..` — `require(variable)`, `require(("a.%s"):format(k))`, `pcall(require, variable)`, an argument on the line after the `(` (may load anything); `reason = "dynamic_require_prefix"`: `require("a.b." .. k)` or `require("a.b_" .. k)` (the head need not end in a dot), reported only when an affected module's name starts with that head. Only checked when a changed file is a module of the graph. | yes |
