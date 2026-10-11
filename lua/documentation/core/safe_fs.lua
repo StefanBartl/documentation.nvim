@@ -83,7 +83,7 @@ M.windows = package.config:sub(1, 1) == "\\"
 ---@class Documentation.SafeFs.Host
 ---@field lstat fun(path: string): ({ type: string }|nil), string?, string?
 ---@field readlink fun(path: string): string?, string?, string?
----@field stat fun(path: string): { type: string }|nil
+---@field stat fun(path: string): { type: string, ino: integer?, dev: integer? }|nil
 ---@field scandir fun(path: string): any
 ---@field scandir_next fun(handle: any): string?, string?
 ---@field realpath (fun(path: string): string?)?
@@ -143,10 +143,11 @@ function M.clear_skipped()
   M.skipped = {}
 end
 
----@param path string
----@param why string
+---Say that `path` was left alone, once however often it is met.
+---@param path string Repository-relative.
+---@param why string One of the reasons `describe` knows.
 ---@param target string?
-local function note_skip(path, why, target)
+function M.note_skip(path, why, target)
   for _, seen in ipairs(M.skipped) do
     if seen.path == path then
       return
@@ -331,6 +332,8 @@ function M.describe(why, detail)
     return "a link on the way has a target that cannot be followed safely"
   elseif why == "name" then
     return "a path component is not a plain name" .. (detail and (" (" .. detail .. ")") or "")
+  elseif why == "many" then
+    return "so many folders are reached through links that no further link is followed"
   end
   return why
 end
@@ -496,11 +499,56 @@ end
 
 ---What to compare two paths by: the path itself, with case folded where the
 ---file system folds it. A link's target is written by someone else and may
----spell the same directory in another case.
+---spell the same directory in another case. Windows is told by the platform;
+---where else the file system folds (macOS), `folds_case` says so.
 ---@param path string
 ---@return string
 function M.key(path)
   return fold(path)
+end
+
+---A path below `dir` whose name has a letter in it and is not a link, which
+---`stat` would follow.
+---@param dir string
+---@return string?
+local function lettered_below(dir)
+  local handle = M.host.scandir(dir)
+  while handle do
+    local name, kind = M.host.scandir_next(handle)
+    if not name then
+      return nil
+    end
+    if name:find("%a") and kind ~= "link" then
+      return (dir:gsub("/+$", "")) .. "/" .. name
+    end
+  end
+end
+
+---Whether the file system `root` lies on folds case. Windows does, macOS
+---usually does and Linux usually does not, but a volume can differ from its
+---host, so the disk is asked: if it folds, `root` spelled with the last letter
+---of its path in the other case leads to the same directory. A root with no
+---letter to change (`.`, `..`), as the standalone build is given, is asked
+---through a name in it. A host that cannot say which directory it found (the
+---standalone build's `stat` answers `type` only) has no numbers to tell two
+---apart, and is taken at its word that the other spelling is there.
+---@param root string
+---@return boolean
+function M.folds_case(root)
+  if M.windows then
+    return true
+  end
+  local ran, folds = pcall(function()
+    local path = root:find("%a") and root or lettered_below(root)
+    if not path then
+      return false
+    end
+    local head, letter, tail = path:match("^(.*)(%a)([^%a]*)$")
+    local flipped = head .. (letter == letter:lower() and letter:upper() or letter:lower()) .. tail
+    local own, other = M.host.stat(path), M.host.stat(flipped)
+    return own ~= nil and other ~= nil and other.ino == own.ino and other.dev == own.dev
+  end)
+  return ran and folds or false
 end
 
 ---`vim.uv.fs_stat` of `abs`, if it can be reached without leaving the project.
@@ -559,7 +607,7 @@ function M.entries(root, dir)
   end
   local phys, why, detail = M.resolve(root, rel)
   if not phys then
-    note_skip(rel == "" and "." or rel, why or "leaves", detail)
+    M.note_skip(rel == "" and "." or rel, why or "leaves", detail)
     return {}
   end
   local handle = M.host.scandir(phys)
@@ -582,7 +630,7 @@ function M.entries(root, dir)
         local st = M.host.stat(target)
         kind = st and st.type or nil
       else
-        note_skip(child, cwhy or "leaves", cdetail)
+        M.note_skip(child, cwhy or "leaves", cdetail)
         kind = nil
       end
     end

@@ -25,6 +25,13 @@ local lang_registry = require("documentation.core.lang_registry")
 local marker_scan = require("documentation.core.markers")
 local safe_fs = require("documentation.core.safe_fs")
 
+---Directories the walks enter through a link, over a whole scan, before no
+---further link is followed and the scan says so. Far past what a real tree
+---holds; it is the bound for a link that leads to a folder by a spelling the
+---scan cannot see through (see `enter_link` in `M.scan`). Module field so that
+---a spec can lower it.
+M.MAX_LINKED_DIRS = 10000
+
 ---The artifact schema this build writes.
 ---
 ---Named rather than inlined at the one place it is stamped, because a
@@ -238,7 +245,7 @@ end
 ---is left out otherwise (`core/safe_fs.lua` notes it for the CLI to report).
 ---@param root string
 ---@param dir string
----@return { name: string, type: string }[]
+---@return { name: string, type: string, link: boolean? }[] `link` is set on a followed link.
 local function entries(root, dir)
   local out = safe_fs.entries(root, dir)
   table.sort(out, function(a, b)
@@ -438,22 +445,77 @@ function M.scan(opts)
   ---@type table<string, integer>
   local claimed = {}
 
+  -- Whether the file system folds case, asked of the disk once: a link may
+  -- spell a folder in another case than the folder is written, and where the
+  -- file system folds, both spellings are the one folder.
+  local folds = safe_fs.folds_case(root)
+
+  ---Where `abs` really is, with every link resolved, written so that two paths
+  ---to one directory share it. Where the file system does not fold case, `Up`
+  ---and `up` are two folders.
+  ---@param abs string
+  ---@return string
+  local function place(abs)
+    local at = safe_fs.key(safe_fs.physical(root, abs) or abs)
+    return folds and at:lower() or at
+  end
+
   ---Directories the walk is inside of right now, by where they really are.
   ---A link may lead back up the tree, or two links at each other, and a walk
   ---that follows links inside the project has to notice it is going round.
   ---@type table<string, true>
   local active = {}
 
+  ---Directories already entered through a link, by where they really are,
+  ---and never emptied. `active` only knows the way down to the current
+  ---directory, so a folder that several links lead to would be walked once per
+  ---path of links: exponentially often for a few links per level, factorially
+  ---often for folders that link to each other. Everything below a link counts
+  ---as entered through it; only the walk along the real tree enters a folder a
+  ---second time. Which link to a folder is the one entered follows from the
+  ---sorted order of the entries.
+  ---@type table<string, true>
+  local linked = {}
+
+  ---Directories entered through a link so far, by both walks, and whether the
+  ---limit on them was met. A link can lead to a folder by a spelling that
+  ---`place` does not see through (another case in Unicode, another normal
+  ---form of the same name, a short name on Windows); each spelling is then a
+  ---folder of its own to the walks, and they multiply with every level. Past
+  ---the limit no further link is followed, and that is said once.
+  local entered_links, link_limit_noted = 0, false
+
+  ---@param at string The directory, relative to `root`, for the note.
+  ---@return boolean allowed Whether the directory may be entered.
+  local function enter_link(at)
+    if entered_links >= M.MAX_LINKED_DIRS then
+      if not link_limit_noted then
+        link_limit_noted = true
+        safe_fs.note_skip(at, "many")
+      end
+      return false
+    end
+    entered_links = entered_links + 1
+    return true
+  end
+
   ---Build one node from a directory.
   ---@param abs string
   ---@param rel string Path relative to `root`
   ---@param parent_id string?
   ---@param depth integer
-  ---@return string? id `nil` when the directory is one the walk is already inside of.
-  local function walk_dir(abs, rel, parent_id, depth)
-    local where = safe_fs.key(safe_fs.physical(root, abs) or abs)
-    if active[where] then
+  ---@param via_link boolean? Reached through a link, or from a directory that was.
+  ---@return string? id `nil` when the directory is one the walk is already inside of, or already entered through a link.
+  local function walk_dir(abs, rel, parent_id, depth, via_link)
+    local where = place(abs)
+    if active[where] or (via_link and linked[where]) then
       return nil
+    end
+    if via_link then
+      if not enter_link(rel) then
+        return nil
+      end
+      linked[where] = true
     end
     active[where] = true
     local id = rel
@@ -594,7 +656,8 @@ function M.scan(opts)
 
       if e.type == "directory" then
         if e.name ~= types_dir and not M.VENDOR_DIRS[e.name] and not skip then
-          node.children[#node.children + 1] = walk_dir(child_abs, child_rel, id, depth + 1)
+          node.children[#node.children + 1] =
+            walk_dir(child_abs, child_rel, id, depth + 1, via_link or e.link)
         end
       elseif skip then -- luacheck: ignore
       elseif e.type ~= "directory" and not leaf_backend then
@@ -744,15 +807,41 @@ function M.scan(opts)
   local outside = {}
   do
     local seen = 0
+    ---@type { abs: string, rel: string, link: boolean? }[]
     local stack = { { abs = root, rel = "" } }
     ---@type table<string, true>
     local visited = {}
+    -- Where the source roots really are. A link from outside them that leads
+    -- into one (`tools/libs -> ../lua`) is the source tree under another name,
+    -- already in the map, and is told by where it leads, not by its name.
+    ---@type string[]
+    local source_keys = {}
+    for _, src in ipairs(sources) do
+      source_keys[#source_keys + 1] = place(root .. "/" .. src)
+    end
+    ---@param key string Where a directory really is.
+    ---@return boolean
+    local function leads_into_sources(key)
+      for _, src_key in ipairs(source_keys) do
+        if
+          key == src_key
+          or key:sub(1, #src_key + 1) == (src_key .. "/")
+          or src_key:sub(1, #key + 1) == (key .. "/")
+        then
+          return true
+        end
+      end
+      return false
+    end
     while #stack > 0 and seen < OUTSIDE_MAX_FILES do
       local cur = table.remove(stack)
       -- A directory reached twice, through a link, is read once.
-      local where = safe_fs.key(safe_fs.physical(root, cur.abs) or cur.abs)
-      local listing = visited[where] and {} or entries(root, cur.abs)
-      visited[where] = true
+      local where = place(cur.abs)
+      local listing = {}
+      if not visited[where] and (not cur.link or enter_link(cur.rel)) then
+        visited[where] = true
+        listing = entries(root, cur.abs)
+      end
       for _, e in ipairs(listing) do
         local child_rel = cur.rel == "" and e.name or (cur.rel .. "/" .. e.name)
         if e.type == "directory" then
@@ -771,13 +860,17 @@ function M.scan(opts)
               break
             end
           end
+          if e.link and not inside then
+            inside = leads_into_sources(place(cur.abs .. "/" .. e.name))
+          end
           if
             not inside
             and not M.VENDOR_DIRS[e.name]
             and e.name ~= types_dir
             and e.name ~= tests_dir
           then
-            stack[#stack + 1] = { abs = cur.abs .. "/" .. e.name, rel = child_rel }
+            stack[#stack + 1] =
+              { abs = cur.abs .. "/" .. e.name, rel = child_rel, link = cur.link or e.link }
           end
         else
           seen = seen + 1

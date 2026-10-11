@@ -89,7 +89,7 @@ return function(H)
     eq(class_of(target, false), want, "classify (posix): " .. target)
   end
 
-  for _, why in ipairs({ "leaves", "foreign", "loop", "unreadable", "unsupported", "name" }) do
+  for _, why in ipairs({ "leaves", "foreign", "loop", "unreadable", "unsupported", "name", "many" }) do
     ok(
       safe_fs.describe(why, "x") ~= why,
       "describe: `" .. why .. "` has a sentence of its own, not the bare code"
@@ -280,6 +280,131 @@ return function(H)
     eq(why, "leaves", "posix: names are case-sensitive, so `Ln` is the other link")
     eq(safe_fs.link_in_chain("/p", "LN"), nil, "posix: `LN` is not `ln`; it is simply not there")
   end)
+
+  -- Whether the file system folds case is asked of the disk: `root` looked up
+  -- with the last letter of its path in the other case.
+  ---@param host Documentation.SafeFs.Host
+  ---@param root_path string
+  ---@param windows boolean?
+  ---@return boolean
+  local function folds_on(host, root_path, windows)
+    local answer
+    with_host(host, windows or false, function()
+      answer = safe_fs.folds_case(root_path)
+    end)
+    return answer
+  end
+  ---@param tree table<string, { type: string, ino: integer?, dev: integer? }> Spelled exactly.
+  ---@param root_path string
+  ---@param windows boolean?
+  ---@return boolean
+  local function folds(tree, root_path, windows)
+    local listing = fake_host(tree, false)
+    local host = vim.tbl_extend("force", {}, listing, {
+      stat = function(path)
+        return tree[path]
+      end,
+      -- A listing says what each name is, as a real one does.
+      scandir = function(path)
+        local handle = listing.scandir(path)
+        handle.dir = path
+        return handle
+      end,
+      scandir_next = function(handle)
+        local name = listing.scandir_next(handle)
+        return name, name and tree[handle.dir .. "/" .. name].type or nil
+      end,
+    })
+    return folds_on(host, root_path, windows)
+  end
+
+  eq(folds({}, "/p/Proj", true), true, "folds_case: Windows folds, whatever it is asked")
+  eq(
+    folds({
+      ["/p/proj"] = { type = "directory", ino = 7, dev = 1 },
+      ["/p/proJ"] = { type = "directory", ino = 7, dev = 1 },
+    }, "/p/proj"),
+    true,
+    "folds_case: the other spelling leads to the same directory"
+  )
+  eq(
+    folds({
+      ["/p/proj"] = { type = "directory", ino = 7, dev = 1 },
+      ["/p/proJ"] = { type = "directory", ino = 8, dev = 1 },
+    }, "/p/proj"),
+    false,
+    "folds_case: a folder of its own in the other case is not the same directory"
+  )
+  eq(
+    folds({
+      ["/p/proj"] = { type = "directory", ino = 7, dev = 1 },
+      ["/p/proJ"] = { type = "directory", ino = 7, dev = 2 },
+    }, "/p/proj"),
+    false,
+    "folds_case: nor is one on another device that has the same number"
+  )
+  eq(
+    folds({ ["/p/proj"] = { type = "directory", ino = 7, dev = 1 } }, "/p/proj"),
+    false,
+    "folds_case: the other spelling is not there"
+  )
+  eq(folds({}, "/p/proj"), false, "folds_case: the root itself is not there")
+  eq(
+    folds({ ["/p/proj"] = { type = "directory" }, ["/p/proJ"] = { type = "directory" } }, "/p/proj"),
+    true,
+    "folds_case: a host that says no more than the type is taken at its word"
+  )
+  eq(
+    folds(
+      { ["/p/proj/"] = { type = "directory" }, ["/p/proJ/"] = { type = "directory" } },
+      "/p/proj/"
+    ),
+    true,
+    "folds_case: the last letter of the path is the one in the other case"
+  )
+  eq(
+    folds({ ["/1/2"] = { type = "directory" } }, "/1/2"),
+    false,
+    "folds_case: a path without a letter, with nothing in it, cannot be asked"
+  )
+  -- The standalone build is given `.` when it is run without an argument.
+  for _, dot in ipairs({ ".", ".." }) do
+    eq(
+      folds({ [dot .. "/9"] = FILE, [dot .. "/lua"] = DIR, [dot .. "/luA"] = DIR }, dot),
+      true,
+      "folds_case: `" .. dot .. "` has no letter to change, so a name in it is asked"
+    )
+    eq(
+      folds({ [dot .. "/9"] = FILE, [dot .. "/lua"] = DIR }, dot),
+      false,
+      "folds_case: `" .. dot .. "`: the name in the other case is not there"
+    )
+  end
+  eq(
+    folds({
+      ["./lua"] = { type = "directory", ino = 7, dev = 1 },
+      ["./luA"] = { type = "directory", ino = 8, dev = 1 },
+    }, "."),
+    false,
+    "folds_case: `.`: a folder of its own in the other case is not the same directory"
+  )
+  eq(
+    folds({ ["./a"] = link("/p"), ["./lua"] = DIR, ["./luA"] = DIR }, "."),
+    true,
+    "folds_case: `.`: a link in it is not the name asked about"
+  )
+  eq(
+    folds_on(
+      vim.tbl_extend("force", {}, posix, {
+        stat = function()
+          error("EIO")
+        end,
+      }),
+      "/p/proj"
+    ),
+    false,
+    "folds_case: a host that errors is not folding, and the question does not raise"
+  )
 
   -- ---------------------------------------------------------------------
   -- 3. The real file system.
