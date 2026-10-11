@@ -1404,6 +1404,32 @@ local function split_parent(path)
   return dir, name
 end
 
+---The key a directory's census is kept under: the path as the file system
+---compares it.
+---@param dir string
+---@return string
+local function census_key(dir)
+  return (to_slashes(dir):gsub("/+$", "")):lower()
+end
+
+---The census already taken of `dir`, if it was a good one. A census is only
+---ever taken of a directory that could be entered, so having one also answers
+---whether `dir` is there.
+---@param dir string
+---@return Standalone.WinLinks.Census?
+local function cached_census(dir)
+  return win_census[census_key(dir)] or nil
+end
+
+---Is `path` a network or device path (`//host/share`, `//?/C:`)? `cmd.exe`
+---does not start there: it says so and runs in the Windows directory instead,
+---and the listing of that is a clean one that reads as "no links here".
+---@param path string
+---@return boolean
+local function on_network(path)
+  return to_slashes(path):sub(1, 2) == "//"
+end
+
 ---The links directly inside `dir` on Windows, or `nil` and why.
 ---
 ---The working directory is changed for the length of the command rather than
@@ -1419,7 +1445,7 @@ end
 ---@return Standalone.WinLinks.Census? census
 ---@return string? err
 local function windows_census(dir)
-  local key = (to_slashes(dir):gsub("/+$", "")):lower()
+  local key = census_key(dir)
   local cached = win_census[key]
   if cached ~= nil then
     if cached == false then
@@ -1445,9 +1471,20 @@ local function windows_census(dir)
   if not win_links then
     return fail("standalone.win_links is not available")
   end
+  local no_cmd = "cmd.exe cannot start in a network or device path"
+  if on_network(dir) then
+    -- Not even entered.
+    return fail(no_cmd)
+  end
   local previous = lfs.currentdir()
   if not previous or not lfs.chdir(dir) then
     return fail("it cannot be entered")
+  end
+  -- A relative `dir` (`docmap .` keeps the root as `.`) says nothing about
+  -- where it leads, so where the process now stands is what is asked.
+  if on_network(lfs.currentdir() or "//") then
+    lfs.chdir(previous)
+    return fail(no_cmd)
   end
   local pipe = io.popen('set "DIRCMD=" & dir /a:l 2>nul & echo ' .. win_links.END_MARK, "r")
   local text = pipe and pipe:read("*a") or ""
@@ -1570,8 +1607,9 @@ function uv.fs_lstat(path)
   local missing = "ENOENT: no such file or directory: " .. path
   if IS_WINDOWS then
     -- A missing parent is a missing entry, and is settled before a process is
-    -- started to list a directory that is not there.
-    if lfs.attributes(dir, "mode") ~= "directory" then
+    -- started to list a directory that is not there. A directory that has
+    -- been listed was there, and is not asked about again for every entry.
+    if not cached_census(dir) and lfs.attributes(dir, "mode") ~= "directory" then
       return nil, missing, "ENOENT"
     end
     local census, err = windows_census(dir)

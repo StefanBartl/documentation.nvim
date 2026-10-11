@@ -207,6 +207,15 @@ return function(H)
     "10/08/2026  06:24 PM    <SYMLINKD>     rel [..\\real]",
     "10/08/2026  06:24 PM    <SYMLINK>      link.lua [..\\x.lua]",
     "10/08/2026  06:24 PM    <JUNCTION>     share [\\\\host\\share\\x]",
+    "10/08/2026  06:24 PM    <JUNCTION>     Sources [C:\\elsewhere\\src]",
+    "10/08/2026  06:24 PM    <JONCTION>     jct [C:\\elsewhere\\jct]",
+    "10/08/2026  06:24 PM    <SYMLINKD>      evil [..\\real]",
+    "10/08/2026  06:24 PM    <SYMLINKD>      twin [..\\real]",
+    "10/08/2026  06:24 PM    <SYMLINKD>     twin [C:\\Users\\victim\\outside]",
+    "10/08/2026  06:24 PM    <SYMLINKD>     split [x",
+    "\\..\\..\\outside]",
+    "10/08/2026  06:24 PM    <SYMLINKD>     a-b [C:\\elsewhere\\dash]",
+    "10/08/2026  06:24 PM    <JUNCTION>     documentation-output [C:\\elsewhere\\out]",
     "10/08/2026  06:24 PM    <DIR>          plain",
     "10/08/2026  06:24 PM                12 f.txt",
     win_links.END_MARK,
@@ -220,12 +229,38 @@ return function(H)
     ["C:/proj"] = { kind = "directory", children = { "docs", "empty", "broken" } },
     ["C:/proj/docs"] = {
       kind = "directory",
-      children = { "map", "rel", "link.lua", "share", "plain", "f.txt" },
+      children = {
+        "map",
+        "rel",
+        "link.lua",
+        "share",
+        "Sources",
+        "jct",
+        " evil",
+        " twin",
+        "twin",
+        "split",
+        "a\150b",
+        "documentation-output",
+        "plain",
+        "f.txt",
+      },
     },
     ["C:/proj/docs/map"] = { kind = "directory", link = true },
     ["C:/proj/docs/rel"] = { kind = "directory", link = true },
     ["C:/proj/docs/link.lua"] = { kind = "file", link = true },
     ["C:/proj/docs/share"] = { kind = "directory", link = true },
+    ["C:/proj/docs/Sources"] = { kind = "directory", link = true },
+    ["C:/proj/docs/jct"] = { kind = "directory", link = true },
+    ["C:/proj/docs/ evil"] = { kind = "directory", link = true },
+    ["C:/proj/docs/ twin"] = { kind = "directory", link = true },
+    ["C:/proj/docs/twin"] = { kind = "directory", link = true },
+    ["C:/proj/docs/split"] = { kind = "directory", link = true },
+    ["C:/proj/docs/a\150b"] = { kind = "directory", link = true },
+    ["C:/proj/docs/documentation-output"] = { kind = "directory", link = true },
+    -- Not listed by `lfs.dir`, which gives the long names only: the 8.3 alias
+    -- that NTFS answers for `documentation-output`.
+    ["C:/proj/docs/DOCUME~1"] = { kind = "directory", link = true },
     ["C:/proj/docs/plain"] = { kind = "directory" },
     ["C:/proj/docs/f.txt"] = { kind = "file" },
     ["C:/proj/empty"] = { kind = "directory", children = { "a" } },
@@ -233,16 +268,37 @@ return function(H)
     ["C:/proj/broken"] = { kind = "directory", children = { "x", "y" } },
     ["C:/proj/broken/x"] = { kind = "file" },
     ["C:/proj/broken/y"] = { kind = "file" },
+    -- A directory the process can enter but then cannot name.
+    ["C:/proj/lost"] = { kind = "directory", children = { "x" } },
+    ["//nas/share/proj"] = { kind = "directory", children = { "docs", "src", "lib" } },
+    ["//nas/share/proj/docs"] = { kind = "directory", link = true },
+    ["//nas/share/proj/src"] = { kind = "directory" },
+    ["//nas/share/proj/lib"] = { kind = "directory", children = { "map" } },
+    ["//nas/share/proj/lib/map"] = { kind = "directory", link = true },
+    ["//?/C:/proj"] = { kind = "directory", children = { "docs" } },
+    ["//?/C:/proj/docs"] = { kind = "directory", link = true },
   }
 
   local function windows_world()
     local world = { cwd = "C:/start", chdirs = {}, commands = {}, stats = {}, linked_stats = {} }
+    -- A `./` path leads from where the process stands, the way it does for
+    -- the real one; every other path is taken as it is.
+    local function resolve(path)
+      if path:sub(1, 2) == "./" then
+        return world.cwd .. "/" .. path:sub(3)
+      end
+      return path
+    end
     world.lfs = {
       currentdir = function()
+        if world.cwd == "C:/proj/lost" then
+          return nil
+        end
         return world.cwd
       end,
       chdir = function(path)
         world.chdirs[#world.chdirs + 1] = path
+        path = resolve(path)
         if not DISK[path] and not DISK[path:gsub("/+$", "")] then
           return nil
         end
@@ -252,6 +308,7 @@ return function(H)
       attributes = function(path, what)
         assert(what == "mode", "fake lfs: only `mode`")
         world.stats[#world.stats + 1] = path
+        path = resolve(path)
         local entry = DISK[path:gsub("/+$", "")] or DISK[path]
         if entry and entry.link then
           world.linked_stats[#world.linked_stats + 1] = path
@@ -259,6 +316,7 @@ return function(H)
         return entry and entry.kind or nil
       end,
       dir = function(dir)
+        dir = resolve(dir)
         local entry = DISK[dir:gsub("/+$", "")] or DISK[dir]
         if not entry or not entry.children then
           error("fake lfs: cannot open " .. dir, 0)
@@ -280,7 +338,15 @@ return function(H)
       local text = ""
       if world.cwd == "C:/proj/docs" then
         text = DOCS_LISTING
-      elseif world.cwd == "C:/proj/empty" or world.cwd == "C:/" or world.cwd == "C:/proj" then
+      elseif
+        world.cwd == "C:/proj/empty"
+        or world.cwd == "C:/"
+        or world.cwd == "C:/proj"
+        or world.cwd:sub(1, 2) == "//"
+      then
+        -- A UNC or device working directory: the real `cmd.exe` says it does
+        -- not support it and lists the Windows directory, which holds no links
+        -- of the project's; here that reads as the same clean answer.
         text = "File Not Found\r\n" .. win_links.END_MARK .. "\r\n"
       end
       -- "C:/proj/broken": nothing at all, as if cmd.exe never ran.
@@ -319,6 +385,13 @@ return function(H)
         return out
       end
 
+      ---What lstat says the entry is, `nil` when it says nothing: a miss stays an
+      ---assertion that fails rather than an index of nil.
+      local function type_of(path)
+        local st = shim.uv.fs_lstat(path)
+        return st and st.type
+      end
+
       local docs = dir_types("C:/proj/docs")
       eq(docs.map, "link", "B: a junction is listed as a link")
       eq(docs.rel, "link", "B: ...a directory symlink")
@@ -326,6 +399,14 @@ return function(H)
       eq(docs.share, "link", "B: ...a link to a share")
       eq(docs.plain, "directory", "B: a plain directory is a directory")
       eq(docs["f.txt"], "file", "B: a plain file is a file")
+      eq(docs.Sources, "link", "B: a link with capitals in its own name")
+      eq(docs.jct, "link", "B: a junction under a label that is not English")
+      eq(docs[" evil"], "link", "B: a link whose name starts with a blank")
+      eq(docs["a\150b"], "link", "B: a link whose name the console printed as `a-b`")
+      eq(docs[" twin"], "link", "B: one of two links the listing reads alike")
+      eq(docs.twin, "link", "B: ...and the other")
+      eq(docs.split, "link", "B: a link whose target the listing broke over two lines")
+      eq(docs["documentation-output"], "link", "B: a link with a long name")
       eq(#world.linked_stats, 0, "B: no link was ever statted -- the listing never opened one")
 
       -- The command, and what was done around it.
@@ -341,7 +422,13 @@ return function(H)
       -- lstat / readlink answer from the same listing: no second command.
       eq(shim.uv.fs_lstat("C:/proj/docs/map").type, "link", "B: lstat of a junction")
       eq(shim.uv.fs_lstat("C:/proj/docs/MAP").type, "link", "B: ...whatever case it is asked in")
+      local stats_before = #world.stats
       eq(shim.uv.fs_lstat("C:/proj/docs/plain").type, "directory", "B: lstat of a plain directory")
+      eq(
+        #world.stats - stats_before,
+        1,
+        "B: ...asked of the file system once, not again for the directory that was listed"
+      )
       eq(shim.uv.fs_lstat("C:/proj/docs/f.txt").type, "file", "B: lstat of a plain file")
       local missing, why, code = shim.uv.fs_lstat("C:/proj/docs/nothing")
       eq(missing, nil, "B: lstat of a name that is not there")
@@ -349,6 +436,32 @@ return function(H)
       local gone, _, gone_code = shim.uv.fs_lstat("C:/proj/nodir/x")
       eq(gone, nil, "B: lstat below a missing directory")
       eq(gone_code, "ENOENT", "B: ...is ENOENT without listing a directory that is not there")
+      eq(type_of("C:/proj/docs/Sources"), "link", "B: lstat of a link with capitals")
+      eq(type_of("C:/proj/docs/sources"), "link", "B: ...in another case than it has")
+      eq(shim.uv.fs_readlink("C:/proj/docs/SOURCES"), "C:\\elsewhere\\src", "B: readlink: ...both")
+      eq(type_of("C:/proj/docs/jct"), "link", "B: lstat of a junction labelled <JONCTION>")
+      eq(
+        shim.uv.fs_readlink("C:/proj/docs/jct"),
+        "C:\\elsewhere\\jct",
+        "B: readlink: ...its target"
+      )
+      eq(type_of("C:/proj/docs/ evil"), "link", "B: lstat of a name with a leading blank")
+      eq(shim.uv.fs_readlink("C:/proj/docs/ evil"), "..\\real", "B: readlink: ...its target")
+      eq(type_of("C:/proj/docs/a\150b"), "link", "B: lstat of a name printed as `a-b`")
+      -- A link that is judged by the target of another, or by a target cut off
+      -- at the line break, would be followed on the strength of a benign one.
+      for _, name in ipairs({ " twin", "twin", "split" }) do
+        eq(type_of("C:/proj/docs/" .. name), "link", "B: lstat of `" .. name .. "`")
+        local target, _, read_code = shim.uv.fs_readlink("C:/proj/docs/" .. name)
+        eq(target, nil, "B: readlink of `" .. name .. "` has no target")
+        eq(read_code, "EIO", "B: ...it is not readable, so it is not followed")
+      end
+      -- The long name is in the listing; the alias NTFS answers for it is not.
+      -- The fake disk records any stat of it, and there must be none.
+      eq(type_of("C:/proj/docs/DOCUME~1"), "link", "B: lstat of an 8.3 alias of a link")
+      eq(type_of("C:/proj/docs/docume~1.lua"), "link", "B: ...with an extension")
+      local _, _, alias_code = shim.uv.fs_readlink("C:/proj/docs/DOCUME~1")
+      eq(alias_code, "EIO", "B: readlink: ...of which no target is known, so none is followed")
       eq(shim.uv.fs_readlink("C:/proj/docs/share"), "\\\\host\\share\\x", "B: readlink: a share")
       eq(shim.uv.fs_readlink("C:/proj/docs/rel"), "..\\real", "B: readlink: a relative target")
       local not_link, _, not_link_code = shim.uv.fs_readlink("C:/proj/docs/plain")
@@ -378,6 +491,64 @@ return function(H)
       dir_types("C:/proj/broken")
       eq(#warnings, before, "B: ...and the failure is not repeated for every question")
       eq(world.cwd, "C:/start", "B: the working directory is put back after a failure too")
+
+      -- A network or device path is not listed at all: `cmd.exe` would say it
+      -- does not support it and list the Windows directory instead, and that
+      -- listing is a clean one.
+      local started, said = #world.commands, #warnings
+      local unc, unc_why, unc_code = shim.uv.fs_lstat("//nas/share/proj/docs")
+      eq(unc, nil, "B: lstat on a share has no answer")
+      eq(unc_code, "EIO", "B: ...it is an error, not 'not a link': " .. tostring(unc_why))
+      local share = dir_types("//nas/share/proj")
+      eq(share.docs, "link", "B: every entry on a share is treated as a link")
+      eq(share.src, "link", "B: ...every one")
+      local _, _, share_code = shim.uv.fs_readlink("//nas/share/proj/docs")
+      eq(share_code, "EIO", "B: readlink on a share has no answer either")
+      eq(shim.uv.fs_lstat("\\\\nas\\share\\proj\\src"), nil, "B: ...in the backslash spelling too")
+      eq(#world.commands, started, "B: ...and no process was started for it")
+      eq(#warnings - said, 1, "B: ...and it is said once: " .. table.concat(warnings, "", said + 1))
+      ok(
+        table.concat(warnings, "", said + 1):find("network or device path", 1, true),
+        "B: ...with the reason: " .. table.concat(warnings, "", said + 1)
+      )
+      local device, _, device_code = shim.uv.fs_lstat("\\\\?\\C:\\proj\\docs")
+      eq(device, nil, "B: a device path has no answer")
+      eq(device_code, "EIO", "B: ...it is an error as well")
+      eq(#world.commands, started, "B: ...with no process started either")
+      for _, path in ipairs(world.chdirs) do
+        ok(path:sub(1, 2) ~= "//", "B: the working directory was never moved to " .. path)
+      end
+      eq(world.cwd, "C:/start", "B: ...and is where it was")
+
+      -- `docmap .` keeps the root as `.`, so the paths it asks about are
+      -- relative and none of them is spelled like a share. The process is the
+      -- one on the share, and entering a directory from there leaves it on
+      -- one: the fake `cmd.exe` answers that with a clean listing, as the real
+      -- one does after its warning.
+      world.cwd = "//nas/share/proj"
+      started, said = #world.commands, #warnings
+      local lib = dir_types("./lib")
+      eq(lib.map, "link", "B: a relative path from a share: an entry is treated as a link")
+      local rel, rel_why, rel_code = shim.uv.fs_lstat("./lib/map")
+      eq(rel, nil, "B: ...lstat has no answer")
+      eq(rel_code, "EIO", "B: ...it is an error, not 'not a link': " .. tostring(rel_why))
+      local _, _, rel_link_code = shim.uv.fs_readlink("./lib/map")
+      eq(rel_link_code, "EIO", "B: ...readlink has none either")
+      eq(#world.commands, started, "B: ...and no process was started for it")
+      eq(#warnings - said, 1, "B: ...and it is said once: " .. table.concat(warnings, "", said + 1))
+      ok(
+        table.concat(warnings, "", said + 1):find("network or device path", 1, true),
+        "B: ...with the reason: " .. table.concat(warnings, "", said + 1)
+      )
+      eq(world.cwd, "//nas/share/proj", "B: ...and the working directory is put back")
+
+      -- Where the process stands after entering a directory is a question that
+      -- can go unanswered too, and then it is not known not to be a share.
+      world.cwd = "C:/start"
+      started = #world.commands
+      eq(dir_types("C:/proj/lost").x, "link", "B: a working directory that cannot be named")
+      eq(#world.commands, started, "B: ...is not listed from")
+      eq(world.cwd, "C:/start", "B: ...and the working directory is put back")
     end)
     io.popen, io.stderr = real_popen, real_stderr
     if not ran then

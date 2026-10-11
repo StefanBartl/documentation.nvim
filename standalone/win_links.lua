@@ -19,18 +19,36 @@
 --- (`TESTS/win_links_spec.lua`). Spawning the command lives in
 --- `standalone/vim_shim.lua`.
 ---
---- Only the three labels `dir` prints for *links* count: `<JUNCTION>`,
---- `<SYMLINKD>` and `<SYMLINK>`. `/a:l` selects every reparse point, and that
---- includes cloud-sync placeholders (OneDrive's "files on demand" make every
---- file of a synced repository one), which are ordinary files to everything
---- that reads them and must stay so. Those carry no such label.
+--- A line is a link by its **shape**, not by what its label says. Under `/a:l`
+--- a link prints `<label> name [target]`: a token in angle brackets, then the
+--- name, then the target in square brackets. The label is the language's
+--- (`<DIR>` is `<REP>` on French Windows, and the junction label is no more
+--- safe from translation), so it is kept as information when it is one of the
+--- three English ones (`<JUNCTION>`, `<SYMLINKD>`, `<SYMLINK>`) and is
+--- `UNKNOWN` otherwise; it decides nothing. `/a:l` selects every reparse
+--- point, which includes cloud-sync placeholders (OneDrive's "files on demand"
+--- make every file of a synced repository one), and those are ordinary files
+--- to everything that reads them and must stay so: a placeholder file prints
+--- no `<label>` and a placeholder folder prints no ` [`, and only a symlink or
+--- a junction prints both. The closing `]` is not asked for: a target that
+--- holds a line break is printed over two lines, and the first of them is
+--- still a link, only one whose target cannot be read.
 ---
 --- **Names are matched, not trusted.** `dir` prints in the console's code
 --- page and the caller holds the name in the ANSI one, so a name with a byte
---- above 127 cannot be compared reliably. A listing that shows such a link
---- marks itself `opaque`, and from then on every non-ASCII name in that
---- directory is treated as a link too: the directory is answered pessimistically
---- rather than guessed at.
+--- above 127 cannot be compared reliably: the console may show a character it
+--- has no glyph for as `?` (which no file name can hold) or as a look-alike
+--- letter, and then the printed line is plain ASCII and gives nothing away.
+--- Likewise an 8.3 alias (`DOCUME~1`) names the same entry as the long name
+--- `dir` prints, and is not printed itself. So in a directory that lists at
+--- least one link, a name with a non-ASCII byte, a `?` or a `~` and a digit is
+--- answered as a link: the directory is answered pessimistically rather than
+--- guessed at. A directory with no link is not affected.
+---
+--- Two lines that read a name alike (` evil` and `evil`, which differ in a
+--- blank the padding swallows; `Docs` and `docs`) are no more telling than a
+--- name that cannot be matched: the one is taken for the other's target, so
+--- the name is answered as a link with no target.
 local M = {}
 
 ---Printed after the listing by the command that produced it, so a run that
@@ -39,36 +57,54 @@ local M = {}
 M.END_MARK = "__DOCMAP_DIR_END__"
 
 ---@class Standalone.WinLinks.Entry
----@field tag string `JUNCTION`, `SYMLINKD` or `SYMLINK`.
+---@field tag string `JUNCTION`, `SYMLINKD` or `SYMLINK` as printed, `UNKNOWN` for any other label.
 ---@field rest string Everything after the label: `name [target]`.
 
 ---@class Standalone.WinLinks.Census
 ---@field complete boolean The end marker was seen, so the listing is the whole answer.
 ---@field links Standalone.WinLinks.Entry[]
----@field opaque boolean A link's name holds non-ASCII bytes, so names cannot be matched exactly.
+---@field by_name table<string, Standalone.WinLinks.Entry|false> Lower-cased text in front of the first ` [` of a line, to the line that has it, or `false` when more than one does.
+---@field nested Standalone.WinLinks.Entry[] The links with a second ` [`, in listing order: the only ones that can read as a name which holds ` [`.
 
 local LINK_TAGS = { JUNCTION = true, SYMLINKD = true, SYMLINK = true }
+
+---How many links with a second ` [` a name holding ` [` is looked up in. Such
+---lines are a name or a target holding ` [`: a handful in a real tree. A
+---directory with more is a crafted one, and every name with a ` [` would be
+---compared with every one of them, so past this the name is not looked up
+---and is answered as a link.
+local MAX_NESTED = 32
 
 ---Read the output of `dir /a:l`.
 ---
 ---Locale-proof where it matters: the date and time columns differ per
----language and are never looked at, and the labels in angle brackets are
----not translated.
+---language and are never looked at, and neither is the text of the label
+---(see the module header for what makes a line a link).
 ---@param text string Everything the command wrote to stdout.
 ---@return Standalone.WinLinks.Census
 function M.parse(text)
-  local links, opaque = {}, false
+  local links, by_name, nested = {}, {}, {}
   local complete = text:find(M.END_MARK, 1, true) ~= nil
   for line in text:gmatch("[^\r\n]+") do
-    local tag, rest = line:match("<(%u+)>%s+(.+)$")
-    if tag and LINK_TAGS[tag] then
-      links[#links + 1] = { tag = tag, rest = rest }
-      if rest:find("[\128-\255]") then
-        opaque = true
+    local label, rest = line:match("<([^<>]+)>%s+(.+)$")
+    local at = label and rest:find(" [", 1, true)
+    if at then
+      local link = { tag = LINK_TAGS[label] and label or "UNKNOWN", rest = rest }
+      links[#links + 1] = link
+      -- Only the first ` [` is a key and the rest of the line is not looked
+      -- at for more: the target is the repository's to write and can be
+      -- thousands of characters of ` [`, so a key for each would cost memory
+      -- and time in the square of the line. A name that holds ` [` itself is
+      -- read off the lines that have a second one (see `find`). A key that a
+      -- second line has as well belongs to neither.
+      local key = rest:sub(1, at - 1):lower()
+      by_name[key] = by_name[key] == nil and link or false
+      if rest:find(" [", at + 1, true) then
+        nested[#nested + 1] = link
       end
     end
   end
-  return { complete = complete, links = links, opaque = opaque }
+  return { complete = complete, links = links, by_name = by_name, nested = nested }
 end
 
 ---@class Standalone.WinLinks.Hit
@@ -77,22 +113,48 @@ end
 
 ---Is the entry called `name` one of the links in `census`?
 ---
----The name is looked up as a prefix of each listed line (`name [`) rather
----than cut out of it: a name may itself contain ` [`, and so may a target, and
----any rule for splitting the line has an input it splits wrongly. The names
----asked about come from the directory listing, so they are known to exist.
----Compared without regard to case, as the file system does.
+---The name is looked up as the text in front of a ` [` of a listed line
+---rather than cut out of it: a name may itself contain ` [`, and so may a
+---target, and any rule for splitting the line has an input it splits wrongly.
+---A name without ` [` can only be the text in front of the first one of its
+---line, which is what the table holds; a name with one is read off the lines
+---that have a second, as long as there are not more than `MAX_NESTED` of them.
+---The names asked about come from the directory listing, so they are known to
+---exist. Compared without regard to case, as the file system does.
+---
+---A name that more than one line reads, or that cannot be matched exactly but
+---could be the one of a listed link, is answered `UNKNOWN`, with no target
+---(see the module header).
 ---@param census Standalone.WinLinks.Census
 ---@param name string
 ---@return Standalone.WinLinks.Hit?
 function M.find(census, name)
-  local wanted = name:lower() .. " ["
-  for _, link in ipairs(census.links) do
-    if link.rest:sub(1, #wanted):lower() == wanted then
-      return { tag = link.tag, target = link.rest:sub(#wanted + 1):match("^(.*)%]%s*$") }
+  -- The padding after the label and a leading space of the name are one run
+  -- of whitespace to the parse, so ` evil` is listed as `evil`.
+  local plain = (name:gsub("^%s+", ""))
+  local lowered = plain:lower()
+  local link = census.by_name[lowered]
+  if link == nil and lowered:find(" [", 1, true) then
+    if #census.nested > MAX_NESTED then
+      return { tag = "UNKNOWN" }
+    end
+    local wanted = lowered .. " ["
+    for _, candidate in ipairs(census.nested) do
+      if candidate.rest:sub(1, #wanted):lower() == wanted then
+        link = link == nil and candidate or false
+      end
     end
   end
-  if census.opaque and name:find("[\128-\255]") then
+  if link == false then
+    return { tag = "UNKNOWN" }
+  end
+  if link then
+    return {
+      tag = link.tag,
+      target = link.rest:sub(#lowered + 3):match("^(.*)%]%s*$"),
+    }
+  end
+  if #census.links > 0 and (plain:find("[\128-\255?]") or plain:find("~%d")) then
     return { tag = "UNKNOWN" }
   end
   return nil
