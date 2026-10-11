@@ -39,6 +39,8 @@ local M = {}
 
 local api = vim.api
 local uv = vim.uv or vim.loop
+local safe_fs = require("documentation.core.safe_fs")
+local safe_out_dir = require("documentation.core.safe_out_dir")
 
 ---@type boolean
 local _registered = false
@@ -72,7 +74,7 @@ local function climb(start, rel_for)
     local rel = rel_for(dir)
     if rel then
       local candidate = dir .. "/" .. rel .. "/module_map.json"
-      if uv.fs_stat(candidate) then
+      if safe_fs.stat(dir, candidate) then
         return candidate, dir
       end
     end
@@ -104,6 +106,13 @@ end
 --- For the same reason it reuses `config.file.load` and that module's own
 --- `NAME` rather than reading the JSON again — a second copy of a parser is
 --- the failure this repository keeps meeting.
+---
+--- **What a repository states is vetted before it is believed.** `out_dir`
+--- from a `.docmap.json` is the repository's own text, and the climb pastes
+--- it onto a directory: `core/safe_out_dir.lua` is the same whitelist the
+--- writers apply, so a value that walks out of the project (`../../x`) is
+--- "nothing stated" here as it is an error there. The probe for the file
+--- itself goes through `core/safe_fs.lua`, as does every `stat` below.
 ---@param dir string
 ---@return string|nil out_dir relative, or nil where nothing states one
 local function stated_out_dir(dir)
@@ -112,7 +121,7 @@ local function stated_out_dir(dir)
     local handle = registry.get(dir)
     local configured = handle and handle.cfg and handle.cfg.out_dir
     if type(configured) == "string" and configured ~= "" then
-      return configured
+      return safe_out_dir(configured)
     end
   end
 
@@ -120,13 +129,13 @@ local function stated_out_dir(dir)
   if not ok_file or type(file) ~= "table" or type(file.load) ~= "function" then
     return nil
   end
-  if not uv.fs_stat(dir .. "/" .. file.NAME) then
+  if not safe_fs.stat(dir, dir .. "/" .. file.NAME) then
     return nil
   end
   local stated = file.load(dir)
   local configured = stated and stated.out_dir
   if type(configured) == "string" and configured ~= "" then
-    return configured
+    return safe_out_dir(configured)
   end
   return nil
 end
@@ -150,6 +159,14 @@ end
 ---
 --- The climb was **98 %** of the ask. Caching it is not an optimisation of a
 --- fast path; it is removing the only slow one.
+---
+--- **Every probe is `safe_fs.stat` now**, so a link that leaves the project is
+--- not statted (on Windows that is a network contact). It costs one `lstat`
+--- per path component and the root's `realpath` on top of the `stat`. The
+--- same callback, 24 levels, nothing found, both passes, re-measured on
+--- 2026-10-11 on a slower machine than the table above: 0.92 ms before and
+--- 1.11 ms after, paid once per directory; a cached hit ask went from 17 us
+--- to 68 us.
 ---
 --- **What a cached miss costs in honesty.** The answer goes stale if a map
 --- *appears* where there was none — generated during the session, a branch
@@ -224,7 +241,11 @@ end
 ---@return table<string, table>|nil nodes
 ---@return integer|nil mtime
 local function load_map(path, root)
-  local st = uv.fs_stat(path)
+  -- Through `core/safe_fs.lua`, asked afresh: a map behind a link that leaves
+  -- the project is no map, and a long-lived editor must not answer for a link
+  -- that appeared since the last ask.
+  safe_fs.forget()
+  local st = safe_fs.stat(root, path)
   if not st or not st.mtime then
     return nil
   end
@@ -235,12 +256,10 @@ local function load_map(path, root)
     return cached.nodes, mtime
   end
 
-  local fd = io.open(path, "r")
-  if not fd then
+  local raw = safe_fs.read(root, path)
+  if not raw then
     return nil
   end
-  local raw = fd:read("*a")
-  fd:close()
 
   local ok, decoded = pcall(vim.json.decode, raw)
   if not ok or type(decoded) ~= "table" or type(decoded.nodes) ~= "table" then
@@ -331,7 +350,7 @@ local function content_for(node, artifact_mtime, root)
     local base = root .. "/" .. node.path
     local newest = nil
     for _, candidate in ipairs({ base, base .. ".lua", base .. "/init.lua" }) do
-      local st = uv.fs_stat(candidate)
+      local st = safe_fs.stat(root, candidate)
       if st and st.type == "file" and st.mtime then
         newest = math.max(newest or 0, st.mtime.sec)
       end
@@ -377,7 +396,8 @@ function M.setup()
         end
 
         local buf_name = api.nvim_buf_get_name(bufnr)
-        local start = buf_name ~= "" and vim.fs.dirname(buf_name) or (uv.cwd() or "")
+        local start = buf_name ~= "" and vim.fs.dirname(buf_name)
+          or vim.fs.normalize(uv.cwd() or "")
         local artifact, root = find_map(start)
         if not artifact or not root then
           return nil

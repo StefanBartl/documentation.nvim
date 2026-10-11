@@ -16,6 +16,7 @@
 local M = {}
 
 local uv = vim.uv
+local safe_fs = require("documentation.core.safe_fs")
 
 -- The three artifact-shape functions below moved to
 -- `documentation.core.artifact` and are re-exported here unchanged. They
@@ -40,20 +41,27 @@ M.rehydrate = artifact.rehydrate
 
 ---Read and decode `module_map.json`.
 ---
----Wraps `core.artifact.load` to add the two things only this layer cares
----about: an error *message* naming the path (a browser has a status line to
----put it in; the core reader's callers all have to say "absent" in their own
----words anyway), and the `root` field check — the artifact contract this
----side relies on, which the core reader deliberately does not require, since
----a telemetry join never reads it.
+---Reads like `core.artifact.load` -- through `core/safe_fs.lua`, so a map
+---behind a link that leaves the project is not opened, and `out_dir` is
+---vetted the way the writers vet it -- and adds the two things only this
+---layer cares about: an error *message* naming the path (a browser has a
+---status line to put it in; the core reader's callers all have to say
+---"absent" in their own words anyway), and the `root` field check — the
+---artifact contract this side relies on, which the core reader deliberately
+---does not require, since a telemetry join never reads it.
 ---@param opts Documentation.Browse.Opts
 ---@return Documentation.IR|nil ir
 ---@return string|nil err
 function M.load_artifact(opts)
+  if not require("documentation.core.safe_out_dir")(opts.out_dir) then
+    return nil, ("out_dir is not a safe relative path: %s"):format(tostring(opts.out_dir))
+  end
   local path = M.artifact_path(opts)
-  local read = require("lib.nvim.fs.read")
 
-  local content = read(path)
+  local content, kind, why = safe_fs.read(M.norm_root(opts.root), path)
+  if kind == "refused" then
+    return nil, ("map at %s is not read: %s"):format(path, why)
+  end
   if not content then
     return nil, ("no map at %s — run :DocMap first"):format(path)
   end
@@ -76,7 +84,13 @@ end
 ---@param opts Documentation.Browse.Opts
 ---@return boolean stale
 function M.stale(opts)
-  local st = uv.fs_stat(M.artifact_path(opts))
+  -- Through `core/safe_fs.lua`, like the read above: a link that leaves the
+  -- project is neither statted nor walked into, and one that stays inside is
+  -- the thing it leads to. The walk lists only files it has already placed
+  -- inside the project, so statting those is no way out of it.
+  local root = M.norm_root(opts.root)
+  safe_fs.forget()
+  local st = safe_fs.stat(root, M.artifact_path(opts))
   if not st then
     return true
   end
@@ -85,17 +99,8 @@ function M.stale(opts)
   -- The first root, not every one: this resolves a single directory to read
   -- a file from, and widening it to the repository root would make an
   -- unrelated file outside every source root look like part of the tree.
-  local source_dir = M.norm_root(opts.root)
-    .. "/"
-    .. require("documentation.config").sources(opts)[1]
-  local ok, files = pcall(function()
-    return require("lib.nvim.fs.collect_recursive").files(source_dir)
-  end)
-  if not ok then
-    return false
-  end
-
-  for _, p in ipairs(files) do
+  local source_dir = root .. "/" .. require("documentation.config").sources(opts)[1]
+  for _, p in ipairs(safe_fs.walk_files(root, source_dir)) do
     if p:sub(-4) == ".lua" then
       local fs = uv.fs_stat(p)
       if fs and fs.mtime.sec > map_mtime then

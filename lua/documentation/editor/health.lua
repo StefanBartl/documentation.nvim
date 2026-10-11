@@ -604,8 +604,28 @@ function M.check()
   -- Artifacts --------------------------------------------------------------
   h_start("documentation.nvim: artifacts")
 
-  local artifact = cfg.root .. "/" .. cfg.out_dir .. "/module_map.json"
-  local raw = require("lib.nvim.fs.read")(artifact)
+  -- Read the way the CLI reads the committed map (`core/artifact.lua`): an
+  -- `out_dir` that is not a safe relative path, or a map behind a link that
+  -- leaves the project, is reported with its reason rather than opened --
+  -- opening it is what a hostile repository would have this report do.
+  local safe_fs = require("documentation.core.safe_fs")
+  local out_dir = require("documentation.core.safe_out_dir")(cfg.out_dir)
+  if not out_dir then
+    h_warn(("out_dir is not a safe relative path: %s"):format(tostring(cfg.out_dir)), {
+      "The map is neither written nor read from there.",
+      "Set opts.out_dir to a path inside the repository.",
+    })
+    return
+  end
+  local artifact = cfg.root .. "/" .. out_dir .. "/module_map.json"
+  local raw, kind, why = safe_fs.read(cfg.root, artifact)
+  if kind == "refused" then
+    h_warn(("%s/module_map.json is not read: %s"):format(cfg.out_dir, why), {
+      "A link that stays inside the repository is followed; one that leaves it is not.",
+      "Replace it with a plain directory, or point opts.out_dir at one.",
+    })
+    return
+  end
   if not raw then
     h_info(("no map generated yet under %s"):format(cfg.out_dir), {
       "Run :DocMap (or nvim --headless -l scripts/gen_map.lua).",
@@ -626,26 +646,24 @@ function M.check()
   -- Staleness by mtime rather than by regenerating: `:DocMap check` is the
   -- authoritative answer and costs a full scan, which is not what a health
   -- check should spend. This is the cheap approximation, and it says so.
+  -- The map was just read through `safe_fs`, so statting that path is no way
+  -- out of the project either.
   local art_stat = vim.uv.fs_stat(artifact)
   local newest, newest_path = 0, nil
-  local function walk(d)
-    for name, kind in vim.fs.dir(d) do
-      local p = d .. "/" .. name
-      if kind == "directory" then
-        walk(p)
-      elseif name:sub(-4) == ".lua" then
+  -- Every source root. This asks "is the map older than the newest source
+  -- file"; walking only one of two roots would answer it for half the tree
+  -- and report the map fresh while the other half had moved on. The walk
+  -- lists only files it has placed inside the project, so statting those is
+  -- no way out of it.
+  for _, src in ipairs(require("documentation.config").sources(cfg)) do
+    for _, p in ipairs(safe_fs.walk_files(cfg.root, cfg.root .. "/" .. src)) do
+      if p:sub(-4) == ".lua" then
         local st = vim.uv.fs_stat(p)
         if st and st.mtime.sec > newest then
           newest, newest_path = st.mtime.sec, p
         end
       end
     end
-  end
-  -- Every source root. This asks "is the map older than the newest source
-  -- file"; walking only one of two roots would answer it for half the tree
-  -- and report the map fresh while the other half had moved on.
-  for _, src in ipairs(require("documentation.config").sources(cfg)) do
-    pcall(walk, cfg.root .. "/" .. src)
   end
 
   if art_stat and newest > art_stat.mtime.sec then
