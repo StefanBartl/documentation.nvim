@@ -25,6 +25,39 @@ return function(H)
     fd:close()
   end
 
+  ---Run `fn` under Windows' path rules on this host: a backslash means what a
+  ---slash does to every file-system call, and there is no `realpath` (the
+  ---standalone shim has none). Everything is put back whatever happens, since
+  ---the suite runs in one editor.
+  local function under_windows(fn)
+    local safe_fs = require("documentation.core.safe_fs")
+    local saved_host, saved_windows, saved_open = safe_fs.host, safe_fs.windows, io.open
+    local function slashed(path)
+      return (path:gsub("\\", "/"))
+    end
+    local host = vim.tbl_extend("force", {}, saved_host)
+    host.realpath = nil
+    for _, name in ipairs({ "lstat", "stat", "scandir", "readlink" }) do
+      host[name] = function(path)
+        return saved_host[name](slashed(path))
+      end
+    end
+    safe_fs.host, safe_fs.windows = host, true
+    -- luacheck: ignore 122
+    io.open = function(path, mode)
+      return saved_open(slashed(path), mode)
+    end
+    safe_fs.forget()
+    local ran, err = pcall(fn)
+    -- luacheck: ignore 122
+    io.open = saved_open
+    safe_fs.host, safe_fs.windows = saved_host, saved_windows
+    safe_fs.forget()
+    if not ran then
+      error(err, 0)
+    end
+  end
+
   -- ── parse ────────────────────────────────────────────────────────────────
 
   do
@@ -163,7 +196,7 @@ return function(H)
   -- ── resolve ──────────────────────────────────────────────────────────────
 
   do
-    local root = (H.tmpfile("_checklist_dir"):gsub("\\", "/"))
+    local root = H.tmpfile("_checklist_dir")
     dwrite(root, "docs/CHECKLIST/b_second.md", { "## B", "- [x] two", "- [ ] three" })
     dwrite(
       root,
@@ -185,7 +218,7 @@ return function(H)
 
   do
     -- The degenerate single-file case: six items should not need a directory.
-    local root = (H.tmpfile("_checklist_file"):gsub("\\", "/"))
+    local root = H.tmpfile("_checklist_file")
     dwrite(root, "docs/CHECKLIST.md", { "## S", "- [ ] only" })
     local result = assert(checklist.resolve(root), "resolve: a single file resolves too")
     eq(result.source, "docs/CHECKLIST.md", "resolve: reports the file candidate")
@@ -193,9 +226,43 @@ return function(H)
   end
 
   do
-    local root = (H.tmpfile("_checklist_none"):gsub("\\", "/"))
+    local root = H.tmpfile("_checklist_none")
     vim.fn.mkdir(root, "p")
     eq(checklist.resolve(root), nil, "resolve: nil for a repo with no checklist — not an error")
+  end
+
+  do
+    -- A root that is not spelled the way `resolve` documents (backslashes, a
+    -- trailing slash) finds what the tidy one does, instead of a silent "no
+    -- checklist": `features.resolve` tidies it, and `safe_fs` compares it
+    -- textually with the paths built from it.
+    local root = (H.tmpfile("_checklist_raw"):gsub("\\", "/"))
+    dwrite(root, "docs/CHECKLIST/a.md", { "## A", "- [x] one" })
+    local tidy = assert(checklist.resolve(root), "resolve: the tidy root resolves")
+    eq(#tidy.files, 1, "resolve: the tidy root finds the one file")
+
+    ---@param raw string
+    ---@param what string
+    local function same(raw, what)
+      -- `H.eq` records a failure and goes on, so a missing result has to
+      -- survive the lines below it.
+      local result = checklist.resolve(raw) or { files = {} }
+      eq(#result.files, 1, "resolve: " .. what .. " finds the checklist's one file")
+      eq(
+        result.files[1] and result.files[1].path,
+        tidy.files[1].path,
+        "resolve: " .. what .. " names the same path"
+      )
+      eq(result.total, tidy.total, "resolve: " .. what .. " counts the same items")
+    end
+
+    same(root .. "/", "a trailing slash")
+    same(root .. "//", "trailing slashes")
+    under_windows(function()
+      local backslashed = root:gsub("/", "\\")
+      same(backslashed, "a backslash root")
+      same(backslashed .. "\\", "a root with a trailing backslash")
+    end)
   end
 
   -- ── parse_history ────────────────────────────────────────────────────────

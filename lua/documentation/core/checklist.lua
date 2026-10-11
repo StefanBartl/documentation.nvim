@@ -298,6 +298,10 @@ function M.resolve(root, dirs)
   if type(root) ~= "string" or root == "" then
     return nil
   end
+  -- `safe_fs` compares the root textually with the paths built from it, so a
+  -- root spelled with backslashes would read as "outside the project" and the
+  -- checklist as absent. Tidied as `features.resolve` does.
+  root = (root:gsub("\\", "/"):gsub("/+$", ""))
 
   local source, files = nil, {}
 
