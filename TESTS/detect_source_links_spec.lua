@@ -214,9 +214,16 @@ return function(H)
 
   local leaving_root, twin_root = H.canonical(leaving), H.canonical(twin)
   local twin_target = twin_root .. "/payload"
+  -- `source` and `Source` are one name on a file system that folds case (macOS,
+  -- Windows): the second link would find the first one in the way.
+  local folds = safe_fs.folds_case(leaving_root)
+  local linked_lower = {}
   for _, name in ipairs(NAMES) do
-    ok(H.link(outside .. "/payload", leaving_root .. "/" .. name, true), "a link out: " .. name)
-    ok(H.link(twin_target, twin_root .. "/" .. name, true), "a link that stays inside: " .. name)
+    if not (folds and linked_lower[name:lower()]) then
+      linked_lower[name:lower()] = true
+      ok(H.link(outside .. "/payload", leaving_root .. "/" .. name, true), "a link out: " .. name)
+      ok(H.link(twin_target, twin_root .. "/" .. name, true), "a link that stays inside: " .. name)
+    end
   end
   local made_go_mod = H.link(outside .. "/payload/go.mod", leaving_root .. "/go.mod", false)
   ok(made_go_mod or is_windows, "a file link could not be made on a platform that should allow it")

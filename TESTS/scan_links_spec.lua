@@ -513,8 +513,11 @@ return function(H)
   -- and none of it is if it leaves. A project of its own, and none of its
   -- folders is called `out`, which the walk leaves out by default.
   local mroot = base .. "/modlink"
-  local mhere = H.canonical(mroot)
   module_file(mroot .. "/lua/real/init.lua", "real", "REAL-INIT-SUMMARY.")
+  -- Resolved once the folder exists: before that there is nothing to resolve and
+  -- the spelling stays the temp dir's (`/var/...` where the engine says
+  -- `/private/var/...`).
+  local mhere = H.canonical(mroot)
   H.write(mroot .. "/lua/real/README.md", { "# real" })
   H.write(mroot .. "/lua/real/@types/shape.lua", { "---@class RealShape" })
   module_file(outside .. "/mod_init.lua", "leaked_init", "OUTSIDE-INIT-SUMMARY.")

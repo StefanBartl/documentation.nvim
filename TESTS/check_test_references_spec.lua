@@ -24,7 +24,7 @@ return function(H)
   local scan = require("documentation.core.scan")
   local check = require("documentation.core.check")
 
-  local dr = H.tmpfile("_test_refs")
+  local dr = (H.tmpfile("_test_refs"):gsub("\\", "/"))
   local function dwrite(rel, lines)
     local abs = dr .. "/" .. rel
     vim.fn.mkdir(vim.fn.fnamemodify(abs, ":h"), "p")
