@@ -73,6 +73,7 @@ flowchart LR
   nlua_documentation_core_docs_lua["documentation.core.docs"]
   nlua_documentation_core_endpoint_coverage_lua["documentation.core.endpoint_coverage"]
   nlua_documentation_core_endpoints_lua["documentation.core.endpoints"]
+  nlua_documentation_core_features_lua["documentation.core.features"]
   nlua_documentation_core_find_lua["documentation.core.find"]
   nlua_documentation_core_findings_lua["documentation.core.findings"]
   nlua_documentation_core_functions_lua["documentation.core.functions"]
@@ -147,6 +148,7 @@ flowchart LR
   nlua_documentation_core_api_lua --> nlua_documentation_core_loaded_diff_lua
   nlua_documentation_core_api_lua --> nlua_documentation_core_soft_require_lua
   nlua_documentation_core_api_lua --> nlua_documentation_core_telemetry_join_lua
+  nlua_documentation_core_artifact_lua --> nlua_documentation_core_safe_fs_lua
   nlua_documentation_core_calls_lua --> nlua_documentation_core_deps_lua
   nlua_documentation_core_calls_lua --> nlua_documentation_core_lang_registry_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_check_policy_lua
@@ -156,8 +158,10 @@ flowchart LR
   nlua_documentation_core_check_lua --> nlua_documentation_core_docs_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_lang_registry_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_loaded_diff_lua
+  nlua_documentation_core_check_lua --> nlua_documentation_core_safe_fs_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_scopes_lua
   nlua_documentation_core_check_lua --> nlua_documentation_core_telemetry_join_lua
+  nlua_documentation_core_checklist_lua --> nlua_documentation_core_safe_fs_lua
   nlua_documentation_core_churn_lua --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_coverage_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_doccoverage_lua
@@ -170,13 +174,16 @@ flowchart LR
   nlua_documentation_core_cli_lua --> nlua_documentation_core_startup_graph_lua
   nlua_documentation_core_cli_lua --> nlua_documentation_core_telemetry_join_lua
   nlua_documentation_core_consumers_lua --> nlua_documentation_core_artifact_lua
+  nlua_documentation_core_coverage_lua --> nlua_documentation_core_safe_fs_lua
   nlua_documentation_core_deps_lua --> nlua_documentation_core_lang_registry_lua
   nlua_documentation_core_diff_lua --> nlua_documentation_core_check_lua
   nlua_documentation_core_diff_lua --> nlua_documentation_core_deps_lua
   nlua_documentation_core_doccoverage_lua --> nlua_documentation_core_check_lua
   nlua_documentation_core_doccoverage_lua --> nlua_documentation_core_lang_registry_lua
   nlua_documentation_core_doccoverage_lua --> nlua_documentation_core_render
+  nlua_documentation_core_docs_lua --> nlua_documentation_core_safe_fs_lua
   nlua_documentation_core_endpoint_coverage_lua --> nlua_documentation_core_soft_require_lua
+  nlua_documentation_core_features_lua --> nlua_documentation_core_safe_fs_lua
   nlua_documentation_core_find_lua --> nlua_documentation_core_check_lua
   nlua_documentation_core_functions_lua --> nlua_documentation_core_bindings_lua
   nlua_documentation_core_functions_lua --> nlua_documentation_core_calls_lua

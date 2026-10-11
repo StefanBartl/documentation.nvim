@@ -141,6 +141,7 @@ local specs = {
   "safe_fs_spec.lua",
   "out_dir_links_spec.lua",
   "scan_links_spec.lua",
+  "readers_links_spec.lua",
   "win_links_spec.lua",
   "check_policy_spec.lua",
   "coverage_gaps_spec.lua",

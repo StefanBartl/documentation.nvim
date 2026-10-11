@@ -74,7 +74,7 @@
 
 local M = {}
 
-local collect_recursive = require("lib.nvim.fs.collect_recursive")
+local safe_fs = require("documentation.core.safe_fs")
 
 --- Longest stored context around a mention, and how many references are kept
 --- per entity before the rest become a count. Both are bounded because this
@@ -451,19 +451,20 @@ function M.corpus(opts)
   local out_dir = (opts.out_dir or "docs/map"):gsub("^/+", ""):gsub("/+$", "")
   local out_abs = root .. "/" .. out_dir
 
-  local files = collect_recursive.files(root, {
-    ignore = function(abs, is_dir)
-      local p = abs:gsub("\\", "/")
-      if is_dir then
-        if p == out_abs then
-          return true
-        end
-        local name = p:match("([^/]+)$") or ""
-        return name:sub(1, 1) == "." or name == "node_modules"
+  -- `safe_fs`, not `lib.nvim.fs.collect_recursive`: this walks the whole
+  -- repository, and that walker statted every link to classify it and listed a
+  -- file link wherever it led (see `safe_fs.walk_files`).
+  local files = safe_fs.walk_files(root, root, function(abs, is_dir)
+    local p = abs:gsub("\\", "/")
+    if is_dir then
+      if p == out_abs then
+        return true
       end
-      return false
-    end,
-  })
+      local name = p:match("([^/]+)$") or ""
+      return name:sub(1, 1) == "." or name == "node_modules"
+    end
+    return false
+  end)
 
   local rel = {}
   for _, abs in ipairs(files) do

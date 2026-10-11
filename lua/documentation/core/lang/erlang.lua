@@ -200,7 +200,7 @@ local function comment_runs(root, src)
         if doc then
           lines[#lines + 1] = doc
         elseif line:match("^@%a") then
-          -- `@since`, `@author`, `@equiv` and the rest: dropped.
+        -- `@since`, `@author`, `@equiv` and the rest: dropped.
         else
           lines[#lines + 1] = line
         end

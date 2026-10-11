@@ -345,7 +345,18 @@ local function check_readme_links(ir, findings, opts)
       if not target:match("^%a+://") and not target:match("^#") and not seen[target] then
         seen[target] = true
         local resolved = resolve_relative_link(base_dir, target)
-        if not uv.fs_stat(root .. "/" .. resolved) then
+        -- Through `safe_fs`: a target is the repository's own text, and
+        -- `a/link/x` reaches wherever `link` leads. A target that cannot be
+        -- reached without leaving the project is not judged dead -- it is not
+        -- looked at.
+        local st, why, detail =
+          require("documentation.core.safe_fs").stat(root, root .. "/" .. resolved)
+        if not st and why == "leaves" and detail == ".." then
+          -- A plain `..` out of the project, no link involved: judged as before.
+          st = uv.fs_stat(root .. "/" .. resolved)
+          why = st and nil or "missing"
+        end
+        if not st and why == "missing" then
           add(findings, "warn", "dead-readme-link", node_id, { file = rel_path, target = target })
         end
       end
@@ -993,7 +1004,7 @@ local function check_test_references(ir, findings, opts)
   local tests_dir = root .. "/" .. (opts.tests_dir or "TESTS")
 
   local ok_files, files = pcall(function()
-    return require("lib.nvim.fs.collect_recursive").files(tests_dir)
+    return require("documentation.core.safe_fs").walk_files(root, tests_dir)
   end)
   if not ok_files or not files or #files == 0 then
     return

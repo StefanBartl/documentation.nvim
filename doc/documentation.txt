@@ -1131,8 +1131,9 @@ This holds whoever set `out_dir` (the default, a flag, your options or a
 project too. It covers `module_map.json`, `index.html`, `overview.md`,
 `coverage.svg` and `overview.pdf`.
 
-Reading: the source walk, the source roots, `.docmap.json` and the committed
-map that `--check` reads follow a link only if, resolved one step at a time,
+Reading: the source walk, the source roots, `.docmap.json`, the prose corpus,
+the tests directory, the Features and Checklist folders, README link targets
+and the committed map (`--check`, `--api=`) follow a link only if, resolved one step at a time,
 it stays inside the project. A link that leaves it is not followed, and the
 run says so on stderr (`3 links not followed:`). A source root that is such a
 link, or reaches outside with `..`, is refused with the reason. A link back up
@@ -1141,9 +1142,9 @@ it cannot read the map.
 
 On Windows a link target is judged as a string first: anything but a plain
 drive path (`\\host\share`, `\\?\UNC\…`, `\\?\GLOBALROOT\…`, `\??\…`) is never
-opened. Not covered yet: the `docs/FEATURES` and checklist folders, README
-link targets, `opts.tests_dir`, `opts.tag_files` and `opts.external_repos` still
-open fixed names under the root directly. See docs/SECURITY.md.
+opened. `opts.tag_files`, `opts.external_repos` and `opts.consumers` name paths
+outside the project on purpose and are not covered by this; see
+docs/SECURITY.md.
 
 ==============================================================================
 10. MCP SERVER                                                *documentation-mcp*

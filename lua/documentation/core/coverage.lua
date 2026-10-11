@@ -64,14 +64,14 @@ local function bare(name)
   return name:match("([%w_]+)$") or name
 end
 
----Every `.lua` file under `dir`, recursively — `lib.nvim.fs.collect_recursive`
----already exists for exactly this and is already a dependency of
----`browse/source.lua`'s staleness check.
+---Every `.lua` file under `dir`, recursively, without leaving `root` through
+---a link (`safe_fs.walk_files`; `lib.nvim.fs.collect_recursive` followed them).
+---@param root string
 ---@param dir string
 ---@return string[]
-local function lua_files(dir)
+local function lua_files(root, dir)
   local ok, files = pcall(function()
-    return require("lib.nvim.fs.collect_recursive").files(dir)
+    return require("documentation.core.safe_fs").walk_files(root, dir)
   end)
   if not ok then
     return {}
@@ -97,7 +97,7 @@ function M.resolve(ir, opts)
   local tests_dir = root .. "/" .. (opts.tests_dir or "TESTS")
 
   local mentioned = {}
-  for _, path in ipairs(lua_files(tests_dir)) do
+  for _, path in ipairs(lua_files(root, tests_dir)) do
     local fd = io.open(path, "rb")
     if fd then
       local src = fd:read("*a")

@@ -550,7 +550,7 @@ end
 ---that follows links.
 ---@param root string
 ---@param dir string Absolute path under `root`.
----@return { name: string, type: string }[]
+---@return { name: string, type: string, link: boolean? }[] `link` is set on an entry that is a followed link.
 function M.entries(root, dir)
   local rel = strip_root(root, dir)
   if rel == nil then
@@ -573,7 +573,8 @@ function M.entries(root, dir)
       break
     end
     local kind = lstat_kind(phys .. "/" .. name)
-    if kind == "link" then
+    local linked = kind == "link"
+    if linked then
       local child = phys_rel == "" and name or (phys_rel .. "/" .. name)
       local target, cwhy, cdetail = M.resolve(root, child)
       if target then
@@ -585,9 +586,45 @@ function M.entries(root, dir)
       end
     end
     if kind then
-      out[#out + 1] = { name = name, type = kind }
+      out[#out + 1] = { name = name, type = kind, link = linked or nil }
     end
   end
+  return out
+end
+
+---Every file under `start`, recursively, as absolute paths -- the walk
+---`lib.nvim.fs.collect_recursive.files` does, without its two ways out of the
+---project: it statted every link it met to classify it (opening, on Windows, a
+---link to another machine), and listed a file link wherever it led.
+---
+---Same rules as the scan: a link that stays inside the project is the thing it
+---leads to, one that leaves is left out and noted in `M.skipped`. Like the
+---walker it replaces, a *directory* link is not entered -- two names for one
+---folder would be read twice, and a link back up the tree for ever -- and a
+---directory that cannot be listed gives nothing, not an error.
+---@param root string
+---@param start string Absolute directory under `root`.
+---@param ignore (fun(abs: string, is_dir: boolean): boolean)? `true` skips a file, or a whole directory.
+---@return string[] files
+function M.walk_files(root, start, ignore)
+  M.forget()
+  local out = {}
+  local function walk(dir)
+    for _, e in ipairs(M.entries(root, dir)) do
+      local abs = dir .. "/" .. e.name
+      local is_dir = e.type == "directory"
+      if not (ignore and ignore(abs, is_dir)) then
+        if is_dir then
+          if not e.link then
+            walk(abs)
+          end
+        else
+          out[#out + 1] = abs
+        end
+      end
+    end
+  end
+  walk(start)
   return out
 end
 

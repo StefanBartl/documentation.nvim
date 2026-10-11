@@ -71,19 +71,22 @@
 
 local M = {}
 
-local uv = vim.uv
+local safe_fs = require("documentation.core.safe_fs")
 
+---Through `core/safe_fs.lua`: the checklist folder and its files are the
+---repository's to name, and a link among them must not lead out of the project.
+---@param root string
 ---@param path string
 ---@return boolean
-local function is_dir(path)
-  local st = uv.fs_stat(path)
-  return st ~= nil and st.type == "directory"
+local function is_dir(root, path)
+  return safe_fs.is_dir(root, path)
 end
 
+---@param root string
 ---@param path string
 ---@return string|nil
-local function read_file(path)
-  local fd = io.open(path, "r")
+local function read_file(root, path)
+  local fd = safe_fs.open(root, path, "r")
   if not fd then
     return nil
   end
@@ -247,7 +250,7 @@ function M.parse(text, path)
         end
 
         if not logical then
-          -- Mid-comment: nothing to decide until the closing `-->` arrives.
+        -- Mid-comment: nothing to decide until the closing `-->` arrives.
         elseif tag == "ref" and value then
           local ref_path, ref_line = split_ref(value)
           item.ref = ref_path
@@ -262,10 +265,10 @@ function M.parse(text, path)
           -- it through to whatever displays it.
           item.meta[#item.meta + 1] = { key = tag, value = value }
         elseif trim(line) == "" then
-          -- A blank line does not end the block: the `RULES/`-shaped corpus
-          -- this format is modelled on separates an item's text from its
-          -- metadata comments with one, and treating that as a terminator
-          -- would drop every citation in it.
+        -- A blank line does not end the block: the `RULES/`-shaped corpus
+        -- this format is modelled on separates an item's text from its
+        -- metadata comments with one, and treating that as a terminator
+        -- would drop every citation in it.
         elseif line:match("^%s") then
           -- An indented continuation line. Hand-written checklist items wrap
           -- — found the first time this parser was run against a real
@@ -301,7 +304,7 @@ function M.resolve(root, dirs)
   for _, candidate in ipairs(require("documentation.config").dir_list(dirs, CANDIDATES)) do
     local abs = root .. "/" .. candidate
     if candidate:match("%.md$") then
-      local text = read_file(abs)
+      local text = read_file(root, abs)
       if text then
         source = candidate
         files[1] = {
@@ -311,12 +314,12 @@ function M.resolve(root, dirs)
         }
         break
       end
-    elseif is_dir(abs) then
+    elseif is_dir(root, abs) then
       source = candidate
       local names = {}
-      for name, kind in vim.fs.dir(abs) do
-        if kind == "file" and name:match("%.md$") then
-          names[#names + 1] = name
+      for _, e in ipairs(safe_fs.entries(root, abs)) do
+        if e.type == "file" and e.name:match("%.md$") then
+          names[#names + 1] = e.name
         end
       end
       -- Sorted, so two runs over an unchanged tree produce identical bytes.
@@ -325,7 +328,7 @@ function M.resolve(root, dirs)
       table.sort(names)
       for _, name in ipairs(names) do
         local rel = candidate .. "/" .. name
-        local text = read_file(root .. "/" .. rel)
+        local text = read_file(root, root .. "/" .. rel)
         if text then
           files[#files + 1] =
             { path = rel, name = name:gsub("%.md$", ""), sections = M.parse(text, rel) }

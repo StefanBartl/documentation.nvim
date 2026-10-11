@@ -72,8 +72,10 @@ never been able to name a place outside the project (`..`, an absolute path and
 a drive letter are refused for it as for any other source), so there is no such
 destination for this check to leave alone.
 
-**Reading.** The source walk, the source roots, `.docmap.json` and the
-committed map that `--check` reads back follow a link only if, resolved one
+**Reading.** The source walk, the source roots, `.docmap.json`, the prose
+corpus (every `.md` under the root), the tests directory, the Features and
+Checklist folders, the targets of README links and the committed map (`--check`
+and the app's `--api=` routes) follow a link only if, resolved one
 step at a time without opening anything on the way, it stays inside the
 project. One that leaves it is not followed; the run says so on stderr:
 
@@ -108,11 +110,12 @@ holds such a link every non-ASCII name is treated as a link as well. When
 `cmd.exe` does not answer, nothing in that directory is followed, and the run
 says so.
 
-**Not covered yet:** these still open fixed names under the root directly and
-follow whatever is there — the `docs/FEATURES` and checklist folders, the files
-`core/check.lua` and `core/docs.lua` resolve README links to, `opts.tests_dir`
-(`lib.nvim.fs.collect_recursive`), `opts.tag_files` and `opts.external_repos`.
-They are the same class and belong behind the same module.
+**Not covered by this, and not the same problem:** `opts.tag_files`,
+`opts.external_repos` and `opts.consumers` name paths *outside* the project on
+purpose (a sibling checkout), and a `.docmap.json` in the repository is allowed
+to set all three. The engine therefore stats and reads a path the repository
+chose, link or not. That wants a rule about who may name a path outside the
+root, not a link check; it is an open task, see the vault.
 
 ## Subprocess execution
 

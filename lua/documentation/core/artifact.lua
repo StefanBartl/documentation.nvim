@@ -119,8 +119,15 @@ end
 ---@return Documentation.IR|nil ir
 ---@return string|nil err
 function M.load(opts)
-  local read = require("lib.nvim.fs.read")
-  local content = read(M.artifact_path(opts))
+  -- Through `core/safe_fs.lua`: this is the committed map, read by the host
+  -- app's `--api=` routes, from a directory the repository can make a link. A
+  -- map behind a link that leaves the project is read as no map, with the
+  -- reason; one behind a link that stays inside still reads.
+  local root = M.norm_root(opts.root)
+  local content, kind, why = require("documentation.core.safe_fs").read(root, M.artifact_path(opts))
+  if kind == "refused" then
+    return nil, "the map is not read: " .. tostring(why)
+  end
   if not content then
     return nil
   end

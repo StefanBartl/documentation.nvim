@@ -21,19 +21,23 @@
 
 local M = {}
 
-local uv = vim.uv
+local safe_fs = require("documentation.core.safe_fs")
 
+---Both of these go through `core/safe_fs.lua`: the folder and the files in it
+---are the repository's to name, and a link among them must not lead out of the
+---project.
+---@param root string
 ---@param path string
 ---@return boolean
-local function is_dir(path)
-  local st = uv.fs_stat(path)
-  return st ~= nil and st.type == "directory"
+local function is_dir(root, path)
+  return safe_fs.is_dir(root, path)
 end
 
+---@param root string
 ---@param path string
 ---@return string|nil
-local function read_file(path)
-  local fd = io.open(path, "r")
+local function read_file(root, path)
+  local fd = safe_fs.open(root, path, "r")
   if not fd then
     return nil
   end
@@ -182,12 +186,13 @@ end
 
 ---One theme file: `# Title` + intro prose (optional) before the first `##`,
 ---then one `Documentation.Features.Entry` per `## <name>` section.
+---@param root string
 ---@param path string Absolute path.
 ---@param rel string Repo-relative path, for `Documentation.Features.File.path`.
 ---@param theme string Filename without extension, as the author wrote it.
 ---@return Documentation.Features.File|nil `nil` when the file could not be read.
-local function parse_file(path, rel, theme)
-  local text = read_file(path)
+local function parse_file(root, path, rel, theme)
+  local text = read_file(root, path)
   if not text then
     return nil
   end
@@ -286,9 +291,9 @@ local function resolve_single_file(normalized, candidates)
   for _, candidate in ipairs(candidates) do
     local rel = candidate .. ".md"
     local abs = normalized .. "/" .. rel
-    if uv.fs_stat(abs) then
+    if safe_fs.stat(normalized, abs) then
       local theme = candidate:match("([^/]+)$") or candidate
-      local file = parse_file(abs, rel, theme)
+      local file = parse_file(normalized, abs, rel, theme)
       if file then
         return { folder = rel, intro = nil, files = { file } }
       end
@@ -308,7 +313,7 @@ function M.resolve(root, dirs)
 
   local folder
   for _, candidate in ipairs(candidates) do
-    if is_dir(normalized .. "/" .. candidate) then
+    if is_dir(normalized, normalized .. "/" .. candidate) then
       folder = candidate
       break
     end
@@ -323,7 +328,7 @@ function M.resolve(root, dirs)
   -- never scanned as a module.
   local intro
   for _, name in ipairs({ "README.md", "readme.md" }) do
-    local text = read_file(abs_folder .. "/" .. name)
+    local text = read_file(normalized, abs_folder .. "/" .. name)
     if text then
       local trimmed = text:match("^%s*(.-)%s*$")
       intro = trimmed ~= "" and trimmed or nil
@@ -333,13 +338,12 @@ function M.resolve(root, dirs)
 
   ---@type Documentation.Features.File[]
   local files = {}
-  local iter = vim.fs.dir(abs_folder)
-  if iter then
+  do
     ---@type string[]
     local names = {}
-    for name, type_ in iter do
-      if type_ == "file" and name:match("%.md$") and name:lower() ~= "readme.md" then
-        names[#names + 1] = name
+    for _, e in ipairs(safe_fs.entries(normalized, abs_folder)) do
+      if e.type == "file" and e.name:match("%.md$") and e.name:lower() ~= "readme.md" then
+        names[#names + 1] = e.name
       end
     end
     -- `core` first, then `FEATURES`, then the rest by name — see
@@ -354,7 +358,7 @@ function M.resolve(root, dirs)
     end)
     for _, name in ipairs(names) do
       local theme = name:gsub("%.md$", "")
-      local file = parse_file(abs_folder .. "/" .. name, folder .. "/" .. name, theme)
+      local file = parse_file(normalized, abs_folder .. "/" .. name, folder .. "/" .. name, theme)
       if file then
         files[#files + 1] = file
       end

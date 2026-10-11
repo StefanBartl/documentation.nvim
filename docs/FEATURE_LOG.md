@@ -3422,10 +3422,19 @@ that directory are treated as links, which are not followed, and the run says
 so. The shim's directory listing now reports `"link"`, as libuv does, instead of
 opening the link to name its type.
 
-**Not done, and listed in `docs/SECURITY.md`:** the `docs/FEATURES` and
-checklist folders, the files README links resolve to, `opts.tests_dir`
-(`lib.nvim.fs.collect_recursive`), `opts.tag_files` and `opts.external_repos`
-still open fixed names under the root directly.
+**The rest of the readers (2026-10-11).** The prose corpus (`docs.corpus`) and
+the tests directory (`coverage`, `check_test_references`) used
+`lib.nvim.fs.collect_recursive`, which statted every link it met to classify it
+and listed a file link wherever it led; they walk through
+`safe_fs.walk_files` now, which keeps that walker's rule that a directory link is
+not entered. The Features and Checklist folders, the targets of README links
+and `artifact.load` (the committed map the app's `--api=` routes read) go
+through `safe_fs` as well. `TESTS/readers_links_spec.lua` has a twin for each,
+a link out and a link that stays, and every switch was reverted in turn.
+
+**Not done:** `opts.tag_files`, `opts.external_repos` and `opts.consumers` name
+paths outside the project on purpose, and a `.docmap.json` may set them — a
+different problem (who may name a path outside the root), left as a task.
 
 **First run on Windows and macOS (CI, `fca1477`).** The Windows job ran the
 shim for real — `cmd.exe`, `dir /a:l`, junctions made with `mklink /J` — and
