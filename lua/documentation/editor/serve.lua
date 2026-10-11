@@ -34,6 +34,10 @@
 --- 3. **No path parameter can leave `out_dir`.** Static serving takes a bare
 ---    filename, and anything containing a separator or a dot-dot is rejected
 ---    before it becomes a path.
+--- 4. **No file is served through a link that leaves the project.** The
+---    served directory is the repository's to name, so `out_dir` or a file in
+---    it can be a link to somebody else's file; the read goes through
+---    `core/safe_fs.lua`, which follows only links that stay inside.
 ---
 --- Plus a lifecycle rule: the server is torn down on `VimLeavePre`, so
 --- quitting the editor cannot leave a listening socket behind.
@@ -55,6 +59,7 @@ local uv = vim.uv
 ---hoisting it above the lazy, handler-local requires (`core/api`) elsewhere
 ---in this file.
 local safe_out_dir = require("documentation.core.safe_out_dir")
+local safe_fs = require("documentation.core.safe_fs")
 
 ---The single running server, if any. Module-level state, which this file is
 ---the only owner of — the alternative (a handle the caller stores) would put
@@ -116,11 +121,21 @@ local function respond(client, code, content_type, body)
   end)
 end
 
+---An error as `respond` takes it: status, content type, body.
+---@param code integer
+---@param message string
+---@return integer code
+---@return string content_type
+---@return string body
+local function error_answer(code, message)
+  return code, "application/json", vim.json.encode({ error = message })
+end
+
 ---@param client uv.uv_tcp_t
 ---@param code integer
 ---@param message string
 local function respond_error(client, code, message)
-  respond(client, code, "application/json", vim.json.encode({ error = message }))
+  respond(client, error_answer(code, message))
 end
 
 ---Run git in the repo and return stdout, or nil plus stderr.
@@ -203,7 +218,7 @@ function M.safe_static_name(name)
   return name
 end
 
----Serve a file out of `out_dir`.
+---What the static route answers for one request path: a file out of `out_dir`.
 ---
 ---`cfg.out_dir` is the same repository-controlled value `init.lua`'s
 ---`write_artifacts` guards against (SEC-42) — `config/file.lua`'s
@@ -217,22 +232,35 @@ end
 ---before this route could ever be reached, so re-checking it here on every
 ---static request would only repeat a settled answer at the cost of a regex
 ---pass per request.
+---
+---The string is only half of it: `out_dir`, or a file in it, can also be a
+---link, and a plain `io.open` would hand out whatever the link leads to --
+---`docs/map/key` pointing at a private key, say, read by the page the same
+---directory ships. The read goes through `core/safe_fs.lua`, which follows a
+---link only while it stays inside the project. A refused one is answered like
+---a missing file (404), with the reason and without the link's target.
+---
+---Separate from the socket for the reason `safe_sha` is exported: a rule that
+---cannot be tested without opening a socket does not get tested.
 ---@param cfg table
----@param client uv.uv_tcp_t
 ---@param name string
-local function route_static(cfg, client, name)
+---@return integer code
+---@return string content_type
+---@return string body
+function M.static_answer(cfg, name)
   local safe = M.safe_static_name(name)
   if not safe then
-    return respond_error(client, 400, "bad path")
+    return error_answer(400, "bad path")
   end
 
-  local path = ("%s/%s/%s"):format(cfg.root, cfg.out_dir, safe)
-  local fd = io.open(path, "rb")
-  if not fd then
-    return respond_error(client, 404, "not found: " .. safe)
+  local root = normalize_root(cfg.root)
+  local body, kind, why = safe_fs.read(root, ("%s/%s/%s"):format(root, cfg.out_dir, safe))
+  if kind == "refused" then
+    return error_answer(404, ("not served: %s, %s"):format(safe, tostring(why)))
   end
-  local body = fd:read("*a")
-  fd:close()
+  if not body then
+    return error_answer(404, "not found: " .. safe)
+  end
 
   local ext = safe:match("%.(%w+)$") or ""
   local ctype = ({
@@ -244,7 +272,14 @@ local function route_static(cfg, client, name)
     js = "text/javascript",
   })[ext] or "application/octet-stream"
 
-  respond(client, 200, ctype, body)
+  return 200, ctype, body
+end
+
+---@param cfg table
+---@param client uv.uv_tcp_t
+---@param name string
+local function route_static(cfg, client, name)
+  respond(client, M.static_answer(cfg, name))
 end
 
 ---Dispatch one parsed request. Runs on the main loop (see the module header).
