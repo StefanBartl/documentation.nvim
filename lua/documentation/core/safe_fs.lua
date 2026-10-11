@@ -604,6 +604,9 @@ end
 ---folder would be read twice, and a link back up the tree for ever. A directory
 ---that cannot be listed gives nothing, and is named in the second result so
 ---that a caller whose answer depends on completeness can say so.
+---
+---The files come in the host's listing order, which differs from file system
+---to file system; a caller whose output depends on the order sorts them.
 ---@param root string
 ---@param start string Absolute directory under `root`.
 ---@param ignore (fun(abs: string, is_dir: boolean): boolean)? `true` skips a file, or a whole directory.

@@ -180,4 +180,82 @@ return function(H)
   )
 
   eq(#mine, 1, "test-references-missing: exactly one finding across the whole fixture")
+
+  -- Specs that name one missing member give findings that tie in `check.run`'s
+  -- sort, so they come out in the order the tests directory was listed in --
+  -- and that order is the host's. The map is compared byte for byte, so the
+  -- same tree listed the other way round must give the same findings.
+  for _, name in ipairs({ "a", "b", "c", "d" }) do
+    dwrite("ORDER/" .. name .. "_spec.lua", {
+      "local mod = require('t.mod')",
+      "return function()",
+      "  return mod.removed",
+      "end",
+    })
+  end
+
+  local safe_fs = require("documentation.core.safe_fs")
+
+  ---Run `fn` with every directory handed out backwards, and put the host back
+  ---whatever happens.
+  local function listed_backwards(fn)
+    local host = safe_fs.host
+    local scandir, scandir_next = host.scandir, host.scandir_next
+    host.scandir = function(path)
+      local handle = scandir(path)
+      if not handle then
+        return nil
+      end
+      local names = {}
+      local name = scandir_next(handle)
+      while name do
+        names[#names + 1] = name
+        name = scandir_next(handle)
+      end
+      return names
+    end
+    host.scandir_next = function(names)
+      return table.remove(names)
+    end
+    local ran, err = pcall(fn)
+    host.scandir, host.scandir_next = scandir, scandir_next
+    if not ran then
+      error(err, 0)
+    end
+  end
+
+  local function listing()
+    local names = {}
+    for _, e in ipairs(safe_fs.entries(dr, dr .. "/ORDER")) do
+      names[#names + 1] = e.name
+    end
+    return table.concat(names, " ")
+  end
+
+  local order_opts = vim.tbl_extend("force", opts, { tests_dir = "ORDER" })
+  local function stale_in_order()
+    local seq = {}
+    for _, f in ipairs(check.run(ir, order_opts)) do
+      if f.check == "test-references-missing" then
+        seq[#seq + 1] = fmsg(f)
+      end
+    end
+    return seq
+  end
+
+  local forward_listing, forward = listing(), stale_in_order()
+  eq(#forward, 4, "test-references-missing: one finding for each of the four specs")
+  local backward_listing, backward
+  listed_backwards(function()
+    backward_listing, backward = listing(), stale_in_order()
+  end)
+  ok(
+    backward_listing ~= forward_listing,
+    "test-references-missing: the stand-in host does list the directory the other way round"
+  )
+  eq(
+    table.concat(backward, "\n"),
+    table.concat(forward, "\n"),
+    "test-references-missing: the findings do not depend on the order the host lists the specs in"
+  )
 end

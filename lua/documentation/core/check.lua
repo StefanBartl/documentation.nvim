@@ -342,21 +342,18 @@ local function check_readme_links(ir, findings, opts)
     local base_dir = rel_path:match("(.*)/[^/]+$") or ""
     local seen = {}
     for target in content:gmatch("%]%(([^)#]+)%)") do
-      if not target:match("^%a+://") and not target:match("^#") and not seen[target] then
+      -- A URL scheme (`mailto:`, `tel:`, `https://`) names no file. It takes
+      -- two characters, so a Windows drive letter (`C:/x`) is not one.
+      if not target:match("^%a[%w+.-]+:") and not target:match("^#") and not seen[target] then
         seen[target] = true
         local resolved = resolve_relative_link(base_dir, target)
         -- Through `safe_fs`: a target is the repository's own text, and
         -- `a/link/x` reaches wherever `link` leads. A target that cannot be
         -- reached without leaving the project is not judged dead -- it is not
-        -- looked at.
-        local st, why, detail =
-          require("documentation.core.safe_fs").stat(root, root .. "/" .. resolved)
-        if not st and why == "leaves" and detail == ".." then
-          -- A plain `..` out of the project, no link involved: judged as before.
-          st = uv.fs_stat(root .. "/" .. resolved)
-          why = st and nil or "missing"
-        end
-        if not st and why == "missing" then
+        -- looked at, whichever way it leaves. A name Windows cannot hold
+        -- (`C:/x`) is as absent there as on POSIX, so both judge it dead.
+        local st, why = require("documentation.core.safe_fs").stat(root, root .. "/" .. resolved)
+        if not st and (why == "missing" or why == "name") then
           add(findings, "warn", "dead-readme-link", node_id, { file = rel_path, target = target })
         end
       end
@@ -1009,6 +1006,9 @@ local function check_test_references(ir, findings, opts)
   if not ok_files or not files or #files == 0 then
     return
   end
+  -- The walk lists in the host's order. Several specs naming one missing
+  -- member give findings that tie in `run`'s sort, so they keep this order.
+  table.sort(files)
 
   local idx = docs.build_index(ir)
 

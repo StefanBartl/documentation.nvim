@@ -33,17 +33,23 @@ return function(H)
     "[gone](nowhere/missing.md)",
     "[behind a link](../../leaving/gone.md)",
     "[behind a link, inside](../../staying/x.md)",
+    "[behind a relative link, there](../../leaverel/x.md)",
+    "[behind a relative link, gone](../../leaverel/gone.md)",
+    "[past the root](../../../../clamped/missing.md)",
+    "[in the project, there](../../keep/inside_note.md)",
   })
   H.write(root .. "/notes.md", { "# plain note" })
   H.write(root .. "/keep/inside_note.md", { "# INSIDE-NOTE" })
   H.write(root .. "/feat_in/core.md", { "# Core", "", "## Inside feature", "- status: done" })
   H.write(root .. "/check_in/arch.md", { "# Arch", "", "- [x] inside item" })
   H.write(root .. "/TESTS_IN/a_spec.lua", { "local t = require('t')", "t.named_inside()" })
+  H.write(root .. "/TESTS_IN/gone_spec.lua", { "local t = require('t')", "t.GONE_INSIDE()" })
 
   H.write(outside .. "/notes/secret.md", { "# OUTSIDE-NOTE" })
   H.write(outside .. "/feat/core.md", { "# Core", "", "## OUTSIDE-FEATURE", "- status: done" })
   H.write(outside .. "/check/arch.md", { "# Arch", "", "- [x] OUTSIDE-ITEM" })
   H.write(outside .. "/tests/a_spec.lua", { "local t = require('t')", "t.only_named_outside()" })
+  H.write(outside .. "/tests/gone_spec.lua", { "local t = require('t')", "t.LEAK_TESTS_MEMBER()" })
   H.write(outside .. "/leaving/x.md", { "# there" })
   H.write(outside .. "/map/module_map.json", { '{"nodes":[{"id":"OUTSIDE-NODE"}]}' })
 
@@ -63,6 +69,8 @@ return function(H)
   link(outside .. "/tests", "TESTS", true)
   link(outside .. "/leaving", "leaving", true)
   link(here .. "/keep", "staying", true)
+  -- A relative target: a junction cannot have one, so this is POSIX only.
+  local rel_link = vim.fn.has("win32") == 0 and link("../outside/leaving", "leaverel", true)
   ok(made, "the directory links can be made here")
   local file_link = H.link(outside .. "/notes/secret.md", root .. "/secret_link.md", false)
   local file_link_check = H.link(outside .. "/check/arch.md", root .. "/check_single.md", false)
@@ -113,6 +121,10 @@ return function(H)
     fns[fn.name] = fn.tested
   end
   eq(fns["M.only_named_outside"], false, "tests: a tests folder behind a link out is not read")
+  ok(
+    vim.json.encode(findings):find("LEAK_TESTS_MEMBER", 1, true) == nil,
+    "tests: ...nor are its specs read for stale references"
+  )
 
   local dead = {}
   for _, f in ipairs(findings) do
@@ -133,14 +145,44 @@ return function(H)
     dead_text:find("staying/x.md", 1, true) ~= nil,
     "readme: ...a link inside the project is followed, and this target is not there"
   )
+  if rel_link then
+    -- The link's own target climbs out of the project (`../outside`): the walk
+    -- meets the edge while following the link, not in the README's text.
+    ok(
+      dead_text:find("leaverel/x.md", 1, true) == nil,
+      "readme: a target behind a RELATIVE link out of the project is not judged, there"
+    )
+    ok(
+      dead_text:find("leaverel/gone.md", 1, true) == nil,
+      "readme: ...nor when it is not there, or the check says which outside files exist"
+    )
+  end
+  ok(
+    dead_text:find("clamped/missing.md", 1, true) ~= nil,
+    "readme: a `..` past the project root stops at it, and is judged there"
+  )
+  ok(
+    dead_text:find("inside_note.md", 1, true) == nil,
+    "readme: a relative target inside the project that is there is not dead"
+  )
 
   local in_opts = config.build(root, { source = "lua/t", lua_root = "lua", tests_dir = "TESTS_IN" })
-  local in_ir = docmap.scan_full(in_opts)
+  local in_ir, in_findings = docmap.scan_full(in_opts)
   local in_fns = {}
   for _, fn in ipairs(in_ir.nodes["lua/t"].functions) do
     in_fns[fn.name] = fn.tested
   end
   eq(in_fns["M.named_inside"], true, "tests: a plain tests folder still counts")
+  local stale = {}
+  for _, f in ipairs(in_findings) do
+    if f.check == "test-references-missing" then
+      stale[#stale + 1] = vim.json.encode(f)
+    end
+  end
+  ok(
+    table.concat(stale, "\n"):find("GONE_INSIDE", 1, true) ~= nil,
+    "tests: ...and its specs are checked for stale references"
+  )
 
   -- ----------------------------------------------------------- the map
   vim.fn.mkdir(root .. "/docs", "p")
