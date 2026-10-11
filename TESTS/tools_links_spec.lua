@@ -202,6 +202,23 @@ return function(H)
   eq(absent, "missing", "read: a file that is not there is missing")
   local _, directory = safe_fs.read(root, root .. "/plain", 10)
   eq(directory, nil, "read: a directory is neither content nor missing")
+  do
+    -- Windows refuses to open a directory at all, where Linux opens it and fails
+    -- on the read. The answer must not depend on which of the two it is.
+    local real = io.open
+    io.open = function(path, mode)
+      local st = vim.uv.fs_stat(path)
+      if st and st.type == "directory" then
+        return nil, path .. ": Permission denied", 13
+      end
+      return real(path, mode)
+    end
+    local ok_call, got, dir_kind = pcall(safe_fs.read, root, root .. "/plain", 10)
+    io.open = real
+    ok(ok_call, "read: a directory refused by io.open does not raise")
+    eq(got, nil, "read: a directory that io.open refuses has no content")
+    eq(dir_kind, nil, "read: ...and is still not 'missing' (the Windows spelling of a directory)")
+  end
   local _, refused = safe_fs.read(root, root .. "/dir_out/install.json", 10)
   eq(refused, "refused", "read: a link out is refused whatever the limit")
 

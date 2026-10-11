@@ -682,6 +682,12 @@ function M.read(root, abs, limit)
   end
   local fd = io.open(phys, "rb")
   if not fd then
+    -- Windows refuses to open a directory (Linux opens it and fails on read);
+    -- either way a directory is neither content nor a missing file.
+    local st = M.host.stat(phys)
+    if st and st.type == "directory" then
+      return nil
+    end
     return nil, "missing"
   end
   local content, err
