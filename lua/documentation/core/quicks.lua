@@ -374,7 +374,8 @@ local function probes(ir, findings)
       headline_good = "Your prose docs actually reach most of the tree",
       headline_bad = "Your prose docs mention only a fraction of the tree",
       basis = (
-        "Counts modules referenced from a code span in one of the %d " .. "scanned `.md` file%s."
+        "Counts modules referenced from a code span in one of the %d "
+        .. "scanned `.md` file%s."
       ):format(#docs.files, s(#docs.files)),
       tab = "analysis",
       atool = "docs",

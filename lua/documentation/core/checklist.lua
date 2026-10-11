@@ -250,7 +250,7 @@ function M.parse(text, path)
         end
 
         if not logical then
-        -- Mid-comment: nothing to decide until the closing `-->` arrives.
+          -- Mid-comment: nothing to decide until the closing `-->` arrives.
         elseif tag == "ref" and value then
           local ref_path, ref_line = split_ref(value)
           item.ref = ref_path
@@ -265,10 +265,10 @@ function M.parse(text, path)
           -- it through to whatever displays it.
           item.meta[#item.meta + 1] = { key = tag, value = value }
         elseif trim(line) == "" then
-        -- A blank line does not end the block: the `RULES/`-shaped corpus
-        -- this format is modelled on separates an item's text from its
-        -- metadata comments with one, and treating that as a terminator
-        -- would drop every citation in it.
+          -- A blank line does not end the block: the `RULES/`-shaped corpus
+          -- this format is modelled on separates an item's text from its
+          -- metadata comments with one, and treating that as a terminator
+          -- would drop every citation in it.
         elseif line:match("^%s") then
           -- An indented continuation line. Hand-written checklist items wrap
           -- — found the first time this parser was run against a real
