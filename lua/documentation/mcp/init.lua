@@ -63,7 +63,9 @@ function M.serve(opts)
     protocol.new(handle, { name = opts.title or "documentation.nvim", out_dir = opts.out_dir })
 
   -- Line-buffered: the client is blocked reading our next line, so a full
-  -- buffer would deadlock the session rather than merely delay it.
+  -- buffer would deadlock the session rather than merely delay it. The
+  -- Windows C runtime treats "line" as full buffering, so every response is
+  -- also flushed explicitly below.
   io.stdout:setvbuf("line")
   io.stderr:write(("documentation.nvim MCP server ready (%s)\n"):format(opts.root))
 
@@ -75,6 +77,7 @@ function M.serve(opts)
     local response = protocol.dispatch(server, line)
     if response then
       io.stdout:write(response, "\n")
+      io.stdout:flush()
     end
   end
 
