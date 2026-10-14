@@ -15,6 +15,10 @@
 #   2. <repo>/.deps/<name>          (what CI checks out)
 #   3. <repo>/../<name>             (a sibling checkout)
 #   4. stdpath('data')/lazy/<name>  (what a plugin manager installed)
+#
+#   scripts/test.sh conformance      the conformance suite K1..K15 of testing.nvim (docs/CONFORMANCE.md);
+#                                    extra options go to `testing conformance .`; exit 1 when the repo is
+#                                    gated (`conformance.gate = true` in .testing.lua) and a check failed
 
 set -euo pipefail
 
@@ -114,5 +118,10 @@ done
 # NVIM_APPNAME is deliberately NOT set to a throwaway name (the template does): the stdpath cases
 # of TESTS/shim_behavior_spec.lua compare the editor with standalone/vim_shim.lua, which does not
 # implement NVIM_APPNAME (see that spec's header), so a non-default app name fails that spec.
+
+if [[ "${1:-}" == "conformance" ]]; then
+  shift
+  exec nvim -n -i NONE --headless -u NONE -l "$DRIVER" conformance . "$@"
+fi
 
 exec nvim -n -i NONE --headless -u NONE -l "$DRIVER" run . --sentinel 'DOCUMENTATION_TESTS_OK' "$@"

@@ -69,4 +69,6 @@ return {
     "DOCMAP_RUBY_PARSER",
     "DOCMAP_RUST_PARSER",
   },
+  -- gated: a failed conformance check makes `scripts/test.sh conformance` exit 1 (docs/CONFORMANCE.md of testing.nvim)
+  conformance = { gate = true },
 }
