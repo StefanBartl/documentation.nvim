@@ -70,5 +70,16 @@ return {
     "DOCMAP_RUST_PARSER",
   },
   -- gated: a failed conformance check makes `scripts/test.sh conformance` exit 1 (docs/CONFORMANCE.md of testing.nvim)
-  conformance = { gate = true },
+  conformance = {
+    gate = true,
+    waivers = {
+      {
+        check = "K6",
+        level = "warn",
+        text = "TESTS does not exist",
+        reason = "the conformance child editor runs in an empty temp directory and the health check resolves tests_dir against the cwd; with the project as cwd the directory exists and the check passes",
+        expires = "2027-04-14",
+      },
+    },
+  },
 }
