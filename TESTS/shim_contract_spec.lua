@@ -241,6 +241,15 @@ return function(H)
     lines = "lua",
     read = "lua",
     write = "lua",
+    -- The methods of `lib.nvim.registry` (core/lang_registry.lua): a plain
+    -- Lua object, nothing the shim has to provide. `find` is listed above.
+    all = "lua_object",
+    count = "lua_object",
+    entries = "lua_object",
+    get = "lua_object",
+    has = "lua_object",
+    register = "lua_object",
+    reset = "lua_object",
     -- Installed by standalone/treesitter.lua onto the node metatable.
     start = "ts_shim",
     end_ = "ts_shim",

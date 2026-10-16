@@ -42,6 +42,11 @@ documented:
   module names anywhere.** A twenty-fourth language is one more line in it,
   and still nothing outside that file names it.
 
+The entries themselves (name to backend, registration order, the loader that
+runs once before the first read, `reset()`) are a `lib.nvim.registry`; what
+stays in `lang_registry.lua` is the domain: which backend claims a file, the
+scan-scoped filter and the capability report.
+
 Backends are required lazily, on the first lookup, because each one requires
 the registry back to self-register — the circular-require shape that
 deferring avoids.

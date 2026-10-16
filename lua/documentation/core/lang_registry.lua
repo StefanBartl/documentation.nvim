@@ -23,6 +23,8 @@
 --- wrapper, not a rewrite: `scan.lua`'s `parse_header` and `functions.lua`'s
 --- `scan_file` are unchanged, only which caller reaches them moved.
 
+local registry = require("lib.nvim.registry")
+
 local M = {}
 
 ---Module names to require the first time any backend is needed, purely for
@@ -63,34 +65,40 @@ local KNOWN_BACKENDS = {
   "documentation.core.lang.ocaml",
 }
 
-local loaded = false
-
----Require every entry in `KNOWN_BACKENDS`, once. Deferred to first use
----rather than done at this module's own load time: `core/lang/lua.lua`
----itself requires `documentation.core.lang_registry` (to self-register),
----so requiring it back from here unconditionally at load time would be the
----same circular-require shape `core/lang/lua.lua`'s own header already
----works around — deferring until a lookup is actually needed avoids it
----exactly the same way.
-local function ensure_loaded()
-  if loaded then
-    return
-  end
-  loaded = true
-  for _, modname in ipairs(KNOWN_BACKENDS) do
-    require(modname)
-  end
-end
-
----@type table<string, Documentation.LangBackend>
-local backends = {}
-
----Registration order, so `M.for_file` is deterministic when (hypothetically)
----two backends both claimed a filename — first registered wins, rather than
----an arbitrary `pairs()` order that could pick a different one on every run
----and make `--check` non-deterministic.
----@type string[]
-local order = {}
+---The entries and their order live in a `lib.nvim.registry`: a name maps to
+---its backend, lookups answer in **registration order** (so `M.for_file` is
+---deterministic when, hypothetically, two backends both claim a filename —
+---first registered wins, rather than an arbitrary `pairs()` order that could
+---pick a different one on every run and make `--check` non-deterministic),
+---and the loader below runs once before the first read. What stays in this
+---file is the domain: which backend claims a file, the scan-scoped filter,
+---the capability report.
+---
+---**The loader requires every backend and then registers it by name,
+---instead of only requiring it.** A backend registers itself when its module
+---first runs, but `require` on an already-cached module returns the table
+---without running the file again, so after `reset()` the self-registration
+---never fires a second time. Registering the required table explicitly is
+---what makes the loader repeatable; on its first run it replaces the entry
+---the backend just made for itself with the same table, in the same
+---position.
+---
+---Deferred to first use rather than done at this module's own load time:
+---`core/lang/lua.lua` itself requires `documentation.core.lang_registry` (to
+---self-register), so requiring it back from here unconditionally at load
+---time would be the same circular-require shape `core/lang/lua.lua`'s own
+---header already works around.
+---@type Lib.Registry
+local store
+store = registry.new({
+  name = "documentation.core.lang_registry",
+  loader = function()
+    for _, modname in ipairs(KNOWN_BACKENDS) do
+      local backend = require(modname)
+      store:register(backend.name, backend)
+    end
+  end,
+})
 
 ---Which backends this scan is allowed to use, or `nil` for all of them.
 ---
@@ -154,10 +162,9 @@ end
 ---@param names string[]?
 ---@return string[] unknown Sorted.
 function M.unknown(names)
-  ensure_loaded()
   local out = {}
   for _, name in ipairs(names or {}) do
-    if not backends[name] then
+    if not store:has(name) then
       out[#out + 1] = name
     end
   end
@@ -169,30 +176,23 @@ end
 ---twice replaces the entry without duplicating it in `order`.
 ---@param backend Documentation.LangBackend
 function M.register(name, backend)
-  if not backends[name] then
-    order[#order + 1] = name
-  end
-  backends[name] = backend
+  store:register(name, backend)
 end
 
 ---The backend that claims `filename` (bare, no path), or `nil` if none do.
 ---@param filename string
 ---@return Documentation.LangBackend?
 function M.for_file(filename)
-  ensure_loaded()
-  for _, name in ipairs(order) do
-    if enabled(name) and backends[name].is_source(filename) then
-      return backends[name]
-    end
-  end
-  return nil
+  local _, backend = store:find(function(name, candidate)
+    return enabled(name) and candidate.is_source(filename)
+  end)
+  return backend
 end
 
 ---@param name string
 ---@return Documentation.LangBackend?
 function M.get(name)
-  ensure_loaded()
-  return backends[name]
+  return store:get(name)
 end
 
 ---What this build can read, and at what fidelity — the answer a host asks
@@ -223,13 +223,9 @@ end
 ---`Documentation.LangBackend.emits_calls`.
 ---@return { name: string, grammar: string?, grammar_loaded: boolean?, calls: boolean }[]
 function M.report()
-  ensure_loaded()
   local out = {}
-  for _, name in ipairs(order) do
-    local backend = backends[name]
-    -- Named for what it holds rather than the shorter `loaded`, which is
-    -- this module's own file-level "are the backends required yet" flag --
-    -- two unrelated meanings one letter apart in one file.
+  for _, entry in ipairs(store:entries()) do
+    local name, backend = entry[1], entry[2]
     local has_grammar = nil
     if backend.grammar then
       -- `vim.treesitter.language.add` is the one probe both hosts answer:
@@ -281,10 +277,9 @@ end
 ---language's keywords explaining a word that means something else here.
 ---@return table<string, Documentation.Glossary>
 function M.glossaries()
-  ensure_loaded()
   local out = {}
-  for _, name in ipairs(order) do
-    local backend = backends[name]
+  for _, entry in ipairs(store:entries()) do
+    local name, backend = entry[1], entry[2]
     -- Filtered too: a glossary for a language this scan did not read is
     -- payload nobody can reach, in an artifact already measured in hundreds
     -- of kilobytes.
@@ -311,14 +306,9 @@ end
 ---re-registration, and specs over the contract every backend must keep.
 ---@return Documentation.LangBackend[]
 function M.all(unfiltered)
-  ensure_loaded()
-  local out = {}
-  for _, name in ipairs(order) do
-    if unfiltered or enabled(name) then
-      out[#out + 1] = backends[name]
-    end
-  end
-  return out
+  return store:all(function(name)
+    return unfiltered or enabled(name)
+  end)
 end
 
 ---Drop every registration, then immediately re-register every known
@@ -326,24 +316,18 @@ end
 ---it into a later spec's lookups, the same reason `browse/trail.lua`'s
 ---`M.reset()` exists.
 ---
----**Re-registers explicitly rather than relying on `ensure_loaded`'s lazy
----reload — verified, not assumed, that the lazy path does not work here.**
----A first draft of this function only cleared `loaded` and left
----`ensure_loaded` to redo the rest on the next lookup; `for_file` returned a
----real backend before that `reset()` and `nil` after it, forever, for the
----rest of the process. The cause: `require(modname)` on a module already in
----Lua's own module cache returns the cached table without re-running the
----file, so the `register(...)` call at a backend's own bottom — the thing
----that repopulates `backends`/`order` — never fires a second time. This
----version reads `.name` off each already-cached backend table instead and
----calls `M.register` directly, which needs no re-execution to work.
+---**Reloads at once rather than leaving it to the next read.** A
+---registration made right after `reset()` and before any read must come
+---*after* the known backends, as it did when this function re-registered
+---them itself; with a lazy reload it would land in front of them and change
+---which backend wins a filename both claim. Reading `count()` runs the
+---loader now. That loader registers the already-cached backend tables by
+---name (see `store` above), which is what makes it work: `require(modname)`
+---on a cached module does not re-run the file, so a backend's own
+---`register(...)` line at its bottom never fires a second time.
 function M.reset()
-  backends, order = {}, {}
-  for _, modname in ipairs(KNOWN_BACKENDS) do
-    local backend = require(modname)
-    M.register(backend.name, backend)
-  end
-  loaded = true
+  store:reset()
+  store:count()
 end
 
 return M
