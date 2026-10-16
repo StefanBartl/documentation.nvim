@@ -441,4 +441,84 @@ return function(H)
     eq(#deep_found, 1, "shim glob: `**` stops at its depth limit (the 70-deep file is not reached)")
     vim.fn.delete(base, "rf")
   end
+
+  -- ---------------------------------------------------------------------
+  -- `fn.has` on the hosts this run is not on. The corpus compares it with
+  -- the editor, and that only ever checks the branch of the host it runs on:
+  -- on Windows and Linux "mac" is 0 on both sides, so a shim answering 0 for
+  -- "mac" everywhere stays green there and fails on macOS CI alone. Here the
+  -- shim is loaded once per simulated host -- the separator in
+  -- `package.config` is what it reads to decide Windows, and a stubbed
+  -- `io.popen` answers its `uname -s` -- and asked directly.
+  -- ---------------------------------------------------------------------
+  do
+    -- luacheck: ignore 122
+    -- (`package.config` and `io.popen` are swapped for the length of one load
+    -- and put back, as in `shim_links_spec.lua`.)
+
+    ---@param sep string The directory separator the simulated host reports.
+    ---@param uname string? What `uname -s` prints there; nil: no `uname` at all.
+    ---@return string answers, integer asked How often `uname` was run.
+    local function has_on(sep, uname)
+      local saved = {
+        vim = _G.vim,
+        config = package.config,
+        popen = io.popen,
+        lfs = package.preload.lfs,
+        dkjson = package.preload.dkjson,
+        lfs_loaded = package.loaded.lfs,
+        dkjson_loaded = package.loaded.dkjson,
+      }
+      local asked = 0
+      local ran, answer = pcall(function()
+        local host_chunk = assert(loadfile(root .. "/standalone/vim_shim.lua"))
+        package.loaded.lfs, package.loaded.dkjson = nil, nil
+        package.preload.lfs = lfs_on_uv
+        package.preload.dkjson = dkjson_refusing
+        package.config = sep .. saved.config:sub(2)
+        io.popen = function(cmd)
+          asked = asked + 1
+          assert(tostring(cmd):find("uname", 1, true), "only `uname` is expected here: " .. cmd)
+          if uname == nil then
+            return nil
+          end
+          return {
+            read = function()
+              return uname
+            end,
+            close = function()
+              return true
+            end,
+          }
+        end
+        _G.vim = nil
+        local host = host_chunk()
+        local out = {}
+        for _, feature in ipairs({ "win32", "mac", "unix", "nvim" }) do
+          out[#out + 1] = feature .. "=" .. tostring(host.fn.has(feature))
+        end
+        return table.concat(out, " ")
+      end)
+      _G.vim = saved.vim
+      package.config = saved.config
+      io.popen = saved.popen
+      package.preload.lfs, package.preload.dkjson = saved.lfs, saved.dkjson
+      package.loaded.lfs, package.loaded.dkjson = saved.lfs_loaded, saved.dkjson_loaded
+      return ran and answer or ("raised: " .. tostring(answer)), asked
+    end
+
+    local answers, asked = has_on("/", "Darwin\n")
+    eq(answers, "win32=0 mac=1 unix=1 nvim=0", "shim fn.has on a simulated macOS")
+    eq(asked, 1, "shim fn.has: macOS is recognised by asking `uname` once")
+
+    answers = has_on("/", "Linux\n")
+    eq(answers, "win32=0 mac=0 unix=1 nvim=0", "shim fn.has on a simulated Linux")
+
+    answers = has_on("/", nil)
+    eq(answers, "win32=0 mac=0 unix=1 nvim=0", "shim fn.has on a Unix without `uname`")
+
+    answers, asked = has_on("\\", "Darwin\n")
+    eq(answers, "win32=1 mac=0 unix=0 nvim=0", "shim fn.has on a simulated Windows")
+    eq(asked, 0, "shim fn.has: Windows never asks `uname`")
+  end
 end

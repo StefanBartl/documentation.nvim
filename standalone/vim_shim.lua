@@ -14,8 +14,9 @@
 ---   vim.trim, vim.pesc, vim.split, vim.tbl_map, vim.tbl_extend,
 ---   vim.tbl_deep_extend,
 ---   vim.list_extend, vim.deepcopy, vim.json.encode/decode, vim.NIL,
----   vim.fs.dir, vim.uv (= vim.loop): fs_stat/fs_scandir/fs_scandir_next/
----   hrtime, vim.treesitter (inert stub — see below).
+---   vim.fn.isdirectory, vim.fs.{dir, dirname}, vim.uv (= vim.loop) with
+---   vim.uv.{fs_stat, fs_lstat, fs_scandir, fs_scandir_next, fs_readlink,
+---   fs_mkdir, hrtime}, vim.treesitter (inert stub — see below).
 ---
 --- and, added for running `rules.nvim`'s engine (and the Neovim-API calls its
 --- real rulesets make inside `lua_predicate`s) without an editor — measured by
@@ -23,8 +24,15 @@
 ---
 ---   vim.islist, vim.tbl_contains, vim.env (read-only), vim.log.levels,
 ---   vim.fn.{filereadable, readfile, getcwd, glob, system, fnamemodify
----   (":t", ":p")}, vim.v.shell_error, vim.fs.{basename, normalize},
+---   (":t", ":p"), has ("win32", "mac", "unix"; every other feature is 0)},
+---   vim.v.shell_error, vim.fs.{basename, normalize},
 ---   vim.uv.{os_getenv, os_homedir}.
+---
+--- and vim.fn.stdpath ("cache", "data", "config", "state", "log"), which
+--- `runtime-analysis.nvim`'s telemetry store asks at load time (see there).
+---
+--- `TESTS/shim_contract_spec.lua` holds this list to the file: a `vim.fn`,
+--- `vim.fs` or `vim.uv` function defined below and missing here fails it.
 ---
 --- Each has cases in `TESTS/fixtures/shim_behavior_cases.lua`, compared against
 --- the editor on both interpreters. What is *refused* rather than approximated

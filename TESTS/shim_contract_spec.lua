@@ -317,4 +317,54 @@ return function(H)
     "",
     "shim contract: every classified method is still called by core/"
   )
+
+  -- ---------------------------------------------------------------------
+  -- The shim's header lists what it implements, and says it is that list and
+  -- nothing more. Someone porting a library reads it as the contract, so a
+  -- function defined in the file and missing from the list is a capability
+  -- nobody knows about: `vim.fn.has` shipped that way. Checked per namespace
+  -- for `vim.fn`, `vim.fs` and `vim.uv`, in both spellings the header uses,
+  -- `vim.fn.name` and `vim.fn.{a, b}`.
+  -- ---------------------------------------------------------------------
+  local shim_fd = assert(io.open(root .. "/standalone/vim_shim.lua", "rb"))
+  local shim_src = shim_fd:read("*a"):gsub("\r\n", "\n")
+  shim_fd:close()
+  local header_lines = {}
+  for line in shim_src:gmatch("([^\n]*)\n") do
+    local text = line:match("^%-%-%-(.*)$")
+    if not text then
+      break
+    end
+    header_lines[#header_lines + 1] = text
+  end
+  local header = table.concat(header_lines, "\n")
+  ok(#header_lines > 20, "shim contract: read the shim's header (" .. #header_lines .. " lines)")
+
+  local DEFINED_AS = { fn = "vim%.fn%.", fs = "vim%.fs%.", uv = "uv%." }
+  local unlisted = {}
+  for ns, prefix in pairs(DEFINED_AS) do
+    local listed = {}
+    for name in header:gmatch("vim%." .. ns .. "%.([%a_][%w_]*)") do
+      listed[name] = true
+    end
+    for group in header:gmatch("vim%." .. ns .. "%.(%b{})") do
+      for name in group:gmatch("[%a_][%w_]*") do
+        listed[name] = true
+      end
+    end
+    local defined = 0
+    for name in shim_src:gmatch("\nfunction " .. prefix .. "([%a_][%w_]*)%(") do
+      defined = defined + 1
+      if not listed[name] then
+        unlisted[#unlisted + 1] = "vim." .. ns .. "." .. name
+      end
+    end
+    ok(defined > 0, "shim contract: found the shim's vim." .. ns .. " functions")
+  end
+  table.sort(unlisted)
+  eq(
+    table.concat(unlisted, ", "),
+    "",
+    "shim contract: every vim.fn/vim.fs/vim.uv function the shim defines is in its header's list"
+  )
 end

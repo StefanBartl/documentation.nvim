@@ -78,8 +78,8 @@ built to run **without** PUC Lua wherever they possibly can:
 
 | Check | Answers | Runs in |
 |---|---|---|
-| [`shim_contract_spec.lua`](../TESTS/shim_contract_spec.lua) | every `vim.*` path and method name `core/` calls, against what the shim provides — read off a real parse, not a grep | `tests` — always |
-| [`shim_behavior_spec.lua`](../TESTS/shim_behavior_spec.lua) | the same inputs through the real `vim.*` and through the shim, outputs compared | `tests` — always |
+| [`shim_contract_spec.lua`](../TESTS/shim_contract_spec.lua) | every `vim.*` path and method name `core/` calls, against what the shim provides — read off a real parse, not a grep; and every `vim.fn`/`vim.fs`/`vim.uv` function the shim defines, against the list in its header | `tests` — always |
+| [`shim_behavior_spec.lua`](../TESTS/shim_behavior_spec.lua) | the same inputs through the real `vim.*` and through the shim, outputs compared; `fn.has` also on simulated macOS, Linux and Windows hosts, whose branches the editor comparison cannot reach on the host it runs on | `tests` — always |
 | [`standalone/selfcheck_behavior.lua`](../standalone/selfcheck_behavior.lua) | the same corpus again, on PUC Lua with the real rocks | `standalone` — skippable |
 
 The first answers *does it exist*, the second *does it do the same thing*, and
@@ -163,7 +163,7 @@ name before touching what they cover:
 |---|---|
 | [`docmap_spec.lua`](../TESTS/docmap_spec.lua) | `functions`, `check`, `scan`, the graph stages, `diff`/`history`, and the `install()` watch end to end. |
 | [`lang_registry_spec.lua`](../TESTS/lang_registry_spec.lua) | `core/lang_registry.lua` — registration order, `reset()` recovering the real "lua" backend from Lua's own module cache rather than losing it. Its own file: it touches the process-wide singleton other specs' real scans depend on. |
-| [`lang_registry_characterization_spec.lua`](../TESTS/lang_registry_characterization_spec.lua) | The registry's edges on a fresh copy of it: nothing loads before the first read, `reset()` reloads at once (so a registration right after it comes last), the scan-scoped filter, `unknown`/`glossaries`/`report`, and a backend that fails to load being retried. Written against the hand-rolled storage first, then run unchanged against `lib.nvim.registry`. |
+| [`lang_registry_characterization_spec.lua`](../TESTS/lang_registry_characterization_spec.lua) | The registry's edges on a fresh copy of it: nothing loads before the first read, `reset()` reloads at once (so a registration right after it comes last), the scan-scoped filter, `unknown`/`glossaries`/`report`, and a backend that fails to load being raised with its own message on every read and retried on the next one, on LuaJIT too: the spec leaves `package.loaded` alone between the reads, because a failed `require` leaves a sentinel there under LuaJIT that only the registry's loader clears. Written against the hand-rolled storage first, then run unchanged against `lib.nvim.registry`. |
 | [`backend_contract_spec.lua`](../TESTS/backend_contract_spec.lua) | What every backend must keep, proved rather than asserted: a comment token is verified by *finding a marker*, `emits_calls` by running the backend over its own parity fixture. Also fails a backend with no parity fixture, so a twenty-fourth cannot drop out of the capability matrix silently. |
 | [`scan_scope_spec.lua`](../TESTS/scan_scope_spec.lua) | `opts.exclude` and `opts.languages` — including the reset discipline, which is the half that fails silently. |
 | [`docmap_browse_spec.lua`](../TESTS/docmap_browse_spec.lua) | `browse` — real floats, real buffers. |
