@@ -88,13 +88,39 @@ local KNOWN_BACKENDS = {
 ---self-register), so requiring it back from here unconditionally at load
 ---time would be the same circular-require shape `core/lang/lua.lua`'s own
 ---header already works around.
+---
+---**A backend that fails to load is raised, and tried again on the next
+---read** (`lib.nvim.registry` marks the loader as not done when it raises).
+---That retry only reaches the backend because of `require_backend` below:
+---LuaJIT and Lua 5.1 leave a sentinel in `package.loaded[modname]` when a
+---module raises while loading, and every later `require` of that name then
+---fails with "loop or previous error loading module" instead of loading it,
+---for good, even once the cause is fixed. PUC Lua 5.4 leaves nothing behind,
+---so without the cleanup the two hosts would behave differently.
 ---@type Lib.Registry
 local store
+
+---`require(modname)`, clearing `package.loaded[modname]` when it raises (see
+---above). Cleared whatever it holds rather than only when it looks like the
+---sentinel: Neovim's LuaJIT shows its sentinel as a `number`, not as the
+---`userdata` the 5.1 manual leads one to test for, and a module that raised
+---half-way is no module to keep either.
+---@param modname string
+---@return Documentation.LangBackend
+local function require_backend(modname)
+  local okay, result = pcall(require, modname)
+  if not okay then
+    package.loaded[modname] = nil
+    error(result, 0)
+  end
+  return result
+end
+
 store = registry.new({
   name = "documentation.core.lang_registry",
   loader = function()
     for _, modname in ipairs(KNOWN_BACKENDS) do
-      local backend = require(modname)
+      local backend = require_backend(modname)
       store:register(backend.name, backend)
     end
   end,

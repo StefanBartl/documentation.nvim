@@ -290,8 +290,15 @@ return function(H)
   --     second read served a registry silently missing the failed backend and
   --     every one after it in the list. Not part of the characterised
   --     behaviour above; this is the fix that came with the move.
+  --
+  --     Nothing here touches `package.loaded` between the reads, and that is
+  --     the point: under LuaJIT a module that raised while loading leaves a
+  --     sentinel there, and a `require` of it then fails with "loop or
+  --     previous error loading module" for good. Clearing it by hand in this
+  --     spec once hid exactly that; the registry has to do it itself.
   do
     local real_go = require(backend_mod("go"))
+    local saved_preload = package.preload[backend_mod("go")]
     with_fresh(function(reg)
       local fail = true
       package.preload[backend_mod("go")] = function()
@@ -300,20 +307,25 @@ return function(H)
         end
         return real_go
       end
-      local okay, err = pcall(reg.get, "lua")
-      package.preload[backend_mod("go")] = nil
-      eq(okay, false, "retry: a backend that fails to load is raised on the read")
-      ok(tostring(err):find("simulated load failure", 1, true) ~= nil, "retry: with its message")
+      local ran, result = pcall(function()
+        for read = 1, 2 do
+          local okay, err = pcall(reg.get, "lua")
+          eq(okay, false, "retry: a backend that fails to load is raised on read " .. read)
+          ok(
+            tostring(err):find("simulated load failure", 1, true) ~= nil,
+            "retry: with its own message on read " .. read .. ", not a stale one: " .. tostring(err)
+          )
+        end
 
-      fail = false
-      package.preload[backend_mod("go")] = function()
-        return real_go
+        fail = false
+        local got = reg.get("rust")
+        ok(got ~= nil, "retry: the next read loads again, including the backends after the failure")
+        eq(#reg.all(true), #TAILS, "retry: ... and the registry is complete, nothing twice")
+      end)
+      package.preload[backend_mod("go")] = saved_preload
+      if not ran then
+        error(result, 0)
       end
-      package.loaded[backend_mod("go")] = nil
-      local got = reg.get("rust")
-      package.preload[backend_mod("go")] = nil
-      ok(got ~= nil, "retry: the next read loads again, including the backends after the failure")
-      eq(#reg.all(true), #TAILS, "retry: ... and the registry is complete, nothing twice")
     end)
   end
 
