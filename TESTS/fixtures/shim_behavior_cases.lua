@@ -632,6 +632,12 @@ M.cases = {
   },
   { id = "fn.fnamemodify/dotfile", path = "fn.fnamemodify", args = { "a/.config", ":t" } },
 
+  -- ----------------------------------------------------------- host features
+  { id = "fn.has/win32", path = "fn.has", args = { "win32" } },
+  { id = "fn.has/mac", path = "fn.has", args = { "mac" } },
+  { id = "fn.has/unix", path = "fn.has", args = { "unix" } },
+  { id = "fn.has/unknown-feature", path = "fn.has", args = { "no_such_feature_xyz" } },
+
   -- ----------------------------------------------------------- filesystem
   { id = "fn.isdirectory/directory", path = "fn.isdirectory", args = { "<ROOT>" } },
   { id = "fn.isdirectory/file", path = "fn.isdirectory", args = { "<ROOT>/a.txt" } },

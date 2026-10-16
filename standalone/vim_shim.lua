@@ -763,6 +763,24 @@ local function folds_case()
   return folds_case_cache
 end
 
+---`vim.fn.has` for the three host features a library may branch on: `win32`,
+---`mac` and `unix`. Every other feature answers 0 -- this is not a Neovim, so
+---`has("nvim")` and its relatives are deliberately not claimed. Added when
+---`rules.nvim`'s waivers module asked `has("win32")` at load time and took the
+---whole rules-engine run down with `attempt to call a nil value`.
+---@param feature string
+---@return integer 1 when the host has it, 0 otherwise
+function vim.fn.has(feature)
+  if feature == "win32" then
+    return IS_WINDOWS and 1 or 0
+  elseif feature == "mac" then
+    return (not IS_WINDOWS and folds_case()) and 1 or 0
+  elseif feature == "unix" then
+    return IS_WINDOWS and 0 or 1
+  end
+  return 0
+end
+
 ---One glob path segment as a Lua pattern: `*` and `?` stay inside a segment,
 ---`[abc]`/`[!abc]` are classes, everything else is literal.
 ---@param seg string
