@@ -1523,6 +1523,22 @@ local function windows_census(dir)
   if not census.complete then
     return fail("cmd.exe did not answer")
   end
+  if #census.links > 0 then
+    -- One line may be read by two names (a real directory `evil` beside a
+    -- link ` evil`); which names the directory holds says when.
+    local names = {}
+    local listed = pcall(function()
+      for name in lfs.dir(dir) do
+        if name ~= "." and name ~= ".." then
+          names[#names + 1] = name
+        end
+      end
+    end)
+    if not listed then
+      return fail("its entries cannot be listed")
+    end
+    win_links.note_names(census, names)
+  end
   win_census[key] = census
   return census
 end

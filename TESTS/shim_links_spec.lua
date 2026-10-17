@@ -331,7 +331,20 @@ return function(H)
   local DISK = {
     ["C:/start"] = { kind = "directory", children = {} },
     ["C:/"] = { kind = "directory", children = { "proj" } },
-    ["C:/proj"] = { kind = "directory", children = { "docs", "empty", "broken" } },
+    ["C:/proj"] = {
+      kind = "directory",
+      children = { "docs", "empty", "broken", "pair", "pair2" },
+    },
+    -- One link and one real directory that the listing reads alike, in both
+    -- orders: the link is ` evil` in `pair` and `evil` in `pair2`.
+    ["C:/proj/pair"] = { kind = "directory", children = { "evil", " evil", "tgt" } },
+    ["C:/proj/pair/evil"] = { kind = "directory", children = {} },
+    ["C:/proj/pair/ evil"] = { kind = "directory", link = true },
+    ["C:/proj/pair/tgt"] = { kind = "directory", children = {} },
+    ["C:/proj/pair2"] = { kind = "directory", children = { " evil", "evil", "tgt" } },
+    ["C:/proj/pair2/ evil"] = { kind = "directory", children = {} },
+    ["C:/proj/pair2/evil"] = { kind = "directory", link = true },
+    ["C:/proj/pair2/tgt"] = { kind = "directory", children = {} },
     ["C:/proj/docs"] = {
       kind = "directory",
       children = {
@@ -443,6 +456,10 @@ return function(H)
       local text = ""
       if world.cwd == "C:/proj/docs" then
         text = DOCS_LISTING
+      elseif world.cwd == "C:/proj/pair" then
+        text = "10/08/2026  06:24 PM    <SYMLINKD>      evil [tgt]\r\n" .. win_links.END_MARK
+      elseif world.cwd == "C:/proj/pair2" then
+        text = "10/08/2026  06:24 PM    <SYMLINKD>     evil [tgt]\r\n" .. win_links.END_MARK
       elseif
         world.cwd == "C:/proj/empty"
         or world.cwd == "C:/"
@@ -574,6 +591,21 @@ return function(H)
       eq(not_link_code, "EINVAL", "B: ...is EINVAL, as for the editor")
       eq(#world.commands, 1, "B: ...all of it from the one listing")
       eq(#world.linked_stats, 0, "B: ...still without statting a link")
+
+      -- A real directory beside a link that the listing reads alike is not
+      -- given the link's target: neither is followed, and neither is judged
+      -- by the other, whichever has the blank.
+      for _, dir in ipairs({ "C:/proj/pair", "C:/proj/pair2" }) do
+        local types = dir_types(dir)
+        eq(types.evil, "link", "B: " .. dir .. ": `evil` cannot be told from its twin")
+        eq(types[" evil"], "link", "B: " .. dir .. ": ...nor ` evil`")
+        eq(types.tgt, "directory", "B: " .. dir .. ": a name with no twin is answered exactly")
+        for _, name in ipairs({ "evil", " evil" }) do
+          local target, _, read_code = shim.uv.fs_readlink(dir .. "/" .. name)
+          eq(target, nil, "B: " .. dir .. ": readlink of `" .. name .. "` has no target")
+          eq(read_code, "EIO", "B: " .. dir .. ": ...so it is not followed")
+        end
+      end
 
       -- The root of a drive: `C:` alone would mean the current directory there.
       eq(shim.uv.fs_lstat("C:/proj").type, "directory", "B: lstat under a drive root")

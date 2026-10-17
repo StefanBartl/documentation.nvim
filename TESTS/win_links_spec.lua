@@ -212,6 +212,34 @@ return function(H)
   eq(target_of(twins, " my dir [x]"), "UNKNOWN nil", "twins: ...with the blank as well")
   eq(target_of(twins, "lone"), "JUNCTION C:\\c", "twins: a link that nothing reads alike is exact")
 
+  -- ...and when only one of such a pair is a link, the listing has one line,
+  -- which both names read: a real directory must not take the link's target,
+  -- whichever of the two has the blank. The names the directory holds say
+  -- that a pair is there.
+  local function pair(line, names)
+    local census = win_links.parse(table.concat({ line, MARK }, "\r\n"))
+    win_links.note_names(census, names)
+    return census
+  end
+  local blank_link = pair("10/08/2026  06:24 PM    <SYMLINKD>      evil [..\\tgt]", {
+    "evil",
+    " evil",
+    "tgt",
+  })
+  eq(target_of(blank_link, "evil"), "UNKNOWN nil", "pair: a real `evil` beside a link ` evil`")
+  eq(target_of(blank_link, " evil"), "UNKNOWN nil", "pair: ...and the link itself has no target")
+  eq(target_of(blank_link, "tgt"), nil, "pair: ...while a name with no twin is still exact")
+  local plain_link = pair("10/08/2026  06:24 PM    <SYMLINKD>     evil [..\\tgt]", {
+    " evil",
+    "evil",
+  })
+  eq(target_of(plain_link, " evil"), "UNKNOWN nil", "pair: a real ` evil` beside a link `evil`")
+  eq(target_of(plain_link, "evil"), "UNKNOWN nil", "pair: ...and the link itself has no target")
+  local cased = pair("10/08/2026  06:24 PM    <JUNCTION>     docs [C:\\x]", { "Docs", "docs" })
+  eq(target_of(cased, "Docs"), "UNKNOWN nil", "pair: a real `Docs` beside a link `docs`")
+  local alone = pair("10/08/2026  06:24 PM    <SYMLINKD>      evil [..\\tgt]", { " evil", "x" })
+  eq(target_of(alone, " evil"), "SYMLINKD ..\\tgt", "pair: a link with no twin keeps its target")
+
   -- A target that holds a line break is printed over two lines. The first is
   -- a link whose target cannot be read, wherever the break falls and however
   -- it is written; it must not fall out of the census for want of a `]`.

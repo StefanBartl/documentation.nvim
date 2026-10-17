@@ -49,6 +49,13 @@
 --- blank the padding swallows; `Docs` and `docs`) are no more telling than a
 --- name that cannot be matched: the one is taken for the other's target, so
 --- the name is answered as a link with no target.
+---
+--- The same holds when only **one** of such a pair is a link: a real directory
+--- `evil` beside a link ` evil` gives one line, which both names read. The
+--- listing alone cannot say which of the two it belongs to, so the caller
+--- hands over the names the directory holds (`note_names`), and a name that
+--- another name of the directory reads alike is answered as a link with no
+--- target when a line matches it -- never with that line's target.
 local M = {}
 
 ---Printed after the listing by the command that produced it, so a run that
@@ -65,6 +72,7 @@ M.END_MARK = "__DOCMAP_DIR_END__"
 ---@field links Standalone.WinLinks.Entry[]
 ---@field by_name table<string, Standalone.WinLinks.Entry|false> Lower-cased text in front of the first ` [` of a line, to the line that has it, or `false` when more than one does.
 ---@field nested Standalone.WinLinks.Entry[] The links with a second ` [`, in listing order: the only ones that can read as a name which holds ` [`.
+---@field shared table<string, true>? Lookup keys (see `lookup_key`) that more than one name of the directory has, once `note_names` has been told the names.
 
 local LINK_TAGS = { JUNCTION = true, SYMLINKD = true, SYMLINK = true }
 
@@ -107,6 +115,32 @@ function M.parse(text)
   return { complete = complete, links = links, by_name = by_name, nested = nested }
 end
 
+---The text a name is looked up by: without its leading blanks, which the
+---parse cannot tell from the padding after the label (` evil` is listed as
+---`evil`), and in lower case, as the file system compares it.
+---@param name string
+---@return string
+local function lookup_key(name)
+  return (name:gsub("^%s+", "")):lower()
+end
+
+---Tell the census which names the directory holds, so that names it reads
+---alike are known (see the module header). Only worth asking for when the
+---census lists a link: a directory without one answers no name as a link.
+---@param census Standalone.WinLinks.Census
+---@param names string[] Every entry of the directory, as the file system lists it.
+function M.note_names(census, names)
+  local seen, shared = {}, {}
+  for _, name in ipairs(names) do
+    local key = lookup_key(name)
+    if seen[key] then
+      shared[key] = true
+    end
+    seen[key] = true
+  end
+  census.shared = shared
+end
+
 ---@class Standalone.WinLinks.Hit
 ---@field tag string `JUNCTION`, `SYMLINKD`, `SYMLINK`, or `UNKNOWN` for a name that cannot be told apart.
 ---@field target string? What `dir` printed in square brackets, when it printed one.
@@ -132,7 +166,7 @@ function M.find(census, name)
   -- The padding after the label and a leading space of the name are one run
   -- of whitespace to the parse, so ` evil` is listed as `evil`.
   local plain = (name:gsub("^%s+", ""))
-  local lowered = plain:lower()
+  local lowered = lookup_key(name)
   local link = census.by_name[lowered]
   if link == nil and lowered:find(" [", 1, true) then
     if #census.nested > MAX_NESTED then
@@ -145,7 +179,10 @@ function M.find(census, name)
       end
     end
   end
-  if link == false then
+  -- A line that another name of the directory reads as well may be that
+  -- name's: a real directory `evil` must not take the target of a link
+  -- ` evil`, nor the other way round.
+  if link == false or (link and census.shared and census.shared[lowered]) then
     return { tag = "UNKNOWN" }
   end
   if link then
