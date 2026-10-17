@@ -267,14 +267,13 @@ jobs:
           ref: ci-verified
       # The rules.nvim engine is run on both hosts by this gate (see
       # `GATES.standalone` in scripts/ci.lua), and CI must not skip it: the
-      # step fails when this checkout is missing. `main`, not `ci-verified`,
-      # because rules.nvim does not publish that branch yet -- the day it does,
-      # pin it here like the other dependencies, so a broken push there cannot
-      # turn this job red.
+      # step fails when this checkout is missing. Pinned to `ci-verified` like
+      # the other dependencies, so a broken push there cannot turn this job red.
       - uses: actions/checkout@v5
         with:
           repository: StefanBartl/rules.nvim
           path: .deps/rules.nvim
+          ref: ci-verified
       - uses: leafo/gh-actions-lua@v13
         with:
           luaVersion: "5.4"
