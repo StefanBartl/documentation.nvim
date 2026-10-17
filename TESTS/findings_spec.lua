@@ -34,6 +34,7 @@ return function(H)
     declared = "x.z",
     expected = "x.y",
     target = "../gone.md",
+    var = "REPOS_DIR",
     doc = "docs/README.md",
     line = 12,
     text = "x.y.fn",

@@ -316,6 +316,33 @@ local function strip_code(content)
   return table.concat(out, "\n")
 end
 
+--- The destination of a Markdown link as CommonMark reads it: surrounding blanks trimmed, `<...>` unwrapped,
+--- a title (`"..."`, `'...'`, `(...)`) after the destination dropped. A destination that still holds a blank
+--- is no link at all (`[x](int x)` in prose about a C++ lambda), so `nil`.
+---@param raw string  # what stood between the parentheses
+---@return string|nil
+local function link_destination(raw)
+  local t = raw:gsub("^%s+", ""):gsub("%s+$", "")
+  local angled = t:match("^<([^>]*)>")
+  if angled then
+    return angled
+  end
+  local dest = t:match("^(%S+)%s+[\"'(]") or t
+  if dest == "" or dest:find("%s") then
+    return nil
+  end
+  return dest
+end
+
+--- `%20`, `%28` ... decoded: a link to `a%20b.md` names the file `a b.md`, as every Markdown viewer reads it.
+---@param dest string
+---@return string
+local function percent_decoded(dest)
+  return (dest:gsub("%%(%x%x)", function(hex)
+    return string.char(tonumber(hex, 16))
+  end))
+end
+
 --- Relative links in any repo markdown file, checked against the tree.
 ---
 --- Two passes over the same idea: a module README (`node.readme`, attached
@@ -341,20 +368,44 @@ local function check_readme_links(ir, findings, opts)
     fd:close()
     local base_dir = rel_path:match("(.*)/[^/]+$") or ""
     local seen = {}
-    for target in content:gmatch("%]%(([^)#]+)%)") do
+    for raw in content:gmatch("%]%(([^)#]+)%)") do
+      local target = link_destination(raw)
       -- A URL scheme (`mailto:`, `tel:`, `https://`) names no file. It takes
       -- two characters, so a Windows drive letter (`C:/x`) is not one.
-      if not target:match("^%a[%w+.-]+:") and not target:match("^#") and not seen[target] then
+      if
+        target
+        and not target:match("^%a[%w+.-]+:")
+        and not target:match("^#")
+        and not seen[target]
+      then
         seen[target] = true
-        local resolved = resolve_relative_link(base_dir, target)
-        -- Through `safe_fs`: a target is the repository's own text, and
-        -- `a/link/x` reaches wherever `link` leads. A target that cannot be
-        -- reached without leaving the project is not judged dead -- it is not
-        -- looked at, whichever way it leaves. A name Windows cannot hold
-        -- (`C:/x`) is as absent there as on POSIX, so both judge it dead.
-        local st, why = require("documentation.core.safe_fs").stat(root, root .. "/" .. resolved)
-        if not st and (why == "missing" or why == "name") then
-          add(findings, "warn", "dead-readme-link", node_id, { file = rel_path, target = target })
+        -- A shell-style placeholder is not expanded: no Markdown viewer does, so the link is dead for every
+        -- reader, and reading the scanning person's environment would make the verdict depend on whose machine
+        -- ran the check. Its own finding says why, instead of "does not exist".
+        local var = target:match("^%$%{?([%a_][%w_]*)")
+        if var then
+          add(
+            findings,
+            "warn",
+            "placeholder-readme-link",
+            node_id,
+            { file = rel_path, target = target, var = var }
+          )
+        else
+          -- Through `safe_fs`: a target is the repository's own text, and
+          -- `a/link/x` reaches wherever `link` leads. A target that cannot be
+          -- reached without leaving the project is not judged dead -- it is not
+          -- looked at, whichever way it leaves. A name Windows cannot hold
+          -- (`C:/x`) is as absent there as on POSIX, so both judge it dead.
+          local safe_fs = require("documentation.core.safe_fs")
+          local st, why = safe_fs.stat(root, root .. "/" .. resolve_relative_link(base_dir, target))
+          local decoded = percent_decoded(target)
+          if not st and decoded ~= target then
+            st, why = safe_fs.stat(root, root .. "/" .. resolve_relative_link(base_dir, decoded))
+          end
+          if not st and (why == "missing" or why == "name") then
+            add(findings, "warn", "dead-readme-link", node_id, { file = rel_path, target = target })
+          end
         end
       end
     end

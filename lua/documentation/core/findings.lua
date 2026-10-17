@@ -62,6 +62,7 @@ M.CATALOG = {
   ["file-holds-many-modules"] = "{file} holds {count} module identities the map cannot separate: {modules}",
   ["missing-readme"] = "{path} has no README.md",
   ["dead-readme-link"] = "{file} links to '{target}' which does not exist",
+  ["placeholder-readme-link"] = "{file} links to '{target}', which starts with the placeholder ${var}: no Markdown viewer expands it",
   ["doc-references-missing"] = "{doc}:{line} references '{text}', but {module} has no '{missing}'",
   ["sibling-reference-missing"] = "{file} references '{target}', which does not exist in the {repo} checkout",
   ["tools-spec-invalid"] = "{source}: entry #{index} is invalid — {reason}",

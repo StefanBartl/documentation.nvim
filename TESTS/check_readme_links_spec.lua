@@ -62,13 +62,41 @@ return function(H)
     return result
   end
 
-  local want = "C:/x/y.md a?b.md gone.md"
+  -- link targets read as CommonMark does: title, angle brackets, %-escapes, trailing blank; code is no link
+  H.write(root .. "/lua/t/a b(1).md", { "x" })
+  H.write(root .. "/docs/links.md", {
+    '[titled](../lua/t/init.lua "the init")',
+    "[angled](<../lua/t/a b(1).md>)",
+    "[escaped](../lua/t/a%20b%281%29.md)",
+    "[blank](../lua/t/init.lua )",
+    "a lambda [x](int x) and [](auto self, int n) in prose",
+    "[placeholder]($REPOS_DIR/elsewhere/x.md)",
+    "[braced](${HOME}/y.md)",
+    "[escaped-gone](../lua/t/nope%20here.md)",
+  })
+
+  local want = "../lua/t/nope%20here.md C:/x/y.md a?b.md gone.md"
   eq(
     dead_under(false),
     want,
     "readme links (POSIX rules): only the names that are not there are dead"
   )
   eq(dead_under(true), want, "readme links (Windows rules): the same targets, and no others")
+
+  -- placeholders get their own finding, never "does not exist"
+  local _, all = docmap.scan_full(config.build(root, { source = "lua/t", lua_root = "lua" }))
+  local placeholders = {}
+  for _, f in ipairs(all) do
+    if f.check == "placeholder-readme-link" then
+      placeholders[#placeholders + 1] = f.params.var
+    end
+  end
+  table.sort(placeholders)
+  eq(
+    table.concat(placeholders, " "),
+    "HOME REPOS_DIR",
+    "readme links: a $VAR / ${VAR} target is a placeholder finding"
+  )
 
   vim.fn.delete(root, "rf")
 end

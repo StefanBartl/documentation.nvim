@@ -59,6 +59,7 @@ M.CODES = {
   ["consumer-require-missing"] = true,
   ["dead-function"] = true,
   ["dead-readme-link"] = true,
+  ["placeholder-readme-link"] = true,
   ["dead-see-target"] = true,
   ["doc-references-missing"] = true,
   ["example-does-not-parse"] = true,
