@@ -19,7 +19,7 @@ below, which cannot be tested without flaking.
 | Filesystem, read | Walks `opts.source` and reads `.lua` files, `README.md`, `@types/`, and `opts.tests_dir`. A link in the tree is followed only if it stays inside the project — see [Links](#links-junctions-and-the-output-directory). |
 | Filesystem, write | Writes into `opts.out_dir` (default `docs/map`), the `--sarif=<path>` report, `:DocMap annotate --write/--sidecar` (the source file or `<file>.annot.lua`), `docs/BINDINGS.md` from `scripts/gen_map.lua`, and `doc/tags` from `:DocMap helptags`. **Never through a link, in a tree that is not changed while the run goes on**: nothing between the project root and `out_dir` may be one, and neither may the report, the annotated file or `docs/BINDINGS.md`. The check and the write are separate steps, see [the limit](#links-junctions-and-the-output-directory). |
 | State | Saved trails, in `stdpath("state")` — never in the repository. |
-| Subprocesses | `git`, and `lua-language-server` under `:DocMap full` — or on every scan when a `.docmap.json` in the repository sets `luals` (see Not covered). The standalone build on Windows also starts `cmd.exe` (`dir /a:l`) to tell links from directories. |
+| Subprocesses | `git`, and `lua-language-server` under `:DocMap full` or when your own config sets `luals` (a `.docmap.json` in the repository cannot). The standalone build runs its commands through `io.popen`, on Windows that is `cmd.exe /c` (see Subprocess execution), and also starts `cmd.exe` (`dir /a:l`) to tell links from directories. |
 | Network, outbound | **None.** No telemetry, no CDN, no fetch. The generated page is self-contained; the coverage badge is rendered locally rather than fetched from shields.io. |
 | Network, inbound | Only under `:DocMap serve`, and only on loopback — see below. |
 
@@ -228,12 +228,10 @@ CI job is English, and no real localized `cmd.exe` has run.
 purpose (a sibling checkout), and a `.docmap.json` in the repository is allowed
 to set all three. The engine therefore stats and reads a path the repository
 chose, link or not. That wants a rule about who may name a path outside the
-root, not a link check; it is an open task, see the vault. The same file may
-also set `luals` and `luals_timeout_ms`, so a repository can make `docmap` start
-`lua-language-server` on its own tree (when one is installed), on every scan
-and not only under `:DocMap full`, and what the server then loads from the
-repository's `.luarc.json` has not been examined. That is a separate task as
-well.
+root, not a link check; it is an open task, see the vault. `luals` and
+`luals_timeout_ms` are **not** repository keys: a `.docmap.json` that sets them
+is ignored with a warning (they belong to whoever opens the repository), so a
+checkout cannot start `lua-language-server` on the person scanning it.
 
 ## Subprocess execution
 
@@ -242,7 +240,11 @@ well.
 a grep over `lua/`. (The standalone build under `standalone/` has no editor to
 call `vim.system` on and uses `io.popen`: for `git`, for `uname` and, on
 Windows, for the `cmd.exe` link listing, whose argument is a fixed string — the
-directory is entered with `chdir`, never put on the command line.)
+directory is entered with `chdir`, never put on the command line. Its
+`vim.fn.system` shim also goes through `io.popen`, which on Windows means
+`cmd.exe /c`: every argument is quoted by `standalone/shell_quote.lua`, which
+refuses an argument it cannot quote safely instead of passing it on, and the
+whole line gets the one extra pair of quotes `cmd /c` strips.)
 
 That is what makes user-supplied revisions safe. `:DocMap diff <ref>`,
 `:DocMap impact <ref>` and `:DocMap churn <range>` pass their argument straight
@@ -253,7 +255,7 @@ arrives over a socket rather than being typed by the person running the
 editor.)
 
 `lua-language-server` runs under `:DocMap full`, and also whenever `opts.luals`
-is on, which a `.docmap.json` can set (see Not covered), with a timeout
+is on in your own config (a repository's `.docmap.json` cannot set it), with a timeout
 (`opts.luals_timeout_ms`, default 60s), and its failure is downgraded to an
 info-severity finding rather than aborting the scan.
 

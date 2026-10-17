@@ -94,6 +94,9 @@ M.NAME = ".docmap.json"
 ---  `callhierarchy`,         extra LSP clients, published diagnostics, a push
 ---  `diagnostics`, `mdview`  to another plugin. A repository does not get to
 ---                           start those by being opened.
+---  `luals`,                 a `lua-language-server` process on every scan,
+---  `luals_timeout_ms`       which then reads the repository's own `.luarc.json`.
+---                           Only under `:DocMap full`, or when you turn it on.
 ---  `telemetry`,             whether *you* collect data about your own
 ---  `serve_port`, `debug`    editing, which port on *your* machine is bound,
 ---                           how loud your session is.
@@ -126,8 +129,6 @@ M.REPO_KEYS = {
   dead_code = true,
   calls_heuristic = true,
   docs_heuristic = true,
-  luals = true,
-  luals_timeout_ms = true,
   snippet_max_lines = true,
   badge = true,
   godbolt = true,

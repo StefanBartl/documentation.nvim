@@ -122,8 +122,6 @@
     "dead_code": { "type": "boolean", "description": "Also report published functions with no caller in the tree. Off by default: a library is made of these by design." },
     "calls_heuristic": { "type": "boolean", "description": "Also emit call edges guessed by unique-name match. Off by default." },
     "docs_heuristic": { "type": "boolean", "description": "Also resolve doc references written as a bare function name. Off by default." },
-    "luals": { "type": "boolean", "description": "Merge lua-language-server --doc output into the IR. Costs real seconds on a full tree." },
-    "luals_timeout_ms": { "type": "integer", "minimum": 0, "description": "Kill the lua-language-server run after this long. Default 60000." },
     "snippet_max_lines": { "type": "integer", "minimum": 0, "description": "Lines kept per function's embedded source snippet." },
 
     "badge": { "type": "boolean", "description": "Also write coverage.svg beside the other artifacts." },

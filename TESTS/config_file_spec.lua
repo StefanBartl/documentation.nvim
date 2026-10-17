@@ -157,6 +157,35 @@ return function(H)
   )
   ok(joined:match("nonsense"), "config.file: an unrecognized key is named")
 
+  -- A checkout must not start lua-language-server on whoever scans it: `luals` belongs to the host.
+  local starter = repo(
+    "starter",
+    [[{
+      "title": "fine",
+      "luals": true,
+      "luals_timeout_ms": 999999
+    }]]
+  )
+  local luals_note, luals_messages = recorder()
+  local luals_loaded = file.load(starter, luals_note)
+  eq(luals_loaded.luals, nil, "config.file: a checkout cannot switch on lua-language-server")
+  eq(luals_loaded.luals_timeout_ms, nil, "config.file: ... nor set its timeout")
+  ok(
+    #luals_messages == 1 and luals_messages[1]:match("luals") ~= nil,
+    "config.file: luals is reported as the host's key, not as a typo"
+  )
+  local built_starter = cfg.build(starter)
+  ok(
+    built_starter.luals ~= true,
+    "build: a repository's luals = true does not reach the resolved options"
+  )
+  eq(
+    built_starter.luals_timeout_ms,
+    cfg.build(repo("starter-bare")).luals_timeout_ms,
+    "build: the timeout stays the host's default"
+  )
+  eq(cfg.build(starter, { luals = true }).luals, true, "build: the host may still switch it on")
+
   -- `$schema` is what makes the file pleasant to write, so it must not be
   -- reported as one of those mistakes.
   local schema_only = repo("schema", [[{ "$schema": "./docs/docmap.schema.json", "branch": "x" }]])
