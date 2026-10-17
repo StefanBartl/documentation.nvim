@@ -239,6 +239,20 @@ return function(H)
   eq(target_of(cased, "Docs"), "UNKNOWN nil", "pair: a real `Docs` beside a link `docs`")
   local alone = pair("10/08/2026  06:24 PM    <SYMLINKD>      evil [..\\tgt]", { " evil", "x" })
   eq(target_of(alone, " evil"), "SYMLINKD ..\\tgt", "pair: a link with no twin keeps its target")
+  -- A name holding ` [` reads the line of the name in front of it: a link
+  -- `a [b` is listed `a [b [tgt]`, which a real `a` reads as well, and a link
+  -- `a` to `b [x` is listed alike, which a real `a [b` reads.
+  local nested_link = pair("10/08/2026  06:24 PM    <SYMLINKD>     a [b [tgt]", {
+    "a",
+    "a [b",
+  })
+  eq(target_of(nested_link, "a"), "UNKNOWN nil", "pair: a real `a` beside a link `a [b`")
+  eq(target_of(nested_link, "a [b"), "UNKNOWN nil", "pair: ...and the link itself has no target")
+  local nested_real = pair("10/08/2026  06:24 PM    <SYMLINKD>     a [b [x]", { "a [b", "a" })
+  eq(target_of(nested_real, "a [b"), "UNKNOWN nil", "pair: a real `a [b` beside a link `a`")
+  eq(target_of(nested_real, "a"), "UNKNOWN nil", "pair: ...and the link itself has no target")
+  local nested_alone = pair("10/08/2026  06:24 PM    <SYMLINKD>     a [b [tgt]", { "a [b", "x" })
+  eq(target_of(nested_alone, "a [b"), "SYMLINKD tgt", "pair: a lone `a [b` keeps its target")
 
   -- A target that holds a line break is printed over two lines. The first is
   -- a link whose target cannot be read, wherever the break falls and however

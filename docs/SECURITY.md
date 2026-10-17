@@ -224,7 +224,9 @@ read as a link and not followed. The census fails closed:
   `evil` beside a link ` evil` (or the other way round) gives one line that
   both names read, so both are links with no target. The real directory is not
   walked, and the run lists it among the links not followed (`a link on the way
-  cannot be read`) rather than dropping it silently.
+  cannot be read`) rather than dropping it silently. The same goes for names
+  that agree up to their first ` [`: a real `a` beside a link `a [b` (listed
+  `a [b [target]`), or a real `a [b` beside a link `a`.
 - A root on a network or device path (`//host/share`, `//?/C:`, `\\?\…`, or a
   relative one while the process stands on a share) is refused: `cmd.exe`
   cannot start there, so nothing under it is followed and one warning says so

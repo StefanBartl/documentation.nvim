@@ -55,7 +55,9 @@
 --- listing alone cannot say which of the two it belongs to, so the caller
 --- hands over the names the directory holds (`note_names`), and a name that
 --- another name of the directory reads alike is answered as a link with no
---- target when a line matches it -- never with that line's target.
+--- target when a line matches it -- never with that line's target. Names read
+--- alike when they agree up to their first ` [`: a real `a` beside a link
+--- `a [b` reads its line `a [b [target]` as well.
 local M = {}
 
 ---Printed after the listing by the command that produced it, so a run that
@@ -72,7 +74,7 @@ M.END_MARK = "__DOCMAP_DIR_END__"
 ---@field links Standalone.WinLinks.Entry[]
 ---@field by_name table<string, Standalone.WinLinks.Entry|false> Lower-cased text in front of the first ` [` of a line, to the line that has it, or `false` when more than one does.
 ---@field nested Standalone.WinLinks.Entry[] The links with a second ` [`, in listing order: the only ones that can read as a name which holds ` [`.
----@field shared table<string, true>? Lookup keys (see `lookup_key`) that more than one name of the directory has, once `note_names` has been told the names.
+---@field shared table<string, true>? Line keys (see `line_key`) that more than one name of the directory has, once `note_names` has been told the names.
 
 local LINK_TAGS = { JUNCTION = true, SYMLINKD = true, SYMLINK = true }
 
@@ -124,6 +126,17 @@ local function lookup_key(name)
   return (name:gsub("^%s+", "")):lower()
 end
 
+---The key of every line a name can read: its lookup key up to the first
+---` [`. A name without one reads the line keyed by the whole of it; a name
+---`a [b` reads a line `a [b [...]`, keyed `a` as well, which a real `a`
+---reads too.
+---@param key string A lookup key (see `lookup_key`).
+---@return string
+local function line_key(key)
+  local at = key:find(" [", 1, true)
+  return at and key:sub(1, at - 1) or key
+end
+
 ---Tell the census which names the directory holds, so that names it reads
 ---alike are known (see the module header). Only worth asking for when the
 ---census lists a link: a directory without one answers no name as a link.
@@ -132,7 +145,7 @@ end
 function M.note_names(census, names)
   local seen, shared = {}, {}
   for _, name in ipairs(names) do
-    local key = lookup_key(name)
+    local key = line_key(lookup_key(name))
     if seen[key] then
       shared[key] = true
     end
@@ -182,7 +195,7 @@ function M.find(census, name)
   -- A line that another name of the directory reads as well may be that
   -- name's: a real directory `evil` must not take the target of a link
   -- ` evil`, nor the other way round.
-  if link == false or (link and census.shared and census.shared[lowered]) then
+  if link == false or (link and census.shared and census.shared[line_key(lowered)]) then
     return { tag = "UNKNOWN" }
   end
   if link then
