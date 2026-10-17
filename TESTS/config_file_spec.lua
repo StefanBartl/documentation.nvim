@@ -163,21 +163,29 @@ return function(H)
     [[{
       "title": "fine",
       "luals": true,
-      "luals_timeout_ms": 999999
+      "luals_timeout_ms": 999999,
+      "pdf": true
     }]]
   )
   local luals_note, luals_messages = recorder()
   local luals_loaded = file.load(starter, luals_note)
   eq(luals_loaded.luals, nil, "config.file: a checkout cannot switch on lua-language-server")
   eq(luals_loaded.luals_timeout_ms, nil, "config.file: ... nor set its timeout")
+  eq(luals_loaded.pdf, nil, "config.file: a checkout cannot start pandoc on its Markdown")
   ok(
-    #luals_messages == 1 and luals_messages[1]:match("luals") ~= nil,
+    #luals_messages == 1
+      and luals_messages[1]:match("luals") ~= nil
+      and luals_messages[1]:match("pdf") ~= nil,
     "config.file: luals is reported as the host's key, not as a typo"
   )
   local built_starter = cfg.build(starter)
   ok(
     built_starter.luals ~= true,
     "build: a repository's luals = true does not reach the resolved options"
+  )
+  ok(
+    built_starter.pdf ~= true,
+    "build: a repository's pdf = true does not reach the resolved options"
   )
   eq(
     built_starter.luals_timeout_ms,

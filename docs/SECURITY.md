@@ -19,7 +19,7 @@ below, which cannot be tested without flaking.
 | Filesystem, read | Walks `opts.source` and reads `.lua` files, `README.md`, `@types/`, and `opts.tests_dir`. A link in the tree is followed only if it stays inside the project — see [Links](#links-junctions-and-the-output-directory). |
 | Filesystem, write | Writes into `opts.out_dir` (default `docs/map`), the `--sarif=<path>` report, `:DocMap annotate --write/--sidecar` (the source file or `<file>.annot.lua`), `docs/BINDINGS.md` from `scripts/gen_map.lua`, and `doc/tags` from `:DocMap helptags`. **Never through a link, in a tree that is not changed while the run goes on**: nothing between the project root and `out_dir` may be one, and neither may the report, the annotated file or `docs/BINDINGS.md`. The check and the write are separate steps, see [the limit](#links-junctions-and-the-output-directory). |
 | State | Saved trails, in `stdpath("state")` — never in the repository. |
-| Subprocesses | `git`, and `lua-language-server` under `:DocMap full` or when your own config sets `luals` (a `.docmap.json` in the repository cannot). The standalone build runs its commands through `io.popen`, on Windows that is `cmd.exe /c` (see Subprocess execution), and also starts `cmd.exe` (`dir /a:l`) to tell links from directories. |
+| Subprocesses | `git`, and `lua-language-server` under `:DocMap full` or when your own config sets `luals`; `pandoc` with a PDF engine (through pdfport.nvim) when your own config sets `pdf`. A `.docmap.json` in the repository can set neither. The standalone build runs its commands through `io.popen`, on Windows that is `cmd.exe /c` (see Subprocess execution), and also starts `cmd.exe` (`dir /a:l`) to tell links from directories. |
 | Network, outbound | **None.** No telemetry, no CDN, no fetch. The generated page is self-contained; the coverage badge is rendered locally rather than fetched from shields.io. |
 | Network, inbound | Only under `:DocMap serve`, and only on loopback — see below. |
 
@@ -229,9 +229,10 @@ purpose (a sibling checkout), and a `.docmap.json` in the repository is allowed
 to set all three. The engine therefore stats and reads a path the repository
 chose, link or not. That wants a rule about who may name a path outside the
 root, not a link check; it is an open task, see the vault. `luals` and
-`luals_timeout_ms` are **not** repository keys: a `.docmap.json` that sets them
-is ignored with a warning (they belong to whoever opens the repository), so a
-checkout cannot start `lua-language-server` on the person scanning it.
+`luals_timeout_ms` are **not** repository keys, and neither is `pdf`: a
+`.docmap.json` that sets them is ignored with a warning (they belong to whoever
+opens the repository), so a checkout cannot start `lua-language-server`, or
+`pandoc` on its own Markdown, on the person scanning it.
 
 ## Subprocess execution
 

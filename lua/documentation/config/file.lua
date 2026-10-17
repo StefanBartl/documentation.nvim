@@ -97,6 +97,8 @@ M.NAME = ".docmap.json"
 ---  `luals`,                 a `lua-language-server` process on every scan,
 ---  `luals_timeout_ms`       which then reads the repository's own `.luarc.json`.
 ---                           Only under `:DocMap full`, or when you turn it on.
+---  `pdf`                    `pandoc` and a PDF engine (through pdfport.nvim)
+---                           on the repository's Markdown at every generate.
 ---  `telemetry`,             whether *you* collect data about your own
 ---  `serve_port`, `debug`    editing, which port on *your* machine is bound,
 ---                           how loud your session is.
@@ -132,7 +134,6 @@ M.REPO_KEYS = {
   snippet_max_lines = true,
   badge = true,
   godbolt = true,
-  pdf = true,
   theme = true,
   diagram = true,
   consumers = true,

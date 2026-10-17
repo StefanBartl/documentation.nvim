@@ -126,7 +126,6 @@
 
     "badge": { "type": "boolean", "description": "Also write coverage.svg beside the other artifacts." },
     "godbolt": { "type": "boolean", "description": "Experimental. Add a Compiler Explorer link beside every module and function in the page." },
-    "pdf": { "type": "boolean", "description": "Also write overview.pdf via pdfport.nvim. Asynchronous." },
     "theme": {
       "type": "string",
       "enum": ["light", "dark", "system"],
