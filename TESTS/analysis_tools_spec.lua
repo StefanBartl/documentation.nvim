@@ -32,6 +32,31 @@ return function(H)
   end
 
   local tools = buttons()
+
+  -- The runtime-fed tools sit together in one labelled group at the end of the toolbar; their `data-atool`
+  -- values (and so `#tab=analysis&atool=…` links) are unchanged.
+  do
+    local group =
+      src:match('(<span class="anview%-group" role="group" aria%-label="Runtime">.-"</span>")')
+    ok(group ~= nil, "analysis: a Runtime group exists in the toolbar")
+    for _, name in ipairs({ "telemetry", "loaded" }) do
+      ok(
+        group and group:find('data-atool="' .. name .. '"', 1, true) ~= nil,
+        "analysis: " .. name .. " is in the Runtime group"
+      )
+    end
+    ok(
+      group and group:find("startup_graph_button", 1, true) ~= nil,
+      "analysis: the Startup button is in the Runtime group"
+    )
+    local outside = src:gsub('<span class="anview%-group".-"</span>"', "")
+    for _, name in ipairs({ "telemetry", "loaded" }) do
+      ok(
+        outside:find('data-atool="' .. name .. '"', 1, true) == nil,
+        "analysis: " .. name .. " appears only once, inside the group"
+      )
+    end
+  end
   -- A floor with headroom: this exists to catch the pattern matching
   -- nothing, not to be edited whenever a tool is added.
   ok(#tools >= 16, "analysis: the toolbar was parsed, found " .. #tools .. " tools")

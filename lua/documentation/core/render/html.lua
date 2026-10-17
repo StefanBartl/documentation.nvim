@@ -722,6 +722,9 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .hview-toggle button.plugin-gated{color:var(--ext)}
 .hview-toggle button.plugin-gated::after{content:"\1F50C";font-size:9.5px;margin-left:3px;opacity:.85}
 .hview-toggle button.plugin-gated.active{background:var(--ext);color:var(--bg);font-weight:600}
+.anview-group{display:flex;align-items:stretch;border-left:1px solid var(--line)}
+.anview-group-label{align-self:center;padding:0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.anview-group-label+button{border-left:1px solid var(--line)}
 .hnode.t-class .hnm{color:var(--mod)}
 .hnode.t-alias .hnm{color:var(--ns)}
 .hnode .hkind{font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-top:1px}
@@ -10156,6 +10159,15 @@ function M.render(ir, findings, opts)
     '<button class="anview-btn" data-atool="lazy" data-explain="atool.lazy">Lazy loading</button>',
     '<button class="anview-btn" data-atool="bindings" data-explain="atool.bindings">Bindings</button>',
     '<button class="anview-btn plugin-gated" data-atool="tools" data-explain="atool.tools">Tools</button>',
+    '<button class="anview-btn" data-atool="checklist" data-explain="atool.checklist">Checklist</button>',
+    '<button class="anview-btn" data-atool="hooks" data-explain="atool.hooks">Hooks</button>',
+    '<button class="anview-btn" data-atool="docs" data-explain="atool.docs">Docs</button>',
+    '<button class="anview-btn" data-atool="endpoints" data-explain="atool.endpoints">Endpoints</button>',
+    -- The runtime-fed tools as one group at the end of the toolbar: what ran, as opposed to what the
+    -- source says. A group inside the same toolbar rather than a tab of its own, so `#tab=analysis&atool=…`
+    -- links and the selection logic (`#antoggle .anview-btn`) keep working unchanged.
+    '<span class="anview-group" role="group" aria-label="Runtime">',
+    '<span class="anview-group-label">Runtime</span>',
     '<button class="anview-btn plugin-gated" data-atool="telemetry" data-explain="atool.telemetry">Telemetry</button>',
     '<button class="anview-btn plugin-gated" data-atool="loaded" data-explain="atool.loaded">Loaded</button>',
     -- `plugin-gated` like its two neighbours, and for the same reason — the
@@ -10166,10 +10178,7 @@ function M.render(ir, findings, opts)
     -- always there and usually empty teaches the reader to skip it, which
     -- is the same reasoning `docTrigger` states for its own icon.
     startup_graph_button,
-    '<button class="anview-btn" data-atool="checklist" data-explain="atool.checklist">Checklist</button>',
-    '<button class="anview-btn" data-atool="hooks" data-explain="atool.hooks">Hooks</button>',
-    '<button class="anview-btn" data-atool="docs" data-explain="atool.docs">Docs</button>',
-    '<button class="anview-btn" data-atool="endpoints" data-explain="atool.endpoints">Endpoints</button>',
+    "</span>",
     "</div>",
     '<div id="anbody"></div>',
     "</div>",
