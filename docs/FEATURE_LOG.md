@@ -3596,3 +3596,39 @@ still reads any non-zero `--check` exit as "stale" and needs a branch for 2.
   `readers_editor_links`, `check_readme_links` and `detect_source_links` are new;
   `check_test_references` is pinned too; `scan_links`, `safe_fs`,
   `out_dir_links`, `win_links`, `shim_links`, `readers_links` and `annotate` grew
+
+## The Windows link census lists a tree in batches (2026-10-17)
+
+One `cmd /c dir /a:l` per directory was one process start (about 16 ms) per
+directory, and on a real tree that was nearly the whole run: 2045 directories
+took 32 s. `dir /s /a:l` would list a tree in one process, but it walks into
+every junction, a junction back up the tree included (the probe printed the
+same directories again until the path length ran out; two such junctions make
+it exponential), so it cannot be pointed at a cloned repository.
+
+What is batched instead is the listing that was already trusted. After a
+directory is listed on its own, the directories below it are listed ahead
+level by level, one `cmd.exe` per level (split at 7000 characters of command
+line): `pushd "rel"`, `cd` to print where it stands, `dir /a:l`, a mark,
+`popd`. A listing is taken only when the printed location is the expected one
+and the mark arrived, and the mark carries a per-run random value, because a
+link target may hold a line break and so print any line, a forged mark among
+them. Names that a command line could misread (`% ( ) ^ & ! "`, non-ASCII,
+leading blank, trailing blank or dot) are never batched; empty directories are
+skipped (the walk never asks about them); and anything a batch did not answer
+is listed on its own, exactly as before. One sweep lists at most 1024
+directories, so a subtree the walk never enters (`.git`, `node_modules`) costs
+little; when the walk reaches a directory that is not answered yet, the
+directories beside it are swept in one go.
+
+Measured through the shim (Lua 5.1 + lfs, warm): 2045 directories with a file
+each, 2046 processes and 33.4 s before, 51 processes and 7.9 s after; a lib.nvim
+checkout (2598 directories), 41.3 s before, 11.7 s after. What remains is
+`cmd.exe`'s own cost of changing directory, about 3.5 ms per directory.
+
+- **Modules:** `standalone/win_links.lua` (`batchable`, `batch_command`,
+  `parse_batch`), `standalone/vim_shim.lua` (`run_in`, `prefetch_below`)
+- **Tests:** `win_links` (the batch parse: forged marks, wrong location,
+  missing segment), `shim_links` (a canned tree through the shim's Windows
+  branch, and on a Windows host a real tree with real junctions and the number
+  of processes)

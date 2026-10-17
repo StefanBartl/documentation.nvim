@@ -470,4 +470,89 @@ return function(H)
   eq(target_of(few, "n00005 [x]"), "JUNCTION y5", "crafted: ...and a name is found among them")
   local some = win_links.parse(table.concat(crafted, "\r\n", 1, 100) .. "\r\n" .. MARK)
   eq(tag_of(some, "q00001 [z]"), "UNKNOWN", "crafted: a hundred of them are already too many")
+
+  -- Batches: many directories listed by one `cmd.exe`, each read like a
+  -- listing of its own, and only where the command said it stood.
+  for name, want in pairs({
+    ["src"] = true,
+    ["my dir"] = true,
+    ["a-b.c_d~1"] = true,
+    ["100%"] = false,
+    ["(x)"] = false,
+    ["a^b"] = false,
+    ["a&b"] = false,
+    ["wow!"] = false,
+    [" lead"] = false,
+    ["trail "] = false,
+    ["dot."] = false,
+    ["caf\195\169"] = false,
+    ["tab\there"] = false,
+    [""] = false,
+  }) do
+    eq(win_links.batchable(name), want, "batch: is `" .. name .. "` batchable")
+  end
+
+  local rels = { "src", "src\\core", "gone", "moved", "docs" }
+  local nonce = "5eed"
+  local command = win_links.batch_command(rels, nonce)
+  ok(command:find('^set "DIRCMD=" & cd & '), "batch: DIRCMD cleared, start printed: " .. command)
+  ok(
+    command:find(
+      '(pushd "src\\core" 2>nul && (cd & dir /a:l 2>nul & echo __DOCMAP_DIR_5eed_2__ & popd))',
+      1,
+      true
+    ),
+    "batch: one piece per directory: " .. command
+  )
+  eq(
+    #win_links.batch_piece("src", nonce, 1) + #" & ",
+    #command:match("^.-(%(pushd.-popd%)%) & )"),
+    "batch: a piece is as long as it says"
+  )
+
+  local function mark(i, n)
+    return win_links.batch_mark(n or nonce, i) .. " "
+  end
+  local listed = win_links.parse_batch(
+    table.concat({
+      "C:\\repo",
+      "C:\\repo\\SRC",
+      " Volume in drive C has no label.",
+      "",
+      " Directory of C:\\repo\\src",
+      "",
+      "10/08/2026  06:24 PM    <JUNCTION>     map [C:\\elsewhere]",
+      "10/08/2026  06:24 PM    <SYMLINKD>     cut [x",
+      -- A target may print any line; a mark it cannot know the nonce of is
+      -- only a line of the listing.
+      mark(1, "0000"),
+      mark(2, "0000"),
+      "C:\\repo\\src\\core\\dummy",
+      "]",
+      "10/08/2026  06:24 PM    <SYMLINKD>     late [..\\late]",
+      mark(1),
+      "C:\\repo\\src\\core",
+      " Directory of C:\\repo\\src\\core",
+      mark(2),
+      -- `gone` could not be entered: nothing at all for it.
+      "C:\\repo\\elsewhere",
+      "10/08/2026  06:24 PM    <JUNCTION>     m [x]",
+      mark(4),
+      "C:\\repo\\docs",
+      "10/08/2026  06:24 PM    <JUNCTION>     j [C:\\x]",
+    }, "\r\n"),
+    rels,
+    nonce
+  )
+  ok(listed[1], "batch: the first directory is read, whatever case `cd` printed it in")
+  eq(target_of(listed[1], "map"), "JUNCTION C:\\elsewhere", "batch: ...with its links")
+  eq(target_of(listed[1], "late"), "SYMLINKD ..\\late", "batch: ...past a mark it could not know")
+  ok(listed[2], "batch: the second is read")
+  eq(#listed[2].links, 0, "batch: ...and holds no link, though the first one's target named it")
+  eq(listed[3], nil, "batch: a directory that was not entered is not answered")
+  eq(listed[4], nil, "batch: nor one the command did not stand in")
+  eq(listed[5], nil, "batch: nor one whose mark never came")
+  eq(next(win_links.parse_batch("", rels, nonce)), nil, "batch: no output answers nothing")
+  local root = win_links.parse_batch("C:\\\r\n" .. "C:\\src\r\n" .. mark(1), { "src" }, nonce)
+  ok(root[1], "batch: from the root of a drive, which `cd` prints with its backslash")
 end

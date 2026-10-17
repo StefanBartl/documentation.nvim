@@ -1456,14 +1456,194 @@ local function on_network(path)
   return to_slashes(path):sub(1, 2) == "//"
 end
 
----The links directly inside `dir` on Windows, or `nil` and why.
+---Run `command` through `cmd.exe` with `dir` as its working directory, and
+---what it wrote to stdout, or `nil` and why it was not run.
 ---
 ---The working directory is changed for the length of the command rather than
 ---the path being put on the command line: nothing in a path can then be
 ---mistaken for `cmd.exe` syntax (`%`, `&`, `^`, a quote), and no path has to
----be quoted in a language with no reliable way to do it. `DIRCMD` is cleared
----because it presets `dir`'s switches for the whole machine, and `/b` among
----them removes the very labels this reads.
+---be quoted in a language with no reliable way to do it.
+---@param dir string
+---@param command string
+---@return string? text
+---@return string? why
+local function run_in(dir, command)
+  local no_cmd = "cmd.exe cannot start in a network or device path"
+  if on_network(dir) then
+    -- Not even entered.
+    return nil, no_cmd
+  end
+  local previous = lfs.currentdir()
+  if not previous or not lfs.chdir(dir) then
+    return nil, "it cannot be entered"
+  end
+  -- A relative `dir` (`docmap .` keeps the root as `.`) says nothing about
+  -- where it leads, so where the process now stands is what is asked.
+  if on_network(lfs.currentdir() or "//") then
+    lfs.chdir(previous)
+    return nil, no_cmd
+  end
+  local pipe = io.popen(command, "r")
+  local text = pipe and pipe:read("*a") or ""
+  if pipe then
+    pipe:close()
+  end
+  lfs.chdir(previous)
+  return text
+end
+
+---Tell `census` which names `dir` holds when it lists a link (see
+---`win_links.note_names`): one line may be read by two names, a real
+---directory `evil` beside a link ` evil`. `false` when they cannot be listed.
+---@param census Standalone.WinLinks.Census
+---@param dir string
+---@return boolean
+local function with_names(census, dir)
+  if #census.links == 0 then
+    return true
+  end
+  local names = {}
+  local listed = pcall(function()
+    for name in lfs.dir(dir) do
+      if name ~= "." and name ~= ".." then
+        names[#names + 1] = name
+      end
+    end
+  end)
+  if listed then
+    win_links.note_names(census, names)
+  end
+  return listed
+end
+
+---How many directories below one that had to be listed on its own are listed
+---ahead in batches, before the walk asks for them. Bounds the work spent on a
+---subtree the caller never enters (`.git`, `node_modules`).
+local MAX_PREFETCH = 1024
+
+---How long a batch command may grow. `cmd.exe` takes 8191 characters.
+local MAX_COMMAND = 7000
+
+---A value that is new for every run, so that no file of the repository can
+---print a batch mark (see `win_links.batch_mark`).
+local batch_nonce = ("%x%x%s"):format(
+  os.time(),
+  math.floor(os.clock() * 1e6),
+  (tostring({}):match("(%x+)$") or "")
+)
+
+---Directories a batch was asked to list and did not, by `census_key`: they
+---are listed on their own when they are asked about, never batched again.
+---@type table<string, true>
+local batch_tried = {}
+
+---Directories whose subdirectories have been listed ahead, by `census_key`.
+---@type table<string, true>
+local swept = {}
+
+---Does `dir` hold anything? An empty directory is never asked about: the
+---walk finds no entry of it to classify.
+---@param dir string
+---@return boolean
+local function holds_entries(dir)
+  local found = false
+  pcall(function()
+    for name in lfs.dir(dir) do
+      if name ~= "." and name ~= ".." then
+        found = true
+        return
+      end
+    end
+  end)
+  return found
+end
+
+---The subdirectories of `path` that a batch can list: not a link by
+---`census`, not answered yet, a directory that holds something, and a name a
+---batch can carry.
+---@param path string
+---@param rel string `path` relative to the batch's start, `\`-separated; `""` for the start itself.
+---@param census Standalone.WinLinks.Census
+---@param into { path: string, rel: string }[]
+local function batchable_subdirs(path, rel, census, into)
+  local stem = (to_slashes(path):gsub("/+$", ""))
+  pcall(function()
+    for name in lfs.dir(path) do
+      local child = stem .. "/" .. name
+      if
+        name ~= "."
+        and name ~= ".."
+        and win_links.batchable(name)
+        and not win_links.find(census, name)
+        and win_census[census_key(child)] == nil
+        and not batch_tried[census_key(child)]
+        and lfs.attributes(child, "mode") == "directory"
+        and holds_entries(child)
+      then
+        into[#into + 1] = { path = child, rel = rel == "" and name or rel .. "\\" .. name }
+      end
+    end
+  end)
+end
+
+---List ahead the directories below `dir`, level by level, in batches of one
+---`cmd.exe` each (see `win_links.batch_command`), up to `MAX_PREFETCH` of
+---them. Only good listings are kept; a directory a batch did not list is
+---asked about on its own when the walk gets there, as before.
+---
+---Done once per directory: a second sweep would only meet what the first
+---could not list, and would read the whole directory again to find it.
+---@param dir string A directory that has been listed.
+---@param census Standalone.WinLinks.Census Its listing.
+local function prefetch_below(dir, census)
+  if swept[census_key(dir)] then
+    return
+  end
+  swept[census_key(dir)] = true
+  local level = {}
+  batchable_subdirs(dir, "", census, level)
+  local budget = MAX_PREFETCH
+  while #level > 0 and budget > 0 do
+    local next_level = {}
+    local i = 1
+    while i <= #level and budget > 0 do
+      local batch, rels, length = {}, {}, 0
+      while i <= #level and budget > 0 do
+        local piece = #win_links.batch_piece(level[i].rel, batch_nonce, #rels + 1) + 3
+        if length + piece > MAX_COMMAND and #rels > 0 then
+          break
+        end
+        if piece <= MAX_COMMAND then
+          batch[#batch + 1] = level[i]
+          rels[#rels + 1] = level[i].rel
+          length = length + piece
+          budget = budget - 1
+        end
+        i = i + 1
+      end
+      local text = #rels > 0 and run_in(dir, win_links.batch_command(rels, batch_nonce))
+      local listed = text and win_links.parse_batch(text, rels, batch_nonce) or {}
+      for n, entry in ipairs(batch) do
+        local found = listed[n]
+        if found and with_names(found, entry.path) then
+          win_census[census_key(entry.path)] = found
+          batchable_subdirs(entry.path, entry.rel, found, next_level)
+        else
+          batch_tried[census_key(entry.path)] = true
+        end
+      end
+    end
+    level = next_level
+  end
+end
+
+---The links directly inside `dir` on Windows, or `nil` and why.
+---
+---Listed from inside `dir` (see `run_in`). `DIRCMD` is cleared because it
+---presets `dir`'s switches for the whole machine, and `/b` among them removes
+---the very labels this reads. A good listing also lists the directories below
+---ahead, in batches (see `prefetch_below`), so the walk that follows finds
+---them answered instead of starting a process for each.
 ---
 ---Pessimistic on failure: the caller treats an entry it cannot classify as a
 ---link, which is not followed.
@@ -1497,49 +1677,32 @@ local function windows_census(dir)
   if not win_links then
     return fail("standalone.win_links is not available")
   end
-  local no_cmd = "cmd.exe cannot start in a network or device path"
-  if on_network(dir) then
-    -- Not even entered.
-    return fail(no_cmd)
+  -- Below a directory that has been listed, the directories beside this one
+  -- are likely to be asked about next: list them all in one batch (and what
+  -- lies below them) rather than this one alone. This is what keeps a walk
+  -- cheap once a batch run has stopped at `MAX_PREFETCH`.
+  local parent = split_parent(dir)
+  local parent_census = census_key(parent) ~= key and cached_census(parent)
+  if parent_census then
+    prefetch_below(parent, parent_census)
+    if win_census[key] then
+      return win_census[key]
+    end
   end
-  local previous = lfs.currentdir()
-  if not previous or not lfs.chdir(dir) then
-    return fail("it cannot be entered")
+  local text, why = run_in(dir, 'set "DIRCMD=" & dir /a:l 2>nul & echo ' .. win_links.END_MARK)
+  if not text then
+    return fail(why)
   end
-  -- A relative `dir` (`docmap .` keeps the root as `.`) says nothing about
-  -- where it leads, so where the process now stands is what is asked.
-  if on_network(lfs.currentdir() or "//") then
-    lfs.chdir(previous)
-    return fail(no_cmd)
-  end
-  local pipe = io.popen('set "DIRCMD=" & dir /a:l 2>nul & echo ' .. win_links.END_MARK, "r")
-  local text = pipe and pipe:read("*a") or ""
-  if pipe then
-    pipe:close()
-  end
-  lfs.chdir(previous)
 
   local census = win_links.parse(text)
   if not census.complete then
     return fail("cmd.exe did not answer")
   end
-  if #census.links > 0 then
-    -- One line may be read by two names (a real directory `evil` beside a
-    -- link ` evil`); which names the directory holds says when.
-    local names = {}
-    local listed = pcall(function()
-      for name in lfs.dir(dir) do
-        if name ~= "." and name ~= ".." then
-          names[#names + 1] = name
-        end
-      end
-    end)
-    if not listed then
-      return fail("its entries cannot be listed")
-    end
-    win_links.note_names(census, names)
+  if not with_names(census, dir) then
+    return fail("its entries cannot be listed")
   end
   win_census[key] = census
+  prefetch_below(dir, census)
   return census
 end
 

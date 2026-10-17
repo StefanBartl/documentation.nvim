@@ -194,6 +194,80 @@ return function(H)
   end
 
   -- ---------------------------------------------------------------------
+  -- A1. On Windows: a real tree, listed by the real `cmd.exe` in batches.
+  --
+  -- Thirty directories, junctions at several depths (one leading back to the
+  -- top, which `dir /s` would walk round forever), a name with a blank and a
+  -- name no command line can carry. The editor is the oracle for every entry;
+  -- the number of processes is what the batches are for.
+  -- ---------------------------------------------------------------------
+  if is_windows then
+    local shim = load_shim(real_lfs, false)
+    local base = (vim.fn.tempname():gsub("\\", "/")) .. "_shim_batches"
+    local dirs = { "odd%dir/inner", "with space/x" }
+    for i = 1, 4 do
+      for j = 1, 3 do
+        dirs[#dirs + 1] = ("d%d/e%d/f"):format(i, j)
+      end
+    end
+    for _, dir in ipairs(dirs) do
+      H.write(base .. "/tree/" .. dir .. "/file.txt", { "x" })
+    end
+    H.write(base .. "/outside/o.txt", { "o" })
+    -- Made by libuv, not `mklink`: `cmd.exe` would expand the `%` of a name.
+    local function junction(target, link)
+      return vim.uv.fs_symlink(base .. target, base .. link, { junction = true })
+    end
+    local made = junction("/tree", "/tree/d1/back")
+      and junction("/outside", "/tree/d2/e2/f/out")
+      and junction("/outside", "/tree/odd%dir/inner/out")
+      and junction("/outside", "/tree/with space/x/ lead")
+    ok(made, "A1: the junctions can be made")
+
+    local real_popen = io.popen
+    local spawned = 0
+    io.popen = function(...)
+      spawned = spawned + 1
+      return real_popen(...)
+    end
+    local ran, err = pcall(function()
+      local want, got, walked = {}, {}, 0
+      local function walk(surface, dir, into)
+        for name, ty in surface.fs.dir(dir) do
+          into[dir:sub(#base + 2) .. "/" .. name] = ty
+          if ty == "directory" then
+            walked = walked + (surface == shim and 1 or 0)
+            walk(surface, dir .. "/" .. name, into)
+          end
+        end
+      end
+      walk(vim, base .. "/tree", want)
+      walk(shim, base .. "/tree", got)
+      for path, ty in pairs(want) do
+        eq(got[path], ty, "A1: " .. path)
+      end
+      for path in pairs(got) do
+        ok(want[path], "A1: nothing else is listed: " .. path)
+      end
+      eq(got["tree/d1/back"], "link", "A1: the junction back to the top is a link")
+      eq(got["tree/with space/x/ lead"], "link", "A1: ...and one with a leading blank")
+      ok(walked >= 30, "A1: the walk went through the tree: " .. walked)
+      ok(
+        spawned <= 8,
+        ("A1: %d directories, %d processes: a batch per level, not one per directory"):format(
+          walked + 1,
+          spawned
+        )
+      )
+    end)
+    io.popen = real_popen
+    vim.fn.delete(base, "rf")
+    if not ran then
+      error(err, 0)
+    end
+  end
+
+  -- ---------------------------------------------------------------------
   -- A2. A relative root, as `docmap .` and `docmap ../repo` hand it over.
   --
   -- The shim has no `uv.fs_realpath`, so an absolute link target that names
@@ -395,6 +469,47 @@ return function(H)
     ["//nas/share/proj/lib/map"] = { kind = "directory", link = true },
     ["//?/C:/proj"] = { kind = "directory", children = { "docs" } },
     ["//?/C:/proj/docs"] = { kind = "directory", link = true },
+    -- A tree the batches list ahead (C. below). `jroot` leads back to the top,
+    -- `odd%dir` cannot be put on a command line, and `moved` is a directory
+    -- the batch says it stood somewhere else for.
+    ["C:/tree"] = {
+      kind = "directory",
+      children = { "src", "docs", "odd%dir", "moved", "jroot", "top.lua" },
+    },
+    ["C:/tree/top.lua"] = { kind = "file" },
+    ["C:/tree/jroot"] = { kind = "directory", link = true },
+    ["C:/tree/src"] = { kind = "directory", children = { "core", "util", "jx" } },
+    ["C:/tree/src/jx"] = { kind = "directory", link = true },
+    ["C:/tree/src/core"] = { kind = "directory", children = { "deep" } },
+    ["C:/tree/src/core/deep"] = { kind = "directory", children = { "f.lua", "back", "after" } },
+    ["C:/tree/src/core/deep/f.lua"] = { kind = "file" },
+    ["C:/tree/src/core/deep/back"] = { kind = "directory", link = true },
+    ["C:/tree/src/core/deep/after"] = { kind = "directory", link = true },
+    ["C:/tree/src/util"] = { kind = "directory", children = {} },
+    ["C:/tree/docs"] = { kind = "directory", children = { "guide" } },
+    ["C:/tree/docs/guide"] = { kind = "directory", children = { "g.md" } },
+    ["C:/tree/docs/guide/g.md"] = { kind = "file" },
+    ["C:/tree/odd%dir"] = { kind = "directory", children = { "inner" } },
+    ["C:/tree/odd%dir/inner"] = { kind = "directory", children = { "l2" } },
+    ["C:/tree/odd%dir/inner/l2"] = { kind = "directory", link = true },
+    ["C:/tree/moved"] = { kind = "directory", children = { "m" } },
+    ["C:/tree/moved/m"] = { kind = "directory", link = true },
+  }
+
+  -- What `dir /a:l` prints in each directory of the tree, without the end
+  -- mark; a directory not here holds no link. `back` has a target with a line
+  -- break, and the second line is shaped like a batch mark: one the target
+  -- could have written, which must not end the listing of `deep` early.
+  local TREE_LISTINGS = {
+    ["C:/tree"] = "10/08/2026  06:24 PM    <JUNCTION>     jroot [C:\\tree]",
+    ["C:/tree/src"] = "10/08/2026  06:24 PM    <JUNCTION>     jx [C:\\outside]",
+    ["C:/tree/src/core/deep"] = table.concat({
+      "10/08/2026  06:24 PM    <SYMLINKD>     back [x",
+      "__DOCMAP_DIR_0_1__ ]",
+      "10/08/2026  06:24 PM    <SYMLINKD>     after [..\\..]",
+    }, "\r\n"),
+    ["C:/tree/odd%dir/inner"] = "10/08/2026  06:24 PM    <JUNCTION>     l2 [C:\\outside]",
+    ["C:/tree/moved"] = "10/08/2026  06:24 PM    <JUNCTION>     m [C:\\outside]",
   }
 
   local function windows_world()
@@ -451,10 +566,47 @@ return function(H)
         return nil
       end,
     }
+    world.batches = {}
+    ---A batch (`win_links.batch_command`), answered the way `cmd.exe` would:
+    ---where it starts, then for every directory it can enter where it stands,
+    ---the listing and the mark. A directory with no answer at all
+    ---(`C:/proj/broken`) is not entered either.
+    local piece = 'pushd "([^"]*)" 2>nul && %(cd & dir /a:l 2>nul & echo (%S+) & popd%)'
+    local function run_batch(command)
+      local out = { (world.cwd:gsub("/", "\\")) }
+      for rel, mark in command:gmatch(piece) do
+        local path = world.cwd:gsub("/+$", "") .. "/" .. rel:gsub("\\", "/")
+        local entry = DISK[path]
+        if entry and entry.kind == "directory" and not entry.link and path ~= "C:/proj/broken" then
+          local stood = path == "C:/tree/moved" and "C:/tree/elsewhere" or path
+          out[#out + 1] = (stood:gsub("/", "\\"))
+          out[#out + 1] = " Volume in drive C has no label."
+          out[#out + 1] = TREE_LISTINGS[path] or ""
+          out[#out + 1] = mark .. " "
+        end
+      end
+      return table.concat(out, "\r\n") .. "\r\n"
+    end
+    local function answer(text)
+      return {
+        read = function()
+          return text
+        end,
+        close = function()
+          return true
+        end,
+      }
+    end
     world.popen = function(command)
+      if command:find("pushd", 1, true) then
+        world.batches[#world.batches + 1] = { command = command, cwd = world.cwd }
+        return answer(run_batch(command))
+      end
       world.commands[#world.commands + 1] = { command = command, cwd = world.cwd }
       local text = ""
-      if world.cwd == "C:/proj/docs" then
+      if world.cwd:find("^C:/tree") then
+        text = (TREE_LISTINGS[world.cwd] or "") .. "\r\n" .. win_links.END_MARK .. "\r\n"
+      elseif world.cwd == "C:/proj/docs" then
         text = DOCS_LISTING
       elseif world.cwd == "C:/proj/pair" then
         text = "10/08/2026  06:24 PM    <SYMLINKD>      evil [tgt]\r\n" .. win_links.END_MARK
@@ -472,14 +624,7 @@ return function(H)
         text = "File Not Found\r\n" .. win_links.END_MARK .. "\r\n"
       end
       -- "C:/proj/broken": nothing at all, as if cmd.exe never ran.
-      return {
-        read = function()
-          return text
-        end,
-        close = function()
-          return true
-        end,
-      }
+      return answer(text)
     end
     return world
   end
@@ -686,6 +831,79 @@ return function(H)
       eq(dir_types("C:/proj/lost").x, "link", "B: a working directory that cannot be named")
       eq(#world.commands, started, "B: ...is not listed from")
       eq(world.cwd, "C:/start", "B: ...and the working directory is put back")
+
+      -- C. A tree is listed ahead in batches, a process per level rather than
+      -- one per directory, and every answer is the one a listing of its own
+      -- gives.
+      local per_dir, batches, linked = #world.commands, #world.batches, #world.linked_stats
+      local seen = {}
+      local function walk(dir)
+        for name, ty in shim.fs.dir(dir) do
+          seen[dir:sub(#"C:/tree/" + 1) .. (dir == "C:/tree" and "" or "/") .. name] = ty
+          if ty == "directory" then
+            walk(dir .. "/" .. name)
+          end
+        end
+      end
+      walk("C:/tree")
+      local want = {
+        ["jroot"] = "link",
+        ["top.lua"] = "file",
+        ["src"] = "directory",
+        ["src/jx"] = "link",
+        ["src/core"] = "directory",
+        ["src/core/deep"] = "directory",
+        ["src/core/deep/f.lua"] = "file",
+        ["src/core/deep/back"] = "link",
+        ["src/core/deep/after"] = "link",
+        ["src/util"] = "directory",
+        ["docs"] = "directory",
+        ["docs/guide"] = "directory",
+        ["docs/guide/g.md"] = "file",
+        ["odd%dir"] = "directory",
+        ["odd%dir/inner"] = "directory",
+        ["odd%dir/inner/l2"] = "link",
+        ["moved"] = "directory",
+        ["moved/m"] = "link",
+      }
+      for path, ty in pairs(want) do
+        eq(seen[path], ty, "C: " .. path)
+      end
+      for path in pairs(seen) do
+        ok(want[path], "C: nothing else is listed: " .. path)
+      end
+      eq(#world.linked_stats - linked, 0, "C: no link was statted")
+      eq(
+        #world.commands - per_dir,
+        3,
+        "C: only the top, a name no command line can carry and a directory the batch"
+          .. " did not stand in were listed on their own"
+      )
+      eq(#world.batches - batches, 4, "C: ...the rest in a batch per level and one below `odd%dir`")
+      for n = batches + 1, #world.batches do
+        local run = world.batches[n]
+        ok(not run.command:find("C:", 1, true), "C: no path on a batch command: " .. run.command)
+        ok(run.command:find('set "DIRCMD="', 1, true), "C: ...DIRCMD cleared: " .. run.command)
+        ok(
+          run.cwd == "C:/tree" or run.cwd == "C:/tree/odd%dir",
+          "C: ...run from the directory listed on its own: " .. run.cwd
+        )
+        ok(not run.command:find("odd%", 1, true), "C: ...never naming `odd%dir`: " .. run.command)
+      end
+      eq(world.cwd, "C:/start", "C: the working directory is put back")
+      -- The mark-shaped line in the target of `back` did not end the listing
+      -- of `deep`: `after`, listed below it, keeps its target.
+      eq(
+        shim.uv.fs_readlink("C:/tree/src/core/deep/after"),
+        "..\\..",
+        "C: readlink after a forged mark"
+      )
+      local _, _, back_code = shim.uv.fs_readlink("C:/tree/src/core/deep/back")
+      eq(back_code, "EIO", "C: ...and the broken target is still not readable")
+      eq(type_of("C:/tree/moved/m"), "link", "C: lstat in the directory the batch did not stand in")
+      eq(type_of("C:/tree/src/util"), "directory", "C: lstat of a listed-ahead directory")
+      eq(#world.commands - per_dir, 3, "C: ...all of it without another process")
+      eq(#world.batches - batches, 4, "C: ...nor another batch")
     end)
     io.popen, io.stderr = real_popen, real_stderr
     if not ran then

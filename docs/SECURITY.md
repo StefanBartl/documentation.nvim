@@ -200,8 +200,17 @@ there an existing other spelling counts as folding.
 Anything but a plain drive path — `\\host\share`, `\\?\UNC\…`,
 `\\?\GLOBALROOT\…`, `\??\…`, a device or a volume path — is never opened, so
 a link to a share cannot make the machine contact that host. The standalone
-build recognises a link by asking `cmd.exe` (`dir /a:l`, once per directory the
-walk enters) because `lfs.symlinkattributes` is `lfs.attributes` there. A line
+build recognises a link by asking `cmd.exe` (`dir /a:l` for every directory the
+walk enters) because `lfs.symlinkattributes` is `lfs.attributes` there. The
+directories below one are listed ahead in batches: one `cmd.exe` enters many of
+them by relative path (`pushd`), prints where it stands, lists it and prints a
+mark that carries a per-run random value. A listing counts only when the printed
+location is the expected one and its mark arrived, so a link target that prints
+a forged mark or location cannot move one directory's links into another's; a
+name with `% ( ) ^ & ! "`, a non-ASCII byte, a leading blank or a trailing blank
+or dot is never put on such a command line, and whatever a batch does not
+answer is listed on its own as before. `dir /s` is not used: it walks into
+junctions, a junction back up the tree included. A line
 is a link by its shape (`<label> name [target]`); the label is the language's
 and decides nothing, so a translated one (`<JONCTION>`) is a link too and only
 the three English ones are kept as information. Cloud-sync placeholders

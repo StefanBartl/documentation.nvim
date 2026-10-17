@@ -210,4 +210,99 @@ function M.find(census, name)
   return nil
 end
 
+-- ------------------------------------------------------------ batches
+--
+-- One `cmd.exe` per directory is one process start per directory, and on a
+-- real tree that start is nearly the whole run. `dir /s` would list a tree in
+-- one go, but it walks into every junction it meets -- a junction that points
+-- back up the tree makes it list the same directories again and again, and
+-- two of them make that exponential -- so it cannot be pointed at a cloned
+-- repository. What is batched instead is the listing this module already
+-- reads: one command enters many directories in turn, each by a path relative
+-- to where it started, prints where it now stands, lists it with `dir /a:l`
+-- and prints a mark, and every listing is then read exactly as a listing of
+-- its own would be.
+--
+-- A listing is only taken as the listing of a directory when the command said
+-- it stood there (the `cd` line, compared with what is expected), and only up
+-- to a mark that carries a value the repository cannot know in advance: a link
+-- target may hold a line break and so print any line at all, and a mark it
+-- could forge would move the end of one directory's listing into the next.
+-- A directory the batch could not list is simply not answered, and the caller
+-- asks for it alone, the way it always did.
+
+---Can `name` be put between double quotes on a `cmd.exe` command line, and
+---be expected back unchanged from `cd`? Printable ASCII only (anything else
+---is printed in the console's code page, see the module header), without
+---`%` (expanded even between quotes), without `( ) ^ & !` (which the block
+---around it could read) and without a quote; and without a leading blank or
+---a trailing blank or dot, which Windows drops from a path.
+---@param name string One entry name, not a path.
+---@return boolean
+function M.batchable(name)
+  if name == "" or name:find("[^ -~]") or name:find('[%%%(%)%^&!"]') then
+    return false
+  end
+  return not (name:find("^ ") or name:find("[ %.]$"))
+end
+
+---The mark printed after the listing of the `i`th directory of a batch.
+---@param nonce string
+---@param i integer
+---@return string
+function M.batch_mark(nonce, i)
+  return ("__DOCMAP_DIR_%s_%d__"):format(nonce, i)
+end
+
+---The part of a batch command that lists the `i`th directory, `rel`.
+---@param rel string A path relative to where the command starts, `\`-separated, every name `batchable`.
+---@param nonce string
+---@param i integer
+---@return string
+function M.batch_piece(rel, nonce, i)
+  return ('(pushd "%s" 2>nul && (cd & dir /a:l 2>nul & echo %s & popd))'):format(
+    rel,
+    M.batch_mark(nonce, i)
+  )
+end
+
+---The command that lists every directory of `rels`, in order, from the
+---directory it is started in. It begins by printing where that is.
+---@param rels string[]
+---@param nonce string
+---@return string
+function M.batch_command(rels, nonce)
+  local parts = { 'set "DIRCMD=" & cd' }
+  for i, rel in ipairs(rels) do
+    parts[#parts + 1] = M.batch_piece(rel, nonce, i)
+  end
+  return table.concat(parts, " & ")
+end
+
+---Read the output of `batch_command(rels, nonce)`.
+---@param text string Everything the command wrote to stdout.
+---@param rels string[] The same list the command was built from.
+---@param nonce string
+---@return table<integer, Standalone.WinLinks.Census> censuses By index into `rels`; a directory that was not listed, or not where it was expected, has none.
+function M.parse_batch(text, rels, nonce)
+  local out = {}
+  local base, pos = text:match("^%s*([^\r\n]+)()")
+  if not base then
+    return out
+  end
+  local prefix = base:sub(-1) == "\\" and base or base .. "\\"
+  for i, rel in ipairs(rels) do
+    local from, to = text:find(M.batch_mark(nonce, i), pos, true)
+    if from then
+      local segment = text:sub(pos, from - 1)
+      pos = to + 1
+      local stood, rest = segment:match("^%s*([^\r\n]*)()")
+      if stood and stood:lower() == (prefix .. rel):lower() then
+        out[i] = M.parse(segment:sub(rest) .. "\n" .. M.END_MARK)
+      end
+    end
+  end
+  return out
+end
+
 return M
