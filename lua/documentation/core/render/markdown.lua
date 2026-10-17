@@ -48,23 +48,25 @@ local function rebase_links(text, base_dir, out_dir, rel)
   if not text or text == "" or not base_dir then
     return text
   end
-  return (
-    text:gsub("(%]%()([^)]+)(%))", function(open, target, close)
-      if target:match("^%a[%w+.-]*://") or target:sub(1, 1) == "#" then
-        return open .. target .. close
-      end
-      -- Split a trailing anchor off before resolving: `../x.md#section` is a
-      -- path plus a fragment, and the fragment must survive untouched.
-      local path, anchor = target:match("^([^#]*)(#.*)$")
-      path = path or target
-      anchor = anchor or ""
-      if path == "" then
-        return open .. target .. close
-      end
-      local resolved = require("documentation.core.docs").resolve_link(base_dir, path)
-      return open .. rel(out_dir, resolved) .. anchor .. close
-    end)
-  )
+  -- The same link reader as `dead-readme-link` (`docs.inline_links`), and only the destination is rewritten:
+  -- `<...>`, a title and the text around it stay exactly as written, so what the check accepts as a link is
+  -- what the artifact still links.
+  local docs = require("documentation.core.docs")
+  local links = docs.inline_links(text)
+  for k = #links, 1, -1 do
+    local link = links[k]
+    local target = link.dest
+    -- Split a trailing anchor off before resolving: `../x.md#section` is a
+    -- path plus a fragment, and the fragment must survive untouched.
+    local path, anchor = target:match("^([^#]*)(#.*)$")
+    path = path or target
+    anchor = anchor or ""
+    if path ~= "" and not target:match("^%a[%w+.-]*:") then
+      local rebased = rel(out_dir, docs.resolve_link(base_dir, path)) .. anchor
+      text = text:sub(1, link.dest_s - 1) .. rebased .. text:sub(link.dest_e + 1)
+    end
+  end
+  return text
 end
 
 ---Path from the artifact back to a repo-relative target.

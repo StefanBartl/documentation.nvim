@@ -74,6 +74,12 @@ return function(H)
     "local M = {}",
     "return M",
   })
+  dwrite("lua/t/angled/init.lua", {
+    "---@module 't.angled'",
+    '--- See [the defaults](<../cfg/DEFAULTS.lua> "the table") for the values.',
+    "local M = {}",
+    "return M",
+  })
   dwrite("lua/t/frag/init.lua", {
     "---@module 't.frag'",
     "--- A link with both, [here](../cfg/init.lua#usage).",
@@ -112,6 +118,12 @@ return function(H)
     "markdown links: an absolute URL is left exactly as written"
   )
   ok(md:find("](#anchor)", 1, true) ~= nil, "markdown links: a bare anchor is left alone")
+
+  -- `<...>` and a title survive the rewrite: only the destination is rebased (same reader as the check)
+  ok(
+    md:find('](<../../lua/t/cfg/DEFAULTS.lua> "the table")', 1, true) ~= nil,
+    "markdown links: an angled destination with a title keeps both, only the path is rebased"
+  )
 
   -- The fragment is not part of the path and must survive the rewrite.
   ok(

@@ -133,6 +133,147 @@ function M.resolve_link(base_dir, target)
   return table.concat(stack, "/")
 end
 
+---@class Documentation.Docs.InlineLink
+---@field dest string     # The destination exactly as written (escapes and `%xx` intact, no `<>`).
+---@field dest_s integer  # Byte range of `dest` in the scanned text, for rewriting it in place.
+---@field dest_e integer
+---@field angled boolean  # Written as `<...>`.
+
+---@param c string
+---@return boolean
+local function is_blank(c)
+  return c == " " or c == "\t" or c == "\n" or c == "\r"
+end
+
+---Read one inline link whose `](` starts at `s`, or nil when CommonMark would not take it as a link.
+---@param content string
+---@param s integer  # position of `]`
+---@return Documentation.Docs.InlineLink|nil link
+---@return integer next  # where to continue scanning
+local function read_inline_link(content, s)
+  local n = #content
+  local q = s + 2
+  while q <= n and (content:sub(q, q) == " " or content:sub(q, q) == "\t") do
+    q = q + 1
+  end
+  local dest_s, dest_e, angled
+  if content:sub(q, q) == "<" then
+    -- `<...>`: anything but `<`, `>` and a line break, blanks and parentheses included
+    local close = q + 1
+    while close <= n and not content:sub(close, close):match("[<>\n]") do
+      close = close + 1
+    end
+    if content:sub(close, close) ~= ">" then
+      return nil, s + 2
+    end
+    dest_s, dest_e, angled = q + 1, close - 1, true
+    q = close + 1
+  else
+    -- bare: up to a blank or a control character, parentheses balanced, `\(` `\)` escaped
+    local depth, r = 0, q
+    while r <= n do
+      local c = content:sub(r, r)
+      if c == "\\" and r < n and content:sub(r + 1, r + 1):match("%p") then
+        r = r + 2
+      elseif c == "(" then
+        depth = depth + 1
+        r = r + 1
+      elseif c == ")" then
+        if depth == 0 then
+          break
+        end
+        depth = depth - 1
+        r = r + 1
+      elseif is_blank(c) or c:byte() < 32 then
+        break
+      else
+        r = r + 1
+      end
+    end
+    if depth ~= 0 then
+      return nil, s + 2
+    end
+    dest_s, dest_e, angled = q, r - 1, false
+    q = r
+  end
+  -- an optional title, then the closing parenthesis
+  local t = q
+  while t <= n and is_blank(content:sub(t, t)) do
+    t = t + 1
+  end
+  local opener = content:sub(t, t)
+  if t > q and (opener == '"' or opener == "'" or opener == "(") then
+    local closer = opener == "(" and ")" or opener
+    local u = t + 1
+    while u <= n and content:sub(u, u) ~= closer do
+      u = u + (content:sub(u, u) == "\\" and 2 or 1)
+    end
+    if u > n then
+      return nil, s + 2
+    end
+    t = u + 1
+    while t <= n and is_blank(content:sub(t, t)) do
+      t = t + 1
+    end
+  end
+  if content:sub(t, t) ~= ")" then
+    return nil, s + 2
+  end
+  return { dest = content:sub(dest_s, dest_e), dest_s = dest_s, dest_e = dest_e, angled = angled },
+    t + 1
+end
+
+---Every inline Markdown link `[text](destination "title")` in `content`, read as CommonMark does: `<...>` for a
+---destination with blanks or parentheses, otherwise up to the first blank with parentheses balanced and `\(`
+---escapes honoured, then an optional title in `"..."`, `'...'` or `(...)`. What CommonMark would not take as a
+---link -- `[x](int x)` in prose about a C++ lambda -- is not returned. Reference definitions (`[r]: x.md`) are
+---not inline links and are not returned either.
+---
+---One reader for both callers: `check.lua` judges the destination, `render/markdown.lua` rebases it in place
+---(hence the byte range), so the two can never disagree about what the link is.
+---@param content string
+---@return Documentation.Docs.InlineLink[]
+function M.inline_links(content)
+  local out, i = {}, 1
+  while true do
+    local s = content:find("](", i, true)
+    if not s then
+      return out
+    end
+    local link, next_i = read_inline_link(content, s)
+    if link then
+      out[#out + 1] = link
+    end
+    i = next_i
+  end
+end
+
+---The file part of a link destination: the `#fragment` dropped, backslash escapes undone. Not percent-decoded
+---(see `M.percent_decoded`): a file may be named with a literal `%`.
+---@param dest string
+---@return string
+function M.link_path(dest)
+  local path = dest:match("^([^#]*)") or dest
+  return (path:gsub("\\(%p)", "%1"))
+end
+
+---`%20`, `%28` ... decoded, as a Markdown viewer reads them. Control characters (`%00`-`%1F`) and the path
+---separators `%2F`/`%5C` stay encoded: a NUL would end the name early at the file-system call (a dead link that
+---looks alive), and an encoded separator is no separator to a browser either.
+---@param path string
+---@return string
+function M.percent_decoded(path)
+  return (
+    path:gsub("%%(%x%x)", function(hex)
+      local code = tonumber(hex, 16)
+      if code < 32 or code == 0x2F or code == 0x5C then
+        return nil
+      end
+      return string.char(code)
+    end)
+  )
+end
+
 ---Build the name -> entity index this module resolves against.
 ---
 ---One index, three callers' worth of questions: "is this a known name"

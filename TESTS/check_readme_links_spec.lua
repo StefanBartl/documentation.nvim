@@ -73,9 +73,38 @@ return function(H)
     "[placeholder]($REPOS_DIR/elsewhere/x.md)",
     "[braced](${HOME}/y.md)",
     "[escaped-gone](../lua/t/nope%20here.md)",
+    -- a title or <...> must not make a dead target invisible
+    '[titled-gone](../lua/t/gone-titled.md "x")',
+    "[angled-gone](<../lua/t/zz b(1).md>)",
+    -- a file that is really called `$x.md` is found, not taken for a placeholder
+    "[dollar-file](../lua/t/$x.md)",
+    -- %00 is not decoded: the NUL would end the name at the file-system call and pass a dead link
+    "[nul](../lua/t/init.lua%00junk)",
+    -- the file part of a target with an anchor is checked
+    "[frag-gone](../lua/t/gone-frag.md#sec)",
+    "[frag-ok](../lua/t/init.lua#top)",
+    -- balanced and escaped parentheses belong to the name
+    "[balanced](../lua/t/f(1).md)",
+    "[escaped-parens](../lua/t/f\\(1\\).md)",
+    -- an encoded separator is no separator
+    "[slash](../lua%2Ft/init.lua)",
   })
+  H.write(root .. "/lua/t/$x.md", { "x" })
+  H.write(root .. "/lua/t/f(1).md", { "x" })
 
-  local want = "../lua/t/nope%20here.md C:/x/y.md a?b.md gone.md"
+  local want_list = {
+    "../lua/t/nope%20here.md",
+    "C:/x/y.md",
+    "a?b.md",
+    "gone.md",
+    "../lua/t/gone-titled.md",
+    "../lua/t/zz b(1).md",
+    "../lua/t/init.lua%00junk",
+    "../lua/t/gone-frag.md#sec",
+    "../lua%2Ft/init.lua",
+  }
+  table.sort(want_list)
+  local want = table.concat(want_list, " ")
   eq(
     dead_under(false),
     want,
