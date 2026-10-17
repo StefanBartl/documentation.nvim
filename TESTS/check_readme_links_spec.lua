@@ -96,6 +96,32 @@ return function(H)
     "[r-angled-ok]: <../lua/t/a b(1).md> 'title'",
     "[^1]: ../lua/t/not-a-link.md",
   })
+  -- reference definitions follow CommonMark: no interrupting a paragraph, label and title rules, first label
+  -- wins, and an HTML comment is not rendered
+  H.write(root .. "/docs/refs.md", {
+    "Keys:",
+    "[count]: ../lua/t/para-gone.md",
+    "",
+    "# Heading",
+    "[h]: ../lua/t/head-gone.md",
+    "",
+    "[ ]: ../lua/t/blank-label.md",
+    "",
+    "[a[b]: ../lua/t/bracket-label.md",
+    "",
+    "[a\\]b]: ../lua/t/esc-label-gone.md",
+    "",
+    '[tt]: ../lua/t/two-titles.md "a" "b"',
+    "",
+    "[d]: ../lua/t/init.lua",
+    "[D]: ../lua/t/dup-gone.md",
+    "",
+    "<!--",
+    "[old]: ../lua/t/old-gone.md",
+    "-->",
+    "",
+    "<!-- [c](../lua/t/comment-gone.md) --> [y](../lua/t/after-comment-gone.md)",
+  })
   H.write(root .. "/lua/t/$x.md", { "x" })
   H.write(root .. "/lua/t/f(1).md", { "x" })
 
@@ -111,6 +137,9 @@ return function(H)
     "../lua%2Ft/init.lua",
     "../lua/t/gone-ref.md",
     "../lua/t/zz ref.md",
+    "../lua/t/head-gone.md",
+    "../lua/t/esc-label-gone.md",
+    "../lua/t/after-comment-gone.md",
   }
   table.sort(want_list)
   local want = table.concat(want_list, " ")
@@ -134,6 +163,16 @@ return function(H)
     table.concat(placeholders, " "),
     "HOME REPOS_DIR",
     "readme links: a $VAR / ${VAR} target is a placeholder finding"
+  )
+
+  -- A CRLF file read in binary mode (as on POSIX) keeps its `\r`: it ends the line, not the destination.
+  -- Read directly, because Windows' text mode drops the `\r` before the check sees it.
+  local refs =
+    require("documentation.core.docs").reference_links("[r]: a.md\r\n[s]: <b c.md> 't'\r\n")
+  eq(
+    #refs == 2 and refs[1].dest .. "|" .. refs[2].dest or tostring(#refs),
+    "a.md|b c.md",
+    "readme links: a CRLF line end is not part of a reference destination"
   )
 
   vim.fn.delete(root, "rf")

@@ -145,6 +145,70 @@ local function is_blank(c)
   return c == " " or c == "\t" or c == "\n" or c == "\r"
 end
 
+---Read a link destination that starts at `q`, the way CommonMark reads it for inline links and reference
+---definitions alike: `<...>` holds anything but `<`, `>` and a line break, blanks and parentheses included;
+---otherwise it runs up to a blank or a control character, with parentheses balanced and `\(` `\)` escaped.
+---@param content string
+---@param q integer
+---@return integer|nil dest_s  # nil when there is no destination at `q`
+---@return integer dest_e
+---@return boolean angled
+---@return integer next  # first byte after the destination
+local function read_destination(content, q)
+  local n = #content
+  if content:sub(q, q) == "<" then
+    local close = q + 1
+    while close <= n and not content:sub(close, close):match("[<>\n]") do
+      close = close + 1
+    end
+    if content:sub(close, close) ~= ">" then
+      return nil, 0, false, q
+    end
+    return q + 1, close - 1, true, close + 1
+  end
+  local depth, r = 0, q
+  while r <= n do
+    local c = content:sub(r, r)
+    if c == "\\" and r < n and content:sub(r + 1, r + 1):match("%p") then
+      r = r + 2
+    elseif c == "(" then
+      depth = depth + 1
+      r = r + 1
+    elseif c == ")" then
+      if depth == 0 then
+        break
+      end
+      depth = depth - 1
+      r = r + 1
+    elseif is_blank(c) or c:byte() < 32 then
+      break
+    else
+      r = r + 1
+    end
+  end
+  if depth ~= 0 then
+    return nil, 0, false, q
+  end
+  return q, r - 1, false, r
+end
+
+---Read a link title whose opener (`"`, `'` or `(`) is at `t`, up to its first unescaped closer.
+---@param content string
+---@param t integer
+---@return integer|nil next  # first byte after the closer; nil when the title is never closed
+local function read_title(content, t)
+  local opener = content:sub(t, t)
+  local closer = opener == "(" and ")" or opener
+  local u = t + 1
+  while u <= #content and content:sub(u, u) ~= closer do
+    u = u + (content:sub(u, u) == "\\" and 2 or 1)
+  end
+  if u > #content then
+    return nil
+  end
+  return u + 1
+end
+
 ---Read one inline link whose `](` starts at `s`, or nil when CommonMark would not take it as a link.
 ---@param content string
 ---@param s integer  # position of `]`
@@ -156,46 +220,11 @@ local function read_inline_link(content, s)
   while q <= n and (content:sub(q, q) == " " or content:sub(q, q) == "\t") do
     q = q + 1
   end
-  local dest_s, dest_e, angled
-  if content:sub(q, q) == "<" then
-    -- `<...>`: anything but `<`, `>` and a line break, blanks and parentheses included
-    local close = q + 1
-    while close <= n and not content:sub(close, close):match("[<>\n]") do
-      close = close + 1
-    end
-    if content:sub(close, close) ~= ">" then
-      return nil, s + 2
-    end
-    dest_s, dest_e, angled = q + 1, close - 1, true
-    q = close + 1
-  else
-    -- bare: up to a blank or a control character, parentheses balanced, `\(` `\)` escaped
-    local depth, r = 0, q
-    while r <= n do
-      local c = content:sub(r, r)
-      if c == "\\" and r < n and content:sub(r + 1, r + 1):match("%p") then
-        r = r + 2
-      elseif c == "(" then
-        depth = depth + 1
-        r = r + 1
-      elseif c == ")" then
-        if depth == 0 then
-          break
-        end
-        depth = depth - 1
-        r = r + 1
-      elseif is_blank(c) or c:byte() < 32 then
-        break
-      else
-        r = r + 1
-      end
-    end
-    if depth ~= 0 then
-      return nil, s + 2
-    end
-    dest_s, dest_e, angled = q, r - 1, false
-    q = r
+  local dest_s, dest_e, angled, after = read_destination(content, q)
+  if not dest_s then
+    return nil, s + 2
   end
+  q = after
   -- an optional title, then the closing parenthesis
   local t = q
   while t <= n and is_blank(content:sub(t, t)) do
@@ -203,15 +232,11 @@ local function read_inline_link(content, s)
   end
   local opener = content:sub(t, t)
   if t > q and (opener == '"' or opener == "'" or opener == "(") then
-    local closer = opener == "(" and ")" or opener
-    local u = t + 1
-    while u <= n and content:sub(u, u) ~= closer do
-      u = u + (content:sub(u, u) == "\\" and 2 or 1)
-    end
-    if u > n then
+    local done = read_title(content, t)
+    if not done then
       return nil, s + 2
     end
-    t = u + 1
+    t = done
     while t <= n and is_blank(content:sub(t, t)) do
       t = t + 1
     end
@@ -248,53 +273,112 @@ function M.inline_links(content)
   end
 end
 
----Every link reference definition `[label]: destination "title"` in `content`, one per line, read with the same
----destination rules as `M.inline_links` (`<...>` or up to the first blank; then nothing but an optional title).
----A footnote definition `[^1]: text` is no link and is skipped. Only the one-line form is read.
+---Read `line` as a one-line link reference definition `[label]: destination "title"`, or nil when CommonMark
+---would not take it as one. The label holds no unescaped `[`, is not blank and has at most 999 characters; a
+---footnote `[^1]: text` is no link. The destination is read like an inline one, a title needs a blank before it,
+---and nothing but blanks may follow.
+---@param line string
+---@return Documentation.Docs.InlineLink|nil link  # byte range relative to `line`
+---@return string label
+local function read_reference_definition(line)
+  local b = line:match("^ ? ? ?()%[")
+  if not b or line:sub(b + 1, b + 1) == "^" then
+    return nil, ""
+  end
+  local k = b + 1
+  while k <= #line do
+    local c = line:sub(k, k)
+    if c == "\\" then
+      k = k + 2
+    elseif c == "[" then
+      return nil, ""
+    elseif c == "]" then
+      break
+    else
+      k = k + 1
+    end
+  end
+  local label = line:sub(b + 1, k - 1)
+  if k > #line or line:sub(k + 1, k + 1) ~= ":" or label:match("^%s*$") or #label > 999 then
+    return nil, ""
+  end
+  local q = k + 2
+  while q <= #line and line:sub(q, q):match("[ \t]") do
+    q = q + 1
+  end
+  local dest_s, dest_e, angled, after = read_destination(line, q)
+  -- an empty bare destination means it is on the next line, which is not read
+  if not dest_s or (not angled and dest_e < dest_s) then
+    return nil, ""
+  end
+  local t = after
+  while t <= #line and line:sub(t, t):match("[ \t]") do
+    t = t + 1
+  end
+  if t <= #line then
+    if t == after or not line:sub(t, t):match("[\"'(]") then
+      return nil, ""
+    end
+    local done = read_title(line, t)
+    if not done or not line:sub(done):match("^[ \t]*$") then
+      return nil, ""
+    end
+  end
+  return { dest = line:sub(dest_s, dest_e), dest_s = dest_s, dest_e = dest_e, angled = angled },
+    label
+end
+
+---Whether a paragraph is still open after `line`, so that a definition on the next line would be read as more
+---of its text. `open` says whether one was open before `line`. A blank line, a heading, a thematic break or a
+---setext underline ends it; an indented line only continues an open paragraph, otherwise it is code.
+---@param line string
+---@param open boolean
+---@return boolean
+local function paragraph_open_after(line, open)
+  if line:match("^[ \t]*$") or line:match("^ ? ? ?#+$") or line:match("^ ? ? ?#+[ \t]") then
+    return false
+  end
+  local mark = line:match("^ ? ? ?([=*_-])")
+  local bare = line:gsub("[ \t]", "")
+  if
+    mark
+    and bare == mark:rep(#bare)
+    and (#bare >= 3 or (open and (mark == "=" or mark == "-")))
+  then
+    return false
+  end
+  if not open and (line:match("^    ") or line:match("^ ? ? ?\t")) then
+    return false
+  end
+  return true
+end
+
+---Every link reference definition `[label]: destination "title"` in `content`, read with the same destination
+---and title rules as `M.inline_links`. As in CommonMark, a definition cannot interrupt a paragraph (a line such
+---as `[count]: optional` right below prose is text), and of two definitions with the same label (case and
+---blanks folded) only the first is a link anyone can follow. A footnote `[^1]: text` is no link. Only the
+---one-line form is read: a destination or title on the next line, and definitions inside block quotes or list
+---items, are not.
 ---@param content string
 ---@return Documentation.Docs.InlineLink[]
 function M.reference_links(content)
-  local out, pos = {}, 1
-  for line in (content .. "\n"):gmatch("([^\n]*)\n") do
-    local after = not line:match("^ ? ? ?%[%^") and line:match("^ ? ? ?%[[^%]]+%]:()")
-    if after then
-      local q = after
-      while q <= #line and line:sub(q, q):match("[ \t]") do
-        q = q + 1
+  local out, pos, seen, open = {}, 1, {}, false
+  for raw in (content .. "\n"):gmatch("([^\n]*)\n") do
+    -- A CRLF file read in binary mode (as on POSIX) keeps its `\r`; it ends the line, not the destination,
+    -- or the same README would be judged differently on Windows and on the CI runner.
+    local line = raw:gsub("\r$", "")
+    local link, label = read_reference_definition(line)
+    if link and not open then
+      local key = label:lower():gsub("%s+", " "):gsub("^ ", ""):gsub(" $", "")
+      if not seen[key] then
+        seen[key] = true
+        link.dest_s, link.dest_e = pos + link.dest_s - 1, pos + link.dest_e - 1
+        out[#out + 1] = link
       end
-      local dest_s, dest_e, angled
-      if line:sub(q, q) == "<" then
-        local close = line:find(">", q + 1, true)
-        if close and not line:sub(q + 1, close - 1):find("<", 1, true) then
-          dest_s, dest_e, angled = q + 1, close - 1, true
-          q = close + 1
-        end
-      else
-        local blank = line:find("[ \t]", q)
-        local e = (blank or #line + 1) - 1
-        if e >= q then
-          dest_s, dest_e, angled = q, e, false
-          q = e + 1
-        end
-      end
-      if dest_s then
-        local tail = line:sub(q)
-        if
-          tail:match("^%s*$")
-          or tail:match('^%s+".*"%s*$')
-          or tail:match("^%s+'.*'%s*$")
-          or tail:match("^%s+%(.*%)%s*$")
-        then
-          out[#out + 1] = {
-            dest = line:sub(dest_s, dest_e),
-            dest_s = pos + dest_s - 1,
-            dest_e = pos + dest_e - 1,
-            angled = angled,
-          }
-        end
-      end
+    else
+      open = paragraph_open_after(line, open)
     end
-    pos = pos + #line + 1
+    pos = pos + #raw + 1
   end
   return out
 end

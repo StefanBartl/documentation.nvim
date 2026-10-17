@@ -287,7 +287,7 @@ end
 --- plugin reports in other people's trees.
 local resolve_relative_link = docs.resolve_link
 
---- Blank out fenced code blocks and inline code spans, so link-shaped text
+--- Blank out fenced code blocks, inline code spans and HTML comments, so link-shaped text
 --- inside an example (this repo's own `` `[text](url)` `` in
 --- `features_format.md`, describing markdown link syntax rather than
 --- linking anywhere) is never mistaken for a real link. Mirrors
@@ -298,8 +298,15 @@ local resolve_relative_link = docs.resolve_link
 ---@return string
 local function strip_code(content)
   local out = {}
-  local fence = nil
+  local fence, comment = nil, false
   for line in (content .. "\n"):gmatch("([^\n]*)\n") do
+    -- An HTML comment (`<!-- [old]: old.md -->`, often over several lines) is not rendered either: only what
+    -- follows its `-->` is text.
+    if comment then
+      local close = line:find("-->", 1, true)
+      comment = not close
+      line = close and line:sub(close + 3) or ""
+    end
     local f = line:match("^%s*(```+)") or line:match("^%s*(~~~+)")
     if fence then
       if f and f:sub(1, 1) == fence:sub(1, 1) and #f >= #fence then
@@ -310,7 +317,13 @@ local function strip_code(content)
       fence = f
       out[#out + 1] = ""
     else
-      out[#out + 1] = line:gsub("``.-``", ""):gsub("`[^`]+`", "")
+      line = line:gsub("``.-``", ""):gsub("`[^`]+`", ""):gsub("<!%-%-.-%-%->", "")
+      local open = line:find("<!--", 1, true)
+      if open then
+        comment = true
+        line = line:sub(1, open - 1)
+      end
+      out[#out + 1] = line
     end
   end
   return table.concat(out, "\n")
