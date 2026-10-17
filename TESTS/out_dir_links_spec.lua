@@ -445,6 +445,48 @@ return function(H)
     return code, out, err
   end
 
+  -- ---------------------------------------------------------------------
+  -- A generate refusal, through the real `cli.run`: the one line SECURITY.md
+  -- shows, exit 2 like `--check`'s refusals, and the run's list of links not
+  -- followed still printed. It used to escape `cli.run` as a Lua error, which
+  -- the standalone binary printed with a `[string ...]:N:` prefix and a stack
+  -- traceback, exit 1, and the links list was lost.
+  -- ---------------------------------------------------------------------
+  do
+    local root, outside = project("cli_generate_refused")
+    vim.fn.mkdir(root .. "/docs", "p")
+    ok(H.link(outside .. "/map", root .. "/docs/map", true), "cli generate: a link can be made")
+    H.write(outside .. "/src/x.lua", { "return {}" })
+    ok(
+      H.link(outside .. "/src", root .. "/lua/t/leaving", true),
+      "cli generate: a source link can be made"
+    )
+    local code, out, err = run_cli(build(root), {})
+    eq(code, 2, "cli generate: a refusal to write the map is exit 2: " .. err)
+    ok(
+      err:find("\ndocmap: refusing to write the map: docs/map is a link", 1, true),
+      "cli generate: ...one line that starts with the refusal: " .. err
+    )
+    ok(not err:find("[string", 1, true), "cli generate: ...no source position: " .. err)
+    ok(not err:find("traceback", 1, true), "cli generate: ...no traceback: " .. err)
+    ok(
+      err:find(" not followed:\n", 1, true) and err:find("leaving", 1, true),
+      "cli generate: ...and the links not followed are still listed: " .. err
+    )
+    ok(not out:find("wrote ", 1, true), "cli generate: ...and nothing is said to be written")
+    assert_untouched(outside, "cli generate")
+
+    local unsafe = build(project("cli_generate_unsafe"))
+    unsafe.out_dir = "../elsewhere"
+    code, out, err = run_cli(unsafe, {})
+    eq(code, 2, "cli generate: an unsafe out_dir is a refusal too: " .. err)
+    ok(
+      err:find("^docmap: opts.out_dir is not a safe relative path: ../elsewhere\n$"),
+      "cli generate: ...said as one line: " .. err
+    )
+    ok(not out:find("wrote ", 1, true), "cli generate: ...and nothing is written there either")
+  end
+
   ---A project with its map written (so `--check` gets as far as the report),
   ---and a file outside it that must come out as it went in.
   local function with_map(label)

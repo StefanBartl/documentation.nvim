@@ -433,6 +433,17 @@ function GATES.standalone()
     )
     return
   end
+  -- The refusal is one line and exit 2, as `--check`'s are; it used to escape
+  -- as a Lua error, printed with a stack traceback, exit 1.
+  if refused.code ~= 2 or (refused.stderr or ""):find("traceback", 1, true) then
+    fail(
+      ("standalone build refused a linked docs/map with exit %d, not as one line with exit 2:\n    %s"):format(
+        refused.code,
+        (refused.stderr or ""):sub(1, 600)
+      )
+    )
+    return
+  end
   for _, name in ipairs({ "index.html", "module_map.json", "overview.md" }) do
     local victim = table.concat(vim.fn.readfile(links_dir .. "/outside/map/" .. name), "\n")
     if victim ~= "VICTIM" then

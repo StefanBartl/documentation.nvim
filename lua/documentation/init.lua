@@ -565,7 +565,10 @@ function M.write_artifacts(ir, findings, opts)
   local root = opts.root:gsub("\\", "/"):gsub("/+$", "")
   local out_dir = safe_out_dir(opts.out_dir)
   if not out_dir then
-    error(("docmap: opts.out_dir is not a safe relative path: %s"):format(tostring(opts.out_dir)))
+    error(
+      ("docmap: opts.out_dir is not a safe relative path: %s"):format(tostring(opts.out_dir)),
+      0
+    )
   end
   local written = {}
 
@@ -591,7 +594,10 @@ function M.write_artifacts(ir, findings, opts)
   table.sort(names)
   local plain, refusal = require("documentation.core.safe_fs").check_output(root, out_dir, names)
   if not plain then
-    error(("docmap: refusing to write the map: %s"):format(refusal))
+    -- Level 0: the message is the whole message. `core/cli.lua` prints it
+    -- as it stands, and a `[string "documentation"]:594:` in front of it
+    -- says nothing to the person whose `docs/map` is a link.
+    error(("docmap: refusing to write the map: %s"):format(refusal), 0)
   end
 
   for name, content in pairs(artifacts) do

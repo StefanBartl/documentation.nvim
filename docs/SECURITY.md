@@ -71,6 +71,13 @@ docmap: refusing to write the map: docs/map is a link (a symlink or a junction),
 so the map would be written wherever it leads. Replace it with a plain directory.
 ```
 
+The command line (`docmap`, `scripts/gen_map.lua`) prints that one line on
+stderr, after the run's list of links not followed, and exits with **2**: the
+code `--check` has for a refusal to read, and not 1, which says the map is
+stale or the tree has drift. An `out_dir` that is not a safe relative path is
+refused the same way. Called from Lua, `write_artifacts` and `generate` raise
+the same message as an error.
+
 This holds however `out_dir` got its value — the default, a flag, the host's
 options, or a `.docmap.json` in the repository — because the string is
 relative to the root, so the links on the way are the repository's. A link that

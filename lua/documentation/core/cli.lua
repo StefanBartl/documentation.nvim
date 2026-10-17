@@ -21,7 +21,8 @@ local M = {}
 
 ---Exit code of a run that refused to go on and so reached no verdict: `--check`
 ---asked to read the committed map through an `out_dir` that is not a plain
----relative path, or through a link.
+---relative path, or through a link; or a generate asked to write the map
+---through one (see `docs/SECURITY.md`).
 ---
 ---Not 1, which says "the map is stale, or the tree has error-severity drift".
 ---`--check --lenient` is how a caller reads that code as staleness alone
@@ -246,14 +247,40 @@ local function report_skipped_links()
   end
 end
 
+---The refusal in an error `write_artifacts` raised, or `nil` when the error is
+---something else.
+---
+---Matched on the two sentences `write_artifacts` refuses with. They are raised
+---at level 0 and so start the message; anything in front (a caller that
+---re-raised one with a position) is dropped all the same.
+---@param err any
+---@return string?
+local function write_refusal(err)
+  if type(err) ~= "string" then
+    return nil
+  end
+  for _, lead in ipairs({
+    "docmap: refusing to write the map: ",
+    "docmap: opts.out_dir is not a safe relative path: ",
+  }) do
+    local at = err:find(lead, 1, true)
+    if at then
+      return err:sub(at)
+    end
+  end
+  return nil
+end
+
 ---Run the CLI over `opts` with `argv` (`_G.arg`-shaped: `--check`, `--lenient`,
 ---`--full`, `--exclude=<path>`, `--languages=<a,b>`). Writes to stdout/stderr
 ---as a side effect; returns the process exit code rather than calling
 ---`os.exit`/`vim.cmd("cq ...")`, so the caller decides how to actually exit.
 ---
 ---`0` is a pass, `1` a verdict against the tree (a stale map, or error-severity
----drift without `--lenient`) and `2` a `--check` that refused to read the
----committed map and so has no verdict at all; `--lenient` does not soften it.
+---drift without `--lenient`) and `2` a refusal: a `--check` that refused to read
+---the committed map and so has no verdict at all (`--lenient` does not soften
+---it), or a generate that refused to write the map. A refusal is one
+---`docmap: refusing to ...` line on stderr, never a Lua traceback.
 ---@param opts Documentation.Opts
 ---@param argv string[]
 ---@return integer exit_code
@@ -470,8 +497,25 @@ function M.run(opts, argv)
     return 0
   end
 
-  local ir, findings, written = docmap.generate(opts)
+  -- `docmap.generate` in its two halves, so the links the scan left alone are
+  -- reported before the write can refuse: a refusal used to skip that list.
+  local ir, findings = docmap.scan_full(opts)
   report_skipped_links()
+  local wrote, written = pcall(docmap.write_artifacts, ir, findings, opts)
+  if not wrote then
+    -- A refusal to write the map (an `out_dir` that is not a plain relative
+    -- path, or a link on the way to it) is said as the one line it is and
+    -- has `--check`'s exit code for a refusal: no map was written, and
+    -- regenerating will not change that. It used to escape as a Lua error,
+    -- which the standalone binary printed as a traceback, exit 1. Anything
+    -- else (a disk that will not take the file) is raised as before.
+    local refusal = write_refusal(written)
+    if not refusal then
+      error(written, 0)
+    end
+    io.stderr:write(refusal .. "\n")
+    return REFUSED
+  end
   for _, w in ipairs(written) do
     io.stdout:write("wrote " .. w .. "\n")
   end

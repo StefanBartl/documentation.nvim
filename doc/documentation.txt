@@ -1141,6 +1141,9 @@ If one is a link the run stops, names it, and writes nothing: >
     junction), so the map would be written wherever it leads. Replace it with
     a plain directory.
 <
+On the command line that is the one line on stderr, and the exit code is 2
+(as for a refusal of `--check`), not 1.
+
 This holds whoever set `out_dir` (the default, a flag, your options or a
 `.docmap.json` in the repository), and for a link that stays inside the
 project too. It covers `module_map.json`, `index.html`, `overview.md`,
