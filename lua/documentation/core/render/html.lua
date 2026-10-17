@@ -561,7 +561,7 @@ details>summary{cursor:pointer;font-size:13px;color:var(--muted);padding:8px 0}
 .explainpop{max-width:340px}
 .explainpop .fn-desc{white-space:normal;line-height:1.5}
 #view-analysis{padding:22px 26px 60px}
-#antoggle{margin-bottom:14px}
+#antoggle{margin-bottom:14px;flex-wrap:wrap}
 .cl-h{margin:18px 0 6px;font-size:14px}
 .cl-h .cl-src{font-weight:400;font-size:11.5px;color:var(--muted);margin-left:8px}
 .cl-list{list-style:none;margin:0;padding:0}
@@ -10166,8 +10166,8 @@ function M.render(ir, findings, opts)
     -- The runtime-fed tools as one group at the end of the toolbar: what ran, as opposed to what the
     -- source says. A group inside the same toolbar rather than a tab of its own, so `#tab=analysis&atool=…`
     -- links and the selection logic (`#antoggle .anview-btn`) keep working unchanged.
-    '<span class="anview-group" role="group" aria-label="Runtime">',
-    '<span class="anview-group-label">Runtime</span>',
+    '<span class="anview-group" role="group" aria-labelledby="anview-runtime-label">',
+    '<span class="anview-group-label" id="anview-runtime-label">Runtime</span>',
     '<button class="anview-btn plugin-gated" data-atool="telemetry" data-explain="atool.telemetry">Telemetry</button>',
     '<button class="anview-btn plugin-gated" data-atool="loaded" data-explain="atool.loaded">Loaded</button>',
     -- `plugin-gated` like its two neighbours, and for the same reason — the

@@ -36,8 +36,9 @@ return function(H)
   -- The runtime-fed tools sit together in one labelled group at the end of the toolbar; their `data-atool`
   -- values (and so `#tab=analysis&atool=…` links) are unchanged.
   do
-    local group =
-      src:match('(<span class="anview%-group" role="group" aria%-label="Runtime">.-"</span>")')
+    local group = src:match(
+      '(<span class="anview%-group" role="group" aria%-labelledby="anview%-runtime%-label">.-"</span>")'
+    )
     ok(group ~= nil, "analysis: a Runtime group exists in the toolbar")
     for _, name in ipairs({ "telemetry", "loaded" }) do
       ok(
@@ -49,6 +50,18 @@ return function(H)
       group and group:find("startup_graph_button", 1, true) ~= nil,
       "analysis: the Startup button is in the Runtime group"
     )
+    -- the toolbar wraps instead of clipping its end, where the Runtime group sits
+    ok(
+      src:find("#antoggle{margin-bottom:14px;flex-wrap:wrap}", 1, true) ~= nil,
+      "analysis: the toolbar wraps"
+    )
+    ok(
+      src:find(".anview-group-label+button{border-left:1px solid var(--line)}", 1, true) ~= nil,
+      "analysis: the first button in the group keeps its separator"
+    )
+    -- the list entry, not the `local startup_graph_button, ...` declaration
+    local _, startups = src:gsub("\n%s*startup_graph_button,\n", "")
+    ok(startups == 1, "analysis: the Startup button is placed once, inside the group")
     local outside = src:gsub('<span class="anview%-group".-"</span>"', "")
     for _, name in ipairs({ "telemetry", "loaded" }) do
       ok(
