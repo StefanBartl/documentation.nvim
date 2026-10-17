@@ -18,8 +18,14 @@ exactly as they do in the editor.
 **[pdfport.nvim](https://github.com/StefanBartl/pdfport.nvim)** — renders
 `overview.md` to `overview.pdf` when `opts.pdf` is on.
 
+**[insights.nvim](https://github.com/StefanBartl/insights.nvim)** — the broad,
+shallow counterpart. This plugin persists a map and gates CI on it; that one
+answers ad-hoc questions about the project you are in (who imports this, what
+looks unused, where the `TODO`s are) from a scan that keeps nothing. Neither
+needs the other; they meet only in the hover float, see [hover.md](hover.md).
+
 Everything except `lib.nvim` is soft: without them the map is generated
-unchanged, minus those panels. See [requirements.md](requirements.md).
+unchanged, minus those panels (insights.nvim adds no panel at all). See [requirements.md](requirements.md).
 
 The full architecture story — where docs, static analysis and runtime each
 belong, and why `runtime-analysis.nvim` is a separate plugin rather than a
