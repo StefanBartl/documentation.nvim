@@ -227,7 +227,7 @@ end
 ---destination with blanks or parentheses, otherwise up to the first blank with parentheses balanced and `\(`
 ---escapes honoured, then an optional title in `"..."`, `'...'` or `(...)`. What CommonMark would not take as a
 ---link -- `[x](int x)` in prose about a C++ lambda -- is not returned. Reference definitions (`[r]: x.md`) are
----not inline links and are not returned either.
+---not inline links: `M.reference_links` reads them.
 ---
 ---One reader for both callers: `check.lua` judges the destination, `render/markdown.lua` rebases it in place
 ---(hence the byte range), so the two can never disagree about what the link is.
@@ -246,6 +246,72 @@ function M.inline_links(content)
     end
     i = next_i
   end
+end
+
+---Every link reference definition `[label]: destination "title"` in `content`, one per line, read with the same
+---destination rules as `M.inline_links` (`<...>` or up to the first blank; then nothing but an optional title).
+---A footnote definition `[^1]: text` is no link and is skipped. Only the one-line form is read.
+---@param content string
+---@return Documentation.Docs.InlineLink[]
+function M.reference_links(content)
+  local out, pos = {}, 1
+  for line in (content .. "\n"):gmatch("([^\n]*)\n") do
+    local after = not line:match("^ ? ? ?%[%^") and line:match("^ ? ? ?%[[^%]]+%]:()")
+    if after then
+      local q = after
+      while q <= #line and line:sub(q, q):match("[ \t]") do
+        q = q + 1
+      end
+      local dest_s, dest_e, angled
+      if line:sub(q, q) == "<" then
+        local close = line:find(">", q + 1, true)
+        if close and not line:sub(q + 1, close - 1):find("<", 1, true) then
+          dest_s, dest_e, angled = q + 1, close - 1, true
+          q = close + 1
+        end
+      else
+        local blank = line:find("[ \t]", q)
+        local e = (blank or #line + 1) - 1
+        if e >= q then
+          dest_s, dest_e, angled = q, e, false
+          q = e + 1
+        end
+      end
+      if dest_s then
+        local tail = line:sub(q)
+        if
+          tail:match("^%s*$")
+          or tail:match('^%s+".*"%s*$')
+          or tail:match("^%s+'.*'%s*$")
+          or tail:match("^%s+%(.*%)%s*$")
+        then
+          out[#out + 1] = {
+            dest = line:sub(dest_s, dest_e),
+            dest_s = pos + dest_s - 1,
+            dest_e = pos + dest_e - 1,
+            angled = angled,
+          }
+        end
+      end
+    end
+    pos = pos + #line + 1
+  end
+  return out
+end
+
+---Inline links and reference definitions together, in the order they appear (`dest_s`): every destination a
+---reader can follow, which is what the dead-link check judges.
+---@param content string
+---@return Documentation.Docs.InlineLink[]
+function M.links(content)
+  local all = M.inline_links(content)
+  for _, link in ipairs(M.reference_links(content)) do
+    all[#all + 1] = link
+  end
+  table.sort(all, function(a, b)
+    return a.dest_s < b.dest_s
+  end)
+  return all
 end
 
 ---The file part of a link destination: the `#fragment` dropped, backslash escapes undone. Not percent-decoded

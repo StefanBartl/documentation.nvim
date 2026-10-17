@@ -88,6 +88,13 @@ return function(H)
     "[escaped-parens](../lua/t/f\\(1\\).md)",
     -- an encoded separator is no separator
     "[slash](../lua%2Ft/init.lua)",
+    -- a reference definition is read with the same rules; a footnote is no link
+    "",
+    '[r-gone]: ../lua/t/gone-ref.md "t"',
+    "[r-angled-gone]: <../lua/t/zz ref.md>",
+    "[r-ok]: ../lua/t/init.lua",
+    "[r-angled-ok]: <../lua/t/a b(1).md> 'title'",
+    "[^1]: ../lua/t/not-a-link.md",
   })
   H.write(root .. "/lua/t/$x.md", { "x" })
   H.write(root .. "/lua/t/f(1).md", { "x" })
@@ -102,6 +109,8 @@ return function(H)
     "../lua/t/init.lua%00junk",
     "../lua/t/gone-frag.md#sec",
     "../lua%2Ft/init.lua",
+    "../lua/t/gone-ref.md",
+    "../lua/t/zz ref.md",
   }
   table.sort(want_list)
   local want = table.concat(want_list, " ")

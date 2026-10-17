@@ -341,7 +341,7 @@ local function check_readme_links(ir, findings, opts)
     fd:close()
     local base_dir = rel_path:match("(.*)/[^/]+$") or ""
     local seen = {}
-    for _, link in ipairs(docs.inline_links(content)) do
+    for _, link in ipairs(docs.links(content)) do
       local target = link.dest
       -- A URL scheme (`mailto:`, `tel:`, `https://`) names no file. It takes
       -- two characters, so a Windows drive letter (`C:/x`) is not one. A bare
