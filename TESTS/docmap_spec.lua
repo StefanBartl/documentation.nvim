@@ -2445,6 +2445,17 @@ return function(H)
     0,
     "docmap.check: the sibling prefix matches whole path segments too"
   )
+  eq(
+    layer_hits(
+      vim.tbl_extend(
+        "force",
+        base,
+        { layers = { { from = "demo.a", to = "demo.b", allow = { "demo.b" } } } }
+      )
+    ),
+    0,
+    "docmap.check: allow exempts a shared target in the pair form as well"
+  )
 
   -- Handle graph queries, against a live install().
   local handle = require("documentation").install(base)
