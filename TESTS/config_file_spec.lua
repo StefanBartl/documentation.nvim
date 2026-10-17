@@ -268,7 +268,12 @@ return function(H)
   -- ---------------------------------------------------------------------
 
   local own = cfg.build((vim.fn.getcwd():gsub("\\", "/"):gsub("/+$", "")))
-  eq(#(own.layers or {}), 3, "this repo's own .docmap.json still supplies its three layer rules")
+  eq(#(own.layers or {}), 4, "this repo's own .docmap.json still supplies its four layer rules")
+  eq(
+    (own.layers[4] or {}).siblings,
+    "documentation.core.lang",
+    "the fourth rule keeps the language backends apart from each other"
+  )
   eq(
     own.repo_url,
     "https://github.com/StefanBartl/documentation.nvim",

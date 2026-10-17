@@ -190,9 +190,16 @@
 ---One layering rule: modules whose `@module` starts with `from` may not
 ---require modules whose `@module` starts with `to`. Both are plain prefixes,
 ---not patterns — `lib.vim` matches `lib.vim.buffer` but never `lib.vimx`.
+---
+---Second form, `siblings`: no direct child of that prefix may require another
+---direct child (`x.a.*` may not reach `x.b.*`), so "no backend requires
+---another" is one rule instead of one pair per two backends. A rule carries
+---either `from`/`to` or `siblings`; `allow` exempts shared targets in both.
 ---@class Documentation.LayerRule
----@field from string Module prefix of the requiring side.
----@field to string Module prefix that side must not reach into.
+---@field from string? Module prefix of the requiring side (pair form).
+---@field to string? Module prefix that side must not reach into (pair form).
+---@field siblings string? Module prefix whose direct children may not require each other (sibling form).
+---@field allow string[]? Module prefixes that may be required anyway — the shared modules the layering is designed around.
 ---@field why string? Appended to the finding message.
 
 ---@alias Documentation.Severity "error"|"warn"|"info"

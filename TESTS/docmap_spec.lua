@@ -2420,6 +2420,32 @@ return function(H)
     "docmap.check: prefixes match whole path segments, so 'demo.' matches nothing"
   )
 
+  -- The sibling form: `demo.a` requiring `demo.b` crosses from one direct
+  -- child of `demo` into another, which is exactly what `siblings` forbids,
+  -- and `allow` names the shared child every sibling may reach.
+  eq(
+    layer_hits(vim.tbl_extend("force", base, { layers = { { siblings = "demo" } } })),
+    1,
+    "docmap.check: the sibling form fires when one child requires another"
+  )
+  eq(
+    layer_hits(
+      vim.tbl_extend("force", base, { layers = { { siblings = "demo", allow = { "demo.b" } } } })
+    ),
+    0,
+    "docmap.check: the sibling form leaves an allowed shared child alone"
+  )
+  eq(
+    layer_hits(vim.tbl_extend("force", base, { layers = { { siblings = "demo.a" } } })),
+    0,
+    "docmap.check: the sibling form only judges edges between two children of its prefix"
+  )
+  eq(
+    layer_hits(vim.tbl_extend("force", base, { layers = { { siblings = "dem" } } })),
+    0,
+    "docmap.check: the sibling prefix matches whole path segments too"
+  )
+
   -- Handle graph queries, against a live install().
   local handle = require("documentation").install(base)
   eq(#handle.requires("lua/demo/a"), 1, "docmap.handle: requires() returns the outgoing edge")

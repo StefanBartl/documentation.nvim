@@ -450,6 +450,28 @@ require into the registry's own `KNOWN_BACKENDS` list — the one place allowed
 to name a specific backend module — fixed it, rather than suppressing the
 finding.
 
+**A fourth rule keeps the backends apart from each other.** No backend may
+require another; what two backends share lives in a module written to be
+shared. The pair form cannot say that without one pair per two backends, so
+`layers` has a second form, `siblings`: no direct child of the prefix may
+require another direct child, and `allow` names the shared ones.
+
+```json
+{
+  "siblings": "documentation.core.lang",
+  "allow": [
+    "documentation.core.lang.ecma",
+    "documentation.core.lang.cfamily",
+    "documentation.core.lang.glossary"
+  ]
+}
+```
+
+`js`/`ts`/`tsx` register through `ecma`, `c`/`cpp` through `cfamily`, and
+`lua`/`ecma` read their lookup data from `glossary/*`; everything else is a
+violation. The schema (`docs/docmap.schema.json`) accepts either form, so
+existing pair rules stay valid unchanged.
+
 ### The same rule applies to `lib.nvim`, and no check enforces it
 
 `lib.nvim` splits the way this plugin does: `lib.lua.*` is pure Lua,

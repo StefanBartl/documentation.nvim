@@ -48,17 +48,43 @@
     "branch": { "type": "string", "description": "Branch used in source links. Auto-derived from the repository's current branch when omitted and a Neovim host can reach git; falls back to \"main\" otherwise." },
 
     "layers": {
-      "description": "Architecture rules. A module under `from` requiring one under `to` is reported as layer-violation.",
+      "description": "Architecture rules. A module under `from` requiring one under `to` is reported as layer-violation; in the `siblings` form, a direct child of that prefix requiring another direct child is. Targets under an `allow` prefix are exempt.",
       "type": "array",
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["from", "to"],
-        "properties": {
-          "from": { "type": "string", "description": "Module prefix the rule applies to." },
-          "to": { "type": "string", "description": "Module prefix it may not require." },
-          "why": { "type": "string", "description": "Shown with the finding. Write the reason, not the rule." }
-        }
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["from", "to"],
+            "properties": {
+              "from": { "type": "string", "description": "Module prefix the rule applies to." },
+              "to": { "type": "string", "description": "Module prefix it may not require." },
+              "allow": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Module prefixes under `to` that may be required anyway."
+              },
+              "why": { "type": "string", "description": "Shown with the finding. Write the reason, not the rule." }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["siblings"],
+            "properties": {
+              "siblings": {
+                "type": "string",
+                "description": "Module prefix whose direct children may not require each other (`x.a.*` must not reach `x.b.*`)."
+              },
+              "allow": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Module prefixes of the shared children every sibling may require."
+              },
+              "why": { "type": "string", "description": "Shown with the finding. Write the reason, not the rule." }
+            }
+          }
+        ]
       }
     },
     "checks": {

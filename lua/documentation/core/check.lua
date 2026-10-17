@@ -1678,7 +1678,9 @@ local function check_require_not_declared(ir, findings, opts)
 end
 
 --- Architectural layering, expressed as module-path prefixes: modules under
---- `rule.from` may not require modules under `rule.to`. Opt-in via
+--- `rule.from` may not require modules under `rule.to`, or, in the sibling
+--- form, no direct child of `rule.siblings` may require another one; targets
+--- under a `rule.allow` prefix are exempt in both forms. Opt-in via
 --- `opts.layers`, because a layering that is not declared cannot be violated —
 --- there is no generic default that would be true of an arbitrary tree.
 ---@param ir Documentation.IR
@@ -1699,30 +1701,84 @@ local function check_layers(ir, findings, opts)
     return module == prefix or module:sub(1, #prefix + 1) == prefix .. "."
   end
 
+  ---The direct child of `prefix` that `module` sits in (`prefix.x` for
+  ---`prefix.x.y`), or nil when `module` is not strictly below `prefix`.
+  ---@param module string
+  ---@param prefix string
+  ---@return string?
+  local function child_of(module, prefix)
+    if module == prefix or not under(module, prefix) then
+      return nil
+    end
+    local seg = module:sub(#prefix + 2):match("^[^.]+")
+    return seg and (prefix .. "." .. seg) or nil
+  end
+
+  ---Whether `module` is one of the rule's explicitly shared targets.
+  ---@param module string
+  ---@param rule Documentation.LayerRule
+  ---@return boolean
+  local function allowed(module, rule)
+    for _, prefix in ipairs(rule.allow or {}) do
+      if under(module, prefix) then
+        return true
+      end
+    end
+    return false
+  end
+
+  ---Which two layers an edge crosses under `rule`, or nil when it does not
+  ---break the rule. Two forms share one finding: the pair form (`from`/`to`,
+  ---one prefix may not reach another) and the sibling form (`siblings`: no
+  ---direct child of the prefix may reach another direct child). The sibling
+  ---form exists because "no backend requires another" over 23 backends would
+  ---otherwise be 23 x 22 hand-written pairs that go stale with every backend.
+  ---@param src string
+  ---@param dst string
+  ---@param rule Documentation.LayerRule
+  ---@return string? from_layer
+  ---@return string? to_layer
+  local function crossing(src, dst, rule)
+    if allowed(dst, rule) then
+      return nil
+    end
+    if rule.siblings then
+      local a, b = child_of(src, rule.siblings), child_of(dst, rule.siblings)
+      if a and b and a ~= b then
+        return a, b
+      end
+      return nil
+    end
+    if not (rule.from and rule.to) then
+      return nil
+    end
+    -- `from` must be outside `rule.to`'s own scope, not just inside
+    -- `rule.from`'s — otherwise a rule like `{from="documentation.core",
+    -- to="documentation.core.lang"}` also fires on `core.lang.js`
+    -- requiring `core.lang.ecma`: both modules sit trivially "under"
+    -- `documentation.core` by prefix, so without this exclusion every
+    -- intra-`core.lang` require would be misread as the very
+    -- core-into-lang boundary crossing the rule exists to catch, not
+    -- an edge that stays inside `core.lang` the whole way.
+    if under(src, rule.from) and not under(src, rule.to) and under(dst, rule.to) then
+      return rule.from, rule.to
+    end
+    return nil
+  end
+
   for _, edge in ipairs(ir.edges or {}) do
     if edge.kind == "require" then
       local from = ir.nodes[edge.from]
       local to = ir.nodes[edge.to]
       if from.module and to.module then
         for _, rule in ipairs(rules) do
-          -- `from` must be outside `rule.to`'s own scope, not just inside
-          -- `rule.from`'s — otherwise a rule like `{from="documentation.core",
-          -- to="documentation.core.lang"}` also fires on `core.lang.js`
-          -- requiring `core.lang.ecma`: both modules sit trivially "under"
-          -- `documentation.core` by prefix, so without this exclusion every
-          -- intra-`core.lang` require would be misread as the very
-          -- core-into-lang boundary crossing the rule exists to catch, not
-          -- an edge that stays inside `core.lang` the whole way.
-          if
-            under(from.module, rule.from)
-            and not under(from.module, rule.to)
-            and under(to.module, rule.to)
-          then
+          local from_layer, to_layer = crossing(from.module, to.module, rule)
+          if from_layer then
             add(findings, "warn", "layer-violation", edge.from, {
               from = from.module,
               to = to.module,
-              from_layer = rule.from,
-              to_layer = rule.to,
+              from_layer = from_layer,
+              to_layer = to_layer,
               -- Carried as a value rather than a second template: the
               -- rule's `why` is the *caller's* prose, not this
               -- catalogue's, so it is never translatable and never

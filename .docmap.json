@@ -17,6 +17,15 @@
       "from": "documentation.core",
       "to": "documentation.core.lang",
       "why": "language backends are reached through core/lang_registry.lua, never directly"
+    },
+    {
+      "siblings": "documentation.core.lang",
+      "allow": [
+        "documentation.core.lang.ecma",
+        "documentation.core.lang.cfamily",
+        "documentation.core.lang.glossary"
+      ],
+      "why": "a backend stands alone; what two backends share lives in a shared module, not in one of them"
     }
   ],
   "external_repos": {
